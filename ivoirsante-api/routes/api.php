@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\V1\TriageController;
 use App\Http\Controllers\HealthController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -25,4 +26,18 @@ Route::middleware('throttle:api')->group(function () {
     Route::get('/user', function (Request $request) {
         return $request->user();
     })->middleware('auth:sanctum');
+
+    /*
+    |----------------------------------------------------------------------
+    | API v1
+    |----------------------------------------------------------------------
+    | Module 1 — Triage et orientation médicale (F1.1 → F1.8).
+    | Endpoints publics pour l'instant (auth téléphone+OTP non encore branchée).
+    */
+    Route::prefix('v1')->group(function () {
+        Route::get('/symptomes', [TriageController::class, 'symptomes']);              // F1.1
+        Route::post('/triage/analyser', [TriageController::class, 'analyser']);        // F1.3
+        Route::get('/triage/historique', [TriageController::class, 'historique']);     // F1.6
+        Route::get('/triage/{triage}/fiche', [TriageController::class, 'fiche']);      // F1.8
+    });
 });

@@ -15,11 +15,13 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
-        // User::factory(10)->create();
-
+        // Utilisateur de test (sera remplacé par l'auth téléphone+OTP plus tard).
         User::factory()->create([
             'name' => 'Test User',
             'email' => 'test@example.com',
         ]);
+
+        // Référentiel des symptômes du triage (Module 1).
+        $this->call(SymptomeSeeder::class);
     }
 }

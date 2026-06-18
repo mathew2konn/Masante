@@ -1,0 +1,136 @@
+{
+  "info": {
+    "name": "MaSante — Module 1 (Triage)",
+    "description": "Tests du Module 1 (Triage et orientation médicale) de l'API MaSante / IVOIRSANTÉ.\n\nVariables :\n- base_url : URL HTTPS Ngrok du moment (ex: https://xxxx.ngrok-free.dev)\n- triage_id : rempli automatiquement après 'Analyser - Urgent' (script de test).\n\nTous les appels envoient Accept: application/json et ngrok-skip-browser-warning: true.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base_url", "value": "https://VOTRE-SOUS-DOMAINE.ngrok-free.dev" },
+    { "key": "triage_id", "value": "1" }
+  ],
+  "item": [
+    {
+      "name": "0. Health-check",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Accept", "value": "application/json" },
+          { "key": "ngrok-skip-browser-warning", "value": "true" }
+        ],
+        "url": { "raw": "{{base_url}}/api/health", "host": ["{{base_url}}"], "path": ["api", "health"] }
+      }
+    },
+    {
+      "name": "F1.1 - Liste des symptomes",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Accept", "value": "application/json" },
+          { "key": "ngrok-skip-browser-warning", "value": "true" }
+        ],
+        "url": { "raw": "{{base_url}}/api/v1/symptomes", "host": ["{{base_url}}"], "path": ["api", "v1", "symptomes"] }
+      }
+    },
+    {
+      "name": "F1.3 - Analyser (CAS LEGER)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Accept", "value": "application/json" },
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "ngrok-skip-browser-warning", "value": "true" }
+        ],
+        "body": { "mode": "raw", "raw": "{\n  \"symptomes\": [3]\n}" },
+        "url": { "raw": "{{base_url}}/api/v1/triage/analyser", "host": ["{{base_url}}"], "path": ["api", "v1", "triage", "analyser"] }
+      }
+    },
+    {
+      "name": "F1.3 - Analyser (CAS MODERE)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Accept", "value": "application/json" },
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "ngrok-skip-browser-warning", "value": "true" }
+        ],
+        "body": { "mode": "raw", "raw": "{\n  \"symptomes\": [1, 4],\n  \"reponses\": [\n    {\"symptome_id\": 1, \"cle\": \"duree_jours\", \"valeur\": 5},\n    {\"symptome_id\": 4, \"cle\": \"intensite\", \"valeur\": 6}\n  ],\n  \"patient_age\": 30,\n  \"patient_sexe\": \"F\"\n}" },
+        "url": { "raw": "{{base_url}}/api/v1/triage/analyser", "host": ["{{base_url}}"], "path": ["api", "v1", "triage", "analyser"] }
+      }
+    },
+    {
+      "name": "F1.3 - Analyser (CAS URGENT / DRAPEAU ROUGE)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "var d = pm.response.json();",
+              "if (d.triage_id) { pm.collectionVariables.set('triage_id', d.triage_id); }",
+              "pm.test('niveau urgent', function () { pm.expect(d.niveau).to.eql('urgent'); });",
+              "pm.test('SAMU 185 present', function () { pm.expect(d.recommandation_texte).to.include('185'); });"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Accept", "value": "application/json" },
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "ngrok-skip-browser-warning", "value": "true" }
+        ],
+        "body": { "mode": "raw", "raw": "{\n  \"symptomes\": [7],\n  \"patient_nom\": \"Kouassi\",\n  \"patient_age\": 40,\n  \"patient_sexe\": \"M\"\n}" },
+        "url": { "raw": "{{base_url}}/api/v1/triage/analyser", "host": ["{{base_url}}"], "path": ["api", "v1", "triage", "analyser"] }
+      }
+    },
+    {
+      "name": "F1.3 - Analyser (CAS PEDIATRIE)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Accept", "value": "application/json" },
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "ngrok-skip-browser-warning", "value": "true" }
+        ],
+        "body": { "mode": "raw", "raw": "{\n  \"symptomes\": [1],\n  \"patient_nom\": \"Bébé Aya\",\n  \"patient_age\": 5\n}" },
+        "url": { "raw": "{{base_url}}/api/v1/triage/analyser", "host": ["{{base_url}}"], "path": ["api", "v1", "triage", "analyser"] }
+      }
+    },
+    {
+      "name": "F1.8 - Fiche partageable",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Accept", "value": "application/json" },
+          { "key": "ngrok-skip-browser-warning", "value": "true" }
+        ],
+        "url": { "raw": "{{base_url}}/api/v1/triage/{{triage_id}}/fiche", "host": ["{{base_url}}"], "path": ["api", "v1", "triage", "{{triage_id}}", "fiche"] }
+      }
+    },
+    {
+      "name": "F1.6 - Historique",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Accept", "value": "application/json" },
+          { "key": "ngrok-skip-browser-warning", "value": "true" }
+        ],
+        "url": { "raw": "{{base_url}}/api/v1/triage/historique", "host": ["{{base_url}}"], "path": ["api", "v1", "triage", "historique"] }
+      }
+    },
+    {
+      "name": "Validation - aucun symptome (422)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Accept", "value": "application/json" },
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "ngrok-skip-browser-warning", "value": "true" }
+        ],
+        "body": { "mode": "raw", "raw": "{\n  \"symptomes\": []\n}" },
+        "url": { "raw": "{{base_url}}/api/v1/triage/analyser", "host": ["{{base_url}}"], "path": ["api", "v1", "triage", "analyser"] }
+      }
+    }
+  ]
+}
