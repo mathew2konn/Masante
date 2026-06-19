@@ -29,4 +29,16 @@ class MembreFamillePolicy
     {
         return $membre->user_id === $user->id;
     }
+
+    /** Générer un QR de partage : seul le propriétaire du membre le peut (§5, §4.4). */
+    public function generateQr(User $user, MembreFamille $membre): bool
+    {
+        return $membre->user_id === $user->id;
+    }
+
+    /** Consulter l'historique d'accès au dossier (droit d'accès patient, §10.3). */
+    public function viewAcces(User $user, MembreFamille $membre): bool
+    {
+        return $membre->user_id === $user->id;
+    }
 }

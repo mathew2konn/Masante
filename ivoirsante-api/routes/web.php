@@ -19,3 +19,10 @@ Route::get('/triage-demo', function () {
 Route::get('/auth-demo', function () {
     return view('auth-demo');
 });
+
+// Page de démonstration/test du Module 2 (Carnet de santé 2A.2 + QR dynamique 2A.3).
+// Même origine que l'API => aucun CORS. Le QR est rendu côté navigateur (le token ne sort
+// jamais de la page). Outil de DEV uniquement (vérification visuelle / soutenance).
+Route::get('/carnet-demo', function () {
+    return view('carnet-demo');
+});

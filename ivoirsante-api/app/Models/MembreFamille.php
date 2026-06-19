@@ -6,6 +6,7 @@ use Database\Factories\MembreFamilleFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
  * Membre de la famille rattaché à un compte (CdC §5.2 / §8.1, F2.1).
@@ -56,5 +57,17 @@ class MembreFamille extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    /** Tokens QR dynamiques générés pour ce membre (2A.3). */
+    public function tokensQr(): HasMany
+    {
+        return $this->hasMany(TokenQr::class, 'membre_id');
+    }
+
+    /** Journal d'audit des accès au dossier de ce membre (§10, loi 2013-450). */
+    public function accesDossier(): HasMany
+    {
+        return $this->hasMany(AccesDossier::class, 'membre_id');
     }
 }

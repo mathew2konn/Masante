@@ -73,4 +73,17 @@ class MembreController extends Controller
 
         return response()->json(['message' => 'Membre supprimé.']);
     }
+
+    /**
+     * Historique des accès au dossier d'un membre (droit d'accès patient, §10.3 Sécurité ;
+     * loi 2013-450). Le patient voit qui a consulté le dossier, quand et comment.
+     */
+    public function acces(Request $request, MembreFamille $membre): JsonResponse
+    {
+        $this->authorize('viewAcces', $membre);
+
+        return response()->json([
+            'acces' => $membre->accesDossier()->latest('created_at')->get(),
+        ]);
+    }
 }

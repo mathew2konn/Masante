@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\MembreController;
+use App\Http\Controllers\Api\V1\QrController;
 use App\Http\Controllers\Api\V1\TriageController;
 use App\Http\Controllers\HealthController;
 use Illuminate\Http\Request;
@@ -67,6 +68,17 @@ Route::middleware('throttle:api')->group(function () {
         */
         Route::middleware('auth:sanctum')->group(function () {
             Route::apiResource('membres', MembreController::class)->parameters(['membres' => 'membre']);
+
+            /*
+            |--------------------------------------------------------------
+            | Module 2 / 2A.3 — QR dynamique + journal d'accès (côté patient).
+            |--------------------------------------------------------------
+            | Génération d'un QR à usage unique pour un membre, et consultation
+            | par le patient de l'historique d'accès à son dossier (§5, §10.3).
+            | Le scan (consommation) côté agent arrive au Module 3.
+            */
+            Route::post('membres/{membre}/qr', [QrController::class, 'generer']);
+            Route::get('membres/{membre}/acces', [MembreController::class, 'acces']);
         });
 
         // Module 1 — Triage et orientation médicale (F1.1 → F1.8). Endpoints publics.

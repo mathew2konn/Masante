@@ -17,6 +17,18 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Secret de signature des QR Code (Module 2 — Sécurité §5.2)
+    |--------------------------------------------------------------------------
+    |
+    | Secret serveur utilisé par QrTokenService pour signer (HMAC-SHA256) les
+    | tokens QR dynamiques. Distinct de APP_KEY ; jamais committé (vit dans .env).
+    |
+    */
+
+    'qr_secret' => env('QR_SECRET'),
+
+    /*
+    |--------------------------------------------------------------------------
     | Application Environment
     |--------------------------------------------------------------------------
     |
