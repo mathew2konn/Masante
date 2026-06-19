@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
@@ -51,5 +52,11 @@ class User extends Authenticatable
     public function telephoneEstVerifie(): bool
     {
         return $this->telephone_verified_at !== null;
+    }
+
+    /** Membres de la famille rattachés à ce compte (CdC §5.2, max 5 — F2.2). */
+    public function membresFamille(): HasMany
+    {
+        return $this->hasMany(MembreFamille::class);
     }
 }

@@ -1,0 +1,60 @@
+<?php
+
+namespace App\Models;
+
+use Database\Factories\MembreFamilleFactory;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+
+/**
+ * Membre de la famille rattaché à un compte (CdC §5.2 / §8.1, F2.1).
+ *
+ * Sécurité :
+ *  - `matricule_ivs` et `user_id` sont cachés des sérialisations JSON : le matricule interne
+ *    ne doit jamais fuiter (§1, §2.1 Sécurité) ; l'isolation est garantie par la Policy.
+ *  - `cmu_numero` est chiffré au repos (cast `encrypted`, AES-256 via APP_KEY — §6.1 Sécurité).
+ *  - `$fillable` explicite (anti mass-assignment) ; `matricule_ivs` n'y figure pas : il est
+ *    attribué par le serveur via MatriculeService, jamais par l'utilisateur.
+ *
+ * La règle « max 5 membres par compte » (F2.2) est appliquée à la validation (StoreMembreRequest).
+ */
+class MembreFamille extends Model
+{
+    /** @use HasFactory<MembreFamilleFactory> */
+    use HasFactory;
+
+    protected $table = 'membres_famille';
+
+    protected $fillable = [
+        'nom',
+        'prenom',
+        'date_naissance',
+        'sexe',
+        'groupe_sanguin',
+        'photo_url',
+        'cmu_numero',
+        'cmu_statut',
+        'cmu_validite',
+    ];
+
+    protected $hidden = [
+        'matricule_ivs',
+        'user_id',
+    ];
+
+    protected function casts(): array
+    {
+        return [
+            'date_naissance' => 'date',
+            'cmu_validite'   => 'date',
+            'cmu_numero'     => 'encrypted',
+        ];
+    }
+
+    /** Compte propriétaire du membre. */
+    public function user(): BelongsTo
+    {
+        return $this->belongsTo(User::class);
+    }
+}

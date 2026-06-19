@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\V1\AuthController;
+use App\Http\Controllers\Api\V1\MembreController;
 use App\Http\Controllers\Api\V1\TriageController;
 use App\Http\Controllers\HealthController;
 use Illuminate\Http\Request;
@@ -55,6 +56,17 @@ Route::middleware('throttle:api')->group(function () {
                 Route::post('/logout', [AuthController::class, 'logout']);
                 Route::get('/me', [AuthController::class, 'me']);
             });
+        });
+
+        /*
+        |------------------------------------------------------------------
+        | Module 2 / 2A.2 — Carnet : membres de la famille (F2.1).
+        |------------------------------------------------------------------
+        | Routes authentifiées (token Bearer). L'isolation entre comptes
+        | (anti-IDOR, §4.3 Sécurité) est assurée par MembreFamillePolicy.
+        */
+        Route::middleware('auth:sanctum')->group(function () {
+            Route::apiResource('membres', MembreController::class)->parameters(['membres' => 'membre']);
         });
 
         // Module 1 — Triage et orientation médicale (F1.1 → F1.8). Endpoints publics.
