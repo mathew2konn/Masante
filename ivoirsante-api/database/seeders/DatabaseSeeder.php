@@ -15,9 +15,12 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
-        // Utilisateur de test (sera remplacé par l'auth téléphone+OTP plus tard).
+        // Utilisateur de test pré-vérifié (connexion : +2250700000000 / password).
+        // L'inscription réelle se fait via l'auth téléphone+OTP (Module 2A.1).
         User::factory()->create([
-            'name' => 'Test User',
+            'nom' => 'Test',
+            'prenom' => 'User',
+            'telephone' => '+2250700000000',
             'email' => 'test@example.com',
         ]);
 

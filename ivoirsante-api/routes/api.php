@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\TriageController;
 use App\Http\Controllers\HealthController;
 use Illuminate\Http\Request;
@@ -35,6 +36,28 @@ Route::middleware('throttle:api')->group(function () {
     | Endpoints publics pour l'instant (auth téléphone+OTP non encore branchée).
     */
     Route::prefix('v1')->group(function () {
+        /*
+        |------------------------------------------------------------------
+        | Module 2 / 2A.1 — Authentification téléphone + OTP + Sanctum.
+        |------------------------------------------------------------------
+        | Endpoints sensibles (inscription/connexion/OTP) sous limiteur strict
+        | « login » (5/min/IP, §9 Sécurité) en plus du limiteur « api » global.
+        */
+        Route::prefix('auth')->group(function () {
+            Route::middleware('throttle:login')->group(function () {
+                Route::post('/register', [AuthController::class, 'register']);
+                Route::post('/verify-otp', [AuthController::class, 'verifyOtp']);
+                Route::post('/resend-otp', [AuthController::class, 'resendOtp']);
+                Route::post('/login', [AuthController::class, 'login']);
+            });
+
+            Route::middleware('auth:sanctum')->group(function () {
+                Route::post('/logout', [AuthController::class, 'logout']);
+                Route::get('/me', [AuthController::class, 'me']);
+            });
+        });
+
+        // Module 1 — Triage et orientation médicale (F1.1 → F1.8). Endpoints publics.
         Route::get('/symptomes', [TriageController::class, 'symptomes']);              // F1.1
         Route::post('/triage/analyser', [TriageController::class, 'analyser']);        // F1.3
         Route::get('/triage/historique', [TriageController::class, 'historique']);     // F1.6
