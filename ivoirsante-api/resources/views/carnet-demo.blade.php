@@ -90,9 +90,44 @@
       <div id="membres" style="margin-top:14px"></div>
     </div>
 
-    <!-- 2 · QR dynamique (2A.3) -->
+    <!-- 2 · Antécédents & impact sur le triage (2A.4 + F1.3) -->
+    <div class="card">
+      <p class="step">2 · Antécédents & impact sur le triage</p>
+      <div class="row">
+        <div><label>Membre concerné</label><select id="ant_membre"></select></div>
+        <div><label>Type</label>
+          <select id="ant_type">
+            <option value="maladie_chronique">Maladie chronique</option>
+            <option value="allergie">Allergie</option>
+            <option value="chirurgie">Chirurgie</option>
+            <option value="hospitalisation">Hospitalisation</option>
+            <option value="autre">Autre</option>
+          </select></div>
+        <div><label>Impact triage (0-20)</label><input id="ant_impact" type="number" min="0" max="20" value="12"></div>
+      </div>
+      <div class="row">
+        <div style="flex:2"><label>Description (chiffrée en base)</label><input id="ant_desc" value="Asthme persistant modéré"></div>
+      </div>
+      <div class="grid" style="margin-top:10px">
+        <button onclick="ajouterAntecedent()">Ajouter l'antécédent</button>
+        <button class="alt" onclick="listerAntecedents()">Lister les antécédents</button>
+      </div>
+
+      <hr style="border:none;border-top:1px solid var(--line);margin:16px 0">
+      <p class="muted">Lancer un triage <b>rattaché à ce membre</b> : ses antécédents s'ajoutent au score
+        (plafond 20). Sans membre, le triage est anonyme (antécédents = 0).</p>
+      <div class="row">
+        <div><label>Symptôme</label><select id="ant_symptome"></select></div>
+        <div style="display:flex;align-items:flex-end">
+          <button onclick="lancerTriage()">Lancer un triage pour ce membre</button>
+        </div>
+      </div>
+      <div id="triageOut" style="margin-top:12px"></div>
+    </div>
+
+    <!-- 3 · QR dynamique (2A.3) -->
     <div class="card" id="qrcard">
-      <p class="step">2 · QR dynamique (généré pour un membre ci-dessus)</p>
+      <p class="step">3 · QR dynamique (généré pour un membre ci-dessus)</p>
       <div id="qrzone">
         <p class="muted">QR pour <b id="qrMembre"></b> — valable <span id="qrTtl">10</span> min, usage unique.</p>
         <div id="qrcode"></div>
@@ -156,11 +191,11 @@
     const code = reg.data && reg.data.dev_code_otp;
     if (!code){ return; } // erreur (ex. numéro déjà pris) : voir le résultat brut.
     const ver = await call('POST','/api/v1/auth/verify-otp', { telephone: tel, code, but:'inscription' }, false);
-    if (ver.data && ver.data.token){ setToken(ver.data.token); listerMembres(); }
+    if (ver.data && ver.data.token){ setToken(ver.data.token); listerMembres(); chargerSymptomes(); }
   }
   async function login(){
     const { data } = await call('POST','/api/v1/auth/login', { telephone: val('telephone'), password: val('password') }, false);
-    if (data && data.token){ setToken(data.token); listerMembres(); }
+    if (data && data.token){ setToken(data.token); listerMembres(); chargerSymptomes(); }
   }
 
   // ---- 1 · Membres ----
@@ -177,6 +212,7 @@
     const box = document.getElementById('membres');
     box.innerHTML = '';
     if (!data || !data.membres){ return; }
+    remplirSelectMembres(data.membres);
     if (data.membres.length === 0){ box.innerHTML = '<p class="muted">Aucun membre pour ce compte.</p>'; return; }
     for (const m of data.membres){
       const div = document.createElement('div');
@@ -226,6 +262,60 @@
     tick(); countTimer = setInterval(tick, 1000);
   }
   const voirAcces = (id) => call('GET','/api/v1/membres/' + id + '/acces');
+
+  // ---- Antécédents & triage (2A.4 + F1.3) ----
+  function remplirSelectMembres(membres){
+    const sel = document.getElementById('ant_membre');
+    const prev = sel.value;
+    sel.innerHTML = '';
+    for (const m of membres){
+      const o = document.createElement('option');
+      o.value = m.id; o.textContent = m.prenom + ' ' + m.nom;
+      sel.appendChild(o);
+    }
+    if (prev) sel.value = prev;
+  }
+  async function chargerSymptomes(){
+    const { data } = await call('GET','/api/v1/symptomes');
+    const sel = document.getElementById('ant_symptome');
+    sel.innerHTML = '';
+    if (!data || !data.symptomes) return;
+    for (const s of data.symptomes){
+      const o = document.createElement('option');
+      o.value = s.id; o.textContent = s.nom_fr;
+      sel.appendChild(o);
+    }
+  }
+  async function ajouterAntecedent(){
+    const id = document.getElementById('ant_membre').value;
+    if (!id){ show({ info:'Crée d\'abord un membre.' }, '—'); return; }
+    await call('POST','/api/v1/membres/' + id + '/antecedents', {
+      type: val('ant_type'), description: val('ant_desc'),
+      impact_triage: parseInt(document.getElementById('ant_impact').value || '0', 10),
+    });
+  }
+  const listerAntecedents = () => {
+    const id = document.getElementById('ant_membre').value;
+    if (id) call('GET','/api/v1/membres/' + id + '/antecedents');
+  };
+  async function lancerTriage(){
+    const id = document.getElementById('ant_membre').value;
+    const sympt = document.getElementById('ant_symptome').value;
+    if (!sympt){ show({ info:'Aucun symptôme disponible (lance le seed SymptomeSeeder).' }, '—'); return; }
+    const { data } = await call('POST','/api/v1/triage/analyser', {
+      symptomes: [parseInt(sympt, 10)], membre_id: id ? parseInt(id, 10) : null,
+    });
+    const box = document.getElementById('triageOut');
+    if (data && data.details_score){
+      const d = data.details_score;
+      box.innerHTML =
+        '<p>Niveau : <span class="pill ' + (data.niveau === 'urgent' ? 'off' : 'on') + '">' + esc(data.niveau) + '</span> · '
+        + 'Score total : <b>' + data.score_severite + '/100</b></p>'
+        + '<p class="muted">Détail — symptômes : ' + d.symptomes + ' · réponses : ' + d.reponses
+        + ' · <b>antécédents : ' + d.antecedents + '</b> (plafond 20)'
+        + (data.drapeau_rouge ? ' · 🚩 drapeau rouge' : '') + '</p>';
+    } else { box.innerHTML = ''; }
+  }
 
   function esc(s){ return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 </script>

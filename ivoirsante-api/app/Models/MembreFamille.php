@@ -70,4 +70,31 @@ class MembreFamille extends Model
     {
         return $this->hasMany(AccesDossier::class, 'membre_id');
     }
+
+    // --- Sections du carnet (2A.4) ---
+
+    public function antecedents(): HasMany
+    {
+        return $this->hasMany(Antecedent::class, 'membre_id');
+    }
+
+    public function vaccinations(): HasMany
+    {
+        return $this->hasMany(Vaccination::class, 'membre_id');
+    }
+
+    public function ordonnances(): HasMany
+    {
+        return $this->hasMany(Ordonnance::class, 'membre_id');
+    }
+
+    public function resultatsAnalyses(): HasMany
+    {
+        return $this->hasMany(ResultatAnalyse::class, 'membre_id');
+    }
+
+    public function rappels(): HasMany
+    {
+        return $this->hasMany(Rappel::class, 'membre_id');
+    }
 }

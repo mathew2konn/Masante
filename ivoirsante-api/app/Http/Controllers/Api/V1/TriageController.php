@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\AnalyserTriageRequest;
+use App\Models\MembreFamille;
 use App\Models\Symptome;
 use App\Models\Triage;
 use App\Services\TriageService;
@@ -43,17 +44,23 @@ class TriageController extends Controller
     {
         $data = $request->validated();
 
+        // Le token (s'il est présent) est résolu sans imposer l'auth : un triage anonyme
+        // reste possible. Mais un triage RATTACHÉ à un membre exige l'auth + l'appartenance.
+        $utilisateur = $request->user('sanctum');
+        $membreId = $data['membre_id'] ?? null;
+        $antecedents = $this->antecedentsDuMembre($membreId, $utilisateur);
+
         $resultat = $this->triage->analyser(
             symptomesIds: $data['symptomes'],
             reponses: $data['reponses'] ?? [],
             age: $data['patient_age'] ?? null,
             sexe: $data['patient_sexe'] ?? null,
-            antecedents: [], // viendra du carnet (Module 2)
+            antecedents: $antecedents, // carnet du membre (2A.4) : alimente le score (F1.3)
         );
 
         $triage = Triage::create([
-            'user_id'              => $request->user()?->id, // rempli quand l'auth sera branchée
-            'membre_id'            => $data['membre_id'] ?? null,
+            'user_id'              => $utilisateur?->id,
+            'membre_id'            => $membreId,
             'patient_nom'          => $data['patient_nom'] ?? null,
             'patient_age'          => $data['patient_age'] ?? null,
             'patient_sexe'         => $data['patient_sexe'] ?? null,
@@ -75,6 +82,31 @@ class TriageController extends Controller
             'drapeau_rouge'        => $resultat['drapeau_rouge'],
             'details_score'        => $resultat['details_score'],
         ], 201);
+    }
+
+    /**
+     * Antécédents du membre à injecter dans le score de triage (F1.3), avec contrôle d'accès.
+     * Renvoie [] pour un triage anonyme (sans membre).
+     *
+     * @return array<int, array{libelle: string, impact_triage: int}>
+     */
+    private function antecedentsDuMembre(?int $membreId, $utilisateur): array
+    {
+        if ($membreId === null) {
+            return [];
+        }
+
+        // Rattacher un triage à un membre suppose un compte authentifié et propriétaire (anti-IDOR).
+        abort_if($utilisateur === null, 401, 'Authentification requise pour un triage rattaché à un membre.');
+
+        $membre = MembreFamille::find($membreId);
+        abort_if($membre === null, 404, 'Membre introuvable.');
+        abort_unless($membre->user_id === $utilisateur->id, 403, 'Accès non autorisé à ce membre.');
+
+        return $membre->antecedents()
+            ->get(['type', 'impact_triage'])
+            ->map(fn ($a) => ['libelle' => $a->type, 'impact_triage' => (int) $a->impact_triage])
+            ->all();
     }
 
     /**
