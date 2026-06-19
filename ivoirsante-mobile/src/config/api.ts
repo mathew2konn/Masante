@@ -27,12 +27,27 @@ export const api = axios.create({
   },
 });
 
-// Clé de stockage sécurisé du token d'accès (réutilisée au module Auth).
+// Clé de stockage sécurisé du token d'accès (Keychain iOS / Keystore Android).
 const ACCESS_TOKEN_KEY = 'access_token';
 
-// Intercepteur : ajoute le token Bearer si présent (auth Sanctum, modules suivants).
+/** Lit le token Bearer stocké de façon sécurisée (null si absent). */
+export async function getStoredToken(): Promise<string | null> {
+  return SecureStore.getItemAsync(ACCESS_TOKEN_KEY);
+}
+
+/** Stocke le token Bearer de façon sécurisée (jamais en clair / AsyncStorage). */
+export async function saveToken(token: string): Promise<void> {
+  await SecureStore.setItemAsync(ACCESS_TOKEN_KEY, token);
+}
+
+/** Purge le token (déconnexion / révocation). */
+export async function clearToken(): Promise<void> {
+  await SecureStore.deleteItemAsync(ACCESS_TOKEN_KEY);
+}
+
+// Intercepteur : ajoute le token Bearer si présent (auth Sanctum, révocable au logout).
 api.interceptors.request.use(async (config) => {
-  const token = await SecureStore.getItemAsync(ACCESS_TOKEN_KEY);
+  const token = await getStoredToken();
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }

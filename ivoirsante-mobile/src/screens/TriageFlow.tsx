@@ -1,11 +1,11 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { BackHandler } from 'react-native';
-import { AccueilScreen } from './src/screens/AccueilScreen';
-import { SymptomesScreen } from './src/screens/SymptomesScreen';
-import { QuestionsScreen } from './src/screens/QuestionsScreen';
-import { ResultatScreen } from './src/screens/ResultatScreen';
-import { HistoriqueScreen } from './src/screens/HistoriqueScreen';
-import { analyserTriage } from './src/api/triage';
+import { AccueilScreen } from './AccueilScreen';
+import { SymptomesScreen } from './SymptomesScreen';
+import { QuestionsScreen } from './QuestionsScreen';
+import { ResultatScreen } from './ResultatScreen';
+import { HistoriqueScreen } from './HistoriqueScreen';
+import { analyserTriage } from '../api/triage';
 import type {
   AnalyseResultat,
   AnalyserPayload,
@@ -13,22 +13,20 @@ import type {
   Reponse,
   Symptome,
   ValeurReponse,
-} from './src/types/triage';
+} from '../types/triage';
 
 /**
- * App — Module 1 (Triage). Navigation « assistant » à état local (pas de lib de
- * navigation : les modules 2-5, dont la navigation basse à 4 onglets du §5.6, ne sont
- * pas encore là → on n'anticipe jamais le module suivant).
+ * TriageFlow — assistant de triage du Module 1, monté par l'onglet « Triage ».
  *
- * Flux : Accueil → Symptômes (F1.1) → Questions (F1.2) → Résultat (F1.3 + partage F1.8).
- * Le brouillon (sélection, patient, réponses) vit ici pour survivre aux retours arrière.
+ * Conserve à l'identique la navigation « assistant » à état local du Module 1 (aucune
+ * réécriture de la logique métier) : Accueil triage → Symptômes (F1.1) → Questions (F1.2)
+ * → Résultat (F1.3 + partage F1.8), plus l'historique (F1.6). Le brouillon vit ici.
  */
 type Route = 'accueil' | 'symptomes' | 'questions' | 'resultat' | 'historique';
 
-export default function App() {
+export function TriageFlow() {
   const [route, setRoute] = useState<Route>('accueil');
 
-  // Brouillon du triage en cours.
   const [symptomesCache, setSymptomesCache] = useState<Symptome[] | null>(null);
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [patient, setPatient] = useState<ContextePatient>({});
@@ -42,7 +40,6 @@ export default function App() {
     setResultat(null);
   }, []);
 
-  // Symptômes sélectionnés (objets) et ceux qui ont des questions (F1.2).
   const selectedSymptomes = useMemo(
     () => (symptomesCache ?? []).filter((s) => selectedIds.includes(s.id)),
     [symptomesCache, selectedIds],
@@ -68,7 +65,6 @@ export default function App() {
         const sep = key.indexOf(':');
         return { symptome_id: Number(key.slice(0, sep)), cle: key.slice(sep + 1), valeur };
       })
-      // On n'envoie que les réponses des symptômes encore sélectionnés.
       .filter((r) => selectedIds.includes(r.symptome_id));
 
     const payload: AnalyserPayload = {
@@ -84,7 +80,7 @@ export default function App() {
     setRoute('resultat');
   }, [reponses, selectedIds, patient]);
 
-  // Retour logique (utilisé par le bouton matériel Android et les flèches retour).
+  // Retour logique au sein de l'assistant (bouton matériel Android).
   const retour = useCallback((): boolean => {
     switch (route) {
       case 'symptomes':
@@ -98,7 +94,7 @@ export default function App() {
         setRoute('accueil');
         return true;
       default:
-        return false; // accueil : laisse le système quitter l'app.
+        return false; // accueil triage : laisse le système gérer (onglet racine).
     }
   }, [route]);
 
@@ -147,7 +143,6 @@ export default function App() {
           }}
         />
       ) : (
-        // Garde-fou : pas de résultat → on repart proprement.
         <AccueilScreen onStart={() => setRoute('symptomes')} onHistorique={() => setRoute('historique')} />
       );
 

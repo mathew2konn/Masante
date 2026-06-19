@@ -1,0 +1,72 @@
+import React from 'react';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { router } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
+import { Screen } from '../../src/components/Screen';
+import { Card } from '../../src/components/Card';
+import { useSession } from '../../src/auth/SessionContext';
+import { colors, radius, spacing, typography } from '../../src/theme/theme';
+
+/** Accueil — tableau de bord d'entrée (§5.2 tuiles d'accès rapide). */
+export default function AccueilTab() {
+  const { user } = useSession();
+
+  return (
+    <Screen>
+      <Text style={styles.salut}>Bonjour{user?.prenom ? `, ${user.prenom}` : ''} 👋</Text>
+      <Text style={styles.sous}>Bienvenue sur votre espace santé.</Text>
+
+      <View style={styles.tuiles}>
+        <Tuile
+          icone="pulse-outline"
+          titre="Démarrer un triage"
+          desc="Évaluer des symptômes et être orienté"
+          onPress={() => router.navigate('/(app)/triage')}
+        />
+        <Tuile
+          icone="folder-outline"
+          titre="Mon carnet"
+          desc="Membres, dossiers et QR de partage"
+          onPress={() => router.navigate('/(app)/carnet')}
+        />
+      </View>
+    </Screen>
+  );
+}
+
+function Tuile({
+  icone,
+  titre,
+  desc,
+  onPress,
+}: {
+  icone: keyof typeof Ionicons.glyphMap;
+  titre: string;
+  desc: string;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={titre} style={styles.tuileWrap}>
+      <Card>
+        <View style={styles.cercle}>
+          <Ionicons name={icone} size={26} color={colors.blue[600]} />
+        </View>
+        <Text style={styles.tuileTitre}>{titre}</Text>
+        <Text style={styles.tuileDesc}>{desc}</Text>
+      </Card>
+    </Pressable>
+  );
+}
+
+const styles = StyleSheet.create({
+  salut: { ...typography.h1, color: colors.blue[900] },
+  sous: { ...typography.body, color: colors.ink[700], marginTop: spacing[1], marginBottom: spacing[6] },
+  tuiles: { gap: spacing[4] },
+  tuileWrap: {},
+  cercle: {
+    width: 52, height: 52, borderRadius: radius.pill, backgroundColor: colors.blue[100],
+    alignItems: 'center', justifyContent: 'center', marginBottom: spacing[3],
+  },
+  tuileTitre: { ...typography.h2, color: colors.blue[900] },
+  tuileDesc: { ...typography.body, color: colors.ink[700], marginTop: spacing[1] },
+});

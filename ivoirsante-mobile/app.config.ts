@@ -16,6 +16,8 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   name: 'MaSante',
   slug: 'ivoirsante-mobile',
   version: '1.0.0',
+  // Schéma de deep-linking requis par Expo Router (navigation par fichiers).
+  scheme: 'masante',
   orientation: 'portrait',
   icon: './assets/images/icon.png',
   userInterfaceStyle: 'light',
@@ -39,7 +41,11 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   web: {
     favicon: './assets/images/icon.png',
   },
-  plugins: ['expo-secure-store'],
+  plugins: ['expo-router', 'expo-secure-store'],
+  // Routes typées (autocomplétion + vérif des href par TypeScript).
+  experiments: {
+    typedRoutes: true,
+  },
   // Valeurs lues à l'exécution côté app via expo-constants (voir src/config/api.ts).
   extra: {
     apiUrl: API_URL,
