@@ -26,5 +26,8 @@ class DatabaseSeeder extends Seeder
 
         // Référentiel des symptômes du triage (Module 1).
         $this->call(SymptomeSeeder::class);
+
+        // Annuaire géolocalisé des structures sanitaires d'Abidjan (Module 3 / 3A.1).
+        $this->call(StructureSanitaireSeeder::class);
     }
 }

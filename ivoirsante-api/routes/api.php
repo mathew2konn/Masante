@@ -8,6 +8,7 @@ use App\Http\Controllers\Api\V1\Carnet\ResultatAnalyseController;
 use App\Http\Controllers\Api\V1\Carnet\VaccinationController;
 use App\Http\Controllers\Api\V1\MembreController;
 use App\Http\Controllers\Api\V1\QrController;
+use App\Http\Controllers\Api\V1\StructureController;
 use App\Http\Controllers\Api\V1\TriageController;
 use App\Http\Controllers\HealthController;
 use Illuminate\Http\Request;
@@ -111,6 +112,18 @@ Route::middleware('throttle:api')->group(function () {
                 }
             });
         });
+
+        /*
+        |------------------------------------------------------------------
+        | Module 3 / 3A.1 — Structures sanitaires géolocalisées (F3.1→F3.5, F3.8).
+        |------------------------------------------------------------------
+        | Endpoints PUBLICS en lecture : trouver un hôpital/une pharmacie ne demande
+        | aucune formalité d'identité (doc Identification — accès léger). Aucune donnée
+        | médicale. Les disponibilités sont seedées (écriture agents + Firebase → Module 4).
+        */
+        Route::get('/pharmacies-garde', [StructureController::class, 'pharmaciesGarde']); // F3.8
+        Route::get('/structures', [StructureController::class, 'index']);                 // F3.1/F3.2/F3.3
+        Route::get('/structures/{structure}', [StructureController::class, 'show']);       // F3.5
 
         // Module 1 — Triage et orientation médicale (F1.1 → F1.8). Endpoints publics.
         Route::get('/symptomes', [TriageController::class, 'symptomes']);              // F1.1
