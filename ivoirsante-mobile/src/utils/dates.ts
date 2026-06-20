@@ -73,6 +73,42 @@ export function validerDateNaissance(saisie: string): string | null {
   return null;
 }
 
+/**
+ * Valide une saisie de date AAAA-MM-JJ générique (sections du carnet).
+ * Renvoie un message d'erreur ou null.
+ */
+export function validerDate(
+  saisie: string,
+  options: { obligatoire?: boolean; futurInterdit?: boolean } = {},
+): string | null {
+  const v = saisie.trim();
+  if (!v) return options.obligatoire ? 'Ce champ est obligatoire.' : null;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(v)) return 'Format attendu : AAAA-MM-JJ.';
+  const d = new Date(`${v}T00:00:00`);
+  if (Number.isNaN(d.getTime()) || isoVersDateInput(d.toISOString()) !== v) {
+    return 'Cette date n’existe pas.';
+  }
+  if (options.futurInterdit) {
+    const fin = new Date();
+    fin.setHours(23, 59, 59, 999);
+    if (d.getTime() > fin.getTime()) return 'La date ne peut pas être dans le futur.';
+  }
+  return null;
+}
+
+/** Valide une heure HH:MM (24h). Renvoie un message d'erreur ou null. */
+export function validerHeure(saisie: string, obligatoire = false): string | null {
+  const v = saisie.trim();
+  if (!v) return obligatoire ? 'Ce champ est obligatoire.' : null;
+  if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(v)) return 'Format attendu : HH:MM (ex. 08:30).';
+  return null;
+}
+
+/** Tronque une heure « HH:MM:SS » renvoyée par l'API en « HH:MM ». */
+export function heureCourte(valeur: string | null | undefined): string {
+  return valeur ? valeur.slice(0, 5) : '';
+}
+
 /** Valide une date facultative (CMU) ; null si vide ou valide, message sinon. */
 export function validerDateFacultative(saisie: string): string | null {
   const v = saisie.trim();

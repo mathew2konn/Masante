@@ -1,6 +1,7 @@
 import React, { useCallback, useState } from 'react';
-import { ActivityIndicator, Alert, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 import { Screen } from '../../../src/components/Screen';
 import { ScreenHeader } from '../../../src/components/ScreenHeader';
 import { Card } from '../../../src/components/Card';
@@ -9,6 +10,7 @@ import { SecondaryButton } from '../../../src/components/SecondaryButton';
 import { obtenirMembre, supprimerMembre } from '../../../src/api/membres';
 import { messageErreur } from '../../../src/utils/erreurs';
 import { LIBELLE_CMU_STATUT, type Membre } from '../../../src/types/membre';
+import { SECTIONS } from '../../../src/carnet/registre';
 import { calculerAge, formatDateFr } from '../../../src/utils/dates';
 import { colors, radius, spacing, typography } from '../../../src/theme/theme';
 
@@ -124,6 +126,30 @@ export default function DetailMembreScreen() {
       </Card>
 
       <Card style={styles.bloc}>
+        <Text style={styles.blocTitre}>Carnet de santé</Text>
+        {SECTIONS.map((s, i) => (
+          <Pressable
+            key={s.slug}
+            onPress={() =>
+              router.push({
+                pathname: '/(app)/membres/carnet/[id]/[section]',
+                params: { id: membreId, section: s.slug, nom: `${membre.prenom} ${membre.nom}` },
+              })
+            }
+            accessibilityRole="button"
+            accessibilityLabel={s.titre}
+            style={[styles.sectionRow, i > 0 && styles.sectionRowBordure]}
+          >
+            <View style={styles.sectionPastille}>
+              <Ionicons name={s.icone as keyof typeof Ionicons.glyphMap} size={18} color={colors.blue[600]} />
+            </View>
+            <Text style={styles.sectionTxt}>{s.titre}</Text>
+            <Ionicons name="chevron-forward" size={20} color={colors.ink[500]} />
+          </Pressable>
+        ))}
+      </Card>
+
+      <Card style={styles.bloc}>
         <Text style={styles.blocTitre}>Partage sécurisé</Text>
         <Text style={styles.blocAide}>
           Donnez un accès temporaire au dossier via un QR à usage unique, et consultez qui y a accédé.
@@ -198,6 +224,18 @@ const styles = StyleSheet.create({
   bloc: { marginBottom: spacing[5] },
   blocTitre: { ...typography.h2, color: colors.blue[900], marginBottom: spacing[3] },
   blocAide: { ...typography.body, color: colors.ink[700], marginTop: -spacing[1], marginBottom: spacing[4] },
+  sectionRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: spacing[3] },
+  sectionRowBordure: { borderTopWidth: 1, borderTopColor: colors.line },
+  sectionPastille: {
+    width: 36,
+    height: 36,
+    borderRadius: radius.pill,
+    backgroundColor: colors.blue[100],
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: spacing[3],
+  },
+  sectionTxt: { ...typography.bodyStrong, color: colors.blue[900], flex: 1 },
   ligne: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: spacing[2] },
   ligneLib: { ...typography.body, color: colors.ink[500], flexShrink: 0, marginRight: spacing[4] },
   ligneVal: { ...typography.bodyStrong, color: colors.ink[900], flex: 1, textAlign: 'right' },

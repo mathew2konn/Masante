@@ -17,6 +17,8 @@ export function TextField({
   autoCapitalize = 'none',
   maxLength,
   erreur,
+  multiline,
+  numberOfLines = 4,
 }: {
   label: string;
   value: string;
@@ -27,6 +29,8 @@ export function TextField({
   autoCapitalize?: 'none' | 'sentences' | 'words' | 'characters';
   maxLength?: number;
   erreur?: string | null;
+  multiline?: boolean;
+  numberOfLines?: number;
 }) {
   const [focus, setFocus] = useState(false);
 
@@ -42,11 +46,15 @@ export function TextField({
         keyboardType={keyboardType}
         autoCapitalize={autoCapitalize}
         maxLength={maxLength}
+        multiline={multiline}
+        numberOfLines={multiline ? numberOfLines : undefined}
+        textAlignVertical={multiline ? 'top' : 'center'}
         onFocus={() => setFocus(true)}
         onBlur={() => setFocus(false)}
         accessibilityLabel={label}
         style={[
           styles.input,
+          multiline && { minHeight: 24 * numberOfLines, paddingTop: spacing[2], paddingBottom: spacing[2] },
           { borderColor: erreur ? colors.danger.solid : focus ? colors.blue[600] : colors.line, borderWidth: focus || erreur ? 2 : 1 },
         ]}
       />
