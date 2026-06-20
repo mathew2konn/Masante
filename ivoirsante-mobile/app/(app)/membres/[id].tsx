@@ -123,6 +123,32 @@ export default function DetailMembreScreen() {
         <Ligne libelle="Validité" valeur={formatDateFr(membre.cmu_validite)} />
       </Card>
 
+      <Card style={styles.bloc}>
+        <Text style={styles.blocTitre}>Partage sécurisé</Text>
+        <Text style={styles.blocAide}>
+          Donnez un accès temporaire au dossier via un QR à usage unique, et consultez qui y a accédé.
+        </Text>
+        <PrimaryButton
+          label="Générer un QR de partage"
+          onPress={() =>
+            router.push({
+              pathname: '/(app)/membres/qr/[id]',
+              params: { id: membreId, prenom: membre.prenom, nom: membre.nom },
+            })
+          }
+        />
+        <View style={styles.sep} />
+        <SecondaryButton
+          label="Journal d'accès"
+          onPress={() =>
+            router.push({
+              pathname: '/(app)/membres/acces/[id]',
+              params: { id: membreId, prenom: membre.prenom, nom: membre.nom },
+            })
+          }
+        />
+      </Card>
+
       <View style={styles.actions}>
         <PrimaryButton
           label="Modifier"
@@ -171,6 +197,7 @@ const styles = StyleSheet.create({
   badgeTxt: { ...typography.caption, fontWeight: '700', color: colors.danger.text },
   bloc: { marginBottom: spacing[5] },
   blocTitre: { ...typography.h2, color: colors.blue[900], marginBottom: spacing[3] },
+  blocAide: { ...typography.body, color: colors.ink[700], marginTop: -spacing[1], marginBottom: spacing[4] },
   ligne: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: spacing[2] },
   ligneLib: { ...typography.body, color: colors.ink[500], flexShrink: 0, marginRight: spacing[4] },
   ligneVal: { ...typography.bodyStrong, color: colors.ink[900], flex: 1, textAlign: 'right' },

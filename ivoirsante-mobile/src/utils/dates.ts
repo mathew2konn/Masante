@@ -20,6 +20,25 @@ export function formatDateFr(iso: string | null | undefined): string {
   return `${j}/${m}/${a}`;
 }
 
+/** Affiche une date+heure ISO au format « JJ/MM/AAAA à HH:MM » ; '—' si absente. */
+export function formatDateHeureFr(iso: string | null | undefined): string {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '—';
+  const deuxChiffres = (n: number) => String(n).padStart(2, '0');
+  const date = `${deuxChiffres(d.getDate())}/${deuxChiffres(d.getMonth() + 1)}/${d.getFullYear()}`;
+  const heure = `${deuxChiffres(d.getHours())}:${deuxChiffres(d.getMinutes())}`;
+  return `${date} à ${heure}`;
+}
+
+/** Formate un nombre de secondes en compte à rebours MM:SS. */
+export function formatChrono(secondes: number): string {
+  const s = Math.max(0, Math.floor(secondes));
+  const m = Math.floor(s / 60);
+  const r = s % 60;
+  return `${String(m).padStart(2, '0')}:${String(r).padStart(2, '0')}`;
+}
+
 /** Âge en années révolues à partir d'une date de naissance ISO ; null si invalide. */
 export function calculerAge(iso: string | null | undefined): number | null {
   const base = isoVersDateInput(iso);
