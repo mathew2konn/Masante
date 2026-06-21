@@ -67,4 +67,16 @@ class StructureSanitaire extends Model
     {
         return $this->hasMany(PharmacieGarde::class, 'structure_id');
     }
+
+    /** Avis patients (3A.2). */
+    public function avis(): HasMany
+    {
+        return $this->hasMany(Avis::class, 'structure_id');
+    }
+
+    /** Signalements citoyens (3A.2). */
+    public function signalements(): HasMany
+    {
+        return $this->hasMany(Signalement::class, 'structure_id');
+    }
 }

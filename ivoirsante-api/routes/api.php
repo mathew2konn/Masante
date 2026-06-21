@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\V1\AuthController;
+use App\Http\Controllers\Api\V1\AvisController;
 use App\Http\Controllers\Api\V1\Carnet\AntecedentController;
 use App\Http\Controllers\Api\V1\Carnet\OrdonnanceController;
 use App\Http\Controllers\Api\V1\Carnet\RappelController;
@@ -8,6 +9,8 @@ use App\Http\Controllers\Api\V1\Carnet\ResultatAnalyseController;
 use App\Http\Controllers\Api\V1\Carnet\VaccinationController;
 use App\Http\Controllers\Api\V1\MembreController;
 use App\Http\Controllers\Api\V1\QrController;
+use App\Http\Controllers\Api\V1\RendezVousController;
+use App\Http\Controllers\Api\V1\SignalementController;
 use App\Http\Controllers\Api\V1\StructureController;
 use App\Http\Controllers\Api\V1\TriageController;
 use App\Http\Controllers\HealthController;
@@ -111,6 +114,19 @@ Route::middleware('throttle:api')->group(function () {
                     Route::delete($chemin.'/{id}', [$controleur, 'destroy']);
                 }
             });
+
+            /*
+            |--------------------------------------------------------------
+            | Module 3 / 3A.2 — Avis (dépôt) et rendez-vous (côté patient).
+            |--------------------------------------------------------------
+            | Dépôt d'avis réservé aux comptes (F3.9). Demande/suivi/annulation de RDV
+            | (F3.6) : isolation anti-IDOR par les membres du compte ; validation agent → M4.
+            */
+            Route::post('structures/{structure}/avis', [AvisController::class, 'store']);   // F3.9
+
+            Route::get('rendez-vous', [RendezVousController::class, 'index']);              // F3.6 (mes RDV)
+            Route::post('rendez-vous', [RendezVousController::class, 'store']);             // F3.6
+            Route::patch('rendez-vous/{rendezVous}/annuler', [RendezVousController::class, 'annuler']);
         });
 
         /*
@@ -124,6 +140,18 @@ Route::middleware('throttle:api')->group(function () {
         Route::get('/pharmacies-garde', [StructureController::class, 'pharmaciesGarde']); // F3.8
         Route::get('/structures', [StructureController::class, 'index']);                 // F3.1/F3.2/F3.3
         Route::get('/structures/{structure}', [StructureController::class, 'show']);       // F3.5
+
+        /*
+        |------------------------------------------------------------------
+        | Module 3 / 3A.2 — Avis (F3.9) et signalements (F3.10) — lecture publique.
+        |------------------------------------------------------------------
+        | Avis visibles et historique des signalements validés : consultables sans compte.
+        | Le dépôt d'un signalement est ANONYME (token lu s'il est présent). Le dépôt d'un
+        | avis exige un compte (plus bas, groupe auth:sanctum).
+        */
+        Route::get('/structures/{structure}/avis', [AvisController::class, 'index']);                 // F3.9
+        Route::get('/structures/{structure}/signalements', [SignalementController::class, 'index']);  // F3.10
+        Route::post('/structures/{structure}/signalements', [SignalementController::class, 'store']); // F3.10
 
         // Module 1 — Triage et orientation médicale (F1.1 → F1.8). Endpoints publics.
         Route::get('/symptomes', [TriageController::class, 'symptomes']);              // F1.1
