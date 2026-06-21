@@ -29,6 +29,12 @@ export default function AccueilTab() {
           desc="Membres, dossiers et QR de partage"
           onPress={() => router.navigate('/(app)/carnet')}
         />
+        <Tuile
+          icone="location-outline"
+          titre="Trouver une structure"
+          desc="Hôpitaux, cliniques et pharmacies près de vous"
+          onPress={() => router.navigate('/(app)/carte')}
+        />
       </View>
     </Screen>
   );

@@ -41,7 +41,21 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   web: {
     favicon: './assets/images/icon.png',
   },
-  plugins: ['expo-router', 'expo-secure-store'],
+  plugins: [
+    'expo-router',
+    'expo-secure-store',
+    // Géolocalisation au premier plan uniquement (Module 3 : proximité des structures).
+    // Pas de localisation en arrière-plan → reste compatible Expo Go (§3B doc carto OSM).
+    [
+      'expo-location',
+      {
+        locationWhenInUsePermission:
+          'MaSante utilise votre position pour trouver les structures de santé les plus proches.',
+        isAndroidBackgroundLocationEnabled: false,
+        isAndroidForegroundServiceEnabled: false,
+      },
+    ],
+  ],
   // Routes typées (autocomplétion + vérif des href par TypeScript).
   experiments: {
     typedRoutes: true,

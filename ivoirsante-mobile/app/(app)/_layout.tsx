@@ -5,8 +5,8 @@ import { colors } from '../../src/theme/theme';
 
 /**
  * Navigation basse à onglets (§5.6 Design System) : barre blanche fixe, onglet actif
- * en blue-600, inactifs en ink-500, icône + libellé (redondance §6). L'onglet « Carte »
- * (géolocalisation) arrive au Module 3 — on n'anticipe pas.
+ * en blue-600, inactifs en ink-500, icône + libellé (redondance §6). 4 onglets :
+ * Accueil, Triage, Carnet, Carte (géolocalisation des structures, Module 3).
  */
 export default function AppTabsLayout() {
   return (
@@ -37,6 +37,13 @@ export default function AppTabsLayout() {
         options={{
           title: 'Carnet',
           tabBarIcon: ({ color, size }) => <Ionicons name="folder-outline" color={color} size={size} />,
+        }}
+      />
+      <Tabs.Screen
+        name="carte"
+        options={{
+          title: 'Carte',
+          tabBarIcon: ({ color, size }) => <Ionicons name="location-outline" color={color} size={size} />,
         }}
       />
       {/* Pile « Membres » (détail / formulaires) : navigable mais hors barre d'onglets. */}
