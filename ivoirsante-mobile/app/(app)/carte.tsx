@@ -18,6 +18,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { GradientBackground } from '../../src/components/GradientBackground';
 import { ScreenHeader } from '../../src/components/ScreenHeader';
 import { StructureCard } from '../../src/components/StructureCard';
+import { Segmented } from '../../src/components/Segmented';
+import { MapWebView } from '../../src/components/MapWebView';
 import { rechercherStructures } from '../../src/api/structures';
 import { obtenirPosition } from '../../src/utils/geoloc';
 import { messageErreur } from '../../src/utils/erreurs';
@@ -33,12 +35,15 @@ import { colors, radius, spacing, typography } from '../../src/theme/theme';
 
 const TYPES = Object.keys(LIBELLE_TYPE) as TypeStructure[];
 
+type Vue = 'liste' | 'carte';
+
 /**
- * Onglet « Carte » — Module 3 / 3B.1 : annuaire géolocalisé des structures, vue LISTE.
+ * Onglet « Carte » — Module 3 / 3B : annuaire géolocalisé des structures.
  *
- * Recherche texte + filtres (type, commune) + « près de moi » (géoloc au premier plan → tri par
- * proximité, F3.2/F3.3). La carte OSM/Leaflet en WebView arrive en 3B.2 ; la fiche en 3B.3.
- * Données publiques non sensibles (accès léger sans identité, doc Identification).
+ * 3B.1 : vue LISTE (recherche + filtres type/commune + « près de moi »).
+ * 3B.2 : bascule LISTE / CARTE — carte OSM/Leaflet en WebView (marqueurs colorés par
+ *        disponibilité, recentrage sur la position). Tap sur un marqueur → aperçu de la structure.
+ * La fiche détaillée (navigation) arrive en 3B.3 : ici l'aperçu n'est pas encore cliquable.
  */
 export default function CarteTab() {
   const [q, setQ] = useState('');
@@ -46,6 +51,8 @@ export default function CarteTab() {
   const [commune, setCommune] = useState<string | null>(null);
   const [position, setPosition] = useState<Coordonnees | null>(null);
   const [geoEnCours, setGeoEnCours] = useState(false);
+  const [vue, setVue] = useState<Vue>('liste');
+  const [selection, setSelection] = useState<Structure | null>(null);
   const [structures, setStructures] = useState<Structure[]>([]);
   const [chargement, setChargement] = useState(true);
   const [erreur, setErreur] = useState<string | null>(null);
@@ -98,116 +105,168 @@ export default function CarteTab() {
     }
   }
 
+  // L'aperçu sélectionné sur la carte doit rester cohérent avec la liste filtrée courante.
+  const choisirSurCarte = useCallback(
+    (id: number) => setSelection(structures.find((s) => s.id === id) ?? null),
+    [structures],
+  );
+
+  // Si la structure en aperçu disparaît du résultat filtré, on retire l'aperçu.
+  useEffect(() => {
+    setSelection((s) => (s && structures.some((x) => x.id === s.id) ? s : null));
+  }, [structures]);
+
   const topPad = Platform.OS === 'android' ? (StatusBar.currentHeight ?? 0) : 0;
 
   return (
     <GradientBackground>
       <ExpoStatusBar style="dark" />
       <SafeAreaView style={[styles.safe, { paddingTop: topPad }]}>
-        <FlatList
-          data={structures}
-          keyExtractor={(s) => String(s.id)}
-          renderItem={({ item }) => <StructureCard structure={item} />}
-          contentContainerStyle={styles.liste}
-          keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}
-          ListHeaderComponent={
-            <View>
-              <ScreenHeader title="Structures de santé" subtitle="Trouvez un établissement près de vous" />
+        {/* En-tête fixe : recherche + filtres + bascule de vue */}
+        <View style={styles.header}>
+          <ScreenHeader title="Structures de santé" subtitle="Trouvez un établissement près de vous" />
 
-              {/* Recherche (§5.3 : loupe + champ) */}
-              <View style={styles.recherche}>
-                <Ionicons name="search" size={18} color={colors.ink[500]} />
-                <TextInput
-                  value={q}
-                  onChangeText={setQ}
-                  placeholder="Rechercher un nom d'établissement"
-                  placeholderTextColor={colors.ink[500]}
-                  style={styles.rechercheInput}
-                  accessibilityLabel="Rechercher une structure par nom"
-                  returnKeyType="search"
-                />
-                {q.length > 0 && (
-                  <Pressable onPress={() => setQ('')} hitSlop={8} accessibilityLabel="Effacer la recherche">
-                    <Ionicons name="close-circle" size={18} color={colors.ink[500]} />
-                  </Pressable>
-                )}
-              </View>
-
-              {/* Près de moi (géoloc) */}
-              <Pressable
-                onPress={basculerPosition}
-                accessibilityRole="button"
-                accessibilityState={{ selected: !!position }}
-                accessibilityLabel="Trier par proximité avec ma position"
-                style={({ pressed }) => [
-                  styles.geo,
-                  { backgroundColor: position ? colors.blue[600] : colors.surface },
-                  pressed && styles.presse,
-                ]}
-              >
-                {geoEnCours ? (
-                  <ActivityIndicator size="small" color={position ? '#FFFFFF' : colors.blue[600]} />
-                ) : (
-                  <Ionicons name="navigate" size={16} color={position ? '#FFFFFF' : colors.blue[600]} />
-                )}
-                <Text style={[styles.geoTxt, { color: position ? '#FFFFFF' : colors.blue[600] }]}>
-                  {position ? 'Proximité activée' : 'Près de moi'}
-                </Text>
+          {/* Recherche (§5.3 : loupe + champ) */}
+          <View style={styles.recherche}>
+            <Ionicons name="search" size={18} color={colors.ink[500]} />
+            <TextInput
+              value={q}
+              onChangeText={setQ}
+              placeholder="Rechercher un nom d'établissement"
+              placeholderTextColor={colors.ink[500]}
+              style={styles.rechercheInput}
+              accessibilityLabel="Rechercher une structure par nom"
+              returnKeyType="search"
+            />
+            {q.length > 0 && (
+              <Pressable onPress={() => setQ('')} hitSlop={8} accessibilityLabel="Effacer la recherche">
+                <Ionicons name="close-circle" size={18} color={colors.ink[500]} />
               </Pressable>
+            )}
+          </View>
 
-              {/* Filtre type */}
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.filtres}
-                keyboardShouldPersistTaps="handled"
-              >
-                <FiltreChip label="Tous" actif={type === null} onPress={() => setType(null)} />
-                {TYPES.map((t) => (
-                  <FiltreChip key={t} label={LIBELLE_TYPE[t]} actif={type === t} onPress={() => setType(t)} />
-                ))}
-              </ScrollView>
+          {/* Près de moi (géoloc) + bascule Liste / Carte */}
+          <View style={styles.barre}>
+            <Pressable
+              onPress={basculerPosition}
+              accessibilityRole="button"
+              accessibilityState={{ selected: !!position }}
+              accessibilityLabel="Trier par proximité avec ma position"
+              style={({ pressed }) => [
+                styles.geo,
+                { backgroundColor: position ? colors.blue[600] : colors.surface },
+                pressed && styles.presse,
+              ]}
+            >
+              {geoEnCours ? (
+                <ActivityIndicator size="small" color={position ? '#FFFFFF' : colors.blue[600]} />
+              ) : (
+                <Ionicons name="navigate" size={16} color={position ? '#FFFFFF' : colors.blue[600]} />
+              )}
+              <Text style={[styles.geoTxt, { color: position ? '#FFFFFF' : colors.blue[600] }]}>
+                {position ? 'Proximité activée' : 'Près de moi'}
+              </Text>
+            </Pressable>
 
-              {/* Filtre commune */}
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.filtres}
-                keyboardShouldPersistTaps="handled"
-              >
-                <FiltreChip label="Toutes communes" actif={commune === null} onPress={() => setCommune(null)} />
-                {COMMUNES.map((c) => (
-                  <FiltreChip key={c} label={c} actif={commune === c} onPress={() => setCommune(c)} />
-                ))}
-              </ScrollView>
+            <View style={styles.bascule}>
+              <Segmented<Vue>
+                options={[
+                  { value: 'liste', label: 'Liste' },
+                  { value: 'carte', label: 'Carte' },
+                ]}
+                value={vue}
+                onChange={setVue}
+                accessibilityLabel="Basculer entre liste et carte"
+              />
+            </View>
+          </View>
 
-              {/* État de la requête */}
-              {chargement && (
+          {/* Filtre type */}
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.filtres}
+            keyboardShouldPersistTaps="handled"
+          >
+            <FiltreChip label="Tous" actif={type === null} onPress={() => setType(null)} />
+            {TYPES.map((t) => (
+              <FiltreChip key={t} label={LIBELLE_TYPE[t]} actif={type === t} onPress={() => setType(t)} />
+            ))}
+          </ScrollView>
+
+          {/* Filtre commune */}
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.filtres}
+            keyboardShouldPersistTaps="handled"
+          >
+            <FiltreChip label="Toutes communes" actif={commune === null} onPress={() => setCommune(null)} />
+            {COMMUNES.map((c) => (
+              <FiltreChip key={c} label={c} actif={commune === c} onPress={() => setCommune(c)} />
+            ))}
+          </ScrollView>
+        </View>
+
+        {/* Corps : erreur, sinon vue liste ou carte */}
+        {erreur ? (
+          <View style={styles.etat}>
+            <Ionicons name="cloud-offline-outline" size={28} color={colors.danger.solid} />
+            <Text style={styles.etatTxt}>{erreur}</Text>
+            <Pressable onPress={() => void charger()} accessibilityRole="button" style={styles.reessayer}>
+              <Text style={styles.reessayerTxt}>Réessayer</Text>
+            </Pressable>
+          </View>
+        ) : vue === 'liste' ? (
+          <FlatList
+            data={structures}
+            keyExtractor={(s) => String(s.id)}
+            renderItem={({ item }) => <StructureCard structure={item} />}
+            contentContainerStyle={styles.liste}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+            ListHeaderComponent={
+              chargement ? (
                 <View style={styles.etat}>
                   <ActivityIndicator color={colors.blue[600]} />
                 </View>
-              )}
-              {!chargement && erreur && (
+              ) : null
+            }
+            ListEmptyComponent={
+              !chargement ? (
                 <View style={styles.etat}>
-                  <Ionicons name="cloud-offline-outline" size={28} color={colors.danger.solid} />
-                  <Text style={styles.etatTxt}>{erreur}</Text>
-                  <Pressable onPress={() => void charger()} accessibilityRole="button" style={styles.reessayer}>
-                    <Text style={styles.reessayerTxt}>Réessayer</Text>
-                  </Pressable>
+                  <Ionicons name="search-outline" size={28} color={colors.ink[500]} />
+                  <Text style={styles.etatTxt}>Aucune structure ne correspond à votre recherche.</Text>
                 </View>
-              )}
-            </View>
-          }
-          ListEmptyComponent={
-            !chargement && !erreur ? (
-              <View style={styles.etat}>
-                <Ionicons name="search-outline" size={28} color={colors.ink[500]} />
-                <Text style={styles.etatTxt}>Aucune structure ne correspond à votre recherche.</Text>
+              ) : null
+            }
+          />
+        ) : (
+          <View style={styles.carteZone}>
+            <MapWebView structures={structures} position={position} onSelect={choisirSurCarte} />
+
+            {chargement && (
+              <View style={styles.carteLoader}>
+                <ActivityIndicator color={colors.blue[600]} />
               </View>
-            ) : null
-          }
-        />
+            )}
+
+            {/* Aperçu de la structure sélectionnée sur la carte (fiche cliquable en 3B.3). */}
+            {selection && (
+              <View style={styles.apercu}>
+                <Pressable
+                  onPress={() => setSelection(null)}
+                  hitSlop={8}
+                  accessibilityLabel="Fermer l'aperçu"
+                  style={styles.apercuClose}
+                >
+                  <Ionicons name="close" size={20} color={colors.ink[500]} />
+                </Pressable>
+                <StructureCard structure={selection} />
+              </View>
+            )}
+          </View>
+        )}
       </SafeAreaView>
     </GradientBackground>
   );
@@ -238,7 +297,7 @@ function FiltreChip({ label, actif, onPress }: { label: string; actif: boolean; 
 
 const styles = StyleSheet.create({
   safe: { flex: 1 },
-  liste: { paddingHorizontal: spacing[6], paddingTop: spacing[5], paddingBottom: spacing[8] },
+  header: { paddingHorizontal: spacing[6], paddingTop: spacing[5] },
   recherche: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -252,20 +311,20 @@ const styles = StyleSheet.create({
     marginBottom: spacing[3],
   },
   rechercheInput: { flex: 1, ...typography.body, color: colors.ink[900] },
+  barre: { flexDirection: 'row', alignItems: 'center', gap: spacing[3], marginBottom: spacing[3] },
   geo: {
     flexDirection: 'row',
     alignItems: 'center',
-    alignSelf: 'flex-start',
     gap: spacing[2],
-    height: 40,
+    height: 44,
     paddingHorizontal: spacing[4],
     borderRadius: radius.pill,
     borderWidth: 1.5,
     borderColor: colors.blue[600],
-    marginBottom: spacing[3],
   },
   geoTxt: { ...typography.caption, fontWeight: '700' },
   presse: { opacity: 0.7 },
+  bascule: { flex: 1, minWidth: 150 },
   filtres: { gap: spacing[2], paddingVertical: spacing[1], paddingRight: spacing[4] },
   chip: {
     minHeight: 40,
@@ -276,7 +335,32 @@ const styles = StyleSheet.create({
   },
   chipTxt: { ...typography.caption, fontWeight: '600' },
   chipTxtActif: { fontWeight: '700' },
-  etat: { alignItems: 'center', gap: spacing[2], paddingVertical: spacing[8] },
+  liste: { paddingHorizontal: spacing[6], paddingTop: spacing[4], paddingBottom: spacing[8] },
+  carteZone: { flex: 1, paddingHorizontal: spacing[6], paddingTop: spacing[4], paddingBottom: spacing[5] },
+  carteLoader: {
+    position: 'absolute',
+    top: spacing[6],
+    alignSelf: 'center',
+    backgroundColor: colors.surface,
+    borderRadius: radius.pill,
+    padding: spacing[2],
+    ...({ elevation: 3 } as object),
+  },
+  apercu: { position: 'absolute', left: spacing[6], right: spacing[6], bottom: spacing[6] },
+  apercuClose: {
+    position: 'absolute',
+    top: -spacing[2],
+    right: -spacing[2],
+    zIndex: 1,
+    width: 32,
+    height: 32,
+    borderRadius: radius.pill,
+    backgroundColor: colors.surface,
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...({ elevation: 4 } as object),
+  },
+  etat: { alignItems: 'center', gap: spacing[2], paddingVertical: spacing[8], paddingHorizontal: spacing[6] },
   etatTxt: { ...typography.body, color: colors.ink[700], textAlign: 'center' },
   reessayer: {
     marginTop: spacing[2],
