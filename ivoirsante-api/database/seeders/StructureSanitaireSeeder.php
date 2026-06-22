@@ -192,6 +192,12 @@ class StructureSanitaireSeeder extends Seeder
             // Spécialités affichées = libellés des services.
             $attrs['specialites_json'] = array_map(fn ($s) => $s[0], $bloc['services']);
 
+            // WhatsApp présent sur TOUTES les structures. À défaut d'un numéro WhatsApp dédié,
+            // on retombe sur la ligne téléphonique de l'établissement.
+            if (empty($attrs['whatsapp'])) {
+                $attrs['whatsapp'] = $attrs['telephone'];
+            }
+
             $structure = StructureSanitaire::create($attrs);
 
             foreach ($bloc['services'] as [$nomService, $specialite, $statut]) {
