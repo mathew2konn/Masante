@@ -7,6 +7,7 @@
  */
 import { api } from '../config/api';
 import type {
+  Avis,
   Coordonnees,
   FiltresStructure,
   Structure,
@@ -30,4 +31,10 @@ export async function getPharmaciesGarde(position?: Coordonnees): Promise<Struct
   const params = position ? { lat: position.lat, lng: position.lng } : undefined;
   const { data } = await api.get<{ pharmacies: Structure[] }>('/v1/pharmacies-garde', { params });
   return data.pharmacies;
+}
+
+/** F3.9 — Avis VISIBLES d'une structure (lecture publique, les plus récents d'abord). */
+export async function getAvisStructure(id: number): Promise<Avis[]> {
+  const { data } = await api.get<{ avis: Avis[] }>(`/v1/structures/${id}/avis`);
+  return data.avis;
 }

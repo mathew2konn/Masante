@@ -45,10 +45,13 @@ export function MapWebView({
   structures,
   position,
   onSelect,
+  route,
 }: {
   structures: Structure[];
   position?: Coordonnees | null;
   onSelect?: (id: number) => void;
+  /** Tracé d'itinéraire en [lat, lng] (Module 3 / 3B.3, F3.7). */
+  route?: [number, number][] | null;
 }) {
   const ref = useRef<WebView>(null);
 
@@ -68,11 +71,17 @@ export function MapWebView({
 
   /** Pousse les données dans la carte (appelé quand la page signale qu'elle est prête). */
   const envoyerDonnees = useCallback(() => {
-    const payload = JSON.stringify({ marqueurs, position: position ?? null, couleurPosition: colors.blue[600] });
+    const payload = JSON.stringify({
+      marqueurs,
+      position: position ?? null,
+      route: route ?? null,
+      couleurPosition: colors.blue[600],
+      couleurRoute: colors.blue[600],
+    });
     ref.current?.injectJavaScript(`window.afficherDonnees(${payload}); true;`);
-  }, [marqueurs, position]);
+  }, [marqueurs, position, route]);
 
-  // À chaque changement de filtres/position, on ré-injecte (si la page est déjà prête).
+  // À chaque changement de filtres/position/itinéraire, on ré-injecte (si la page est prête).
   React.useEffect(() => {
     envoyerDonnees();
   }, [envoyerDonnees]);
@@ -160,6 +169,12 @@ const HTML = `<!DOCTYPE html>
     window.afficherDonnees = function (data) {
       couche.clearLayers();
       var bornes = [];
+
+      // Tracé d'itinéraire (sous les marqueurs).
+      if (data.route && data.route.length > 1) {
+        L.polyline(data.route, { color: data.couleurRoute || '#1E6BB8', weight: 5, opacity: 0.8 }).addTo(couche);
+        data.route.forEach(function (p) { bornes.push(p); });
+      }
 
       (data.marqueurs || []).forEach(function (m) {
         var marqueur = L.circleMarker([m.lat, m.lng], {

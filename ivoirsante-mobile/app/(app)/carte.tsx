@@ -14,6 +14,7 @@ import {
   View,
 } from 'react-native';
 import { StatusBar as ExpoStatusBar } from 'expo-status-bar';
+import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { GradientBackground } from '../../src/components/GradientBackground';
 import { ScreenHeader } from '../../src/components/ScreenHeader';
@@ -109,6 +110,12 @@ export default function CarteTab() {
   const choisirSurCarte = useCallback(
     (id: number) => setSelection(structures.find((s) => s.id === id) ?? null),
     [structures],
+  );
+
+  // Ouvre la fiche détaillée (3B.3).
+  const ouvrirFiche = useCallback(
+    (id: number) => router.push({ pathname: '/(app)/structures/[id]', params: { id: String(id) } }),
+    [],
   );
 
   // Si la structure en aperçu disparaît du résultat filtré, on retire l'aperçu.
@@ -221,7 +228,7 @@ export default function CarteTab() {
           <FlatList
             data={structures}
             keyExtractor={(s) => String(s.id)}
-            renderItem={({ item }) => <StructureCard structure={item} />}
+            renderItem={({ item }) => <StructureCard structure={item} onPress={() => ouvrirFiche(item.id)} />}
             contentContainerStyle={styles.liste}
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
@@ -262,7 +269,7 @@ export default function CarteTab() {
                 >
                   <Ionicons name="close" size={20} color={colors.ink[500]} />
                 </Pressable>
-                <StructureCard structure={selection} />
+                <StructureCard structure={selection} onPress={() => ouvrirFiche(selection.id)} />
               </View>
             )}
           </View>

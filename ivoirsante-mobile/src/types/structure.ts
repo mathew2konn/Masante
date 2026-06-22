@@ -26,6 +26,34 @@ export type StatutDispo =
 /** Position GPS de l'utilisateur (transmise pour le calcul de proximité). */
 export type Coordonnees = { lat: number; lng: number };
 
+/** Disponibilité du jour d'un service (alimente la pastille). */
+export interface Disponibilite {
+  id: number;
+  statut: StatutDispo;
+  nb_places_restantes: number | null;
+  heure_debut_dispo: string | null;
+  note: string | null;
+}
+
+/** Service médical d'une structure (avec sa disponibilité du jour). */
+export interface Service {
+  id: number;
+  nom_service: string;
+  specialite: string;
+  actif: boolean;
+  disponibilites: Disponibilite[];
+}
+
+/** Avis patient (lecture publique ; auteur anonymisé au prénom). */
+export interface Avis {
+  id: number;
+  note: number;
+  commentaire: string | null;
+  consultation_verifiee: boolean;
+  auteur: string;
+  created_at: string;
+}
+
 /** Élément de liste renvoyé par GET /v1/structures (payload léger, sans services). */
 export interface Structure {
   id: number;
@@ -37,6 +65,8 @@ export interface Structure {
   longitude: number;
   telephone: string | null;
   whatsapp: string | null;
+  horaires_json: Record<string, string> | null;
+  specialites_json: string[] | null;
   tarif_min_cfa: number | null;
   tarif_max_cfa: number | null;
   note_moyenne: number | null;
@@ -46,6 +76,8 @@ export interface Structure {
   statut_jour: StatutDispo;
   /** Présent uniquement si une position a été fournie (tri par proximité). */
   distance_km?: number;
+  /** Présent uniquement sur la fiche détaillée (GET /v1/structures/{id}). */
+  services?: Service[];
 }
 
 /** Filtres acceptés par GET /v1/structures (tous optionnels). */

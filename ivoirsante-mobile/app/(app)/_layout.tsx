@@ -46,8 +46,9 @@ export default function AppTabsLayout() {
           tabBarIcon: ({ color, size }) => <Ionicons name="location-outline" color={color} size={size} />,
         }}
       />
-      {/* Pile « Membres » (détail / formulaires) : navigable mais hors barre d'onglets. */}
+      {/* Piles détail (navigables mais hors barre d'onglets). */}
       <Tabs.Screen name="membres" options={{ href: null }} />
+      <Tabs.Screen name="structures" options={{ href: null }} />
     </Tabs>
   );
 }
