@@ -35,6 +35,18 @@ export default function AccueilTab() {
           desc="Hôpitaux, cliniques et pharmacies près de vous"
           onPress={() => router.navigate('/(app)/carte')}
         />
+        <Tuile
+          icone="calendar-outline"
+          titre="Mes rendez-vous"
+          desc="Suivre et annuler mes demandes de RDV"
+          onPress={() => router.navigate('/(app)/structures/mes-rendez-vous')}
+        />
+        <Tuile
+          icone="medkit-outline"
+          titre="Pharmacies de garde"
+          desc="Les officines ouvertes aujourd'hui"
+          onPress={() => router.navigate('/(app)/structures/pharmacies-garde')}
+        />
       </View>
     </Screen>
   );

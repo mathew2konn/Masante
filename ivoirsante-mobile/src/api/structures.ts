@@ -8,8 +8,10 @@
 import { api } from '../config/api';
 import type {
   Avis,
+  AvisPayload,
   Coordonnees,
   FiltresStructure,
+  SignalementPayload,
   Structure,
   StructuresResponse,
 } from '../types/structure';
@@ -37,4 +39,16 @@ export async function getPharmaciesGarde(position?: Coordonnees): Promise<Struct
 export async function getAvisStructure(id: number): Promise<Avis[]> {
   const { data } = await api.get<{ avis: Avis[] }>(`/v1/structures/${id}/avis`);
   return data.avis;
+}
+
+/** F3.9 — Dépose (ou met à jour) l'avis de l'utilisateur authentifié sur une structure. */
+export async function deposerAvis(id: number, payload: AvisPayload): Promise<Avis> {
+  const { data } = await api.post<{ avis: Avis }>(`/v1/structures/${id}/avis`, payload);
+  return data.avis;
+}
+
+/** F3.10 — Dépose un signalement (anonyme ou rattaché au compte). */
+export async function signalerStructure(id: number, payload: SignalementPayload): Promise<string> {
+  const { data } = await api.post<{ message: string }>(`/v1/structures/${id}/signalements`, payload);
+  return data.message;
 }

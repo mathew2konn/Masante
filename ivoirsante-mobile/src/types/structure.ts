@@ -97,6 +97,67 @@ export interface StructuresResponse {
   structures: Structure[];
 }
 
+/** Type de signalement citoyen (F3.10, enum backend). */
+export type TypeSignalement =
+  | 'structure_fermee'
+  | 'hors_service'
+  | 'pot_de_vin'
+  | 'mauvais_traitement'
+  | 'autre';
+
+/** Statut d'un rendez-vous (F3.6, enum backend ; validation agent → Module 4). */
+export type StatutRdv = 'en_attente' | 'confirme' | 'refuse' | 'annule' | 'honore';
+
+/** Rendez-vous tel que renvoyé par GET /v1/rendez-vous (avec relations légères). */
+export interface RendezVous {
+  id: number;
+  statut: StatutRdv;
+  motif: string;
+  date_souhaitee: string;
+  date_confirmee: string | null;
+  message_agent: string | null;
+  created_at: string;
+  membre: { id: number; nom: string; prenom: string } | null;
+  structure: { id: number; nom: string; commune: string } | null;
+  service: { id: number; nom_service: string; specialite: string } | null;
+}
+
+/** Corps des actions patient (3A.2). */
+export interface AvisPayload {
+  note: number;
+  commentaire?: string;
+}
+export interface SignalementPayload {
+  type: TypeSignalement;
+  description: string;
+}
+export interface RendezVousPayload {
+  membre_id: number;
+  structure_id: number;
+  service_id: number;
+  triage_id?: number;
+  motif: string;
+  date_souhaitee: string; // AAAA-MM-JJ
+}
+
+/** Libellés lisibles des types de signalement. */
+export const LIBELLE_SIGNALEMENT: Record<TypeSignalement, string> = {
+  structure_fermee: 'Structure fermée',
+  hors_service: 'Équipement hors service',
+  pot_de_vin: 'Demande de pot-de-vin',
+  mauvais_traitement: 'Mauvais traitement',
+  autre: 'Autre',
+};
+
+/** Libellé + couleur sémantique du statut de RDV. */
+export const LIBELLE_RDV: Record<StatutRdv, string> = {
+  en_attente: 'En attente',
+  confirme: 'Confirmé',
+  refuse: 'Refusé',
+  annule: 'Annulé',
+  honore: 'Honoré',
+};
+
 /** Communes couvertes par le catalogue (seeder 3A.1, district d'Abidjan). */
 export const COMMUNES: readonly string[] = [
   'Abobo',

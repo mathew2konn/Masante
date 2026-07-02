@@ -1,11 +1,12 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import { ActivityIndicator, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
-import { router, useLocalSearchParams } from 'expo-router';
+import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Screen } from '../../../src/components/Screen';
 import { Card } from '../../../src/components/Card';
 import { ScreenHeader } from '../../../src/components/ScreenHeader';
 import { PastilleDispo } from '../../../src/components/PastilleDispo';
+import { PrimaryButton } from '../../../src/components/PrimaryButton';
 import { getStructure, getAvisStructure } from '../../../src/api/structures';
 import { messageErreur } from '../../../src/utils/erreurs';
 import { formatDateFr, heureCourte } from '../../../src/utils/dates';
@@ -50,9 +51,17 @@ export default function FicheStructure() {
     }
   }, [structureId]);
 
-  useEffect(() => {
-    void charger();
-  }, [charger]);
+  // Rafraîchi à chaque focus : un avis tout juste déposé apparaît au retour sur la fiche.
+  useFocusEffect(
+    useCallback(() => {
+      void charger();
+    }, [charger]),
+  );
+
+  const allerVers = (
+    page: 'avis' | 'signaler' | 'rendez-vous-nouveau',
+    s: { id: number; nom: string },
+  ) => router.push({ pathname: `/(app)/structures/${page}`, params: { id: String(s.id), nom: s.nom } });
 
   if (chargement) {
     return (
@@ -140,6 +149,14 @@ export default function FicheStructure() {
         />
       </View>
 
+      {/* Demande de rendez-vous (F3.6) */}
+      <View style={styles.rdvBtn}>
+        <PrimaryButton
+          label="Demander un rendez-vous"
+          onPress={() => allerVers('rendez-vous-nouveau', structure)}
+        />
+      </View>
+
       {/* Coordonnées */}
       {structure.adresse && (
         <Card style={styles.bloc}>
@@ -182,13 +199,28 @@ export default function FicheStructure() {
 
       {/* Avis */}
       <Card style={styles.bloc}>
-        <Titre icone="chatbubble-ellipses-outline" texte={`Avis (${avis.length})`} />
+        <View style={styles.avisEntete}>
+          <Titre icone="chatbubble-ellipses-outline" texte={`Avis (${avis.length})`} />
+          <Pressable onPress={() => allerVers('avis', structure)} accessibilityRole="button" hitSlop={6}>
+            <Text style={styles.lien}>Donner mon avis</Text>
+          </Pressable>
+        </View>
         {avis.length === 0 ? (
           <Text style={styles.corpsMuted}>Aucun avis pour le moment.</Text>
         ) : (
           avis.map((a) => <AvisLigne key={a.id} avis={a} />)
         )}
       </Card>
+
+      {/* Signalement (F3.10) */}
+      <Pressable
+        onPress={() => allerVers('signaler', structure)}
+        accessibilityRole="button"
+        style={styles.signaler}
+      >
+        <Ionicons name="flag-outline" size={16} color={colors.danger.solid} />
+        <Text style={styles.signalerTxt}>Signaler un problème</Text>
+      </Pressable>
     </Screen>
   );
 }
@@ -319,6 +351,11 @@ const styles = StyleSheet.create({
   },
   actionPresse: { backgroundColor: colors.blue[50] },
   actionTxt: { ...typography.caption, color: colors.blue[600], fontWeight: '700' },
+  rdvBtn: { marginBottom: spacing[4] },
+  avisEntete: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  lien: { ...typography.caption, color: colors.blue[600], fontWeight: '700' },
+  signaler: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing[2], minHeight: 48, marginBottom: spacing[2] },
+  signalerTxt: { ...typography.bodyStrong, color: colors.danger.solid },
   titre: { flexDirection: 'row', alignItems: 'center', gap: spacing[2], marginBottom: spacing[1] },
   titreTxt: { ...typography.h2, color: colors.blue[900] },
   corps: { ...typography.body, color: colors.ink[900] },
