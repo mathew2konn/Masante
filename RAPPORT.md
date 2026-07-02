@@ -124,8 +124,13 @@ avec **validation MIME réelle + antivirus + chiffrement au repos**.
   membre » vit dans le **modèle** (`ContactUrgence::booted()` → hook `saved`, sans récursion). Sécurité anti-IDOR :
   `MembreFamillePolicy` (`view`/`update`) + requêtes scopées à la relation. Endpoints (auth Bearer) :
   `GET|POST /v1/membres/{membre}/contacts-urgence`, `GET|PUT|PATCH|DELETE .../contacts-urgence/{id}`.
-- **Frontend (à venir)** : `src/api/contactsUrgence.ts` (CRUD), écran liste + formulaire ; le contact `est_principal`
-  alimente la future carte vitale d'urgence (Module 5).
+- **Frontend — IMPLÉMENTÉ (étape B, 2026-07-02)** : **intégré au moteur générique de sections du carnet**
+  (`src/carnet/registre.ts`), pas de fichier API dédié — le contrat CRUD est identique aux autres sections, donc
+  `src/api/carnet.ts` suffit (choix DRY, source unique). Section `contacts-urgence` : champs nom / lien_parenté /
+  téléphone / téléphone secondaire / e-mail / contact principal ; **nouveau type de champ `format: 'telephone'|'email'`**
+  (clavier adapté + validation **miroir du backend** : `+225`+10 chiffres, e-mail), indicatif `+225` prérempli.
+  Résumé liste : badge « Principal » si `est_principal`. `est_principal` alimente la future carte vitale (Module 5).
+  La section apparaît automatiquement dans la fiche membre (map `SECTIONS`).
 
 ---
 
@@ -142,7 +147,12 @@ avec **validation MIME réelle + antivirus + chiffrement au repos**.
   Endpoints (auth Bearer) : `GET|POST /v1/membres/{membre}/notes-observations`, `GET|DELETE .../notes-observations/{id}`.
   **Journal d'audit FT6 des écritures : documenté, non implémenté** (décision : cohérence avec les autres sections du
   carnet ; à traiter avec le module d'audit global). Auteur médecin (via QR) différé Modules 3/4.
-- **Frontend (à venir)** : `src/api/notesObservations.ts`, fil chronologique horodaté + attribution auteur, saisie patient.
+- **Frontend — IMPLÉMENTÉ (étape B, 2026-07-02)** : **intégré au moteur générique** via un drapeau
+  **`appendOnly`** ajouté au registre (`src/carnet/registre.ts`) et exploité par `CarnetSectionListe`. Effets :
+  le **tap-édition est désactivé** (aucun PUT possible côté backend → 405), seules la **création** et la
+  **suppression** (= rétractation tracée / soft-delete) restent. Fil chronologique : la liste est déjà triée
+  `latest()` par le backend ; chaque note affiche **date+heure** (titre) + **contenu** + **auteur** (« Vous » pour
+  le patient) en badge. Auteur injecté serveur (jamais depuis le client). Pas de fichier API dédié (contrat carnet).
 
 ---
 

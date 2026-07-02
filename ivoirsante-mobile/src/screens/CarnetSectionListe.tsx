@@ -121,7 +121,7 @@ export function CarnetSectionListe({
               key={item.id}
               icone={section.icone}
               resume={section.resume(item)}
-              onPress={() => ouvrirEdition(item)}
+              onPress={section.appendOnly ? undefined : () => ouvrirEdition(item)}
               onSupprimer={() => confirmerSuppression(item)}
             />
           ))}
@@ -144,30 +144,39 @@ function ItemVue({
 }: {
   icone: string;
   resume: ReturnType<NonNullable<ReturnType<typeof sectionParSlug>>['resume']>;
-  onPress: () => void;
+  onPress?: () => void; // absent = section append-only : pas d'édition au tap
   onSupprimer: () => void;
 }) {
   const tons = tonCouleurs(resume.badge?.ton ?? 'neutre');
+  const contenu = (
+    <>
+      <View style={styles.pastille}>
+        <Ionicons name={icone as keyof typeof Ionicons.glyphMap} size={18} color={colors.blue[600]} />
+      </View>
+      <View style={styles.itemTexte}>
+        <Text style={styles.itemTitre}>{resume.titre}</Text>
+        {resume.lignes.map((l, i) => (
+          <Text key={i} style={styles.itemLigne} numberOfLines={2}>
+            {l}
+          </Text>
+        ))}
+        {resume.badge ? (
+          <View style={[styles.badge, { backgroundColor: tons.bg }]}>
+            <Text style={[styles.badgeTxt, { color: tons.text }]}>{resume.badge.texte}</Text>
+          </View>
+        ) : null}
+      </View>
+    </>
+  );
   return (
     <Card style={styles.item}>
-      <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={resume.titre} style={styles.itemPress}>
-        <View style={styles.pastille}>
-          <Ionicons name={icone as keyof typeof Ionicons.glyphMap} size={18} color={colors.blue[600]} />
-        </View>
-        <View style={styles.itemTexte}>
-          <Text style={styles.itemTitre}>{resume.titre}</Text>
-          {resume.lignes.map((l, i) => (
-            <Text key={i} style={styles.itemLigne} numberOfLines={2}>
-              {l}
-            </Text>
-          ))}
-          {resume.badge ? (
-            <View style={[styles.badge, { backgroundColor: tons.bg }]}>
-              <Text style={[styles.badgeTxt, { color: tons.text }]}>{resume.badge.texte}</Text>
-            </View>
-          ) : null}
-        </View>
-      </Pressable>
+      {onPress ? (
+        <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={resume.titre} style={styles.itemPress}>
+          {contenu}
+        </Pressable>
+      ) : (
+        <View style={styles.itemPress}>{contenu}</View>
+      )}
       <Pressable onPress={onSupprimer} accessibilityRole="button" accessibilityLabel="Supprimer" hitSlop={8} style={styles.trash}>
         <Ionicons name="trash-outline" size={20} color={colors.ink[500]} />
       </Pressable>

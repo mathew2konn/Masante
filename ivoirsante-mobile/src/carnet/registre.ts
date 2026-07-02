@@ -8,7 +8,7 @@
  * Les énumérations reflètent À L'IDENTIQUE les règles `in:...` des contrôleurs backend.
  */
 import type { CarnetItem, Medicament, SectionDescriptor, Ton } from '../types/carnet';
-import { formatDateFr, heureCourte } from '../utils/dates';
+import { formatDateFr, formatDateHeureFr, heureCourte } from '../utils/dates';
 
 // --- Libellés des énumérations (miroir des règles backend) ---
 
@@ -51,6 +51,12 @@ const RAPPEL_FREQUENCE: Record<string, string> = {
   quotidien: 'Quotidien',
   hebdomadaire: 'Hebdomadaire',
   mensuel: 'Mensuel',
+};
+
+/** Auteur d'une note (F2.12) : le patient saisit ; le médecin enrichira via QR (Modules 3/4). */
+const NOTE_AUTEUR: Record<string, string> = {
+  patient: 'Vous',
+  medecin: 'Médecin',
 };
 
 /** Transforme une table de libellés en options pour un champ select. */
@@ -182,6 +188,44 @@ const rappels: SectionDescriptor = {
   }),
 };
 
+const contactsUrgence: SectionDescriptor = {
+  slug: 'contacts-urgence',
+  chemin: 'contacts-urgence',
+  titre: "Contacts d'urgence",
+  titreSingulier: "contact d'urgence",
+  icone: 'call-outline',
+  champs: [
+    { kind: 'texte', cle: 'nom', label: 'Nom complet', obligatoire: true, max: 200, autoCap: 'words' },
+    { kind: 'texte', cle: 'lien_parente', label: 'Lien de parenté', max: 100, autoCap: 'sentences', aide: 'Ex. conjoint, parent, ami' },
+    { kind: 'texte', cle: 'telephone', label: 'Téléphone', obligatoire: true, format: 'telephone', defaut: '+225', max: 14 },
+    { kind: 'texte', cle: 'telephone_secondaire', label: 'Téléphone secondaire', format: 'telephone', max: 14 },
+    { kind: 'texte', cle: 'email', label: 'E-mail', format: 'email', max: 150 },
+    { kind: 'booleen', cle: 'est_principal', label: 'Contact principal', defaut: false },
+  ],
+  resume: (i: CarnetItem) => ({
+    titre: str(i.nom) || 'Contact',
+    lignes: [str(i.lien_parente), str(i.telephone)].filter(Boolean),
+    badge: i.est_principal === true ? { texte: 'Principal', ton: 'success' } : undefined,
+  }),
+};
+
+const notesObservations: SectionDescriptor = {
+  slug: 'notes-observations',
+  chemin: 'notes-observations',
+  titre: 'Notes & observations',
+  titreSingulier: 'note',
+  icone: 'create-outline',
+  appendOnly: true, // F2.12 : append-only (pas d'édition) ; suppression = rétractation tracée
+  champs: [
+    { kind: 'texte', cle: 'contenu', label: 'Note', obligatoire: true, multiligne: true, max: 5000, autoCap: 'sentences' },
+  ],
+  resume: (i: CarnetItem) => ({
+    titre: i.created_at ? formatDateHeureFr(str(i.created_at)) : 'Note',
+    lignes: [str(i.contenu)].filter(Boolean),
+    badge: { texte: NOTE_AUTEUR[str(i.auteur_type)] ?? 'Auteur', ton: 'neutre' },
+  }),
+};
+
 /** Toutes les sections, dans l'ordre d'affichage du carnet. */
 export const SECTIONS: SectionDescriptor[] = [
   antecedents,
@@ -189,6 +233,8 @@ export const SECTIONS: SectionDescriptor[] = [
   ordonnances,
   resultatsAnalyses,
   rappels,
+  contactsUrgence,
+  notesObservations,
 ];
 
 /** Retrouve une section par son slug d'URL (undefined si inconnu). */

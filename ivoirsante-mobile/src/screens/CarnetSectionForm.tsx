@@ -159,7 +159,11 @@ function ChampVue({
           onChangeText={onChange}
           multiline={champ.multiligne}
           maxLength={champ.max}
-          autoCapitalize={champ.autoCap ?? 'sentences'}
+          placeholder={champ.format === 'telephone' ? '+225XXXXXXXXXX' : undefined}
+          keyboardType={
+            champ.format === 'telephone' ? 'phone-pad' : champ.format === 'email' ? 'email-address' : undefined
+          }
+          autoCapitalize={champ.format ? 'none' : champ.autoCap ?? 'sentences'}
           erreur={erreur}
         />
       );
@@ -319,6 +323,14 @@ function RepeaterResultats({
 
 const libelle = (c: Champ) => (c.obligatoire ? `${c.label} *` : c.label);
 
+/** Valide un champ texte formaté (miroir des règles backend). Renvoie un message ou null. */
+function validerFormat(format: 'telephone' | 'email', valeur: string): string | null {
+  if (format === 'telephone') {
+    return /^\+225[0-9]{10}$/.test(valeur) ? null : 'Numéro invalide (format +225 puis 10 chiffres).';
+  }
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(valeur) ? null : 'Adresse e-mail invalide.';
+}
+
 /** Construit l'état initial du formulaire à partir d'un item (édition) ou des défauts. */
 function initiales(section: SectionDescriptor, item: Record<string, unknown> | null): Record<string, unknown> {
   const v: Record<string, unknown> = {};
@@ -326,6 +338,8 @@ function initiales(section: SectionDescriptor, item: Record<string, unknown> | n
     const brut = item?.[c.cle];
     switch (c.kind) {
       case 'texte':
+        v[c.cle] = typeof brut === 'string' ? brut : item ? '' : c.defaut ?? '';
+        break;
       case 'select':
         v[c.cle] = typeof brut === 'string' ? brut : '';
         break;
@@ -359,7 +373,13 @@ function validerTout(section: SectionDescriptor, valeurs: Record<string, unknown
   for (const c of section.champs) {
     const val = valeurs[c.cle];
     switch (c.kind) {
-      case 'texte':
+      case 'texte': {
+        const t = String(val ?? '').trim();
+        if (c.obligatoire && !t) errs[c.cle] = 'Ce champ est obligatoire.';
+        else if (t && c.format) errs[c.cle] = validerFormat(c.format, t);
+        else errs[c.cle] = null;
+        break;
+      }
       case 'select':
         errs[c.cle] = c.obligatoire && !String(val ?? '').trim() ? 'Ce champ est obligatoire.' : null;
         break;

@@ -45,6 +45,8 @@ export type ChampTexte = ChampBase & {
   multiligne?: boolean;
   max?: number;
   autoCap?: 'none' | 'sentences' | 'words' | 'characters';
+  format?: 'telephone' | 'email'; // clavier + validation dédiés (miroir des règles backend)
+  defaut?: string; // valeur initiale à la création (ex. indicatif '+225')
 };
 export type ChampDate = ChampBase & { kind: 'date'; futurInterdit?: boolean; apresChamp?: string };
 export type ChampHeure = ChampBase & { kind: 'heure' };
@@ -70,6 +72,7 @@ export type SectionDescriptor = {
   titreSingulier: string; // (ex. « antécédent »)
   icone: string; // nom d'icône Ionicons
   ajoutParPatient?: boolean; // si true, on envoie added_by='patient'
+  appendOnly?: boolean; // section append-only : création + suppression seules, pas d'édition (F2.12)
   champs: Champ[];
   resume: (item: CarnetItem) => ResumeItem;
 };
