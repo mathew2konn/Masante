@@ -29,6 +29,23 @@ class ContactUrgence extends Model
         ];
     }
 
+    /**
+     * Invariant métier : au plus un contact `est_principal` par membre. Dès qu'un contact est
+     * marqué principal, les autres du même membre repassent à `false`. La mise à jour de masse
+     * ne déclenche pas d'événement Eloquent → aucune récursion.
+     */
+    protected static function booted(): void
+    {
+        static::saved(function (ContactUrgence $contact): void {
+            if ($contact->est_principal) {
+                static::query()
+                    ->where('membre_id', $contact->membre_id)
+                    ->whereKeyNot($contact->getKey())
+                    ->update(['est_principal' => false]);
+            }
+        });
+    }
+
     public function membre(): BelongsTo
     {
         return $this->belongsTo(MembreFamille::class, 'membre_id');

@@ -118,10 +118,14 @@ avec **validation MIME réelle + antivirus + chiffrement au repos**.
   `telephone_secondaire` NULL, `email` NULL (option, notifs Module 5), `est_principal` BOOL DEFAULT false, timestamps,
   index (membre_id, est_principal). **Règle applicative** : au plus un `est_principal = true` par membre (géré au
   FormRequest/Service, transaction).
-- **Backend** : modèle `ContactUrgence` (relation `membre()`), `StoreContactUrgenceRequest` (validation téléphone CI,
-  format E.164), `ContactUrgenceController` (CRUD, Policy cloisonnement membre), route `apiResource`.
-- **Frontend** : `src/api/contactsUrgence.ts` (CRUD), écran liste + formulaire ; le contact `est_principal` alimente la
-  future carte vitale d'urgence (Module 5).
+- **Backend — IMPLÉMENTÉ (étape A, 2026-07-02)** : `ContactUrgenceController extends CarnetSectionController`
+  (`relation()='contactsUrgence'`, `regles()` : nom, lien_parente, téléphone **CI** `+225`+10 chiffres,
+  téléphone_secondaire, email, est_principal). **CRUD complet** générique. L'invariant « un seul principal par
+  membre » vit dans le **modèle** (`ContactUrgence::booted()` → hook `saved`, sans récursion). Sécurité anti-IDOR :
+  `MembreFamillePolicy` (`view`/`update`) + requêtes scopées à la relation. Endpoints (auth Bearer) :
+  `GET|POST /v1/membres/{membre}/contacts-urgence`, `GET|PUT|PATCH|DELETE .../contacts-urgence/{id}`.
+- **Frontend (à venir)** : `src/api/contactsUrgence.ts` (CRUD), écran liste + formulaire ; le contact `est_principal`
+  alimente la future carte vitale d'urgence (Module 5).
 
 ---
 
@@ -131,10 +135,14 @@ avec **validation MIME réelle + antivirus + chiffrement au repos**.
   `auteur_type` ENUM('patient','medecin'), `auteur_user_id` FK users nullOnDelete NULL, `triage_id` FK triages
   nullOnDelete NULL, `created_at` **seul** (append-only), `deleted_at` (softDeletes, rétractation tracée),
   index (membre_id, created_at). `auteur_agent_id` **différé** au Module 3/4 (table `agents_garde` absente).
-- **Backend** : modèle `NoteObservation` (`const UPDATED_AT = null`, cast `contenu`→`encrypted`, `use SoftDeletes`,
-  relations `membre()`, `auteur()`), FormRequest, contrôleur (create/list/soft-delete, **inscription au journal d'audit FT6**),
-  Policy cloisonnement.
-- **Frontend** : `src/api/notesObservations.ts`, fil chronologique horodaté + attribution auteur, saisie patient.
+- **Backend — IMPLÉMENTÉ (étape A, 2026-07-02)** : `NoteObservationController extends CarnetSectionController`
+  (`relation()='notesObservations'`, `regles()` : `contenu` req/max:5000 (chiffré par le cast), `triage_id` nullable exists).
+  **Append-only** : la route `update` n'est PAS exposée ; `store()` est surchargé pour **injecter l'auteur côté serveur**
+  (`auteur_type='patient'`, `auteur_user_id = user()->id`), jamais depuis le client. `destroy` = **soft-delete**.
+  Endpoints (auth Bearer) : `GET|POST /v1/membres/{membre}/notes-observations`, `GET|DELETE .../notes-observations/{id}`.
+  **Journal d'audit FT6 des écritures : documenté, non implémenté** (décision : cohérence avec les autres sections du
+  carnet ; à traiter avec le module d'audit global). Auteur médecin (via QR) différé Modules 3/4.
+- **Frontend (à venir)** : `src/api/notesObservations.ts`, fil chronologique horodaté + attribution auteur, saisie patient.
 
 ---
 

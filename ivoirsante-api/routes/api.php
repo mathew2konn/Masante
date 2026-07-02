@@ -3,6 +3,8 @@
 use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\AvisController;
 use App\Http\Controllers\Api\V1\Carnet\AntecedentController;
+use App\Http\Controllers\Api\V1\Carnet\ContactUrgenceController;
+use App\Http\Controllers\Api\V1\Carnet\NoteObservationController;
 use App\Http\Controllers\Api\V1\Carnet\OrdonnanceController;
 use App\Http\Controllers\Api\V1\Carnet\RappelController;
 use App\Http\Controllers\Api\V1\Carnet\ResultatAnalyseController;
@@ -103,6 +105,7 @@ Route::middleware('throttle:api')->group(function () {
                 'ordonnances'        => OrdonnanceController::class,
                 'resultats-analyses' => ResultatAnalyseController::class,
                 'rappels'            => RappelController::class,
+                'contacts-urgence'   => ContactUrgenceController::class,   // F2.11
             ];
 
             Route::prefix('membres/{membre}')->group(function () use ($sections) {
@@ -113,6 +116,13 @@ Route::middleware('throttle:api')->group(function () {
                     Route::match(['put', 'patch'], $chemin.'/{id}', [$controleur, 'update']);
                     Route::delete($chemin.'/{id}', [$controleur, 'destroy']);
                 }
+
+                // F2.12 — Notes & observations : append-only (aucune route update),
+                // suppression = soft-delete. Enregistrées à part, hors CRUD générique.
+                Route::get('notes-observations', [NoteObservationController::class, 'index']);
+                Route::post('notes-observations', [NoteObservationController::class, 'store']);
+                Route::get('notes-observations/{id}', [NoteObservationController::class, 'show']);
+                Route::delete('notes-observations/{id}', [NoteObservationController::class, 'destroy']);
             });
 
             /*
