@@ -97,4 +97,21 @@ class MembreFamille extends Model
     {
         return $this->hasMany(Rappel::class, 'membre_id');
     }
+
+    // --- Nouvelles sections du carnet (F2.10 → F2.12) ---
+
+    public function documentsMedicaux(): HasMany
+    {
+        return $this->hasMany(DocumentMedical::class, 'membre_id');
+    }
+
+    public function contactsUrgence(): HasMany
+    {
+        return $this->hasMany(ContactUrgence::class, 'membre_id');
+    }
+
+    public function notesObservations(): HasMany
+    {
+        return $this->hasMany(NoteObservation::class, 'membre_id');
+    }
 }
