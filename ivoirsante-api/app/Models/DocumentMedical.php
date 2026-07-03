@@ -19,6 +19,21 @@ class DocumentMedical extends Model
 
     protected $table = 'documents_medicaux';
 
+    /** Catégories acceptées (miroir de l'ENUM de la migration). Source unique pour la validation. */
+    public const CATEGORIES = [
+        'certificat_medical',
+        'fiche_sortie',
+        'compte_rendu',
+        'imagerie',
+        'resultat_labo',
+        'assurance',
+        'ordonnance_externe',
+        'autre',
+    ];
+
+    /** Provenances possibles (F2.13), miroir de l'ENUM `source`. */
+    public const SOURCES = ['patient', 'medecin', 'structure'];
+
     protected $fillable = [
         'categorie',
         'titre',

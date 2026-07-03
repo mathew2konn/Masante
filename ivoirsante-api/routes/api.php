@@ -4,6 +4,7 @@ use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\AvisController;
 use App\Http\Controllers\Api\V1\Carnet\AntecedentController;
 use App\Http\Controllers\Api\V1\Carnet\ContactUrgenceController;
+use App\Http\Controllers\Api\V1\Carnet\DocumentMedicalController;
 use App\Http\Controllers\Api\V1\Carnet\NoteObservationController;
 use App\Http\Controllers\Api\V1\Carnet\OrdonnanceController;
 use App\Http\Controllers\Api\V1\Carnet\RappelController;
@@ -123,6 +124,14 @@ Route::middleware('throttle:api')->group(function () {
                 Route::post('notes-observations', [NoteObservationController::class, 'store']);
                 Route::get('notes-observations/{id}', [NoteObservationController::class, 'show']);
                 Route::delete('notes-observations/{id}', [NoteObservationController::class, 'destroy']);
+
+                // F2.10 — Documents médicaux importés : upload multipart chiffré + antivirus.
+                // Immuables (pas d'update) ; `show` renvoie le fichier déchiffré (si `sain`) ;
+                // `destroy` = soft-delete (rétention médicale, blob conservé).
+                Route::get('documents', [DocumentMedicalController::class, 'index']);
+                Route::post('documents', [DocumentMedicalController::class, 'store']);
+                Route::get('documents/{id}', [DocumentMedicalController::class, 'show']);
+                Route::delete('documents/{id}', [DocumentMedicalController::class, 'destroy']);
             });
 
             /*

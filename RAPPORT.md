@@ -110,6 +110,26 @@ avec **validation MIME réelle + antivirus + chiffrement au repos**.
 `chiffrement + stockage UUID` → `enregistrement statut=en_attente` → `ScanDocumentJob (ClamAV/stub)` → `statut=sain|infecte`
 → `liste rafraîchie` → `téléchargement (déchiffré, si sain)`.
 
+#### Backend — IMPLÉMENTÉ (étape A, 2026-07-03)
+- **Config** `config/masante.php` : `antivirus.enabled` (défaut `false`, stub dev), `upload.max_ko` (20 Mo),
+  `upload.mimetypes` (liste blanche 12 types). **Disque privé** `documents` (`config/filesystems.php`,
+  `storage_path('app/documents')`, `throw`) — hors `public/`, jamais servi directement.
+- **Service** `DocumentStorageService` : `storeEncrypted` (UUID, `Crypt::encryptString`, `hash_sha256`, MIME finfo,
+  extension dérivée du MIME), `retrieveDecrypted`, `deleteBlob` (nettoyage d'orphelin).
+- **FormRequest** `StoreDocumentRequest` : `authorize()` → `MembreFamillePolicy::update` (anti-IDOR) ;
+  `fichier` = `required|file|max|mimetypes:` (MIME réel) ; `categorie` `Rule::in`, `date_document`,
+  `source`, `triage_id`. Constantes `DocumentMedical::CATEGORIES` / `::SOURCES` (source unique).
+- **Job** `ScanDocumentJob` (transport de l'ID) : dev → `sain` ; prod → `clamdscan` (flux stdin) ;
+  **fail-closed** (indispo/erreur → reste `en_attente`, journalisé).
+- **Contrôleur** `DocumentMedicalController` : `index` (Policy `view`), `store` (dispatch **sync** en dev / **async** en prod,
+  `uploaded_by_user_id` serveur, blob nettoyé si l'insert échoue), `show` (téléchargement déchiffré,
+  **423** si `!== sain`), `destroy` (soft-delete, blob conservé = rétention). **Pas de route `update`** (document immuable).
+- **Routes** (`membres/{membre}/documents`) : `GET|POST` + `GET|DELETE .../{id}`.
+- **Écart assumé vs spec** : pas de `DocumentMedicalPolicy` dédiée — l'autorisation passe par `MembreFamillePolicy`
+  sur le membre parent (cohérent avec les 6 sections du carnet ; évite un doublon de logique).
+- **Tests** : `DocumentMedicalTest` (8) — chiffrement au repos, auteur serveur, liste blanche MIME, enum catégorie,
+  téléchargement déchiffré, verrou 423 (`en_attente`/`infecte`), soft-delete + rétention du blob, IDOR. **Suite : 56/56 (178 assertions).**
+
 ---
 
 ### F2.11 — Contacts d'urgence par membre

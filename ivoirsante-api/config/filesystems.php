@@ -47,6 +47,16 @@ return [
             'report' => false,
         ],
 
+        // F2.10 — Documents médicaux importés. Disque PRIVÉ : blobs chiffrés au repos,
+        // jamais liés dans public/ ni servis directement (téléchargement uniquement via
+        // le contrôleur, déchiffré, après contrôle de Policy et du statut antivirus).
+        'documents' => [
+            'driver' => 'local',
+            'root' => storage_path('app/documents'),
+            'throw' => true,   // une écriture/lecture ratée doit remonter (intégrité du dossier médical)
+            'report' => false,
+        ],
+
         's3' => [
             'driver' => 's3',
             'key' => env('AWS_ACCESS_KEY_ID'),
