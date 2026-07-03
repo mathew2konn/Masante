@@ -84,7 +84,7 @@ abstract class CarnetSectionController extends Controller
      *
      * @return array<string, array<int, mixed>>
      */
-    private function reglesPour(bool $creation): array
+    protected function reglesPour(bool $creation): array
     {
         $regles = $this->regles();
 

@@ -6,16 +6,17 @@ use Illuminate\Contracts\Validation\Validator;
 use Illuminate\Foundation\Http\FormRequest;
 
 /**
- * Création d'un membre de la famille (F2.1). La règle métier « max 5 membres par compte »
- * (F2.2) est vérifiée ici, sur le compte authentifié, et renvoyée en erreur 422 lisible.
+ * Création d'un membre de la famille (F2.1). La règle métier « max 15 membres par compte »
+ * (F2.2, révisée par modification.txt) est vérifiée ici, sur le compte authentifié, et renvoyée
+ * en erreur 422 lisible.
  *
  * `matricule_ivs`, `medecin_referent_id` et `user_id` ne sont PAS acceptés du client :
  * ils sont attribués/contrôlés côté serveur.
  */
 class StoreMembreRequest extends FormRequest
 {
-    /** Plafond de membres par compte (CdC F2.2). */
-    public const MAX_MEMBRES = 5;
+    /** Plafond de membres par compte (F2.2, révisé de 5 à 15 par modification.txt). */
+    public const MAX_MEMBRES = 15;
 
     public function authorize(): bool
     {
@@ -40,7 +41,7 @@ class StoreMembreRequest extends FormRequest
         ];
     }
 
-    /** Vérifie le plafond de 5 membres après la validation des champs. */
+    /** Vérifie le plafond de membres après la validation des champs. */
     public function withValidator(Validator $validator): void
     {
         $validator->after(function (Validator $validator) {

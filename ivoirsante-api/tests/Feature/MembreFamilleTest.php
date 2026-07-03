@@ -10,7 +10,7 @@ use Tests\TestCase;
 
 /**
  * Étape 2A.2 — Membres de la famille. On vérifie surtout le point sensible : l'isolation
- * entre comptes (anti-IDOR, §4.3 Sécurité), ainsi que la règle métier « max 5 » (F2.2).
+ * entre comptes (anti-IDOR, §4.3 Sécurité), ainsi que la règle métier « max 15 » (F2.2).
  */
 class MembreFamilleTest extends TestCase
 {
@@ -50,10 +50,10 @@ class MembreFamilleTest extends TestCase
         $this->assertSame('CMU12345678', $membre->cmu_numero);
     }
 
-    public function test_le_compte_ne_peut_pas_depasser_cinq_membres(): void
+    public function test_le_compte_ne_peut_pas_depasser_quinze_membres(): void
     {
         $user = User::factory()->create();
-        MembreFamille::factory()->count(5)->for($user)->create();
+        MembreFamille::factory()->count(15)->for($user)->create();
         Sanctum::actingAs($user);
 
         $this->postJson('/api/v1/membres', $this->donneesMembre())

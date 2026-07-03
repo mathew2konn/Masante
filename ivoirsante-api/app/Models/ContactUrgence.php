@@ -7,7 +7,11 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 /**
  * Contact d'urgence (personne à prévenir) rattaché à un membre (F2.11). Alimente la carte vitale
- * d'urgence (Module 5). `est_principal` : contact prioritaire (au plus un par membre, règle applicative).
+ * d'urgence (Module 5) et le mode « bris de glace » (note Continuité d'accès).
+ *
+ * Modèle « exactement 2 contacts » (modification.txt) : le 1er créé est le contact PRINCIPAL
+ * (`est_principal = true`), le 2e le SECONDAIRE. Le rôle découle de l'ordre de création — il n'est
+ * jamais choisi par le client — et le plafond de 2 est appliqué au contrôleur.
  */
 class ContactUrgence extends Model
 {
@@ -18,7 +22,6 @@ class ContactUrgence extends Model
         'lien_parente',
         'telephone',
         'telephone_secondaire',
-        'email',
         'est_principal',
     ];
 
@@ -30,9 +33,11 @@ class ContactUrgence extends Model
     }
 
     /**
-     * Invariant métier : au plus un contact `est_principal` par membre. Dès qu'un contact est
-     * marqué principal, les autres du même membre repassent à `false`. La mise à jour de masse
-     * ne déclenche pas d'événement Eloquent → aucune récursion.
+     * Invariants du couple principal/secondaire, garantis quel que soit le point d'entrée :
+     *  - `saved`   : au plus UN contact principal par membre (les autres repassent à false) ;
+     *  - `deleted` : si le principal est supprimé, le contact restant est PROMU principal
+     *                (le membre n'a jamais un secondaire orphelin sans principal).
+     * Les `update`/`create` de masse ne déclenchent pas d'événement enfant → aucune récursion.
      */
     protected static function booted(): void
     {
@@ -42,6 +47,16 @@ class ContactUrgence extends Model
                     ->where('membre_id', $contact->membre_id)
                     ->whereKeyNot($contact->getKey())
                     ->update(['est_principal' => false]);
+            }
+        });
+
+        static::deleted(function (ContactUrgence $contact): void {
+            if ($contact->est_principal) {
+                static::query()
+                    ->where('membre_id', $contact->membre_id)
+                    ->orderBy('id')
+                    ->first()
+                    ?->update(['est_principal' => true]);
             }
         });
     }

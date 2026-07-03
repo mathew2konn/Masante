@@ -132,6 +132,31 @@ avec **validation MIME réelle + antivirus + chiffrement au repos**.
   Résumé liste : badge « Principal » si `est_principal`. `est_principal` alimente la future carte vitale (Module 5).
   La section apparaît automatiquement dans la fiche membre (map `SECTIONS`).
 
+#### Révision « exactement 2 contacts » (`modification.txt`, backend étape A le 2026-07-03)
+
+Décision produit : un membre a **exactement 2 contacts** (un **principal** + un **secondaire**), le rôle découlant de
+l'**ordre de création** (jamais choisi par le client) ; **l'e-mail est retiré** ; le **lien de parenté** devient une
+**liste fermée**. Conservé **par membre** (F2.11) — cohérent avec la note *Continuité d'accès* (§5.2 bris de glace) et
+la note *Verrou applicatif* (§3.2) qui citent explicitement « contacts d'urgence **du membre** ». UX : on **garde le
+moteur générique** du carnet (pas d'écran sur-mesure) avec un plafond d'items.
+
+- **Migration** `2026_07_03_000001_drop_email_from_contacts_urgence` : `dropColumn('email')`, réversible (`down()` la
+  recrée). Aucune donnée de production (dev).
+- **Modèle** `ContactUrgence` : `email` retiré du `$fillable` ; nouveau hook `deleted` → **promotion** : si le principal
+  est supprimé, le contact restant est promu principal (jamais de secondaire orphelin). Le hook `saved` (un seul
+  principal) est conservé.
+- **Contrôleur** `ContactUrgenceController` : `regles()` = nom, `lien_parente` **`Rule::in(LIENS_PARENTE)`** (15 valeurs :
+  papa, maman, epouse, epoux, frere, soeur, cousin, cousine, tante, oncle, tuteur, grand_mere, grand_pere, ami, autre),
+  téléphone/`telephone_secondaire` CI. **`est_principal` n'est plus accepté du client.** `store()` surchargé : plafond
+  **`MAX_CONTACTS=2`** (3e → 422 `contact`), **unicité du `telephone`** entre les 2 (→ 422 `telephone`), rôle attribué
+  par ordre (1er → `est_principal=true`). `update()` surchargé : interdit de reprendre le téléphone de l'autre contact.
+  `reglesPour()` de la base passée en `protected` (réutilisée à l'`update`).
+- **Tests** : `ContactUrgenceTest` (7) — rôle par ordre, refus du 3e, distinction des numéros, enum lien_parenté,
+  promotion à la suppression, client ne peut forcer le rôle, isolation IDOR. **Suite : 48/48 (148 assertions).**
+- **Plafond famille** `StoreMembreRequest::MAX_MEMBRES` **5 → 15** (F2.2 révisé) ; test membre mis à jour.
+- **Frontend étape B (À FAIRE)** : retirer le champ e-mail, `lien_parente` → `select`, retirer la case « principal »
+  (rôle = ordre, badge Principal/Secondaire), flag `maxItems: 2` (désactive « Ajouter » à 2), plafond carnet 5 → 15.
+
 ---
 
 ### F2.12 — Notes & observations médicales
