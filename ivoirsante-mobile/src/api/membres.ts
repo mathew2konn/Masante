@@ -20,7 +20,7 @@ export async function obtenirMembre(id: number): Promise<Membre> {
   return data.membre;
 }
 
-/** Création d'un membre. 422 si le plafond de 5 membres est atteint. */
+/** Création d'un membre. 422 si le plafond de 15 membres est atteint. */
 export async function creerMembre(payload: MembrePayload): Promise<Membre> {
   const { data } = await api.post<{ membre: Membre }>('/v1/membres', payload);
   return data.membre;

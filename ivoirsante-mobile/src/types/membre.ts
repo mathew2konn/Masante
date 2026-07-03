@@ -40,8 +40,8 @@ export type MembrePayload = {
   cmu_validite?: string | null;
 };
 
-/** Plafond métier : 5 membres par compte (CdC F2.2, miroir de StoreMembreRequest::MAX_MEMBRES). */
-export const MAX_MEMBRES = 5;
+/** Plafond métier : 15 membres par compte (F2.2 révisé, miroir de StoreMembreRequest::MAX_MEMBRES). */
+export const MAX_MEMBRES = 15;
 
 /** Options de groupe sanguin (ordre d'affichage). */
 export const GROUPES_SANGUINS: GroupeSanguin[] = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];

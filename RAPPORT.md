@@ -145,17 +145,37 @@ moteur générique** du carnet (pas d'écran sur-mesure) avec un plafond d'items
 - **Modèle** `ContactUrgence` : `email` retiré du `$fillable` ; nouveau hook `deleted` → **promotion** : si le principal
   est supprimé, le contact restant est promu principal (jamais de secondaire orphelin). Le hook `saved` (un seul
   principal) est conservé.
+- **Un seul numéro par contact** (2026-07-03) : migration `..._000002_drop_telephone_secondaire_from_contacts_urgence`
+  (réversible) + retrait du `$fillable` et de la règle. Un contact = nom + lien + **un** téléphone.
 - **Contrôleur** `ContactUrgenceController` : `regles()` = nom, `lien_parente` **`Rule::in(LIENS_PARENTE)`** (15 valeurs :
   papa, maman, epouse, epoux, frere, soeur, cousin, cousine, tante, oncle, tuteur, grand_mere, grand_pere, ami, autre),
-  téléphone/`telephone_secondaire` CI. **`est_principal` n'est plus accepté du client.** `store()` surchargé : plafond
+  téléphone CI. **`est_principal` n'est plus accepté du client.** `store()` surchargé : plafond
   **`MAX_CONTACTS=2`** (3e → 422 `contact`), **unicité du `telephone`** entre les 2 (→ 422 `telephone`), rôle attribué
   par ordre (1er → `est_principal=true`). `update()` surchargé : interdit de reprendre le téléphone de l'autre contact.
   `reglesPour()` de la base passée en `protected` (réutilisée à l'`update`).
 - **Tests** : `ContactUrgenceTest` (7) — rôle par ordre, refus du 3e, distinction des numéros, enum lien_parenté,
   promotion à la suppression, client ne peut forcer le rôle, isolation IDOR. **Suite : 48/48 (148 assertions).**
 - **Plafond famille** `StoreMembreRequest::MAX_MEMBRES` **5 → 15** (F2.2 révisé) ; test membre mis à jour.
-- **Frontend étape B (À FAIRE)** : retirer le champ e-mail, `lien_parente` → `select`, retirer la case « principal »
-  (rôle = ordre, badge Principal/Secondaire), flag `maxItems: 2` (désactive « Ajouter » à 2), plafond carnet 5 → 15.
+- **Frontend — ÉCRAN DÉDIÉ (étape B, redessinée le 2026-07-03)** : après revue visuelle, l'utilisateur a **abandonné
+  le moteur générique** pour les contacts au profit d'un **écran sur-mesure** (maquette fournie), tout en gardant le
+  Design System. `ContactsUrgenceEcran` (`src/screens/`) + route `app/(app)/membres/contacts-urgence/[id].tsx` ;
+  la fiche membre pointe une **ligne dédiée** vers cet écran (les contacts sortent de `SECTIONS` dans `registre.ts`).
+  - **2 blocs dépliables** : « Premier contact » (= principal) et « Second contact » (= secondaire), révélé par
+    « Passer au second contact ». Le rôle reste **déduit de l'ordre** côté serveur (backend inchangé).
+  - **Lien de parenté = menu déroulant** (Modal, défaut **Papa**), plus la grille de puces ; libellés `LIEN_PARENTE`
+    exportés depuis `registre.ts` (miroir des 15 valeurs backend).
+  - **Indicatif `+225` masqué** : saisie **locale 10 chiffres** ; `versE164`/`versLocal` ajoutent/retirent `+225`
+    (jamais affiché). **Astérisques `*` retirés** des libellés.
+  - **Photo par contact** : emplacement **désactivé** (« Bientôt disponible ») — sera branché sur le stockage
+    sécurisé de **F2.10** (décision : ne pas dupliquer l'infra d'upload).
+  - **Enregistrement** : un seul bouton « Ajouter » (footer collant) → POST/PUT du 1er puis du 2e (2e facultatif),
+    numéros distincts vérifiés côté client (miroir backend). Réutilise l'API `carnet.ts` par `chemin`.
+  - **Un seul numéro par contact** (demande utilisateur) : `telephone_secondaire` supprimé côté écran (et backend).
+  - **Aperçu sur la fiche membre** : sous la ligne « Contacts d'urgence », les 1-2 contacts (nom + numéro sans `+225`
+    + badge **Principal**/**Secondaire**), chargés en best-effort et rechargés au focus → l'utilisateur revoit ses
+    contacts sans rouvrir l'écran.
+  - Plafond carnet **`MAX_MEMBRES` 5 → 15** (`src/types/membre.ts`). Retour au moteur générique nettoyé
+    (`maxItems` retiré, inutilisé). `tsc --noEmit` OK.
 
 ---
 

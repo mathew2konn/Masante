@@ -38,11 +38,10 @@ class ContactUrgenceController extends CarnetSectionController
     protected function regles(): array
     {
         return [
-            'nom'                  => ['required', 'string', 'max:200'],
-            'lien_parente'         => ['required', Rule::in(self::LIENS_PARENTE)],
-            'telephone'            => ['required', 'string', 'regex:/^\+225[0-9]{10}$/'],
-            'telephone_secondaire' => ['nullable', 'string', 'regex:/^\+225[0-9]{10}$/'],
-            // `est_principal` n'est PAS accepté du client : il est déduit de l'ordre de création.
+            'nom'          => ['required', 'string', 'max:200'],
+            'lien_parente' => ['required', Rule::in(self::LIENS_PARENTE)],
+            'telephone'    => ['required', 'string', 'regex:/^\+225[0-9]{10}$/'],
+            // Un seul numéro par contact. `est_principal` déduit de l'ordre, jamais accepté du client.
         ];
     }
 

@@ -21,7 +21,6 @@ class ContactUrgence extends Model
         'nom',
         'lien_parente',
         'telephone',
-        'telephone_secondaire',
         'est_principal',
     ];
 

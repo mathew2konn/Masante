@@ -8,8 +8,10 @@ import { Card } from '../../../src/components/Card';
 import { PrimaryButton } from '../../../src/components/PrimaryButton';
 import { SecondaryButton } from '../../../src/components/SecondaryButton';
 import { obtenirMembre, supprimerMembre } from '../../../src/api/membres';
+import { listerSection } from '../../../src/api/carnet';
 import { messageErreur } from '../../../src/utils/erreurs';
 import { LIBELLE_CMU_STATUT, type Membre } from '../../../src/types/membre';
+import type { CarnetItem } from '../../../src/types/carnet';
 import { SECTIONS } from '../../../src/carnet/registre';
 import { calculerAge, formatDateFr } from '../../../src/utils/dates';
 import { colors, radius, spacing, typography } from '../../../src/theme/theme';
@@ -20,6 +22,7 @@ export default function DetailMembreScreen() {
   const membreId = Number(id);
 
   const [membre, setMembre] = useState<Membre | null>(null);
+  const [contacts, setContacts] = useState<CarnetItem[]>([]);
   const [chargement, setChargement] = useState(true);
   const [erreur, setErreur] = useState<string | null>(null);
   const [suppression, setSuppression] = useState(false);
@@ -33,6 +36,13 @@ export default function DetailMembreScreen() {
         try {
           const m = await obtenirMembre(membreId);
           if (actif) setMembre(m);
+          // Aperçu des contacts d'urgence : best-effort, n'empêche pas l'affichage de la fiche.
+          try {
+            const cs = await listerSection(membreId, 'contacts-urgence');
+            if (actif) setContacts(cs);
+          } catch {
+            /* aperçu indisponible : on n'affiche simplement rien */
+          }
         } catch (e) {
           if (actif) setErreur(messageErreur(e));
         } finally {
@@ -147,6 +157,50 @@ export default function DetailMembreScreen() {
             <Ionicons name="chevron-forward" size={20} color={colors.ink[500]} />
           </Pressable>
         ))}
+
+        {/* Contacts d'urgence (F2.11) : écran dédié à 2 blocs, hors moteur générique. */}
+        <Pressable
+          onPress={() =>
+            router.push({
+              pathname: '/(app)/membres/contacts-urgence/[id]',
+              params: { id: membreId, nom: `${membre.prenom} ${membre.nom}` },
+            })
+          }
+          accessibilityRole="button"
+          accessibilityLabel="Contacts d'urgence"
+          style={[styles.sectionRow, styles.sectionRowBordure]}
+        >
+          <View style={styles.sectionPastille}>
+            <Ionicons name="call-outline" size={18} color={colors.blue[600]} />
+          </View>
+          <Text style={styles.sectionTxt}>Contacts d'urgence</Text>
+          <Ionicons name="chevron-forward" size={20} color={colors.ink[500]} />
+        </Pressable>
+
+        {/* Aperçu : les 1-2 contacts saisis (principal en premier), rechargé au focus. */}
+        {contacts.length > 0 ? (
+          <View style={styles.contactsResume}>
+            {[...contacts]
+              .sort((a, b) => (b.est_principal === true ? 1 : 0) - (a.est_principal === true ? 1 : 0))
+              .map((c) => (
+                <View key={String(c.id)} style={styles.contactLigne}>
+                  <View style={styles.contactInfos}>
+                    <Text style={styles.contactNom} numberOfLines={1}>
+                      {String(c.nom ?? 'Contact')}
+                    </Text>
+                    <Text style={styles.contactTel}>{telLocal(c.telephone)}</Text>
+                  </View>
+                  <View
+                    style={[styles.contactBadge, { backgroundColor: c.est_principal === true ? colors.success.bg : colors.blue[100] }]}
+                  >
+                    <Text style={[styles.contactBadgeTxt, { color: c.est_principal === true ? colors.success.text : colors.blue[700] }]}>
+                      {c.est_principal === true ? 'Principal' : 'Secondaire'}
+                    </Text>
+                  </View>
+                </View>
+              ))}
+          </View>
+        ) : null}
       </Card>
 
       <Card style={styles.bloc}>
@@ -197,6 +251,9 @@ function Ligne({ libelle, valeur }: { libelle: string; valeur: string }) {
   );
 }
 
+/** Masque l'indicatif +225 pour l'affichage (stocké en base, jamais montré). */
+const telLocal = (t: unknown) => String(t ?? '').replace(/^\+225/, '');
+
 const styles = StyleSheet.create({
   loader: { marginTop: spacing[8] },
   erreur: { ...typography.bodyStrong, color: colors.danger.text },
@@ -236,6 +293,13 @@ const styles = StyleSheet.create({
     marginRight: spacing[3],
   },
   sectionTxt: { ...typography.bodyStrong, color: colors.blue[900], flex: 1 },
+  contactsResume: { marginTop: spacing[2], paddingLeft: spacing[8] },
+  contactLigne: { flexDirection: 'row', alignItems: 'center', paddingVertical: spacing[2] },
+  contactInfos: { flex: 1 },
+  contactNom: { ...typography.bodyStrong, color: colors.ink[900] },
+  contactTel: { ...typography.caption, color: colors.ink[500], marginTop: 2 },
+  contactBadge: { borderRadius: radius.pill, paddingHorizontal: spacing[3], paddingVertical: spacing[1] },
+  contactBadgeTxt: { ...typography.caption, fontWeight: '700' },
   ligne: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: spacing[2] },
   ligneLib: { ...typography.body, color: colors.ink[500], flexShrink: 0, marginRight: spacing[4] },
   ligneVal: { ...typography.bodyStrong, color: colors.ink[900], flex: 1, textAlign: 'right' },

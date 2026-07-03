@@ -59,6 +59,28 @@ const NOTE_AUTEUR: Record<string, string> = {
   medecin: 'Médecin',
 };
 
+/**
+ * Lien de parenté d'un contact d'urgence (F2.11) — miroir exact de ContactUrgenceController::LIENS_PARENTE.
+ * Exporté : les contacts d'urgence ont leur écran dédié (ContactsUrgenceEcran), hors moteur générique.
+ */
+export const LIEN_PARENTE: Record<string, string> = {
+  papa: 'Papa',
+  maman: 'Maman',
+  epouse: 'Épouse',
+  epoux: 'Époux',
+  frere: 'Frère',
+  soeur: 'Sœur',
+  cousin: 'Cousin',
+  cousine: 'Cousine',
+  tante: 'Tante',
+  oncle: 'Oncle',
+  tuteur: 'Tuteur',
+  grand_mere: 'Grand-mère',
+  grand_pere: 'Grand-père',
+  ami: 'Ami(e)',
+  autre: 'Autre',
+};
+
 /** Transforme une table de libellés en options pour un champ select. */
 const opts = (table: Record<string, string>) =>
   Object.entries(table).map(([value, label]) => ({ value, label }));
@@ -188,26 +210,8 @@ const rappels: SectionDescriptor = {
   }),
 };
 
-const contactsUrgence: SectionDescriptor = {
-  slug: 'contacts-urgence',
-  chemin: 'contacts-urgence',
-  titre: "Contacts d'urgence",
-  titreSingulier: "contact d'urgence",
-  icone: 'call-outline',
-  champs: [
-    { kind: 'texte', cle: 'nom', label: 'Nom complet', obligatoire: true, max: 200, autoCap: 'words' },
-    { kind: 'texte', cle: 'lien_parente', label: 'Lien de parenté', max: 100, autoCap: 'sentences', aide: 'Ex. conjoint, parent, ami' },
-    { kind: 'texte', cle: 'telephone', label: 'Téléphone', obligatoire: true, format: 'telephone', defaut: '+225', max: 14 },
-    { kind: 'texte', cle: 'telephone_secondaire', label: 'Téléphone secondaire', format: 'telephone', max: 14 },
-    { kind: 'texte', cle: 'email', label: 'E-mail', format: 'email', max: 150 },
-    { kind: 'booleen', cle: 'est_principal', label: 'Contact principal', defaut: false },
-  ],
-  resume: (i: CarnetItem) => ({
-    titre: str(i.nom) || 'Contact',
-    lignes: [str(i.lien_parente), str(i.telephone)].filter(Boolean),
-    badge: i.est_principal === true ? { texte: 'Principal', ton: 'success' } : undefined,
-  }),
-};
+// NB : les contacts d'urgence (F2.11) ne sont PAS une section générique — écran dédié à 2 blocs
+// (ContactsUrgenceEcran), lié depuis la fiche membre. Ils réutilisent l'API carnet par `chemin`.
 
 const notesObservations: SectionDescriptor = {
   slug: 'notes-observations',
@@ -233,7 +237,6 @@ export const SECTIONS: SectionDescriptor[] = [
   ordonnances,
   resultatsAnalyses,
   rappels,
-  contactsUrgence,
   notesObservations,
 ];
 
