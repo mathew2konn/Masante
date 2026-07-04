@@ -55,6 +55,16 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
         isAndroidForegroundServiceEnabled: false,
       },
     ],
+    // F2.10 — import de documents : accès appareil photo + galerie (au moment de l'action).
+    [
+      'expo-image-picker',
+      {
+        photosPermission:
+          'MaSante accède à vos photos pour importer un document médical (résultat, certificat…).',
+        cameraPermission:
+          "MaSante utilise l'appareil photo pour prendre en photo un document médical à importer.",
+      },
+    ],
   ],
   // Routes typées (autocomplétion + vérif des href par TypeScript).
   experiments: {

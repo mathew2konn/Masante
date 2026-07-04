@@ -177,6 +177,25 @@ export default function DetailMembreScreen() {
           <Ionicons name="chevron-forward" size={20} color={colors.ink[500]} />
         </Pressable>
 
+        {/* Documents médicaux (F2.10) : écran dédié (import sécurisé + liste par catégorie). */}
+        <Pressable
+          onPress={() =>
+            router.push({
+              pathname: '/(app)/membres/documents/[id]',
+              params: { id: membreId, nom: `${membre.prenom} ${membre.nom}` },
+            })
+          }
+          accessibilityRole="button"
+          accessibilityLabel="Documents médicaux"
+          style={[styles.sectionRow, styles.sectionRowBordure]}
+        >
+          <View style={styles.sectionPastille}>
+            <Ionicons name="folder-outline" size={18} color={colors.blue[600]} />
+          </View>
+          <Text style={styles.sectionTxt}>Documents médicaux</Text>
+          <Ionicons name="chevron-forward" size={20} color={colors.ink[500]} />
+        </Pressable>
+
         {/* Aperçu : les 1-2 contacts saisis (principal en premier), rechargé au focus. */}
         {contacts.length > 0 ? (
           <View style={styles.contactsResume}>

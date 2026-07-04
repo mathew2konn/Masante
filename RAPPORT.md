@@ -130,6 +130,24 @@ avec **validation MIME réelle + antivirus + chiffrement au repos**.
 - **Tests** : `DocumentMedicalTest` (8) — chiffrement au repos, auteur serveur, liste blanche MIME, enum catégorie,
   téléchargement déchiffré, verrou 423 (`en_attente`/`infecte`), soft-delete + rétention du blob, IDOR. **Suite : 56/56 (178 assertions).**
 
+#### Frontend (Expo SDK 54) — IMPLÉMENTÉ (étape B, 2026-07-03)
+- **Dépendances** (`npx expo install`) : `expo-document-picker`, `expo-image-picker`, `expo-image-manipulator`,
+  `expo-file-system`, `expo-sharing`. Plugin `expo-image-picker` (permissions caméra/galerie) dans `app.config.ts`.
+  **Correctif d'arbre** : `react-dom` réaligné 19.2.7 → **19.1.0** (accord SDK 54, débloque `expo install`).
+- **`src/api/documents.ts`** : `listerDocuments`/`supprimerDocument` (axios), `importerDocument`
+  (**multipart via `createUploadTask` legacy** = boundary correct + **progression** 0→1), `telechargerDocument`
+  (**nouvelle API `File.downloadFileAsync`** avec en-têtes Bearer → URI cache).
+- **`src/documents/selection.ts`** : photo / galerie / fichier ; **compression 3G** (nouvelle API
+  `ImageManipulator.manipulate().resize(1600).renderAsync().saveAsync(0.7 JPEG)`, seulement si l'image dépasse 1600 px) ;
+  permissions demandées à l'action (`PermissionRefusee` → message clair).
+- **Écrans** (`src/screens/`) : `DocumentsEcran` (liste **groupée par catégorie**, badge de statut antivirus
+  `sain`/`en_attente`/`infecte`, ouverture via `expo-sharing` si `sain`, suppression confirmée, état vide) ;
+  `ImportDocumentEcran` (3 sources, dropdown catégorie, titre optionnel, **barre de progression**). Routes
+  `app/(app)/membres/documents/[id].tsx` + `.../documents/importer/[id].tsx` ; ligne dédiée dans la fiche membre.
+- **Date du document** volontairement non saisie ici : réservée au futur **sélecteur jour/mois/année** uniforme
+  (item différé du plan) ; le champ reste supporté côté API.
+- **Vérifs** : `tsc --noEmit` OK, `expo install --check` OK, **expo-doctor 18/18**.
+
 ---
 
 ### F2.11 — Contacts d'urgence par membre
