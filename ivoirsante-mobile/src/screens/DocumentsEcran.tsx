@@ -12,6 +12,7 @@ import { messageErreur } from '../utils/erreurs';
 import { formatTaille } from '../utils/fichiers';
 import { formatDateFr } from '../utils/dates';
 import { CATEGORIES, STATUT_PRESENTATION, type DocumentMedical } from '../types/document';
+import { PROVENANCE_SOURCE } from '../carnet/registre';
 import { colors, radius, spacing, typography } from '../theme/theme';
 
 /**
@@ -170,6 +171,11 @@ function LigneDocument({
 }) {
   const statut = STATUT_PRESENTATION[doc.statut_antivirus];
   const ton = colors[statut.ton];
+  // F2.13 — provenance du document (les 3 origines ; `patient` atténué).
+  const prov = PROVENANCE_SOURCE[doc.source];
+  const provTons = prov?.officiel
+    ? { bg: colors.blue[100], text: colors.blue[700], icon: colors.blue[600] }
+    : { bg: colors.surfaceMuted, text: colors.ink[500], icon: colors.ink[500] };
 
   return (
     <View style={[styles.ligne, !premier && styles.ligneBordure]}>
@@ -185,8 +191,16 @@ function LigneDocument({
             {formatTaille(doc.taille_octets)}
             {doc.date_document ? ` · ${formatDateFr(doc.date_document)}` : ''}
           </Text>
-          <View style={[styles.badge, { backgroundColor: ton.bg }]}>
-            <Text style={[styles.badgeTxt, { color: ton.text }]}>{statut.label}</Text>
+          <View style={styles.badgesRangee}>
+            <View style={[styles.badge, { backgroundColor: ton.bg }]}>
+              <Text style={[styles.badgeTxt, { color: ton.text }]}>{statut.label}</Text>
+            </View>
+            {prov ? (
+              <View style={[styles.badge, styles.provChip, { backgroundColor: provTons.bg }]}>
+                <Ionicons name={prov.icone as keyof typeof Ionicons.glyphMap} size={11} color={provTons.icon} />
+                <Text style={[styles.badgeTxt, { color: provTons.text }]}>{prov.label}</Text>
+              </View>
+            ) : null}
           </View>
         </View>
         {occupe ? (
@@ -228,7 +242,9 @@ const styles = StyleSheet.create({
   infos: { flex: 1, marginRight: spacing[2] },
   titre: { ...typography.bodyStrong, color: colors.ink[900] },
   meta: { ...typography.caption, color: colors.ink[500], marginTop: 2 },
-  badge: { alignSelf: 'flex-start', borderRadius: radius.pill, paddingHorizontal: spacing[2], paddingVertical: 2, marginTop: spacing[1] },
+  badgesRangee: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: spacing[1], marginTop: spacing[1] },
+  badge: { alignSelf: 'flex-start', borderRadius: radius.pill, paddingHorizontal: spacing[2], paddingVertical: 2 },
   badgeTxt: { ...typography.caption, fontWeight: '700' },
+  provChip: { flexDirection: 'row', alignItems: 'center', gap: 3 },
   supprimer: { padding: spacing[2], marginLeft: spacing[1] },
 });

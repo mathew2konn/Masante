@@ -21,6 +21,8 @@ class ResultatAnalyseController extends CarnetSectionController
             'resultats_json'       => ['nullable', 'array'],
             'fichier_url'          => ['nullable', 'url', 'max:500'],
             'added_by'             => ['nullable', 'in:patient,medecin'],
+            // F2.13 — provenance de l'entrée (défaut BDD 'patient'). Distincte de added_by (auteur de saisie).
+            'source'               => ['nullable', 'in:patient,medecin,structure'],
         ];
     }
 }

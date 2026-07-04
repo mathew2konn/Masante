@@ -22,7 +22,11 @@ class ResultatAnalyse extends Model
         'resultats_json',
         'fichier_url',
         'added_by',
+        'source',
     ];
+
+    /** F2.13 — défaut aligné sur la colonne BDD, pour que la réponse de création porte déjà la provenance. */
+    protected $attributes = ['source' => 'patient'];
 
     protected function casts(): array
     {

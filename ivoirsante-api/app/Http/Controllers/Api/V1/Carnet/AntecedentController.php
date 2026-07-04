@@ -22,6 +22,8 @@ class AntecedentController extends CarnetSectionController
             // Impact borné 0-20 (la somme par membre est replafonnée à 20 par TriageService).
             'impact_triage'       => ['nullable', 'integer', 'between:0,20'],
             'added_by'            => ['nullable', 'in:patient,medecin'],
+            // F2.13 — provenance de l'entrée (défaut BDD 'patient'). Distincte de added_by (auteur de saisie).
+            'source'              => ['nullable', 'in:patient,medecin,structure'],
         ];
     }
 }

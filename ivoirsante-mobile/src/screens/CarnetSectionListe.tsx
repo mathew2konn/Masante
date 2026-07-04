@@ -6,7 +6,7 @@ import { Screen } from '../components/Screen';
 import { ScreenHeader } from '../components/ScreenHeader';
 import { Card } from '../components/Card';
 import { PrimaryButton } from '../components/PrimaryButton';
-import { sectionParSlug } from '../carnet/registre';
+import { sectionParSlug, PROVENANCE_SOURCE } from '../carnet/registre';
 import { listerSection, supprimerItem } from '../api/carnet';
 import { messageErreur } from '../utils/erreurs';
 import type { CarnetItem, Ton } from '../types/carnet';
@@ -121,6 +121,7 @@ export function CarnetSectionListe({
               key={item.id}
               icone={section.icone}
               resume={section.resume(item)}
+              source={typeof item.source === 'string' ? item.source : undefined}
               onPress={section.appendOnly ? undefined : () => ouvrirEdition(item)}
               onSupprimer={() => confirmerSuppression(item)}
             />
@@ -139,15 +140,22 @@ export function CarnetSectionListe({
 function ItemVue({
   icone,
   resume,
+  source,
   onPress,
   onSupprimer,
 }: {
   icone: string;
   resume: ReturnType<NonNullable<ReturnType<typeof sectionParSlug>>['resume']>;
+  source?: string; // provenance F2.13 (undefined = section sans colonne `source`)
   onPress?: () => void; // absent = section append-only : pas d'édition au tap
   onSupprimer: () => void;
 }) {
   const tons = tonCouleurs(resume.badge?.ton ?? 'neutre');
+  // F2.13 — pastille de provenance : les 3 origines affichées, `patient` atténué.
+  const prov = source ? PROVENANCE_SOURCE[source] : undefined;
+  const provTons = prov?.officiel
+    ? { bg: colors.blue[100], text: colors.blue[700], icon: colors.blue[600] }
+    : { bg: colors.surfaceMuted, text: colors.ink[500], icon: colors.ink[500] };
   const contenu = (
     <>
       <View style={styles.pastille}>
@@ -160,9 +168,19 @@ function ItemVue({
             {l}
           </Text>
         ))}
-        {resume.badge ? (
-          <View style={[styles.badge, { backgroundColor: tons.bg }]}>
-            <Text style={[styles.badgeTxt, { color: tons.text }]}>{resume.badge.texte}</Text>
+        {resume.badge || prov ? (
+          <View style={styles.badgesRangee}>
+            {resume.badge ? (
+              <View style={[styles.badge, { backgroundColor: tons.bg }]}>
+                <Text style={[styles.badgeTxt, { color: tons.text }]}>{resume.badge.texte}</Text>
+              </View>
+            ) : null}
+            {prov ? (
+              <View style={[styles.badge, styles.provChip, { backgroundColor: provTons.bg }]}>
+                <Ionicons name={prov.icone as keyof typeof Ionicons.glyphMap} size={12} color={provTons.icon} />
+                <Text style={[styles.badgeTxt, { color: provTons.text }]}>{prov.label}</Text>
+              </View>
+            ) : null}
           </View>
         ) : null}
       </View>
@@ -218,8 +236,10 @@ const styles = StyleSheet.create({
   itemTexte: { flex: 1 },
   itemTitre: { ...typography.bodyStrong, color: colors.blue[900] },
   itemLigne: { ...typography.caption, color: colors.ink[700], marginTop: 2 },
-  badge: { alignSelf: 'flex-start', borderRadius: radius.pill, paddingHorizontal: spacing[3], paddingVertical: spacing[1], marginTop: spacing[2] },
+  badgesRangee: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: spacing[2], marginTop: spacing[2] },
+  badge: { alignSelf: 'flex-start', borderRadius: radius.pill, paddingHorizontal: spacing[3], paddingVertical: spacing[1] },
   badgeTxt: { ...typography.caption, fontWeight: '700' },
+  provChip: { flexDirection: 'row', alignItems: 'center', gap: spacing[1], paddingHorizontal: spacing[2] },
   trash: { padding: spacing[1], marginLeft: spacing[2] },
   ajout: { marginBottom: spacing[6] },
 });

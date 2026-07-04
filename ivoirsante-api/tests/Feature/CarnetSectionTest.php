@@ -107,4 +107,57 @@ class CarnetSectionTest extends TestCase
         $membre = MembreFamille::factory()->for(User::factory())->create();
         $this->getJson("/api/v1/membres/{$membre->id}/rappels")->assertUnauthorized();
     }
+
+    // --- F2.13 : traçabilité de la provenance (`source`) ---
+
+    public function test_f2_13_source_par_defaut_patient_et_exposee_en_lecture(): void
+    {
+        $user = User::factory()->create();
+        $membre = MembreFamille::factory()->for($user)->create();
+        Sanctum::actingAs($user);
+
+        // Sans `source` fournie : défaut BDD 'patient', exposé dès la création puis en liste.
+        $this->postJson("/api/v1/membres/{$membre->id}/antecedents", [
+            'type' => 'allergie', 'description' => 'Arachide',
+        ])->assertCreated()->assertJsonPath('item.source', 'patient');
+
+        $this->getJson("/api/v1/membres/{$membre->id}/antecedents")
+            ->assertOk()->assertJsonPath('items.0.source', 'patient');
+    }
+
+    public function test_f2_13_source_acceptee_et_persistee(): void
+    {
+        $user = User::factory()->create();
+        $membre = MembreFamille::factory()->for($user)->create();
+        Sanctum::actingAs($user);
+
+        // `source` non-patient acceptée sur les 3 sections de dossier (chemin médecin/structure futur, M3/M4).
+        $this->postJson("/api/v1/membres/{$membre->id}/antecedents", [
+            'type' => 'maladie_chronique', 'description' => 'Diabète type 2', 'source' => 'structure',
+        ])->assertCreated()->assertJsonPath('item.source', 'structure');
+
+        $this->postJson("/api/v1/membres/{$membre->id}/ordonnances", [
+            'medecin_nom' => 'Dr Aka', 'structure_sanitaire' => 'CHU de Cocody',
+            'date_prescription' => '2026-06-10', 'medicaments_json' => [['nom' => 'Metformine']],
+            'source' => 'medecin',
+        ])->assertCreated()->assertJsonPath('item.source', 'medecin');
+
+        $this->assertDatabaseHas('antecedents', ['membre_id' => $membre->id, 'source' => 'structure']);
+        $this->assertDatabaseHas('ordonnances', ['membre_id' => $membre->id, 'source' => 'medecin']);
+    }
+
+    public function test_f2_13_source_invalide_rejetee_422(): void
+    {
+        $user = User::factory()->create();
+        $membre = MembreFamille::factory()->for($user)->create();
+        Sanctum::actingAs($user);
+
+        // Hors liste blanche ENUM → 422, rien en base.
+        $this->postJson("/api/v1/membres/{$membre->id}/resultats-analyses", [
+            'type_analyse' => 'biologique', 'intitule' => 'NFS',
+            'date_analyse' => '2026-06-01', 'source' => 'hopital',
+        ])->assertStatus(422)->assertJsonValidationErrors('source');
+
+        $this->assertDatabaseCount('resultats_analyses', 0);
+    }
 }

@@ -81,6 +81,18 @@ export const LIEN_PARENTE: Record<string, string> = {
   autre: 'Autre',
 };
 
+/**
+ * Provenance d'une entrée de dossier (F2.13) — miroir de l'ENUM `source` backend
+ * (`antecedents`, `ordonnances`, `resultats_analyses`, `documents_medicaux`).
+ * `patient` = auto-déclaré (atténué) ; `medecin`/`structure` = source de vérité (mis en avant).
+ * Les sections sans colonne `source` (vaccinations, rappels, notes) n'affichent pas de pastille.
+ */
+export const PROVENANCE_SOURCE: Record<string, { label: string; icone: string; officiel: boolean }> = {
+  patient: { label: 'Auto-déclaré', icone: 'person-outline', officiel: false },
+  medecin: { label: 'Médecin', icone: 'medkit-outline', officiel: true },
+  structure: { label: 'Structure', icone: 'business-outline', officiel: true },
+};
+
 /** Transforme une table de libellés en options pour un champ select. */
 const opts = (table: Record<string, string>) =>
   Object.entries(table).map(([value, label]) => ({ value, label }));

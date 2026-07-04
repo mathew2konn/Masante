@@ -20,7 +20,11 @@ class Ordonnance extends Model
         'photo_url',
         'pdf_url',
         'added_by',
+        'source',
     ];
+
+    /** F2.13 — défaut aligné sur la colonne BDD, pour que la réponse de création porte déjà la provenance. */
+    protected $attributes = ['source' => 'patient'];
 
     protected function casts(): array
     {

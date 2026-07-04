@@ -240,8 +240,42 @@ moteur générique** du carnet (pas d'écran sur-mesure) avec un plafond d'items
 ---
 
 ### F2.13 — Traçabilité de la provenance
-Colonne `source ENUM('patient','medecin','structure') DEFAULT 'patient'` sur `antecedents`, `ordonnances`,
-`resultats_analyses` (voir décision transverse). Côté UI : badge de provenance (ex. « Hôpital » vs « Auto-déclaré »).
+
+**Couche données** : colonne `source ENUM('patient','medecin','structure') DEFAULT 'patient'` sur `antecedents`,
+`ordonnances`, `resultats_analyses` (voir décision transverse). `documents_medicaux` la porte nativement (F2.10) ;
+les notes (F2.12) portent l'équivalent `auteur_type`.
+
+#### Backend runtime (étape A, 2026-07-04)
+Constat : la colonne existait mais les 3 modèles de dossier ne l'exposaient pas en écriture (hors `$fillable`,
+aucune règle) ; les lectures la renvoyaient déjà (modèle sérialisé, non masqué).
+- **Modèles** `Antecedent` / `Ordonnance` / `ResultatAnalyse` : `source` ajouté à `$fillable` **+
+  `protected $attributes = ['source' => 'patient']`** — la réponse de **création** porte déjà la provenance
+  (sans ce défaut modèle, `create()` renvoie `source:null` car le défaut BDD ne se matérialise qu'au re-fetch).
+- **Contrôleurs** `AntecedentController` / `OrdonnanceController` / `ResultatAnalyseController` : règle
+  `source` → `['nullable','in:patient,medecin,structure']` (miroir de l'ENUM ; hérite du `sometimes` en update).
+- **Axe orthogonal préservé** : `added_by` (`patient|medecin`, auteur de saisie) distinct de `source`
+  (`patient|medecin|structure`, provenance) — cf. décision transverse F2.13.
+- **Phase actuelle** : seul le patient écrit → `source='patient'` par défaut ; le chemin d'écriture
+  `medecin`/`structure` viendra avec la session QR médecin (M3/M4). Rendre `source` validée permet de **semer**
+  des données non-patient pour démontrer l'affichage.
+- **Tests** : `CarnetSectionTest` +3 (défaut `patient` exposé à la création **et** en liste ; `source` non-patient
+  acceptée/persistée sur antécédents & ordonnances ; valeur hors ENUM → 422, rien en base). **Suite : 59/59 (192 assertions).**
+
+#### Frontend (étape B, 2026-07-04)
+Pastille de provenance sur les cartes de dossier — **les 3 origines affichées**, `patient` atténué,
+`medecin`/`structure` mis en avant (source de vérité). Décision validée : afficher les 3 (pas seulement non-patient).
+- **`carnet/registre.ts`** : `PROVENANCE_SOURCE` exporté (miroir de l'ENUM `source`) — `patient` → « Auto-déclaré »
+  (icône `person-outline`, atténué), `medecin` → « Médecin » (`medkit-outline`, officiel), `structure` →
+  « Structure » (`business-outline`, officiel).
+- **`CarnetSectionListe.tsx`** : la carte reçoit `item.source` ; pastille rendue **uniquement si `source` existe**
+  → naturellement limitée aux 3 sections porteuses (antécédents, ordonnances, résultats). Vaccinations, rappels
+  et notes (`auteur_type` déjà affiché) n'ont pas de colonne `source` → pas de pastille. Badge sémantique + pastille
+  cohabitent dans une rangée qui s'enroule (`badgesRangee`). Tons : officiel = bleu (`blue[100]/700`),
+  atténué = neutre (`surfaceMuted`/`ink[500]`) — **tokens DS, aucune couleur en dur**.
+- **`DocumentsEcran.tsx`** : même pastille à côté du badge de statut antivirus (documents portent `source` nativement).
+- **Aucun champ `source` dans le formulaire de création** : une entrée saisie par le patient reste `patient`
+  (défaut serveur) ; `medecin`/`structure` proviendront du chemin d'écriture médecin (QR, M3/M4).
+- **Vérifs** : `tsc --noEmit` OK.
 
 ---
 

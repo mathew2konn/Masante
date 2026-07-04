@@ -20,7 +20,11 @@ class Antecedent extends Model
         'traitement_actuel',
         'impact_triage',
         'added_by',
+        'source',
     ];
+
+    /** F2.13 — défaut aligné sur la colonne BDD, pour que la réponse de création porte déjà la provenance. */
+    protected $attributes = ['source' => 'patient'];
 
     protected function casts(): array
     {
