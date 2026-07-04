@@ -42,7 +42,13 @@ class MembreFamille extends Model
     protected $hidden = [
         'matricule_ivs',
         'user_id',
+        // F2.3 — le numéro CMU complet ne quitte JAMAIS le serveur (chiffré au repos ET caché) :
+        // seul `cmu_numero_masque` (accessor) est exposé. §5.2 Sécurité (exposition minimale).
+        'cmu_numero',
     ];
+
+    /** F2.3 — version masquée du numéro CMU, ajoutée aux sérialisations JSON. */
+    protected $appends = ['cmu_numero_masque'];
 
     protected function casts(): array
     {
@@ -51,6 +57,21 @@ class MembreFamille extends Model
             'cmu_validite'   => 'date',
             'cmu_numero'     => 'encrypted',
         ];
+    }
+
+    /**
+     * F2.3 — Numéro CMU masqué (`•••• •••• 1234` : seuls les 4 derniers chiffres visibles).
+     * Lit le numéro déchiffré en interne mais n'expose que la fin, jamais le numéro complet.
+     */
+    public function getCmuNumeroMasqueAttribute(): ?string
+    {
+        $numero = $this->cmu_numero;
+
+        if (! $numero) {
+            return null;
+        }
+
+        return '•••• •••• '.substr($numero, -4);
     }
 
     /** Compte propriétaire du membre. */

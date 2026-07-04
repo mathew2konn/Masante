@@ -41,7 +41,10 @@ export function MembreForm({
   const [dateNaissance, setDateNaissance] = useState(isoVersDateInput(initial?.date_naissance));
   const [sexe, setSexe] = useState<Sexe | null>(initial?.sexe ?? null);
   const [groupe, setGroupe] = useState<GroupeSanguin | null>(initial?.groupe_sanguin ?? null);
-  const [cmuNumero, setCmuNumero] = useState(initial?.cmu_numero ?? '');
+  // F2.3 — le numéro complet n'est jamais renvoyé par l'API : en édition on part vide (masqué en
+  // placeholder) et on ne l'envoie QUE si l'utilisateur en saisit un nouveau (sinon on conserve).
+  const estEdition = Boolean(initial);
+  const [cmuNumero, setCmuNumero] = useState('');
   const [cmuStatut, setCmuStatut] = useState<CmuStatut | null>(initial?.cmu_statut ?? null);
   const [cmuValidite, setCmuValidite] = useState(isoVersDateInput(initial?.cmu_validite));
 
@@ -58,16 +61,25 @@ export function MembreForm({
     setErreurs(e);
     if (Object.values(e).some((v) => v)) return null;
 
-    return {
+    const payload: MembrePayload = {
       nom: nom.trim(),
       prenom: prenom.trim(),
       date_naissance: dateNaissance.trim(),
       sexe: sexe as Sexe,
       groupe_sanguin: groupe,
-      cmu_numero: cmuNumero.trim() || null,
       cmu_statut: cmuStatut,
       cmu_validite: cmuValidite.trim() || null,
     };
+
+    const numero = cmuNumero.trim();
+    if (numero) {
+      payload.cmu_numero = numero; // nouvelle saisie → remplace le numéro chiffré côté serveur
+    } else if (!estEdition) {
+      payload.cmu_numero = null; // création sans numéro
+    }
+    // Édition + champ laissé vide → on n'envoie pas cmu_numero (conserve l'existant, F2.3).
+
+    return payload;
   };
 
   const soumettre = () => {
@@ -141,10 +153,15 @@ export function MembreForm({
           label="Numéro CMU"
           value={cmuNumero}
           onChangeText={setCmuNumero}
-          placeholder="Numéro d'assuré"
+          placeholder={initial?.cmu_numero_masque ?? "Numéro d'assuré"}
           autoCapitalize="characters"
           maxLength={50}
         />
+        {initial?.cmu_numero_masque ? (
+          <Text style={styles.aide}>
+            Actuel : {initial.cmu_numero_masque} — laissez vide pour le conserver.
+          </Text>
+        ) : null}
 
         <Text style={styles.label}>Statut</Text>
         <Segmented

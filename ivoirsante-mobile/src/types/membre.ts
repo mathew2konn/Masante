@@ -3,6 +3,7 @@
  *
  * Reflète à l'identique le contrat de l'API (MembreFamille / StoreMembreRequest) :
  *  - `matricule_ivs` et `user_id` ne sont JAMAIS exposés par le serveur (cachés) ;
+ *  - `cmu_numero` complet n'est JAMAIS exposé (F2.3) : seul `cmu_numero_masque` (•••• •••• 1234) l'est ;
  *  - `date_naissance` et `cmu_validite` arrivent sérialisés en ISO (cast `date` Laravel).
  */
 
@@ -21,11 +22,23 @@ export type Membre = {
   sexe: Sexe;
   groupe_sanguin: GroupeSanguin | null;
   photo_url: string | null;
-  cmu_numero: string | null;
+  cmu_numero_masque: string | null; // F2.3 — •••• •••• 1234 (le numéro complet ne quitte pas le serveur)
   cmu_statut: CmuStatut | null;
   cmu_validite: string | null;
   created_at?: string;
   updated_at?: string;
+};
+
+/** Carte CMU numérique (F2.3) — réponse de `GET /membres/{id}/carte-cmu`. */
+export type CarteCmu = {
+  titulaire: string;
+  cmu_numero_masque: string | null;
+  cmu_statut: CmuStatut | null;
+  cmu_validite: string | null;
+  expiration_proche: boolean;
+  disponible: boolean; // palier « vérifié » atteint (stub dev) → carte présentable
+  code_presentation: string | null; // contenu du QR CMU signé (null si non présentable)
+  code_expire_dans: number | null; // secondes
 };
 
 /** Champs acceptés à la création (le matricule est attribué côté serveur). */

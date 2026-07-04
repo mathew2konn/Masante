@@ -10,6 +10,7 @@ use App\Http\Controllers\Api\V1\Carnet\OrdonnanceController;
 use App\Http\Controllers\Api\V1\Carnet\RappelController;
 use App\Http\Controllers\Api\V1\Carnet\ResultatAnalyseController;
 use App\Http\Controllers\Api\V1\Carnet\VaccinationController;
+use App\Http\Controllers\Api\V1\CarteCmuController;
 use App\Http\Controllers\Api\V1\MembreController;
 use App\Http\Controllers\Api\V1\QrController;
 use App\Http\Controllers\Api\V1\RendezVousController;
@@ -91,6 +92,10 @@ Route::middleware('throttle:api')->group(function () {
             */
             Route::post('membres/{membre}/qr', [QrController::class, 'generer']);
             Route::get('membres/{membre}/acces', [MembreController::class, 'acces']);
+
+            // F2.3 — Carte CMU numérique (couche de présentation) : n° masqué + code signé,
+            // gated par le palier « vérifié » (stub dev). N'ouvre PAS le dossier (distinct du QR).
+            Route::get('membres/{membre}/carte-cmu', [CarteCmuController::class, 'show']);
 
             /*
             |--------------------------------------------------------------

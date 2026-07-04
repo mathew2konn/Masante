@@ -279,6 +279,59 @@ Pastille de provenance sur les cartes de dossier — **les 3 origines affichées
 
 ---
 
+## Module 2 — F2.3 Carte CMU numérique (couche de présentation)
+
+**Statut : backend étape A IMPLÉMENTÉ & TESTÉ le 2026-07-04.** Modification isolée (doc
+`Modification_F2-3_Carte_CMU_Numerique_MaSante.md`), inspirée du certificat électronique d'assurance chinois,
+adaptée à la CMU/CNAM. **Le règlement/remboursement temps réel est hors périmètre** (pas d'API CNAM) : on
+dématérialise seulement la carte (« présenter son téléphone au lieu de la carte physique »).
+
+### Analyse — état de départ
+Champs déjà présents sur `membres_famille` (`cmu_numero` chiffré AES, `cmu_statut`, `cmu_validite`) → **aucune
+migration**. **Écart de sécurité corrigé** : `cmu_numero` était chiffré au repos mais renvoyé **en clair** par l'API
+(pas dans `$hidden`) — contraire au §5.2 (exposition minimale, jamais dans le QR).
+
+### Décisions validées
+- **Numéro toujours masqué** : le numéro complet **ne quitte jamais le serveur**. `cmu_numero` passe en `$hidden` ;
+  accessor `cmu_numero_masque` (`•••• •••• 1234`, 4 derniers) ajouté via `$appends`. Édition : re-saisie pour changer,
+  champ non touché = inchangé (étape B).
+- **Code de présentation = QR CMU signé dédié** (autonome), **pas** le token QR de dossier : assertion HMAC-SHA256
+  du **statut déclaré** (`{v,typ:cmu,ref,st,val,exp}`), **sans numéro ni matricule**, n'accordant **aucun accès dossier**.
+  Vérifiable hors-ligne (tolérant réseau, §3.2). Secret à **séparation de domaine** (`hmac('carte-cmu', APP_KEY)`,
+  distinct du secret QR dossier). La **vérification par l'agent** (contrôle signature côté structure) est **différée
+  au Module 3** (`agents_garde` inexistants) — ici on n'ÉMET que.
+
+### Backend (étape A)
+- **`config/masante.php`** section `cmu` : `exiger_palier_verifie` (défaut **`false` en dev** = stub présentable ;
+  `true` en prod = exige le palier vérifié), `code_ttl_minutes` (10), `alerte_expiration_jours` (30).
+- **`User::compteEstVerifie()`** : palier « vérifié » = `compte_verifie_at !== null` (auth/OTP à venir → toujours
+  `null` en dev, d'où le flag stub).
+- **`MembreFamille`** : `cmu_numero` masqué (`$hidden` + accessor `cmu_numero_masque` + `$appends`).
+- **`CarteCmuService`** : vue carte (`titulaire`, `cmu_numero_masque`, `cmu_statut`, `cmu_validite`,
+  `expiration_proche`, `disponible`, `code_presentation`, `code_expire_dans`). `disponible`/code **gated** par le palier.
+- **`CarteCmuController::show`** + route `GET /api/v1/membres/{membre}/carte-cmu` (Policy `view`, anti-IDOR).
+- **Audit FT6** : documenté, **non implémenté** (cohérent F2.12 — module d'audit global).
+- **Tests** `CarteCmuTest` (6) : numéro complet jamais sérialisé (masqué), carte expose statut/validité, code signé
+  **sans numéro ni matricule** (signature vérifiée), **palier gate le code** (non vérifié → `disponible:false`, code
+  `null` ; vérifié → présentable), `expiration_proche`, IDOR 403. **Suite : 65/65 (218 assertions).**
+
+### Frontend (étape B, 2026-07-04)
+- **`types/membre.ts`** : `cmu_numero` → **`cmu_numero_masque`** dans `Membre` (le numéro complet n'existe plus
+  côté client) ; type `CarteCmu` (réponse `carte-cmu`). **`api/membres.ts`** : `obtenirCarteCmu(id)`.
+- **`src/screens/CarteCmuEcran.tsx`** (+ route `app/(app)/membres/carte-cmu/[id].tsx`) : vue « carte » (fond bleu DS,
+  titulaire, n° masqué, **badge de statut** = élément principal actif/expiré/non-inscrit, validité, bandeau
+  « expire bientôt » si `expiration_proche`). Bouton **« Présenter ma carte »** → QR du `code_presentation` en grand
+  avec **décompte** (TTL) et régénération à expiration. Si `disponible=false` (palier non atteint) : carte consultable
+  mais **carte de présentation remplacée par un message** « identité à confirmer » (aucun QR).
+- **Fiche membre** (`[id].tsx`) : numéro → **masqué** (`cmu_numero_masque`) + entrée « Carte CMU numérique ».
+- **`MembreForm.tsx`** : le numéro n'étant plus renvoyé, l'édition part **vide** (placeholder = n° masqué actuel) et
+  n'envoie `cmu_numero` **que si l'utilisateur en saisit un nouveau** (sinon conserve l'existant — pas d'écrasement).
+- **Vérifs** : `tsc --noEmit` OK (aucune dépendance ajoutée — `react-native-qrcode-svg` déjà présent).
+
+**Assurances privées (hors CMU)** : déjà couvertes par F2.10 (catégorie `assurance` = photo de la carte). Rien à faire ici.
+
+---
+
 ## Décisions en attente de validation (couche données)
 1. **Portée de `categorie`** : superset à 8 (`certificat_medical, fiche_sortie, compte_rendu, imagerie, resultat_labo,
    assurance, ordonnance_externe, autre`) **ou** 6 (§2.2). Le superset couvre les documents *importés* anciens/externes

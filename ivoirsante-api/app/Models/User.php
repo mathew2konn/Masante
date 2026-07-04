@@ -54,6 +54,15 @@ class User extends Authenticatable
         return $this->telephone_verified_at !== null;
     }
 
+    /**
+     * Le compte est-il au palier « vérifié » (identité confirmée par CMU/CNI) ?
+     * Conditionne les fonctions justificatives (F2.3 — présentation de la carte CMU).
+     */
+    public function compteEstVerifie(): bool
+    {
+        return $this->compte_verifie_at !== null;
+    }
+
     /** Membres de la famille rattachés à ce compte (CdC §5.2, max 5 — F2.2). */
     public function membresFamille(): HasMany
     {

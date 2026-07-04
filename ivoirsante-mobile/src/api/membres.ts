@@ -6,7 +6,7 @@
  * garantie côté serveur par MembreFamillePolicy).
  */
 import { api } from '../config/api';
-import type { Membre, MembrePayload } from '../types/membre';
+import type { CarteCmu, Membre, MembrePayload } from '../types/membre';
 
 /** Liste des membres du compte authentifié (les plus récents d'abord). */
 export async function listerMembres(): Promise<Membre[]> {
@@ -35,4 +35,10 @@ export async function modifierMembre(id: number, payload: Partial<MembrePayload>
 /** Suppression d'un membre (réservé au propriétaire). */
 export async function supprimerMembre(id: number): Promise<void> {
   await api.delete(`/v1/membres/${id}`);
+}
+
+/** Carte CMU numérique d'un membre (F2.3) — vue présentable + code signé (gated palier). */
+export async function obtenirCarteCmu(id: number): Promise<CarteCmu> {
+  const { data } = await api.get<{ carte: CarteCmu }>(`/v1/membres/${id}/carte-cmu`);
+  return data.carte;
 }

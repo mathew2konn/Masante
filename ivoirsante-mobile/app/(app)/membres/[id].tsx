@@ -127,12 +127,31 @@ export default function DetailMembreScreen() {
 
       <Card style={styles.bloc}>
         <Text style={styles.blocTitre}>CMU (assurance santé)</Text>
-        <Ligne libelle="Numéro" valeur={membre.cmu_numero ?? 'Non renseigné'} />
+        <Ligne libelle="Numéro" valeur={membre.cmu_numero_masque ?? 'Non renseigné'} />
         <Ligne
           libelle="Statut"
           valeur={membre.cmu_statut ? LIBELLE_CMU_STATUT[membre.cmu_statut] : 'Non renseigné'}
         />
         <Ligne libelle="Validité" valeur={formatDateFr(membre.cmu_validite)} />
+
+        {/* Carte CMU numérique (F2.3) : vue présentable + code de présentation. */}
+        <Pressable
+          onPress={() =>
+            router.push({
+              pathname: '/(app)/membres/carte-cmu/[id]',
+              params: { id: membreId, nom: `${membre.prenom} ${membre.nom}` },
+            })
+          }
+          accessibilityRole="button"
+          accessibilityLabel="Carte CMU numérique"
+          style={[styles.sectionRow, styles.sectionRowBordure]}
+        >
+          <View style={styles.sectionPastille}>
+            <Ionicons name="card-outline" size={18} color={colors.blue[600]} />
+          </View>
+          <Text style={styles.sectionTxt}>Carte CMU numérique</Text>
+          <Ionicons name="chevron-forward" size={20} color={colors.ink[500]} />
+        </Pressable>
       </Card>
 
       <Card style={styles.bloc}>

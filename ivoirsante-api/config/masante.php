@@ -36,4 +36,18 @@ return [
         ],
     ],
 
+    /*
+     * F2.3 — Carte CMU numérique (couche de présentation).
+     *  - `exiger_palier_verifie` : en prod, la carte n'est présentable comme justificatif qu'au
+     *    palier « vérifié » (User::compteEstVerifie, identité CMU/CNI). En dev, l'auth/OTP n'existe
+     *    pas encore → `false` = carte présentable pour tester (stub, même esprit que l'OTP simulé).
+     *  - `code_ttl_minutes` : durée de vie du code de présentation (QR CMU signé).
+     *  - `alerte_expiration_jours` : fenêtre du rappel « expiration proche » (cohérent alerte 30 j).
+     */
+    'cmu' => [
+        'exiger_palier_verifie'   => env('MASANTE_CMU_EXIGER_PALIER_VERIFIE', false),
+        'code_ttl_minutes'        => (int) env('MASANTE_CMU_CODE_TTL_MIN', 10),
+        'alerte_expiration_jours' => (int) env('MASANTE_CMU_ALERTE_JOURS', 30),
+    ],
+
 ];
