@@ -6,6 +6,7 @@ import { Screen } from '../components/Screen';
 import { ScreenHeader } from '../components/ScreenHeader';
 import { Card } from '../components/Card';
 import { TextField } from '../components/TextField';
+import { DateField } from '../components/DateField';
 import { PrimaryButton } from '../components/PrimaryButton';
 import {
   choisirDansGalerie,
@@ -22,14 +23,15 @@ import { colors, radius, spacing, typography } from '../theme/theme';
  * ImportDocumentEcran (F2.10) — import d'un document médical.
  *
  * Trois sources : appareil photo, galerie (images compressées avant envoi) ou fichier (PDF, DOCX…).
- * Le MIME réel est revalidé côté serveur (liste blanche). La date du document n'est pas saisie ici :
- * elle relève du futur sélecteur jour/mois/année uniforme (item différé du plan).
+ * Le MIME réel est revalidé côté serveur (liste blanche). La date du document (facultative) est saisie
+ * via le sélecteur de date uniforme (DateField).
  */
 export function ImportDocumentEcran({ membreId, nomMembre }: { membreId: number; nomMembre?: string }) {
   const [fichier, setFichier] = useState<FichierAImporter | null>(null);
   const [tailleOctets, setTailleOctets] = useState<number | null>(null);
   const [categorie, setCategorie] = useState<CategorieDocument>('certificat_medical');
   const [titre, setTitre] = useState('');
+  const [dateDocument, setDateDocument] = useState<string | null>(null);
 
   const [envoi, setEnvoi] = useState(false);
   const [progression, setProgression] = useState(0);
@@ -57,7 +59,7 @@ export function ImportDocumentEcran({ membreId, nomMembre }: { membreId: number;
       await importerDocument(
         membreId,
         fichier,
-        { categorie, titre: titre.trim() || undefined },
+        { categorie, titre: titre.trim() || undefined, date_document: dateDocument },
         (ratio) => setProgression(ratio),
       );
       router.back(); // la liste se recharge au focus
@@ -133,6 +135,15 @@ export function ImportDocumentEcran({ membreId, nomMembre }: { membreId: number;
           maxLength={200}
         />
         <Text style={styles.aide}>Sans titre, le nom du fichier sera utilisé.</Text>
+        <View style={styles.espaceHaut}>
+          <DateField
+            label="Date du document (optionnel)"
+            value={dateDocument}
+            onChange={setDateDocument}
+            placeholder="Date figurant sur le document"
+            max={new Date()}
+          />
+        </View>
       </Card>
     </Screen>
   );
@@ -226,6 +237,7 @@ const styles = StyleSheet.create({
   bloc: { marginBottom: spacing[4] },
   blocTitre: { ...typography.h2, color: colors.blue[900], marginBottom: spacing[3] },
   aide: { ...typography.caption, color: colors.ink[500], marginTop: spacing[1] },
+  espaceHaut: { marginTop: spacing[3] },
 
   sources: { flexDirection: 'row', gap: spacing[3], marginBottom: spacing[3] },
   source: {

@@ -6,6 +6,7 @@ import { Screen } from '../components/Screen';
 import { ScreenHeader } from '../components/ScreenHeader';
 import { Card } from '../components/Card';
 import { TextField } from '../components/TextField';
+import { DateField } from '../components/DateField';
 import { Chip } from '../components/Chip';
 import { Segmented } from '../components/Segmented';
 import { PrimaryButton } from '../components/PrimaryButton';
@@ -169,13 +170,14 @@ function ChampVue({
       );
     case 'date':
       return (
-        <TextField
+        <DateField
           label={libelle(champ)}
-          value={(valeur as string) ?? ''}
-          onChangeText={onChange}
-          placeholder="AAAA-MM-JJ"
-          keyboardType="numbers-and-punctuation"
-          maxLength={10}
+          value={((valeur as string) ?? '') || null}
+          onChange={(v) => onChange(v ?? '')}
+          obligatoire={champ.obligatoire}
+          // Bornage doux : pas de futur si demandé. La contrainte apresChamp (date_fin ≥ date_debut)
+          // reste vérifiée à la soumission (validerDate), le picker ne l'impose pas.
+          max={champ.futurInterdit ? new Date() : undefined}
           erreur={erreur}
         />
       );

@@ -332,6 +332,41 @@ migration**. **Écart de sécurité corrigé** : `cmu_numero` était chiffré au
 
 ---
 
+## Module 2 — Profil enrichi & sélecteur de date (item optionnel)
+
+**Audit du schéma `membres_famille`** (préalable imposé) : une seule migration, **aucune altération ultérieure**.
+Tous les champs profil **existent déjà** (`date_naissance`, `sexe`, `groupe_sanguin`, `photo_url`, CMU) → **aucune
+migration**. Manques réels : (A) les dates sont des **champs texte AAAA-MM-JJ** (source d'erreurs) ; (B) la **photo**
+n'est captée nulle part. Décision : traiter **A puis B**, séquencés (chacun sa barrière).
+
+### Sous-item A — Sélecteur de date uniforme (frontend seul, 2026-07-04→05)
+Choix retenu (révisé) : **wheel picker custom** reproduisant la maquette « molette » fournie (3 colonnes
+jour/mois/année, effet 3D, fondus, bande centrale), **sans dépendance d'animation externe**. Le picker natif
+`@react-native-community/datetimepicker` d'abord installé a été **retiré** (dépendance + config plugin) au profit
+de ce composant, plus fidèle et uniforme.
+- **`components/DateWheelPicker.tsx`** : portage RN fidèle du composant web (framer-motion → RN) — `ScrollView`
+  natif (inertie + `snapToInterval`) piloté par `Animated` (interpolations `rotateX`/`scale`/`opacity` sur le
+  défilement, `useNativeDriver`), fondus haut/bas via `expo-linear-gradient` (déjà présent), bande de sélection
+  centrale. Logique jour/mois/année : mois en `Intl` (fr-FR, capitalisé), jour **replafonné** (28-31) au changement
+  de mois/année, années décroissantes bornées `minYear`/`maxYear`. Tokens DS (aucune couleur en dur sauf le voile
+  modal, cohérent avec l'existant).
+- **`components/DateField.tsx`** : ouvre le `DateWheelPicker` dans une **feuille modale** (identique Android/iOS)
+  avec **Annuler / Valider**. Valeur E/S **AAAA-MM-JJ** ; `min`/`max` bornent l'année **et** replafonnent la valeur
+  finale ; icône calendrier + croix d'effacement si facultatif.
+- **`utils/dates.ts`** : `dateInputVersDate` / `dateVersDateInput` (conversion **par composants locaux**, pas d'UTC,
+  pour éviter le décalage de fuseau ; rejette les dates qui « glissent » type 31 février).
+- **Câblage** : `MembreForm` (naissance : bornée passé/~120 ans, obligatoire ; validité CMU : facultative),
+  `CarnetSectionForm` (toutes les dates ; `max` = aujourd'hui si `futurInterdit` ; la contrainte `apresChamp`
+  reste vérifiée à la soumission), `ImportDocumentEcran` (**date du document** enfin saisie — champ jusque-là différé ;
+  l'API F2.10 la supportait déjà).
+- **Vérifs** : `tsc --noEmit` OK, `expo install --check` « up to date » ; `expo-doctor` 16-17/18 (seul le check
+  « schéma de config » échoue faute de réseau vers l'API Expo — environnemental, pas un défaut de config).
+
+### Sous-item B — Photo de profil du membre (à venir : backend étape A puis frontend étape B)
+`photo_url` existe déjà ; il manque l'upload/service + la capture. Sera cadré et implémenté après validation de A.
+
+---
+
 ## Décisions en attente de validation (couche données)
 1. **Portée de `categorie`** : superset à 8 (`certificat_medical, fiche_sortie, compte_rendu, imagerie, resultat_labo,
    assurance, ordonnance_externe, autre`) **ou** 6 (§2.2). Le superset couvre les documents *importés* anciens/externes

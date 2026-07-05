@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { Card } from '../components/Card';
 import { TextField } from '../components/TextField';
+import { DateField } from '../components/DateField';
 import { Segmented } from '../components/Segmented';
 import { Chip } from '../components/Chip';
 import { PrimaryButton } from '../components/PrimaryButton';
@@ -16,6 +17,10 @@ import {
   type Sexe,
 } from '../types/membre';
 import { isoVersDateInput, validerDateFacultative, validerDateNaissance } from '../utils/dates';
+
+/** Bornes du sélecteur de date de naissance : pas de futur, plancher raisonnable (~120 ans). */
+const AUJOURDHUI = new Date();
+const NAISSANCE_MIN = new Date(AUJOURDHUI.getFullYear() - 120, 0, 1);
 
 /**
  * MembreForm — formulaire partagé création / édition d'un membre de la famille (F2.1).
@@ -110,13 +115,14 @@ export function MembreForm({
           maxLength={100}
           erreur={erreurs.prenom}
         />
-        <TextField
+        <DateField
           label="Date de naissance"
-          value={dateNaissance}
-          onChangeText={setDateNaissance}
-          placeholder="AAAA-MM-JJ"
-          keyboardType="numbers-and-punctuation"
-          maxLength={10}
+          value={dateNaissance || null}
+          onChange={(v) => setDateNaissance(v ?? '')}
+          placeholder="Sélectionner la date"
+          min={NAISSANCE_MIN}
+          max={AUJOURDHUI}
+          obligatoire
           erreur={erreurs.date_naissance}
         />
 
@@ -175,13 +181,11 @@ export function MembreForm({
         />
 
         <View style={styles.espaceHaut}>
-          <TextField
+          <DateField
             label="Validité (facultatif)"
-            value={cmuValidite}
-            onChangeText={setCmuValidite}
-            placeholder="AAAA-MM-JJ"
-            keyboardType="numbers-and-punctuation"
-            maxLength={10}
+            value={cmuValidite || null}
+            onChange={(v) => setCmuValidite(v ?? '')}
+            placeholder="Sélectionner la date"
             erreur={erreurs.cmu_validite}
           />
         </View>

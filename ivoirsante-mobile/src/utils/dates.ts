@@ -11,6 +11,27 @@ export function isoVersDateInput(iso: string | null | undefined): string {
   return iso.slice(0, 10);
 }
 
+/**
+ * Convertit une saisie AAAA-MM-JJ en objet Date LOCAL (minuit local), ou null si invalide.
+ * On construit la date par composants (année, mois, jour) pour éviter tout décalage de fuseau
+ * — `new Date('2026-01-01')` serait interprété en UTC et pourrait reculer d'un jour.
+ */
+export function dateInputVersDate(v: string | null | undefined): Date | null {
+  const base = isoVersDateInput(v);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(base)) return null;
+  const [a, m, j] = base.split('-').map(Number);
+  const d = new Date(a, m - 1, j);
+  // Rejette les dates « qui glissent » (ex. 2026-02-31 → 3 mars) en revérifiant les composants.
+  if (d.getFullYear() !== a || d.getMonth() !== m - 1 || d.getDate() !== j) return null;
+  return d;
+}
+
+/** Formate un objet Date en AAAA-MM-JJ à partir de ses composants LOCAUX (pas d'UTC). */
+export function dateVersDateInput(d: Date): string {
+  const p = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
+
 /** Affiche une date ISO au format jour/mois/année (fr) ; '—' si absente. */
 export function formatDateFr(iso: string | null | undefined): string {
   const base = isoVersDateInput(iso);
