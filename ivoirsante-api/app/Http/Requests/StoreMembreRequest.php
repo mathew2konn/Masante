@@ -34,7 +34,7 @@ class StoreMembreRequest extends FormRequest
             'date_naissance' => ['required', 'date', 'before_or_equal:today'],
             'sexe'           => ['required', 'in:M,F'],
             'groupe_sanguin' => ['nullable', 'in:A+,A-,B+,B-,AB+,AB-,O+,O-'],
-            'photo_url'      => ['nullable', 'url', 'max:500'],
+            // `photo_url` n'est PAS accepté du client : la photo se gère via l'endpoint dédié (chemin interne serveur).
             'cmu_numero'     => ['nullable', 'string', 'max:50'],
             'cmu_statut'     => ['nullable', 'in:actif,expire,non_inscrit'],
             'cmu_validite'   => ['nullable', 'date'],

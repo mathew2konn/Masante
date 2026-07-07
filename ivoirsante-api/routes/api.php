@@ -12,6 +12,7 @@ use App\Http\Controllers\Api\V1\Carnet\ResultatAnalyseController;
 use App\Http\Controllers\Api\V1\Carnet\VaccinationController;
 use App\Http\Controllers\Api\V1\CarteCmuController;
 use App\Http\Controllers\Api\V1\MembreController;
+use App\Http\Controllers\Api\V1\PhotoMembreController;
 use App\Http\Controllers\Api\V1\QrController;
 use App\Http\Controllers\Api\V1\RendezVousController;
 use App\Http\Controllers\Api\V1\SignalementController;
@@ -96,6 +97,12 @@ Route::middleware('throttle:api')->group(function () {
             // F2.3 — Carte CMU numérique (couche de présentation) : n° masqué + code signé,
             // gated par le palier « vérifié » (stub dev). N'ouvre PAS le dossier (distinct du QR).
             Route::get('membres/{membre}/carte-cmu', [CarteCmuController::class, 'show']);
+
+            // Profil — Photo de profil : upload/lecture/suppression. Chiffrée au repos, disque privé,
+            // servie uniquement déchiffrée par le contrôleur (jamais d'URL publique).
+            Route::post('membres/{membre}/photo', [PhotoMembreController::class, 'store']);
+            Route::get('membres/{membre}/photo', [PhotoMembreController::class, 'show']);
+            Route::delete('membres/{membre}/photo', [PhotoMembreController::class, 'destroy']);
 
             /*
             |--------------------------------------------------------------

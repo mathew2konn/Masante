@@ -33,7 +33,6 @@ class MembreFamille extends Model
         'date_naissance',
         'sexe',
         'groupe_sanguin',
-        'photo_url',
         'cmu_numero',
         'cmu_statut',
         'cmu_validite',
@@ -45,10 +44,19 @@ class MembreFamille extends Model
         // F2.3 — le numéro CMU complet ne quitte JAMAIS le serveur (chiffré au repos ET caché) :
         // seul `cmu_numero_masque` (accessor) est exposé. §5.2 Sécurité (exposition minimale).
         'cmu_numero',
+        // Profil — chemin de stockage interne de la photo : jamais exposé (comme `matricule_ivs`).
+        // Le client utilise `a_photo` puis l'endpoint dédié. `photo_url` est renseigné côté serveur.
+        'photo_url',
     ];
 
-    /** F2.3 — version masquée du numéro CMU, ajoutée aux sérialisations JSON. */
-    protected $appends = ['cmu_numero_masque'];
+    /** Champs dérivés ajoutés aux sérialisations JSON (numéro CMU masqué + présence d'une photo). */
+    protected $appends = ['cmu_numero_masque', 'a_photo'];
+
+    /** Profil — indique si le membre a une photo (le client charge alors l'endpoint dédié). */
+    public function getAPhotoAttribute(): bool
+    {
+        return $this->photo_url !== null;
+    }
 
     protected function casts(): array
     {

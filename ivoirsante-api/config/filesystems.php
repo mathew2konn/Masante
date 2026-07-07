@@ -57,6 +57,15 @@ return [
             'report' => false,
         ],
 
+        // Profil (photo de membre). Disque PRIVÉ : avatar chiffré au repos, hors public/,
+        // servi uniquement via le contrôleur (déchiffré, après contrôle de Policy).
+        'avatars' => [
+            'driver' => 'local',
+            'root' => storage_path('app/avatars'),
+            'throw' => true,
+            'report' => false,
+        ],
+
         's3' => [
             'driver' => 's3',
             'key' => env('AWS_ACCESS_KEY_ID'),

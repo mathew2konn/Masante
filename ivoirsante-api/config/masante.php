@@ -50,4 +50,13 @@ return [
         'alerte_expiration_jours' => (int) env('MASANTE_CMU_ALERTE_JOURS', 30),
     ],
 
+    /*
+     * Photo de profil (membre) — image compressée côté client, chiffrée au repos côté serveur.
+     * Liste blanche de MIME réels (validés via finfo) ; taille max (l'image est déjà réduite à l'upload).
+     */
+    'photo' => [
+        'max_ko'    => (int) env('MASANTE_PHOTO_MAX_KO', 5120), // 5 Mo
+        'mimetypes' => ['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif'],
+    ],
+
 ];
