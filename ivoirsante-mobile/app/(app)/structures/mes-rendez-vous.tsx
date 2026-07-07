@@ -5,6 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Screen } from '../../../src/components/Screen';
 import { Card } from '../../../src/components/Card';
 import { ScreenHeader } from '../../../src/components/ScreenHeader';
+import { VerrouGate } from '../../../src/components/VerrouGate';
 import { listerRendezVous, annulerRendezVous } from '../../../src/api/rendezvous';
 import { messageErreur } from '../../../src/utils/erreurs';
 import { formatDateFr } from '../../../src/utils/dates';
@@ -67,6 +68,7 @@ export default function MesRendezVous() {
   }
 
   return (
+    <VerrouGate>
     <Screen>
       <ScreenHeader title="Mes rendez-vous" onBack={() => router.back()} />
 
@@ -91,6 +93,7 @@ export default function MesRendezVous() {
         rdv.map((item) => <LigneRdv key={item.id} item={item} onAnnuler={() => confirmerAnnulation(item)} />)
       )}
     </Screen>
+    </VerrouGate>
   );
 }
 

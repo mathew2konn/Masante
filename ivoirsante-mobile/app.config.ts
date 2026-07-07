@@ -65,6 +65,13 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
           "MaSante utilise l'appareil photo pour prendre en photo un document médical à importer.",
       },
     ],
+    // Phase B / B2 — verrou applicatif : biométrie (Face ID) pour déverrouiller les sections sensibles.
+    [
+      'expo-local-authentication',
+      {
+        faceIDPermission: 'MaSante utilise Face ID pour déverrouiller votre carnet de santé.',
+      },
+    ],
   ],
   // Routes typées (autocomplétion + vérif des href par TypeScript).
   experiments: {

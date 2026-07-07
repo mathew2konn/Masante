@@ -106,6 +106,8 @@ export default function CarnetTab() {
       </View>
 
       <View style={styles.deconnexion}>
+        <SecondaryButton label="Sécurité" onPress={() => router.push('/(app)/parametres/securite')} />
+        <View style={styles.sep} />
         <SecondaryButton
           label="Changer mon mot de passe"
           onPress={() => router.push('/(app)/parametres/mot-de-passe')}

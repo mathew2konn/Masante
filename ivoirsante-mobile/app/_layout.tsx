@@ -4,6 +4,7 @@ import { Stack } from 'expo-router';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { StatusBar as ExpoStatusBar } from 'expo-status-bar';
 import { SessionProvider, useSession } from '../src/auth/SessionContext';
+import { VerrouProvider } from '../src/auth/VerrouContext';
 import { GradientBackground } from '../src/components/GradientBackground';
 import { Logo } from '../src/components/Logo';
 import { colors } from '../src/theme/theme';
@@ -18,8 +19,10 @@ export default function RootLayout() {
   return (
     <SafeAreaProvider>
       <SessionProvider>
-        <ExpoStatusBar style="dark" />
-        <RootNavigator />
+        <VerrouProvider>
+          <ExpoStatusBar style="dark" />
+          <RootNavigator />
+        </VerrouProvider>
       </SessionProvider>
     </SafeAreaProvider>
   );

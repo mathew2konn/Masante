@@ -487,3 +487,33 @@ Réutilise le client axios unique et les composants du Design System ; aucune d�
 - **Photo membre robuste Android** (`api/photo.ts` + `membres/[id].tsx`) : la photo est **téléchargée avec le token**
   vers le cache (`telechargerPhoto`) puis affichée en fichier local, au lieu de `<Image source={{ headers }}>` —
   l'en-tête Bearer n'étant pas fiable sur le loader natif Android (Fresco) → 401.
+
+---
+
+# Phase B — B2 : Verrou applicatif
+
+Source : note `Securite_IVOIRSANTE_2.docx`, chap. 3 (seconde barrière LOCALE contre la menace « téléphone en
+main »). Décisions validées le 2026-07-07 : **opt-in · périmètre = fiches membres + « Mes rendez-vous »
+(onglet Carnet libre) · PIN 6 chiffres haché · biométrie + repli PIN**. **Frontend uniquement** (aucun backend,
+aucune table : le PIN et l'état vivent dans `expo-secure-store`, chiffré matériellement).
+
+## Étape unique — Frontend (2026-07-07)
+
+- **Dépendances** ajoutées via `npx expo install` : `expo-local-authentication` (biométrie), `expo-crypto` (SHA-256
+  du PIN). react/react-dom inchangés (19.1.0) ; `expo-doctor` 18/18. Plugin Face ID dans `app.config.ts`.
+- **`src/auth/verrou.ts`** : secret + politique. PIN 6 chiffres **haché SHA-256 + sel aléatoire** (jamais en clair),
+  stocké en secure-store. Anti-force brute : **5 tentatives** puis délais **30 s / 1 min / 5 min**. Biométrie via
+  `hasHardwareAsync`/`isEnrolledAsync`/`authenticateAsync` (`disableDeviceFallback` : on gère notre propre repli PIN).
+- **`src/auth/VerrouContext.tsx`** : période de **grâce 2 min** (un déverrouillage ouvre les sections sensibles sans
+  re-demande en navigation active) ; **re-verrouillage immédiat en arrière-plan** (écoute `AppState`).
+- **`components/VerrouGate.tsx`** : enveloppe une zone sensible ; si verrou actif + grâce expirée → écran de
+  déverrouillage (biométrie auto si activée + repli PIN, blocage avec décompte, « PIN oublié » → déconnexion +
+  reconnexion). `components/SaisiePin.tsx` : 6 pastilles + champ masqué.
+- **`app/(app)/parametres/securite.tsx`** (depuis l'onglet Carnet) : activer/désactiver, définir/changer le PIN
+  (saisie + confirmation), bascule biométrie si disponible.
+- **Câblage** : `VerrouProvider` sous `SessionProvider` (`app/_layout.tsx`) ; `VerrouGate` sur
+  `membres/_layout.tsx` (toute la pile fiches) et sur `structures/mes-rendez-vous.tsx`. Onglet Carnet, Triage,
+  Carte, SOS restent **libres** (chap. 3.2).
+
+**Ce qui n'est PAS fait** (fidélité aux docs) : aucun backend, pas de sync multi-appareils du PIN, le verrou ne
+remplace pas l'auth (couches indépendantes). **Vérifs** : `tsc --noEmit` OK ; `expo-doctor` 18/18.
