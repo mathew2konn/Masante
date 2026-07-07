@@ -44,7 +44,6 @@ class AuthController extends Controller
             'telephone' => $data['telephone'],
             'nom'       => $data['nom'],
             'prenom'    => $data['prenom'],
-            'email'     => $data['email'] ?? null,
             'password'  => $data['password'], // haché par le cast 'hashed'.
         ]);
 

@@ -401,3 +401,66 @@ Même chaîne de sécurité que F2.10, sans antivirus (image de l'utilisateur, a
 2. **Extras de robustesse** : `hash_sha256`, `softDeletes`, `email` contact — à inclure (recommandé) ou non.
 3. **Mise en œuvre** : j'édite les 4 migrations déjà présentes (non commitées) vers ce schéma robuste, puis
    `rollback` + `migrate` (base de dev). Aucune commande destructive sans accord.
+
+---
+
+# Phase B — B1 : Authentification durcie
+
+Source : `docs/modification.txt` (« Mot de passe oublié », inscription minimale) + `docs/Securite_IVOIRSANTE_2.docx`
+(chap. 4 : récupération durcie face à la menace « téléphone en main »). Décisions validées le 2026-07-07 :
+**politique MDP forte unifiée · preuve durcie = date de naissance (branche CMU/CNI dormante) · hachage bcrypt**.
+
+## Étape A — Backend (2026-07-07)
+
+L'auth de base préexistait (register / verify-otp / login / logout / me, tables `codes_otp`, `tokens_qr`, Sanctum) :
+B1 la **complète**, sans la refaire, en réutilisant `OtpService` (OTP haché, 5 min, max 5 tentatives, quota 5/h).
+
+### Mot de passe oublié — flux OTP 3 étapes (séparées à dessein)
+- `POST /api/v1/auth/password/forgot` `{telephone}` — génère un OTP `recuperation` **uniquement si le compte
+  existe**, mais renvoie une **réponse identique** dans tous les cas (anti-énumération, §modification.txt étape 1).
+- `POST /api/v1/auth/password/verify-otp` `{telephone, code, date_naissance?}` — vérifie l'OTP **puis la preuve
+  durcie**, et délivre un **jeton de réinitialisation à usage unique (~10 min)**, haché SHA-256 en base
+  (`password_reset_grants`). La séparation empêche de changer le MDP dans la requête qui saisit le code.
+- `POST /api/v1/auth/password/reset` `{reset_token, password, password_confirmation}` — applique la politique MDP,
+  ré-hache, puis **révoque TOUS les tokens Sanctum** du compte (les sessions volées deviennent inertes).
+
+### Changement volontaire (connecté)
+- `POST /api/v1/auth/password/change` `{current_password, password, password_confirmation}` (`auth:sanctum`) — vérifie
+  l'ancien MDP (pas d'OTP), puis **révoque les AUTRES sessions** en conservant la session courante.
+
+### Preuve de récupération durcie (note Securite_2, chap. 4)
+Graduée par palier, dans `PasswordResetService::verifierPreuveDurcie()` :
+- **Palier base** → **date de naissance** exacte du titulaire (nouvelle colonne `users.date_naissance`, nullable).
+- **Palier vérifié** → 4 derniers du n° CMU/CNI : **branche codée mais DORMANTE** — aucun flux de vérification
+  d'identité ne pose encore `compte_verifie_at` ni ne stocke ce n° sur `users` (s'activera avec le module Identité).
+- **Compte sans donnée de preuve** (profil incomplet) → l'OTP fait foi. **Limitation assumée** : la menace
+  « téléphone en main » n'est pleinement couverte qu'une fois la date de naissance renseignée ; l'app incitera à
+  compléter le profil.
+
+### Politique de mot de passe — source unique
+`App\Rules\PasswordPolicy::regles()` (partagée inscription + reset + change) : **≥8, lettres, MAJ+min, chiffres,
+symboles**, + **non-compromis (HIBP)**. Le contrôle HIBP est confié à `App\Rules\NotCompromisedPassword`
+(k-anonymat) plutôt qu'à `Password::uncompromised()`.
+
+> ⚠️ **Piège environnemental résolu** : `Password::uncompromised()` appelle `api.pwnedpasswords.com` à chaque
+> validation ; sur ce WAMP (pas de bundle CA → `cURL error 60`) l'appel lève une exception **non catchée** →
+> `register`/`reset`/`change` renverraient **500**. `NotCompromisedPassword` est **fail-open** : une panne réseau
+> est journalisée et laissée passer (jamais de verrouillage patient), les autres critères MDP restant appliqués.
+
+### Inscription
+`RegisterRequest` : **e-mail retiré** (inscription minimale nom/prénom/téléphone/MDP) ; politique MDP alignée.
+
+### Schéma & fichiers
+- Migrations : `add_date_naissance_to_users`, `create_password_reset_grants_table`.
+- Nouveaux : `PasswordController`, `PasswordResetService`, modèle `PasswordResetGrant`, règles `PasswordPolicy`
+  + `NotCompromisedPassword`, requests `Forgot/VerifyResetOtp/Reset/ChangePasswordRequest`.
+- Modifiés : `User` (`date_naissance` fillable+cast), `RegisterRequest`, `AuthController::register`, `routes/api.php`.
+- **Notification e-mail + audit FT6** : journalisés en stub (mailer non branché en dev ; journal d'audit global à venir).
+
+### Tests
+`PasswordResetTest` (9) : anti-énumération, parcours complet + révocation des tokens, preuve DDN incorrecte/manquante,
+dégradation sans DDN, jeton usage unique, jeton expiré, MDP faible rejeté, changement connecté (ancien MDP + révocation
+des autres sessions). **Suite : 80/80 (269 assertions).** `composer audit` : 0 avis. HIBP faké (offline) en test.
+
+**⏳ Frontend (étape B) — NON démarré** : à faire après « backend B1 validé » (barre de force à l'inscription, écran
+« Mot de passe oublié ? » en 3 étapes, écran « Changer mon mot de passe »).

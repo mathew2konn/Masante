@@ -2,12 +2,14 @@
 
 namespace App\Http\Requests;
 
+use App\Rules\PasswordPolicy;
 use Illuminate\Foundation\Http\FormRequest;
-use Illuminate\Validation\Rules\Password;
 
 /**
- * Validation de l'inscription (doc Identification §4.1).
- * Téléphone = identifiant principal (format CI +225 + 10 chiffres) ; e-mail optionnel.
+ * Validation de l'inscription (doc Identification §4.1 + modification.txt §1).
+ * Téléphone = identifiant principal (format CI +225 + 10 chiffres). Inscription MINIMALE :
+ * nom, prénom, téléphone, mot de passe. L'e-mail et les autres données (date de naissance,
+ * groupe sanguin, sexe, photo…) sont renseignés plus tard depuis le profil, pas ici.
  */
 class RegisterRequest extends FormRequest
 {
@@ -25,9 +27,8 @@ class RegisterRequest extends FormRequest
             'telephone' => ['required', 'string', 'regex:/^\+225[0-9]{10}$/', 'unique:users,telephone'],
             'nom'       => ['required', 'string', 'max:100'],
             'prenom'    => ['required', 'string', 'max:100'],
-            // Mot de passe robuste (§3.4 Sécurité) : ≥8, lettres + chiffres, non compromis (HIBP).
-            'password'  => ['required', 'confirmed', Password::min(8)->letters()->numbers()->uncompromised()],
-            'email'     => ['nullable', 'email', 'max:255', 'unique:users,email'],
+            // Politique de mot de passe unique du projet (barre de force côté mobile alignée dessus).
+            'password'  => ['required', 'confirmed', ...PasswordPolicy::regles()],
         ];
     }
 

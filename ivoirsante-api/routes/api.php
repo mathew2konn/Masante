@@ -12,6 +12,7 @@ use App\Http\Controllers\Api\V1\Carnet\ResultatAnalyseController;
 use App\Http\Controllers\Api\V1\Carnet\VaccinationController;
 use App\Http\Controllers\Api\V1\CarteCmuController;
 use App\Http\Controllers\Api\V1\MembreController;
+use App\Http\Controllers\Api\V1\PasswordController;
 use App\Http\Controllers\Api\V1\PhotoMembreController;
 use App\Http\Controllers\Api\V1\QrController;
 use App\Http\Controllers\Api\V1\RendezVousController;
@@ -65,11 +66,19 @@ Route::middleware('throttle:api')->group(function () {
                 Route::post('/verify-otp', [AuthController::class, 'verifyOtp']);
                 Route::post('/resend-otp', [AuthController::class, 'resendOtp']);
                 Route::post('/login', [AuthController::class, 'login']);
+
+                // Phase B / B1 — Mot de passe oublié (flux OTP 3 étapes durci).
+                Route::post('/password/forgot', [PasswordController::class, 'forgot']);
+                Route::post('/password/verify-otp', [PasswordController::class, 'verifyOtp']);
+                Route::post('/password/reset', [PasswordController::class, 'reset']);
             });
 
             Route::middleware('auth:sanctum')->group(function () {
                 Route::post('/logout', [AuthController::class, 'logout']);
                 Route::get('/me', [AuthController::class, 'me']);
+
+                // Changement volontaire par l'utilisateur connecté (ancien + nouveau, pas d'OTP).
+                Route::post('/password/change', [PasswordController::class, 'change']);
             });
         });
 
