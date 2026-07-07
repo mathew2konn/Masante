@@ -64,3 +64,36 @@ export async function choisirFichier(): Promise<FichierAImporter | null> {
   const a = resultat.assets[0];
   return { uri: a.uri, nom: a.name, mimeType: a.mimeType };
 }
+
+// --- Photo de profil (avatar) : recadrage carré + réduction plus agressive (~512 px) ---
+
+const AVATAR_MAX = 512;
+
+/** Prépare un avatar carré compressé (JPEG) à partir d'une image déjà recadrée 1:1. */
+async function depuisAvatar(asset: ImagePicker.ImagePickerAsset): Promise<FichierAImporter> {
+  const contexte = ImageManipulator.manipulate(asset.uri);
+  contexte.resize({ width: AVATAR_MAX }); // carré (crop 1:1) → hauteur suivie automatiquement
+  const rendu = await contexte.renderAsync();
+  const image = await rendu.saveAsync({ compress: 0.8, format: SaveFormat.JPEG });
+  return { uri: image.uri, nom: `avatar-${Date.now()}.jpg`, mimeType: 'image/jpeg' };
+}
+
+/** Prend une photo de profil (recadrage carré imposé). */
+export async function prendrePhotoProfil(): Promise<FichierAImporter | null> {
+  const permission = await ImagePicker.requestCameraPermissionsAsync();
+  if (!permission.granted) throw new PermissionRefusee('Appareil photo');
+
+  const resultat = await ImagePicker.launchCameraAsync({ mediaTypes: ['images'], allowsEditing: true, aspect: [1, 1], quality: 1 });
+  if (resultat.canceled || !resultat.assets?.length) return null;
+  return depuisAvatar(resultat.assets[0]);
+}
+
+/** Choisit une photo de profil dans la galerie (recadrage carré imposé). */
+export async function choisirPhotoProfilGalerie(): Promise<FichierAImporter | null> {
+  const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+  if (!permission.granted) throw new PermissionRefusee('Galerie photos');
+
+  const resultat = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], allowsEditing: true, aspect: [1, 1], quality: 1 });
+  if (resultat.canceled || !resultat.assets?.length) return null;
+  return depuisAvatar(resultat.assets[0]);
+}

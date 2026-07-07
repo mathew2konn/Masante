@@ -21,7 +21,7 @@ export type Membre = {
   date_naissance: string; // ISO (ex. "1990-01-01T00:00:00.000000Z")
   sexe: Sexe;
   groupe_sanguin: GroupeSanguin | null;
-  photo_url: string | null;
+  a_photo: boolean; // le membre a une photo (chargée via l'endpoint dédié ; le chemin interne n'est pas exposé)
   cmu_numero_masque: string | null; // F2.3 — •••• •••• 1234 (le numéro complet ne quitte pas le serveur)
   cmu_statut: CmuStatut | null;
   cmu_validite: string | null;

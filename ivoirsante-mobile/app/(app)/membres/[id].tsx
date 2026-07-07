@@ -1,5 +1,5 @@
-import React, { useCallback, useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, View } from 'react-native';
+import React, { useCallback, useEffect, useState } from 'react';
+import { ActivityIndicator, Alert, Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Screen } from '../../../src/components/Screen';
@@ -8,6 +8,9 @@ import { Card } from '../../../src/components/Card';
 import { PrimaryButton } from '../../../src/components/PrimaryButton';
 import { SecondaryButton } from '../../../src/components/SecondaryButton';
 import { obtenirMembre, supprimerMembre } from '../../../src/api/membres';
+import { getStoredToken } from '../../../src/config/api';
+import { supprimerPhoto, televerserPhoto, urlPhotoAbsolue } from '../../../src/api/photo';
+import { choisirPhotoProfilGalerie, PermissionRefusee, prendrePhotoProfil } from '../../../src/documents/selection';
 import { listerSection } from '../../../src/api/carnet';
 import { messageErreur } from '../../../src/utils/erreurs';
 import { LIBELLE_CMU_STATUT, type Membre } from '../../../src/types/membre';
@@ -26,6 +29,15 @@ export default function DetailMembreScreen() {
   const [chargement, setChargement] = useState(true);
   const [erreur, setErreur] = useState<string | null>(null);
   const [suppression, setSuppression] = useState(false);
+
+  // Photo de profil : token pour l'en-tête Bearer de <Image>, occupation et « version » (anti-cache).
+  const [token, setToken] = useState<string | null>(null);
+  const [photoOccupee, setPhotoOccupee] = useState(false);
+  const [photoVersion, setPhotoVersion] = useState(0);
+
+  useEffect(() => {
+    getStoredToken().then(setToken);
+  }, []);
 
   // Rechargé à chaque retour sur l'écran (ex. après édition).
   useFocusEffect(
@@ -78,6 +90,48 @@ export default function DetailMembreScreen() {
     }
   };
 
+  // --- Photo de profil ---
+  const appliquerPhoto = async (choisir: () => ReturnType<typeof prendrePhotoProfil>) => {
+    try {
+      const fichier = await choisir();
+      if (!fichier) return; // annulé
+      setPhotoOccupee(true);
+      const maj = await televerserPhoto(membreId, fichier);
+      setMembre(maj);
+      setPhotoVersion((v) => v + 1); // force <Image> à recharger la nouvelle photo
+    } catch (e) {
+      Alert.alert('Photo de profil', e instanceof PermissionRefusee ? e.message : messageErreur(e));
+    } finally {
+      setPhotoOccupee(false);
+    }
+  };
+
+  const supprimerPhotoMembre = async () => {
+    try {
+      setPhotoOccupee(true);
+      const maj = await supprimerPhoto(membreId);
+      setMembre(maj);
+      setPhotoVersion((v) => v + 1);
+    } catch (e) {
+      Alert.alert('Photo de profil', messageErreur(e));
+    } finally {
+      setPhotoOccupee(false);
+    }
+  };
+
+  const gererPhoto = () => {
+    if (photoOccupee || !membre) return;
+    const boutons: { text: string; style?: 'cancel' | 'destructive'; onPress?: () => void }[] = [
+      { text: 'Prendre une photo', onPress: () => appliquerPhoto(prendrePhotoProfil) },
+      { text: 'Choisir dans la galerie', onPress: () => appliquerPhoto(choisirPhotoProfilGalerie) },
+    ];
+    if (membre.a_photo) {
+      boutons.push({ text: 'Supprimer la photo', style: 'destructive', onPress: supprimerPhotoMembre });
+    }
+    boutons.push({ text: 'Annuler', style: 'cancel' });
+    Alert.alert('Photo de profil', undefined, boutons);
+  };
+
   if (chargement) {
     return (
       <Screen>
@@ -104,9 +158,31 @@ export default function DetailMembreScreen() {
       <ScreenHeader title="Fiche du membre" onBack={() => router.back()} />
 
       <Card style={styles.entete}>
-        <View style={styles.avatar}>
-          <Text style={styles.avatarTxt}>{initiales}</Text>
-        </View>
+        <Pressable
+          onPress={gererPhoto}
+          accessibilityRole="button"
+          accessibilityLabel="Modifier la photo de profil"
+          style={styles.avatar}
+        >
+          {membre.a_photo && token ? (
+            <Image
+              source={{
+                uri: `${urlPhotoAbsolue(membreId)}?v=${photoVersion}`,
+                headers: { Authorization: `Bearer ${token}`, 'ngrok-skip-browser-warning': 'true' },
+              }}
+              style={styles.avatarImg}
+            />
+          ) : (
+            <Text style={styles.avatarTxt}>{initiales}</Text>
+          )}
+          <View style={styles.avatarBadge}>
+            {photoOccupee ? (
+              <ActivityIndicator size="small" color={colors.surface} />
+            ) : (
+              <Ionicons name="camera" size={13} color={colors.surface} />
+            )}
+          </View>
+        </Pressable>
         <Text style={styles.nom}>
           {membre.prenom} {membre.nom}
         </Text>
@@ -304,6 +380,20 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: spacing[3],
+  },
+  avatarImg: { width: 72, height: 72, borderRadius: radius.pill },
+  avatarBadge: {
+    position: 'absolute',
+    right: 0,
+    bottom: 0,
+    width: 24,
+    height: 24,
+    borderRadius: radius.pill,
+    backgroundColor: colors.blue[600],
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: colors.surface,
   },
   avatarTxt: { ...typography.h1, color: colors.blue[700] },
   nom: { ...typography.h2, color: colors.blue[900] },

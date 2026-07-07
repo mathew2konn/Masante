@@ -362,8 +362,35 @@ de ce composant, plus fidèle et uniforme.
 - **Vérifs** : `tsc --noEmit` OK, `expo install --check` « up to date » ; `expo-doctor` 16-17/18 (seul le check
   « schéma de config » échoue faute de réseau vers l'API Expo — environnemental, pas un défaut de config).
 
-### Sous-item B — Photo de profil du membre (à venir : backend étape A puis frontend étape B)
-`photo_url` existe déjà ; il manque l'upload/service + la capture. Sera cadré et implémenté après validation de A.
+### Sous-item B — Photo de profil du membre
+`photo_url` existait déjà (nullable) mais rien ne le renseignait ; l'avatar affichait les initiales.
+Décision validée : **photo chiffrée au repos** ; gestion **depuis l'avatar de la fiche** (le membre a un id).
+
+#### Backend (étape A, 2026-07-05)
+Même chaîne de sécurité que F2.10, sans antivirus (image de l'utilisateur, affichée à lui seul) :
+- **Disque privé `avatars`** (`config/filesystems.php`, hors `public/`) ; **`config/masante.php` → `photo`**
+  (liste blanche MIME réels, `max_ko` 5 Mo).
+- **`MembreFamille`** : `photo_url` **retiré de `$fillable`** (jamais posé par le client) **et `$hidden`**
+  (chemin interne jamais exposé, comme `matricule_ivs`) ; accessor booléen **`a_photo`** ajouté à `$appends`.
+  `photo_url` retiré aussi des règles `Store/UpdateMembreRequest`.
+- **`PhotoMembreService`** : `store` (chiffrement `Crypt` AES, nom UUID, remplace l'ancien blob), `retrieve`
+  (déchiffré + **MIME réel via finfo** sur les octets), `delete` (blob + colonne).
+- **`StorePhotoRequest`** : `authorize` → Policy `update` ; `mimetypes:` (finfo réel) + `max`.
+- **`PhotoMembreController`** + routes `POST|GET|DELETE /membres/{membre}/photo` : `show` sert l'image
+  **déchiffrée** (content-type réel, `Cache-Control: no-store`), 404 si aucune ; `store`/`destroy` renvoient le membre.
+- **Tests** `PhotoMembreTest` (6) : upload chiffré + `a_photo` exposé **sans** le chemin, GET sert l'image, 404 sans
+  photo, type non-image → 422, suppression (blob + 404 ensuite), IDOR 403. **Suite : 71/71 (245 assertions).**
+
+#### Frontend (étape B, 2026-07-05)
+- **`api/photo.ts`** : `urlPhotoAbsolue` (URL de l'endpoint pour `<Image>`), `televerserPhoto` (upload multipart
+  via `createUploadTask`, champ `photo`, renvoie le membre), `supprimerPhoto` (axios).
+- **`types/membre.ts`** : `photo_url` → **`a_photo: boolean`** (miroir de l'API).
+- **`documents/selection.ts`** : `prendrePhotoProfil` / `choisirPhotoProfilGalerie` — **recadrage carré imposé**
+  (`allowsEditing` + `aspect [1,1]`) + réduction ~512 px (JPEG 0.8), réutilisant l'infra image de F2.10.
+- **Fiche membre** (`[id].tsx`) : l'avatar affiche la **photo** (`<Image>` avec en-tête **Bearer** + `?v=` anti-cache)
+  si `a_photo`, sinon les **initiales** ; **badge appareil photo** ; tap → menu **Prendre / Choisir / Supprimer**
+  (Supprimer si photo présente) ; indicateur d'activité pendant l'envoi ; le membre renvoyé rafraîchit `a_photo`.
+- **Vérifs** : `tsc --noEmit` OK.
 
 ---
 
