@@ -3,16 +3,14 @@ import {
   ActivityIndicator,
   Alert,
   FlatList,
-  Platform,
   Pressable,
-  SafeAreaView,
   ScrollView,
-  StatusBar,
   StyleSheet,
   Text,
   TextInput,
   View,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar as ExpoStatusBar } from 'expo-status-bar';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -123,12 +121,10 @@ export default function CarteTab() {
     setSelection((s) => (s && structures.some((x) => x.id === s.id) ? s : null));
   }, [structures]);
 
-  const topPad = Platform.OS === 'android' ? (StatusBar.currentHeight ?? 0) : 0;
-
   return (
     <GradientBackground>
       <ExpoStatusBar style="dark" />
-      <SafeAreaView style={[styles.safe, { paddingTop: topPad }]}>
+      <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
         {/* En-tête fixe : recherche + filtres + bascule de vue */}
         <View style={styles.header}>
           <ScreenHeader title="Structures de santé" subtitle="Trouvez un établissement près de vous" />

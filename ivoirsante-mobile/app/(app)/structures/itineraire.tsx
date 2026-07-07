@@ -2,14 +2,12 @@ import React, { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Linking,
-  Platform,
   Pressable,
-  SafeAreaView,
-  StatusBar,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar as ExpoStatusBar } from 'expo-status-bar';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -78,8 +76,6 @@ export default function ItineraireStructure() {
     void Linking.openURL(url);
   }
 
-  const topPad = Platform.OS === 'android' ? (StatusBar.currentHeight ?? 0) : 0;
-
   // Marqueur de destination (structure minimale pour MapWebView).
   const marqueurDestination: Structure = {
     id: Number(params.id),
@@ -104,7 +100,7 @@ export default function ItineraireStructure() {
   return (
     <GradientBackground>
       <ExpoStatusBar style="dark" />
-      <SafeAreaView style={[styles.safe, { paddingTop: topPad }]}>
+      <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
         <View style={styles.header}>
           <ScreenHeader title="Itinéraire" subtitle={nom} onBack={() => router.back()} />
           {itineraire && (

@@ -1,5 +1,6 @@
 import React from 'react';
-import { Platform, SafeAreaView, ScrollView, StatusBar, StyleSheet, View } from 'react-native';
+import { ScrollView, StyleSheet, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar as ExpoStatusBar } from 'expo-status-bar';
 import { GradientBackground } from './GradientBackground';
 import { spacing } from '../theme/theme';
@@ -18,13 +19,11 @@ export function Screen({
   scroll?: boolean;
   footer?: React.ReactNode;
 }) {
-  // Sur Android, SafeAreaView n'inclut pas la barre d'état : on compense.
-  const topPad = Platform.OS === 'android' ? (StatusBar.currentHeight ?? 0) : 0;
-
   return (
     <GradientBackground>
       <ExpoStatusBar style="dark" />
-      <SafeAreaView style={[styles.safe, { paddingTop: topPad }]}>
+      {/* `react-native-safe-area-context` applique les insets réels sur iOS ET Android. */}
+      <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
         {scroll ? (
           <ScrollView
             contentContainerStyle={styles.scrollContent}
