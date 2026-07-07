@@ -2,6 +2,7 @@
 
 namespace App\Policies;
 
+use App\Models\Delegation;
 use App\Models\MembreFamille;
 use App\Models\User;
 
@@ -10,8 +11,9 @@ use App\Models\User;
  * (OWASP A01, Broken Access Control). Le middleware `auth:sanctum` prouve QUI agit ;
  * cette Policy vérifie l'APPARTENANCE : un utilisateur n'accède qu'à SES propres membres.
  *
- * L'accès par tiers (soignant via QR, médecin référent, admin) relève d'autres voies
- * tracées (§4.4) et sera implémenté aux étapes/modules suivants.
+ * Exception ciblée : la génération de QR est aussi ouverte à un DÉLÉGUÉ actif (voie 3,
+ * Note_Continuite chap. 4) — jamais la lecture/écriture du dossier, qui restent réservées
+ * au propriétaire.
  */
 class MembreFamillePolicy
 {
@@ -30,10 +32,11 @@ class MembreFamillePolicy
         return $membre->user_id === $user->id;
     }
 
-    /** Générer un QR de partage : seul le propriétaire du membre le peut (§5, §4.4). */
+    /** Générer un QR de partage : le propriétaire OU un délégué actif sur ce membre (voie 3). */
     public function generateQr(User $user, MembreFamille $membre): bool
     {
-        return $membre->user_id === $user->id;
+        return $membre->user_id === $user->id
+            || Delegation::actifPour($user->id, $membre->id);
     }
 
     /** Consulter l'historique d'accès au dossier (droit d'accès patient, §10.3). */

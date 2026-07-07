@@ -517,3 +517,36 @@ aucune table : le PIN et l'état vivent dans `expo-secure-store`, chiffré maté
 
 **Ce qui n'est PAS fait** (fidélité aux docs) : aucun backend, pas de sync multi-appareils du PIN, le verrou ne
 remplace pas l'auth (couches indépendantes). **Vérifs** : `tsc --noEmit` OK ; `expo-doctor` 18/18.
+
+---
+
+# Phase B — B3 : Délégation d'accès (voie 3)
+
+Source : note `Note_Continuite_Acces_Dossier_MaSante.docx`, chap. 4. Le titulaire désigne un adulte de confiance
+(délégué, ayant son propre compte) autorisé **uniquement à générer le QR** d'un membre — jamais à modifier le
+dossier ni le compte. Décisions validées le 2026-07-07 : **gate « titulaire vérifié » = flag config (défaut off en
+dev)** · **trace via colonne `tokens_qr.genere_par_delegue_id` + notif stub**.
+
+## Étape A — Backend (2026-07-07)
+
+- **Migrations** : `delegations` (schéma §4.3 : titulaire/délégué/membre, `droits` ENUM, invitee/acceptee/revoquee_at,
+  `UNIQUE(delegue_user_id, membre_id)`, FK cascade) ; `genere_par_delegue_id` (nullable, FK users) sur `tokens_qr`.
+- **Modèle `Delegation`** + `estActive()` / scope `active()` / `actifPour(delegue, membre)`.
+- **`DelegationController`** :
+  - `GET /api/v1/delegations` — `{ accordees, recues }` (projection minimale du membre : id/prénom/nom).
+  - `POST /api/v1/membres/{membre}/delegations` — invite par téléphone. Règles : membre au titulaire (Policy),
+    **flag titulaire vérifié**, délégué existant + tél vérifié + ≠ titulaire, pas de doublon actif/en attente
+    (réutilise une ligne révoquée via `updateOrCreate`).
+  - `POST /api/v1/delegations/{delegation}/accepter` — le délégué accepte (`acceptee_at`).
+  - `DELETE /api/v1/delegations/{delegation}` — révocation (titulaire) / refus (délégué) → `revoquee_at`.
+- **Autorisation QR** : `MembreFamillePolicy::generateQr` = propriétaire **OU** délégué actif. `QrController::generer`
+  détecte le générateur ; si délégué → notif titulaire (log stub) + `QrTokenService::generer($membre, $delegueId)`
+  écrit `genere_par_delegue_id` (prêt pour `type_acces='delegation'` au scan, M3).
+- **Config** : `masante.delegation.exiger_titulaire_verifie` (défaut `false`).
+- **Tests `DelegationTest` (14)** : invitation (numéro inconnu, délégué non vérifié, anti-self, anti-IDOR sur membre
+  d'autrui, doublon, gate vérifié), acceptation (seul le délégué), révocation, **QR par délégué actif = 201 +
+  trace / non-accepté / révoqué / étranger = 403**, index séparé accordées/reçues. **Suite : 94/94 (296 assertions)**,
+  `composer audit` 0 avis.
+
+**⏳ Frontend (étape B) — NON démarré** : à faire après « backend B3 validé » (écran « Délégués » côté titulaire ;
+écran « Partages reçus » côté délégué + génération QR ; le délégué passe par le verrou B2).

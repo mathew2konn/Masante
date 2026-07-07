@@ -29,10 +29,11 @@ class QrTokenService
 
     /**
      * Génère un token pour un membre et renvoie le contenu réel du QR + le délai d'expiration.
+     * `$genereParDelegueId` trace une génération par un délégué (null = par le titulaire, voie 3).
      *
      * @return array{qr: string, expires_in: int}
      */
-    public function generer(MembreFamille $membre): array
+    public function generer(MembreFamille $membre, ?int $genereParDelegueId = null): array
     {
         $uuid      = (string) Str::uuid();
         $timestamp = now()->timestamp;
@@ -45,10 +46,11 @@ class QrTokenService
         $tokenPublic = $uuid.'.'.$signature;
 
         TokenQr::create([
-            'membre_id'  => $membre->id,
-            'token_hash' => hash('sha256', $tokenPublic), // on stocke le HASH, pas le token.
-            'expires_at' => now()->addMinutes(self::TTL_MINUTES),
-            'used_at'    => null,
+            'membre_id'             => $membre->id,
+            'genere_par_delegue_id' => $genereParDelegueId,
+            'token_hash'            => hash('sha256', $tokenPublic), // on stocke le HASH, pas le token.
+            'expires_at'            => now()->addMinutes(self::TTL_MINUTES),
+            'used_at'               => null,
         ]);
 
         return ['qr' => $tokenPublic, 'expires_in' => self::TTL_MINUTES * 60];

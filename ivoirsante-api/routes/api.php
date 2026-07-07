@@ -11,6 +11,7 @@ use App\Http\Controllers\Api\V1\Carnet\RappelController;
 use App\Http\Controllers\Api\V1\Carnet\ResultatAnalyseController;
 use App\Http\Controllers\Api\V1\Carnet\VaccinationController;
 use App\Http\Controllers\Api\V1\CarteCmuController;
+use App\Http\Controllers\Api\V1\DelegationController;
 use App\Http\Controllers\Api\V1\MembreController;
 use App\Http\Controllers\Api\V1\PasswordController;
 use App\Http\Controllers\Api\V1\PhotoMembreController;
@@ -102,6 +103,13 @@ Route::middleware('throttle:api')->group(function () {
             */
             Route::post('membres/{membre}/qr', [QrController::class, 'generer']);
             Route::get('membres/{membre}/acces', [MembreController::class, 'acces']);
+
+            // B3 — Délégation d'accès (voie 3) : le titulaire invite un délégué sur un membre ;
+            // le délégué accepte/refuse ; révocable. Le droit se limite à la génération de QR.
+            Route::get('delegations', [DelegationController::class, 'index']);
+            Route::post('membres/{membre}/delegations', [DelegationController::class, 'store']);
+            Route::post('delegations/{delegation}/accepter', [DelegationController::class, 'accepter']);
+            Route::delete('delegations/{delegation}', [DelegationController::class, 'destroy']);
 
             // F2.3 — Carte CMU numérique (couche de présentation) : n° masqué + code signé,
             // gated par le palier « vérifié » (stub dev). N'ouvre PAS le dossier (distinct du QR).

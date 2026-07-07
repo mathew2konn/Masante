@@ -59,4 +59,14 @@ return [
         'mimetypes' => ['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif'],
     ],
 
+    /*
+     * B3 — Délégation d'accès (Note_Continuite chap. 4).
+     *  - `exiger_titulaire_verifie` : en prod, seul un compte « vérifié » (CMU/CNI) peut déléguer.
+     *    En dev, aucun flux de vérification n'existe encore → `false` = testable (stub, même esprit
+     *    que `cmu.exiger_palier_verifie`). Le gate est codé mais dormant tant que le flag est faux.
+     */
+    'delegation' => [
+        'exiger_titulaire_verifie' => env('MASANTE_DELEGATION_EXIGER_VERIFIE', false),
+    ],
+
 ];

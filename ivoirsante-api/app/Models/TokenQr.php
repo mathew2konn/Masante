@@ -20,6 +20,7 @@ class TokenQr extends Model
 
     protected $fillable = [
         'membre_id',
+        'genere_par_delegue_id',
         'token_hash',
         'expires_at',
         'used_at',
