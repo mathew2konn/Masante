@@ -49,6 +49,7 @@ export default function AppTabsLayout() {
       {/* Piles détail (navigables mais hors barre d'onglets). */}
       <Tabs.Screen name="membres" options={{ href: null }} />
       <Tabs.Screen name="structures" options={{ href: null }} />
+      <Tabs.Screen name="parametres" options={{ href: null }} />
     </Tabs>
   );
 }

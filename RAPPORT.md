@@ -462,5 +462,28 @@ symboles**, + **non-compromis (HIBP)**. Le contrôle HIBP est confié à `App\Ru
 dégradation sans DDN, jeton usage unique, jeton expiré, MDP faible rejeté, changement connecté (ancien MDP + révocation
 des autres sessions). **Suite : 80/80 (269 assertions).** `composer audit` : 0 avis. HIBP faké (offline) en test.
 
-**⏳ Frontend (étape B) — NON démarré** : à faire après « backend B1 validé » (barre de force à l'inscription, écran
-« Mot de passe oublié ? » en 3 étapes, écran « Changer mon mot de passe »).
+## Étape B — Frontend (2026-07-07)
+
+Réutilise le client axios unique et les composants du Design System ; aucune dépendance ajoutée.
+
+- **Barre de force** (`src/auth/motDePasse.ts` + `components/MotDePasseForce.tsx`) : miroir exact de
+  `PasswordPolicy` (≥8, MAJ+min, chiffre, symbole ; le HIBP est purement serveur). 4 segments colorés +
+  checklist « ce qui manque », affichée au fil de la saisie (modification.txt §1).
+- **Inscription** : barre de force sous le champ ; « Continuer » désactivé tant que la politique locale n'est
+  pas verte. Aucun champ e-mail.
+- **Connexion** : lien « Mot de passe oublié ? ».
+- **Mot de passe oublié** (`app/(auth)/mot-de-passe-oublie.tsx` → `reinitialiser.tsx`) : téléphone → (code OTP +
+  **date de naissance** via la molette `DateField`) → nouveau mot de passe + barre de force + confirmation. Le
+  `reset_token` reste **en mémoire** (jamais en paramètre de navigation).
+- **Changer mon mot de passe** (`app/(app)/parametres/mot-de-passe.tsx`, accès depuis l'onglet Carnet) : ancien +
+  nouveau + confirmation ; conserve la session courante.
+- **API/types** : `passwordForgot/VerifyOtp/Reset/Change` dans `api/auth.ts` ; types `Forgot/VerifyReset/Message`.
+
+**Vérifs** : `tsc --noEmit` OK ; routes typées régénérées ; aucune dépendance ajoutée. **« B1 validé » le 2026-07-07.**
+
+### Correctifs de robustesse annexes (mêmes tests)
+- **401 JSON invité** (`bootstrap/app.php`, `redirectGuestsTo(fn () => null)`) : un invité sur `api/*` reçoit un
+  401 JSON, plus un 500 `Route [login] not defined` (déclenché quand un client omet `Accept: application/json`).
+- **Photo membre robuste Android** (`api/photo.ts` + `membres/[id].tsx`) : la photo est **téléchargée avec le token**
+  vers le cache (`telechargerPhoto`) puis affichée en fichier local, au lieu de `<Image source={{ headers }}>` —
+  l'en-tête Bearer n'étant pas fiable sur le loader natif Android (Fresco) → 401.

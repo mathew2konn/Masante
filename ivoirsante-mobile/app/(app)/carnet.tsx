@@ -106,6 +106,11 @@ export default function CarnetTab() {
       </View>
 
       <View style={styles.deconnexion}>
+        <SecondaryButton
+          label="Changer mon mot de passe"
+          onPress={() => router.push('/(app)/parametres/mot-de-passe')}
+        />
+        <View style={styles.sep} />
         <SecondaryButton label="Se déconnecter" onPress={seDeconnecter} disabled={deconnexion} />
       </View>
     </Screen>
@@ -175,4 +180,5 @@ const styles = StyleSheet.create({
   ajout: { marginBottom: spacing[6] },
   plafond: { ...typography.caption, color: colors.ink[500], textAlign: 'center', marginTop: spacing[2] },
   deconnexion: {},
+  sep: { height: spacing[3] },
 });

@@ -29,3 +29,21 @@ export type RegisterResponse = {
   but: 'inscription';
   dev_code_otp?: string;
 };
+
+/** Étape 1 « mot de passe oublié » : réponse générique (dev_code_otp exposé en dev si le compte existe). */
+export type ForgotResponse = {
+  message: string;
+  dev_code_otp?: string;
+};
+
+/** Étape 2 : OTP + preuve validés → jeton de réinitialisation à usage unique. */
+export type VerifyResetResponse = {
+  message: string;
+  reset_token: string;
+  expire_dans_minutes: number;
+};
+
+/** Réponse simple à message (reset, change). */
+export type MessageResponse = {
+  message: string;
+};

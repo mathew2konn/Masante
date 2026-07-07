@@ -4,7 +4,14 @@
  * Réutilise le CLIENT AXIOS UNIQUE (src/config/api.ts). Endpoints sous /v1/auth.
  */
 import { api } from '../config/api';
-import type { AuthResponse, RegisterResponse, Utilisateur } from '../types/auth';
+import type {
+  AuthResponse,
+  ForgotResponse,
+  MessageResponse,
+  RegisterResponse,
+  Utilisateur,
+  VerifyResetResponse,
+} from '../types/auth';
 
 /** Inscription : crée le compte (non vérifié) et déclenche l'envoi d'un OTP. */
 export async function register(payload: {
@@ -50,4 +57,51 @@ export async function me(): Promise<Utilisateur> {
 /** Déconnexion : révoque le token courant côté serveur. */
 export async function logout(): Promise<void> {
   await api.post('/v1/auth/logout');
+}
+
+/* ------------------------------------------------------------------ *
+ *  Mot de passe oublié (flux OTP 3 étapes durci) + changement connecté.
+ * ------------------------------------------------------------------ */
+
+/** Étape 1 — demande de réinitialisation par téléphone (réponse générique côté serveur). */
+export async function passwordForgot(telephone: string): Promise<ForgotResponse> {
+  const { data } = await api.post<ForgotResponse>('/v1/auth/password/forgot', { telephone });
+  return data;
+}
+
+/** Étape 2 — OTP + preuve durcie (date de naissance) → jeton de réinitialisation. */
+export async function passwordVerifyOtp(payload: {
+  telephone: string;
+  code: string;
+  date_naissance?: string | null;
+}): Promise<VerifyResetResponse> {
+  const { data } = await api.post<VerifyResetResponse>('/v1/auth/password/verify-otp', {
+    telephone: payload.telephone,
+    code: payload.code,
+    ...(payload.date_naissance ? { date_naissance: payload.date_naissance } : {}),
+  });
+  return data;
+}
+
+/** Étape 3 — définition du nouveau mot de passe via le jeton (révoque toutes les sessions). */
+export async function passwordReset(payload: { reset_token: string; password: string }): Promise<MessageResponse> {
+  const { data } = await api.post<MessageResponse>('/v1/auth/password/reset', {
+    reset_token: payload.reset_token,
+    password: payload.password,
+    password_confirmation: payload.password,
+  });
+  return data;
+}
+
+/** Changement volontaire par l'utilisateur connecté (ancien + nouveau, révoque les autres sessions). */
+export async function passwordChange(payload: {
+  current_password: string;
+  password: string;
+}): Promise<MessageResponse> {
+  const { data } = await api.post<MessageResponse>('/v1/auth/password/change', {
+    current_password: payload.current_password,
+    password: payload.password,
+    password_confirmation: payload.password,
+  });
+  return data;
 }

@@ -5,29 +5,26 @@ import { Screen } from '../../src/components/Screen';
 import { TextField } from '../../src/components/TextField';
 import { PrimaryButton } from '../../src/components/PrimaryButton';
 import { SecondaryButton } from '../../src/components/SecondaryButton';
-import { register } from '../../src/api/auth';
-import { MotDePasseForce } from '../../src/components/MotDePasseForce';
-import { motDePasseValide } from '../../src/auth/motDePasse';
+import { passwordForgot } from '../../src/api/auth';
 import { messageErreur } from '../../src/utils/erreurs';
 import { colors, spacing, typography } from '../../src/theme/theme';
 
-/** Inscription : crée le compte puis dirige vers la vérification OTP. */
-export default function InscriptionScreen() {
-  const [prenom, setPrenom] = useState('');
-  const [nom, setNom] = useState('');
+/**
+ * Mot de passe oublié — étape 1 : saisie du téléphone. Le serveur répond de façon identique
+ * que le numéro existe ou non (anti-énumération) ; on enchaîne toujours vers l'étape 2.
+ */
+export default function MotDePasseOublieScreen() {
   const [telephone, setTelephone] = useState('+225');
-  const [password, setPassword] = useState('');
   const [erreur, setErreur] = useState<string | null>(null);
   const [chargement, setChargement] = useState(false);
 
-  const sInscrire = async () => {
+  const envoyer = async () => {
     setErreur(null);
     setChargement(true);
     try {
-      const res = await register({ telephone: telephone.trim(), nom: nom.trim(), prenom: prenom.trim(), password });
-      // En dev, le code OTP est renvoyé : on le pré-remplit sur l'écran suivant.
+      const res = await passwordForgot(telephone.trim());
       router.push({
-        pathname: '/(auth)/verification',
+        pathname: '/(auth)/reinitialiser',
         params: { telephone: telephone.trim(), devCode: res.dev_code_otp ?? '' },
       });
     } catch (e) {
@@ -39,11 +36,12 @@ export default function InscriptionScreen() {
 
   return (
     <Screen>
-      <Text style={styles.titre}>Créer un compte</Text>
-      <Text style={styles.sous}>Un code de vérification vous sera envoyé par SMS.</Text>
+      <Text style={styles.titre}>Mot de passe oublié</Text>
+      <Text style={styles.sous}>
+        Saisissez votre numéro de téléphone. Si un compte y est associé, un code de réinitialisation
+        vous sera envoyé par SMS.
+      </Text>
 
-      <TextField label="Prénom" value={prenom} onChangeText={setPrenom} autoCapitalize="words" placeholder="Awa" />
-      <TextField label="Nom" value={nom} onChangeText={setNom} autoCapitalize="words" placeholder="Kouadio" />
       <TextField
         label="Téléphone"
         value={telephone}
@@ -52,26 +50,13 @@ export default function InscriptionScreen() {
         placeholder="+225XXXXXXXXXX"
         maxLength={14}
       />
-      <TextField
-        label="Mot de passe"
-        value={password}
-        onChangeText={setPassword}
-        secureTextEntry
-        placeholder="Choisissez un mot de passe robuste"
-      />
-      <MotDePasseForce valeur={password} />
 
       {erreur ? <Text style={styles.erreur}>{erreur}</Text> : null}
 
       <View style={styles.actions}>
-        <PrimaryButton
-          label="Continuer"
-          onPress={sInscrire}
-          loading={chargement}
-          disabled={!prenom.trim() || !nom.trim() || !motDePasseValide(password)}
-        />
+        <PrimaryButton label="Recevoir le code" onPress={envoyer} loading={chargement} />
         <View style={styles.sep} />
-        <SecondaryButton label="J'ai déjà un compte" onPress={() => router.back()} />
+        <SecondaryButton label="Retour à la connexion" onPress={() => router.back()} />
       </View>
     </Screen>
   );

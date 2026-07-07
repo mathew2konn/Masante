@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import { Screen } from '../../src/components/Screen';
 import { Logo } from '../../src/components/Logo';
@@ -57,6 +57,15 @@ export default function ConnexionScreen() {
         placeholder="Votre mot de passe"
       />
 
+      <Pressable
+        onPress={() => router.push('/(auth)/mot-de-passe-oublie')}
+        accessibilityRole="button"
+        hitSlop={8}
+        style={styles.oublie}
+      >
+        <Text style={styles.oublieTxt}>Mot de passe oublié ?</Text>
+      </Pressable>
+
       {erreur ? <Text style={styles.erreur}>{erreur}</Text> : null}
 
       <View style={styles.actions}>
@@ -73,6 +82,8 @@ const styles = StyleSheet.create({
   titre: { ...typography.h1, color: colors.blue[900], marginTop: spacing[3] },
   sous: { ...typography.body, color: colors.ink[700], marginTop: spacing[1], textAlign: 'center' },
   erreur: { ...typography.bodyStrong, color: colors.danger.text, marginBottom: spacing[3] },
+  oublie: { alignSelf: 'flex-end', marginTop: -spacing[2], marginBottom: spacing[2], paddingVertical: spacing[1] },
+  oublieTxt: { ...typography.bodyStrong, color: colors.blue[600] },
   actions: { marginTop: spacing[4] },
   sep: { height: spacing[3] },
 });
