@@ -20,6 +20,13 @@ return Application::configure(basePath: dirname(__DIR__))
 
         // §7.1 — En-têtes de sécurité posés sur TOUTES les réponses (web + api).
         $middleware->append(\App\Http\Middleware\SecurityHeaders::class);
+
+        // API pure : aucune route web `login`. Un invité sur une route protégée ne doit JAMAIS
+        // déclencher une redirection vers `login` (RouteNotFoundException → 500) — cas rencontré
+        // quand un client omet `Accept: application/json` (ex. <Image> RN chargeant une photo avec
+        // un token expiré). On neutralise la redirection : combiné à `shouldRenderJsonWhen(api/*)`,
+        // l'invité reçoit un 401 JSON propre, jamais un 500.
+        $middleware->redirectGuestsTo(fn () => null);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->shouldRenderJsonWhen(

@@ -8,8 +8,7 @@ import { Card } from '../../../src/components/Card';
 import { PrimaryButton } from '../../../src/components/PrimaryButton';
 import { SecondaryButton } from '../../../src/components/SecondaryButton';
 import { obtenirMembre, supprimerMembre } from '../../../src/api/membres';
-import { getStoredToken } from '../../../src/config/api';
-import { supprimerPhoto, televerserPhoto, urlPhotoAbsolue } from '../../../src/api/photo';
+import { supprimerPhoto, telechargerPhoto, televerserPhoto } from '../../../src/api/photo';
 import { choisirPhotoProfilGalerie, PermissionRefusee, prendrePhotoProfil } from '../../../src/documents/selection';
 import { listerSection } from '../../../src/api/carnet';
 import { messageErreur } from '../../../src/utils/erreurs';
@@ -30,14 +29,26 @@ export default function DetailMembreScreen() {
   const [erreur, setErreur] = useState<string | null>(null);
   const [suppression, setSuppression] = useState(false);
 
-  // Photo de profil : token pour l'en-tête Bearer de <Image>, occupation et « version » (anti-cache).
-  const [token, setToken] = useState<string | null>(null);
+  // Photo de profil : URI LOCAL (téléchargée avec le token), occupation et « version » (anti-cache).
+  const [photoUri, setPhotoUri] = useState<string | null>(null);
   const [photoOccupee, setPhotoOccupee] = useState(false);
   const [photoVersion, setPhotoVersion] = useState(0);
 
+  // Télécharge la photo dès que le membre en a une (ou après remplacement) : <Image> n'affiche
+  // qu'un fichier LOCAL, l'en-tête Bearer n'étant pas fiable sur Android (cf. api/photo.ts).
   useEffect(() => {
-    getStoredToken().then(setToken);
-  }, []);
+    let actif = true;
+    if (membre?.a_photo) {
+      telechargerPhoto(membreId, photoVersion)
+        .then((uri) => actif && setPhotoUri(uri))
+        .catch(() => actif && setPhotoUri(null));
+    } else {
+      setPhotoUri(null);
+    }
+    return () => {
+      actif = false;
+    };
+  }, [membre?.a_photo, membreId, photoVersion]);
 
   // Rechargé à chaque retour sur l'écran (ex. après édition).
   useFocusEffect(
@@ -164,14 +175,8 @@ export default function DetailMembreScreen() {
           accessibilityLabel="Modifier la photo de profil"
           style={styles.avatar}
         >
-          {membre.a_photo && token ? (
-            <Image
-              source={{
-                uri: `${urlPhotoAbsolue(membreId)}?v=${photoVersion}`,
-                headers: { Authorization: `Bearer ${token}`, 'ngrok-skip-browser-warning': 'true' },
-              }}
-              style={styles.avatarImg}
-            />
+          {membre.a_photo && photoUri ? (
+            <Image source={{ uri: photoUri }} style={styles.avatarImg} />
           ) : (
             <Text style={styles.avatarTxt}>{initiales}</Text>
           )}

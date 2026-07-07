@@ -2,18 +2,44 @@
  * api/photo.ts — Photo de profil d'un membre (profil enrichi).
  *
  * Upload multipart via expo-file-system (fiable pour un fichier local en RN), suppression via
- * le client axios unique. L'affichage se fait avec `<Image>` en passant l'en-tête Bearer
- * (URL absolue + en-têtes construits depuis la même source unique que le reste — config/api.ts).
+ * le client axios unique. L'AFFICHAGE passe par un téléchargement authentifié vers le cache
+ * (telechargerPhoto) puis affichage du fichier local — et non `<Image source={{ headers }}>`,
+ * peu fiable sur Android (voir telechargerPhoto).
  */
+import { File, Paths } from 'expo-file-system';
 import { createUploadTask, FileSystemUploadType } from 'expo-file-system/legacy';
 import { api, API_URL, getStoredToken } from '../config/api';
 import type { Membre } from '../types/membre';
 
 const chemin = (membreId: number) => `/v1/membres/${membreId}/photo`;
 
-/** URL absolue de la photo (à passer à `<Image source={{ uri }}>` avec les en-têtes Bearer). */
+/** URL absolue de l'endpoint photo. */
 export function urlPhotoAbsolue(membreId: number): string {
   return `${API_URL}/api${chemin(membreId)}`;
+}
+
+/**
+ * Télécharge la photo (déchiffrée par le serveur) vers le cache et renvoie son URI LOCAL.
+ *
+ * On NE peut PAS afficher `<Image source={{ uri: <url>, headers: { Authorization } }}>` : sur
+ * Android le loader natif (Fresco) n'envoie pas de façon fiable l'en-tête Bearer → la requête part
+ * anonyme → 401. On télécharge donc via expo-file-system (qui honore les en-têtes, comme pour les
+ * documents F2.10) et on affiche le fichier local. `version` distingue le fichier après remplacement.
+ */
+export async function telechargerPhoto(membreId: number, version = 0): Promise<string> {
+  const token = await getStoredToken();
+  const destination = new File(Paths.cache, `masante-photo-${membreId}-${version}.jpg`);
+  if (destination.exists) destination.delete();
+
+  const fichier = await File.downloadFileAsync(urlPhotoAbsolue(membreId), destination, {
+    headers: {
+      Accept: 'application/json',
+      'ngrok-skip-browser-warning': 'true',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+  });
+
+  return fichier.uri;
 }
 
 export type PhotoAChoisir = { uri: string; nom: string; mimeType?: string | null };
