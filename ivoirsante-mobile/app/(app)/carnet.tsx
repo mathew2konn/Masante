@@ -106,6 +106,8 @@ export default function CarnetTab() {
       </View>
 
       <View style={styles.deconnexion}>
+        <SecondaryButton label="Partages reçus" onPress={() => router.push('/(app)/partages')} />
+        <View style={styles.sep} />
         <SecondaryButton label="Sécurité" onPress={() => router.push('/(app)/parametres/securite')} />
         <View style={styles.sep} />
         <SecondaryButton

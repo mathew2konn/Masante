@@ -548,5 +548,21 @@ dev)** · **trace via colonne `tokens_qr.genere_par_delegue_id` + notif stub**.
   trace / non-accepté / révoqué / étranger = 403**, index séparé accordées/reçues. **Suite : 94/94 (296 assertions)**,
   `composer audit` 0 avis.
 
-**⏳ Frontend (étape B) — NON démarré** : à faire après « backend B3 validé » (écran « Délégués » côté titulaire ;
-écran « Partages reçus » côté délégué + génération QR ; le délégué passe par le verrou B2).
+## Étape B — Frontend (2026-07-07)
+
+Réutilise le client axios unique, les composants DS et **l'écran QR existant** (le délégué génère via la même
+route, sous le verrou B2). Aucune dépendance ajoutée.
+
+- **`api/delegations.ts` + `types/delegation.ts`** : `listerDelegations` (`{accordees, recues}`), `inviterDelegue`,
+  `accepterDelegation`, `revoquerDelegation`. Membre projeté a minima (jamais le dossier).
+- **Titulaire** — `app/(app)/membres/delegues/[id].tsx` (accès depuis la fiche membre, « Gérer les délégués ») :
+  invite par téléphone, liste avec statut (en attente / actif), révocation.
+- **Délégué** — `app/(app)/partages.tsx` (accès depuis l'onglet Carnet, « Partages reçus ») : accepter/refuser une
+  invitation, puis « Générer le QR » → écran QR existant (le délégué passe par le `VerrouGate` en entrant dans la
+  pile membres).
+- **Câblage** : pile `partages` (route feuille) enregistrée `href:null` dans le Tabs racine.
+- **Correctif de route annexe** : ajout de `app/(app)/parametres/_layout.tsx` (Stack) — sans lui, `parametres`
+  n'était pas une route unique (warning « No route named parametres »). Aligne `parametres/` sur `membres/`/`structures/`.
+
+**Vérifs** : `tsc --noEmit` propre hormis les 2 littéraux de routes typées (`.expo/types` généré, gitignoré) qui se
+régénèrent au premier `npx expo start` — confirmé côté utilisateur. **« B3 validé » le 2026-07-07. Phase B COMPLÈTE.**

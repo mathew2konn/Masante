@@ -346,6 +346,16 @@ export default function DetailMembreScreen() {
             })
           }
         />
+        <View style={styles.sep} />
+        <SecondaryButton
+          label="Gérer les délégués"
+          onPress={() =>
+            router.push({
+              pathname: '/(app)/membres/delegues/[id]',
+              params: { id: membreId, prenom: membre.prenom, nom: membre.nom },
+            })
+          }
+        />
       </Card>
 
       <View style={styles.actions}>
