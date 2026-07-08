@@ -613,3 +613,26 @@ ajoutée.**
 
 **Vérifs** : `tsc --noEmit` **OK** ; aucune dépendance ajoutée. Les praticiens n'apparaissent dans l'app que si la
 base est seedée (`migrate:fresh --seed`, destructif).
+
+---
+
+# Module 3 — F3.1 : clustering des marqueurs (carte)
+
+Source : CdC §5.3 **F3.1** (« Cluster automatique des marqueurs en cas de zoom arrière »). Comble le seul manque
+de F3.1 ; le reste de la carte (OSM/Leaflet, GPS utilisateur, pastilles de dispo) était déjà livré (3B.2).
+
+## Étape unique — Frontend (2026-07-08)
+
+`src/components/MapWebView.tsx` uniquement. **Aucune dépendance npm** (le plugin est chargé dans la WebView).
+
+- **Plugin `leaflet.markercluster@1.5.3`** chargé depuis **unpkg** (CSS `MarkerCluster.css` + `MarkerCluster.Default.css`
+  + JS) — hôte **déjà dans l'allowlist** `HOSTS_AUTORISES` → **Sécurité §8 inchangée**, aucune nouvelle origine.
+- **Regroupement** : les marqueurs de structures passent dans un `L.markerClusterGroup` (`maxClusterRadius: 55`,
+  `showCoverageOnHover: false`, `spiderfyOnMaxZoom: true`) → clusters au dézoom, éclatement au zoom (comportement F3.1).
+- **Itinéraire (F3.7) + marqueur « Vous êtes ici » restent hors cluster** (couche `L.layerGroup` distincte).
+- **Marqueur clusterisable** : `L.circleMarker` remplacé par `L.marker` + **`L.divIcon` pastille colorée** (`.dot`,
+  couleur = palette de dispo **contrôlée**, jamais de donnée utilisateur → pas d'injection). Popups toujours en
+  `textContent`. `fitBounds` inchangé.
+
+**Vérifs** : `tsc --noEmit` OK ; aucune dépendance ajoutée. La carte charge le plugin depuis le web (comme Leaflet/tuiles)
+→ device online requis (déjà le cas).

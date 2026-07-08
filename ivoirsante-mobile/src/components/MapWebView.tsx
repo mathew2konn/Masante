@@ -142,13 +142,19 @@ const HTML = `<!DOCTYPE html>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
   <style>
     html, body, #map { height: 100%; margin: 0; padding: 0; }
     .popup-nom { font-weight: 700; font-size: 14px; color: #0C3463; }
     .popup-meta { font-size: 12px; color: #62768A; margin-top: 2px; }
     .popup-btn { display:inline-block; margin-top:8px; padding:6px 12px; background:#1E6BB8;
       color:#fff; border:none; border-radius:999px; font-size:13px; font-weight:700; }
+    /* Pastille de dispo (F3.1) : marqueur compatible clustering (L.marker + divIcon). */
+    .dot { display:block; width:16px; height:16px; border-radius:50%;
+      border:2px solid #fff; box-shadow:0 0 0 1px rgba(0,0,0,0.15); }
   </style>
 </head>
 <body>
@@ -164,22 +170,36 @@ const HTML = `<!DOCTYPE html>
       attribution: '© OpenStreetMap'
     }).addTo(map);
 
+    // Itinéraire + position : hors cluster. Structures : dans un groupe de clustering (F3.1).
     var couche = L.layerGroup().addTo(map);
+    var amas = L.markerClusterGroup({
+      showCoverageOnHover: false,   // pas de survol tactile
+      maxClusterRadius: 55,         // rayon de regroupement (px)
+      spiderfyOnMaxZoom: true       // éclatement des marqueurs superposés au zoom max
+    }).addTo(map);
 
     window.afficherDonnees = function (data) {
       couche.clearLayers();
+      amas.clearLayers();
       var bornes = [];
 
-      // Tracé d'itinéraire (sous les marqueurs).
+      // Tracé d'itinéraire (sous les marqueurs, jamais clusterisé).
       if (data.route && data.route.length > 1) {
         L.polyline(data.route, { color: data.couleurRoute || '#1E6BB8', weight: 5, opacity: 0.8 }).addTo(couche);
         data.route.forEach(function (p) { bornes.push(p); });
       }
 
       (data.marqueurs || []).forEach(function (m) {
-        var marqueur = L.circleMarker([m.lat, m.lng], {
-          radius: 9, color: '#fff', weight: 2, fillColor: m.couleur, fillOpacity: 1
-        }).addTo(couche);
+        // Pastille colorée via divIcon (couleur = palette de dispo contrôlée) — clusterisable.
+        var icone = L.divIcon({
+          className: '',
+          html: '<span class="dot" style="background:' + m.couleur + '"></span>',
+          iconSize: [16, 16],
+          iconAnchor: [8, 8],
+          popupAnchor: [0, -8]
+        });
+        var marqueur = L.marker([m.lat, m.lng], { icon: icone });
+        amas.addLayer(marqueur);
 
         // Contenu de la popup construit en TEXTE (pas d'injection HTML).
         var wrap = document.createElement('div');
