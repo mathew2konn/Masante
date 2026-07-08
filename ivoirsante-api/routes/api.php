@@ -16,6 +16,7 @@ use App\Http\Controllers\Api\V1\MembreController;
 use App\Http\Controllers\Api\V1\PasswordController;
 use App\Http\Controllers\Api\V1\PhotoMembreController;
 use App\Http\Controllers\Api\V1\QrController;
+use App\Http\Controllers\Api\V1\RecuRdvController;
 use App\Http\Controllers\Api\V1\RendezVousController;
 use App\Http\Controllers\Api\V1\SignalementController;
 use App\Http\Controllers\Api\V1\StructureController;
@@ -175,6 +176,10 @@ Route::middleware('throttle:api')->group(function () {
             Route::get('rendez-vous', [RendezVousController::class, 'index']);              // F3.6 (mes RDV)
             Route::post('rendez-vous', [RendezVousController::class, 'store']);             // F3.6
             Route::patch('rendez-vous/{rendezVous}/annuler', [RendezVousController::class, 'annuler']);
+
+            // Paiement (simulé) + reçu de RDV avec QR de check-in (N1/N2/N3).
+            Route::post('rendez-vous/{rendezVous}/paiement', [RecuRdvController::class, 'store']);
+            Route::get('rendez-vous/{rendezVous}/recu', [RecuRdvController::class, 'show']);
         });
 
         /*

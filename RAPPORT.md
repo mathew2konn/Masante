@@ -690,3 +690,41 @@ sont déjà sur `structures_sanitaires`.
   type/commune), libellé suffixé « FCFA » sauf « Tous tarifs ».
 
 **Vérifs** : `tsc --noEmit` OK ; aucune dépendance ajoutée. **→ Clôt les trous CdC géoloc du Module 3 (F3.1, F3.2, F3.7).**
+
+---
+
+# Module 3 — RDV enrichi N1/N2/N3 : paiement (simulé) + reçu + QR de check-in
+
+Source : `Analyse_Delta_RDV_MaSante.md` **N1** (paiement), **N2** (reçu numérique), **N3** (QR de RDV distinct du QR
+carnet). Version **complète avec paiement** retenue par l'utilisateur le 2026-07-08 (aval directeur confirmé).
+
+**⚠️ Paiement SIMULÉ** : aucune passerelle Mobile Money réelle (Orange/MTN/Moov) n'est accessible (FT5 « simulé en
+dev » + limite CNAM). On **modélise** l'encaissement : statut `paye` d'emblée, `transaction_ref` factice (`SIM-…`).
+Jamais présenté comme un règlement réel. **Hors périmètre / Module 4** : encaissement par un agent, rôle Caisse (N7),
+et le **scan/validation du QR à l'accueil**.
+
+## Étape A — Backend (2026-07-08)
+
+- **Migrations** : `paiements` (`rendez_vous_id`, `montant`, `mode` [mobile_money/especes/carte], `statut`
+  [en_attente/paye/echoue, défaut paye], `transaction_ref`) ; `recus_rdv` (`rendez_vous_id` **unique** = 1 reçu/RDV,
+  `paiement_id` nullable, `reference` unique, `statut` [reserve/paye/confirme/utilise/annule/expire], `expires_at`).
+- **Modèles** `Paiement` (const `MODES`) / `RecuRdv` + relations `RendezVous::recu()` (hasOne) / `paiements()` (hasMany).
+- **`RecuRdvService`** : `payer()` (montant serveur, paiement + reçu sous transaction, idempotent via unicité) ;
+  `vue()` (reçu présentable + code). **Montant serveur** = tarif du **médecin** choisi (F3.5) sinon `tarif_min_cfa`
+  de la structure ; **422** si aucun tarif. `expires_at` = fin de journée du RDV.
+  **QR de check-in (N3)** = token **signé HMAC autonome** `base64url({v,typ:'rdv',ref,rdv,exp}).sig`, **secret
+  cloisonné** `hmac('recu-rdv', app.key)` **distinct** du QR carnet (`QrTokenService`) et du code CMU
+  (`CarteCmuService`) → **aucune donnée médicale, n'ouvre pas le dossier** (exigence sécurité §3 du doc), régénéré à
+  chaque affichage (TTL 15 min).
+- **`RecuRdvController`** : `POST rendez-vous/{rdv}/paiement` (anti-IDOR ; refus si RDV annulé/refusé ; mode validé)
+  et `GET rendez-vous/{rdv}/recu` (anti-IDOR ; 404 sans reçu). Routes sous `auth:sanctum`.
+- **Tests `RecuRdvPaiementTest` (8)** : montant médecin / repli structure / **422 sans tarif** / anti-IDOR 403 /
+  **double paiement 422** / RDV annulé 422 / **code signé & sans donnée médicale** (signature HMAC vérifiée, clés du
+  payload limitées, noms membre/médecin absents du token) / reçu 404 sans paiement. **Suite : 108/108**, audit 0.
+- **Décision assumée** : le statut de paiement vit sur `recus_rdv`/`paiements`, on **ne mute pas** `rendez_vous.statut`
+  (propriété du flux agent Module 4) — léger écart avec N1 « statut RDV intègre payé », au profit d'un cloisonnement
+  clair des responsabilités.
+
+**Reste (étape B, après « backend N2 validé »)** : depuis « Mes rendez-vous », action « Payer » (choix du mode) →
+écran **Reçu** avec le QR de check-in (`react-native-qrcode-svg`), référence, montant, mode, statut, mention « à
+présenter à l'accueil — ne donne pas accès au dossier ».

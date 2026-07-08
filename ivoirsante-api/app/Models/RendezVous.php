@@ -4,6 +4,8 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 /**
  * Demande de rendez-vous (CdC §8.4, F3.6). Côté patient en Module 3 (création/suivi/annulation) ;
@@ -54,6 +56,18 @@ class RendezVous extends Model
     public function medecin(): BelongsTo
     {
         return $this->belongsTo(Medecin::class, 'medecin_id');
+    }
+
+    /** Reçu de RDV (N2) — au plus un par RDV. */
+    public function recu(): HasOne
+    {
+        return $this->hasOne(RecuRdv::class, 'rendez_vous_id');
+    }
+
+    /** Paiements du RDV (N1, simulés). */
+    public function paiements(): HasMany
+    {
+        return $this->hasMany(Paiement::class, 'rendez_vous_id');
     }
 
     public function triage(): BelongsTo
