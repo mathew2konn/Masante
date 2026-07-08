@@ -14,7 +14,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { GradientBackground } from '../../../src/components/GradientBackground';
 import { ScreenHeader } from '../../../src/components/ScreenHeader';
 import { MapWebView } from '../../../src/components/MapWebView';
-import { calculerItineraire, type Itineraire } from '../../../src/api/itineraire';
+import { calculerItineraire, type Itineraire, type ModeItineraire } from '../../../src/api/itineraire';
 import { obtenirPosition } from '../../../src/utils/geoloc';
 import { messageErreur } from '../../../src/utils/erreurs';
 import type { Coordonnees, Structure } from '../../../src/types/structure';
@@ -36,41 +36,66 @@ export default function ItineraireStructure() {
 
   const [position, setPosition] = useState<Coordonnees | null>(null);
   const [itineraire, setItineraire] = useState<Itineraire | null>(null);
+  const [mode, setMode] = useState<ModeItineraire>('voiture');
   const [chargement, setChargement] = useState(true);
   const [erreur, setErreur] = useState<string | null>(null);
 
-  const charger = useCallback(async () => {
-    setChargement(true);
-    setErreur(null);
-    const r = await obtenirPosition();
-    if (!r.ok) {
-      setChargement(false);
-      setErreur(
-        r.raison === 'permission_refusee'
-          ? "Autorisez l'accès à votre position pour calculer l'itinéraire."
-          : "Votre position n'est pas disponible pour le moment.",
-      );
-      return;
-    }
-    setPosition(r.coords);
-    try {
-      setItineraire(await calculerItineraire(r.coords, destination));
-    } catch (e) {
-      setErreur(messageErreur(e));
-    } finally {
-      setChargement(false);
-    }
-    // destination provient des params (stable pour un écran donné).
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [params.lat, params.lng]);
+  /** Calcule le tracé pour une position + un mode déjà connus (sans re-demander la position). */
+  const calculerPour = useCallback(
+    async (coords: Coordonnees, m: ModeItineraire) => {
+      setChargement(true);
+      setErreur(null);
+      try {
+        setItineraire(await calculerItineraire(coords, destination, m));
+      } catch (e) {
+        setErreur(messageErreur(e));
+      } finally {
+        setChargement(false);
+      }
+      // destination provient des params (stable pour un écran donné).
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    },
+    [params.lat, params.lng],
+  );
+
+  const charger = useCallback(
+    async (m: ModeItineraire = 'voiture') => {
+      setChargement(true);
+      setErreur(null);
+      const r = await obtenirPosition();
+      if (!r.ok) {
+        setChargement(false);
+        setErreur(
+          r.raison === 'permission_refusee'
+            ? "Autorisez l'accès à votre position pour calculer l'itinéraire."
+            : "Votre position n'est pas disponible pour le moment.",
+        );
+        return;
+      }
+      setPosition(r.coords);
+      await calculerPour(r.coords, m);
+    },
+    [calculerPour],
+  );
 
   useEffect(() => {
     void charger();
-  }, [charger]);
+    // Au montage uniquement : le changement de mode passe par changerMode (pas de re-demande GPS).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  /** Repli : ouvre l'itinéraire dans une appli de cartes externe (OpenStreetMap). */
+  /** Bascule de mode : recalcule avec la position déjà obtenue (ou la redemande si absente). */
+  function changerMode(m: ModeItineraire) {
+    if (m === mode) return;
+    setMode(m);
+    if (position) void calculerPour(position, m);
+    else void charger(m);
+  }
+
+  /** Repli : ouvre l'itinéraire dans une appli de cartes externe (OpenStreetMap), même mode. */
   function ouvrirCartesExternes() {
-    const url = `https://www.openstreetmap.org/directions?engine=fossgis_osrm_car&route=${
+    const engine = mode === 'pied' ? 'fossgis_osrm_foot' : 'fossgis_osrm_car';
+    const url = `https://www.openstreetmap.org/directions?engine=${engine}&route=${
       position ? `${position.lat},${position.lng}` : ''
     };${destination.lat},${destination.lng}`;
     void Linking.openURL(url);
@@ -103,6 +128,23 @@ export default function ItineraireStructure() {
       <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
         <View style={styles.header}>
           <ScreenHeader title="Itinéraire" subtitle={nom} onBack={() => router.back()} />
+
+          {/* Sélecteur de mode (F3.7). Transport commun = hors périmètre (limite assumée). */}
+          <View style={styles.modes}>
+            <ModeBouton
+              actif={mode === 'voiture'}
+              icone="car-outline"
+              label="En voiture"
+              onPress={() => changerMode('voiture')}
+            />
+            <ModeBouton
+              actif={mode === 'pied'}
+              icone="walk-outline"
+              label="À pied"
+              onPress={() => changerMode('pied')}
+            />
+          </View>
+
           {itineraire && (
             <View style={styles.resume}>
               <View style={styles.resumeItem}>
@@ -111,7 +153,9 @@ export default function ItineraireStructure() {
               </View>
               <View style={styles.resumeItem}>
                 <Ionicons name="time-outline" size={16} color={colors.blue[600]} />
-                <Text style={styles.resumeTxt}>{itineraire.duree_min} min en voiture</Text>
+                <Text style={styles.resumeTxt}>
+                  {itineraire.duree_min} min {mode === 'pied' ? 'à pied' : 'en voiture'}
+                </Text>
               </View>
             </View>
           )}
@@ -147,9 +191,49 @@ export default function ItineraireStructure() {
   );
 }
 
+/** Bouton de sélection du mode de déplacement (F3.7). */
+function ModeBouton({
+  actif,
+  icone,
+  label,
+  onPress,
+}: {
+  actif: boolean;
+  icone: keyof typeof Ionicons.glyphMap;
+  label: string;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityState={{ selected: actif }}
+      style={[styles.modeBtn, actif && styles.modeBtnActif]}
+    >
+      <Ionicons name={icone} size={16} color={actif ? '#FFFFFF' : colors.blue[600]} />
+      <Text style={[styles.modeTxt, actif && styles.modeTxtActif]}>{label}</Text>
+    </Pressable>
+  );
+}
+
 const styles = StyleSheet.create({
   safe: { flex: 1 },
   header: { paddingHorizontal: spacing[6], paddingTop: spacing[5] },
+  modes: { flexDirection: 'row', gap: spacing[2], marginBottom: spacing[3] },
+  modeBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing[1],
+    paddingHorizontal: spacing[4],
+    height: 40,
+    borderRadius: radius.pill,
+    borderWidth: 1.5,
+    borderColor: colors.blue[600],
+    backgroundColor: 'transparent',
+  },
+  modeBtnActif: { backgroundColor: colors.blue[600] },
+  modeTxt: { ...typography.button, color: colors.blue[600] },
+  modeTxtActif: { color: '#FFFFFF' },
   resume: { flexDirection: 'row', gap: spacing[5], marginBottom: spacing[3] },
   resumeItem: { flexDirection: 'row', alignItems: 'center', gap: spacing[1] },
   resumeTxt: { ...typography.bodyStrong, color: colors.ink[900] },

@@ -636,3 +636,27 @@ de F3.1 ; le reste de la carte (OSM/Leaflet, GPS utilisateur, pastilles de dispo
 
 **Vérifs** : `tsc --noEmit` OK ; aucune dépendance ajoutée. La carte charge le plugin depuis le web (comme Leaflet/tuiles)
 → device online requis (déjà le cas).
+
+---
+
+# Module 3 — F3.7 : modes d'itinéraire (à pied / voiture)
+
+Source : CdC §5.3 **F3.7** (« Modes : à pied, en voiture, en transport commun »). L'itinéraire existait déjà (3B.3)
+mais en **voiture seule**. Frontend seul.
+
+## Étape unique — Frontend (2026-07-08)
+
+- **Changement de fournisseur de routage** : `router.project-osrm.org` (démo, **voiture uniquement**) → **`routing.openstreetmap.de`**
+  (le routeur public d'openstreetmap.org), qui expose des instances OSRM séparées **`routed-car`** (voiture) et
+  **`routed-foot`** (à pied). **Gratuit, sans clé.** Hôte **fixe**, interpolation **numérique seule** → Sécurité §8
+  respectée. L'appel se fait en RN (axios), **hors** allowlist WebView → `HOSTS_AUTORISES` inchangé.
+- **Limite assumée (conflit CdC signalé)** : le **transport commun** n'a pas de routage transit public gratuit fiable
+  → **non implémenté**, documenté comme limite (migration Google/transit en prod). Décision prise le 2026-07-08.
+- **`api/itineraire.ts`** : type `ModeItineraire = 'voiture' | 'pied'` ; `OSRM_BASE` mappe le mode → l'instance ;
+  `calculerItineraire(depart, arrivee, mode = 'voiture')`.
+- **`structures/itineraire.tsx`** : sélecteur 2 boutons (« En voiture » / « À pied », icônes `car`/`walk`) dans
+  l'en-tête ; le changement de mode **recalcule le tracé avec la position déjà obtenue** (pas de re-demande GPS) via
+  `calculerPour(position, mode)` ; libellé de durée dynamique (« min à pied » / « min en voiture ») ; repli appli
+  externe avec le **même** moteur (`fossgis_osrm_foot`/`_car`).
+
+**Vérifs** : `tsc --noEmit` OK ; aucune dépendance ajoutée.
