@@ -660,3 +660,24 @@ mais en **voiture seule**. Frontend seul.
   externe avec le **même** moteur (`fossgis_osrm_foot`/`_car`).
 
 **Vérifs** : `tsc --noEmit` OK ; aucune dépendance ajoutée.
+
+---
+
+# Module 3 — F3.2 : filtre par tarif (budget)
+
+Source : CdC §5.3 **F3.2** (« Filtrage simultané par : … tarif approximatif »). Dernier manque de F3.2 (les autres
+filtres — spécialité, dispo, type, commune — existaient déjà). **Aucune migration** : `tarif_min_cfa` / `tarif_max_cfa`
+sont déjà sur `structures_sanitaires`.
+
+## Étape A — Backend (2026-07-08)
+
+- **`StructureController::index`** : nouveau paramètre `tarif_max` validé (`nullable|integer|min:0|max:1000000`).
+- **`StructureService::appliquerFiltres`** : si `tarif_max` fourni → `whereNotNull('tarif_min_cfa')` +
+  `where('tarif_min_cfa', '<=', tarif_max)`. Sémantique = **structures dont la consultation DÉBUTE dans le budget**.
+  **Choix assumé** : les structures **sans tarif renseigné** (officines/labos, `tarif_min_cfa` NULL) sont **exclues**
+  quand le filtre budget est actif (un filtre de prix ne s'applique qu'aux consultations tarifées).
+- **Test `test_filtre_par_tarif_max_budget`** : budget 25 000 → seule la structure « Abordable » (min 5 000) ressort ;
+  « Chère » (min 30 000) et « Officine » (NULL) exclues. **Suite : 100/100**.
+
+**Reste (étape B, après « backend F3.2 validé »)** : rangée de puces « budget » dans l'onglet Carte (`carte.tsx`) +
+`tarif_max` sur `FiltresStructure` / l'appel `rechercherStructures`.

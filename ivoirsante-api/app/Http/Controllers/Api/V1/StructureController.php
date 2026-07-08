@@ -28,6 +28,7 @@ class StructureController extends Controller
             'commune'    => ['nullable', 'string', 'max:100'],
             'specialite' => ['nullable', 'string', 'max:100'],
             'statut'     => ['nullable', 'in:disponible,complet,disponible_apres_14h,ferme,inconnu'],
+            'tarif_max'  => ['nullable', 'integer', 'min:0', 'max:1000000'],
             'q'          => ['nullable', 'string', 'max:200'],
             'lat'        => ['nullable', 'numeric', 'between:-90,90', 'required_with:lng'],
             'lng'        => ['nullable', 'numeric', 'between:-180,180', 'required_with:lat'],

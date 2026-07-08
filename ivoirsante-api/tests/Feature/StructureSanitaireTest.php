@@ -77,6 +77,20 @@ class StructureSanitaireTest extends TestCase
             ->assertJsonPath('structures.0.nom', 'Complet');
     }
 
+    public function test_filtre_par_tarif_max_budget(): void
+    {
+        // Consultation abordable, chère, et sans tarif (officine).
+        $this->structure(['nom' => 'Abordable', 'tarif_min_cfa' => 5000, 'tarif_max_cfa' => 20000]);
+        $this->structure(['nom' => 'Chère', 'tarif_min_cfa' => 30000, 'tarif_max_cfa' => 80000]);
+        $this->structure(['nom' => 'Officine', 'type' => 'pharmacie', 'tarif_min_cfa' => null], 'pharmacie');
+
+        // Budget 25 000 : seule « Abordable » démarre dans le budget ; « Chère » et « Officine » (null) exclues.
+        $this->getJson('/api/v1/structures?tarif_max=25000')
+            ->assertOk()
+            ->assertJsonCount(1, 'structures')
+            ->assertJsonPath('structures.0.nom', 'Abordable');
+    }
+
     public function test_proximite_calcule_la_distance_trie_et_filtre_par_rayon(): void
     {
         // Loin (Yopougon) et proche (Cocody) d'un point à Cocody.

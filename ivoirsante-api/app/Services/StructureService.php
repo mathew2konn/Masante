@@ -113,6 +113,12 @@ class StructureService
                 ->where('actif', true)
                 ->where('specialite', $filtres['specialite']));
         }
+        // Budget max (F3.2) : structures dont la consultation DÉBUTE dans le budget. Les structures
+        // sans tarif renseigné (officines/labos) sont exclues quand ce filtre est actif.
+        if (isset($filtres['tarif_max']) && $filtres['tarif_max'] !== null && $filtres['tarif_max'] !== '') {
+            $query->whereNotNull('tarif_min_cfa')
+                ->where('tarif_min_cfa', '<=', (int) $filtres['tarif_max']);
+        }
     }
 
     /** Ordre par défaut (hors proximité) : partenaires d'abord, puis ordre alphabétique. */
