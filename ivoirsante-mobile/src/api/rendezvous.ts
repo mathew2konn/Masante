@@ -7,7 +7,7 @@
  * suivre et annuler.
  */
 import { api } from '../config/api';
-import type { RendezVous, RendezVousPayload } from '../types/structure';
+import type { ModePaiement, RecuRdv, RendezVous, RendezVousPayload } from '../types/structure';
 
 /** F3.6 — Mes rendez-vous (tous les membres du compte), les plus récents d'abord. */
 export async function listerRendezVous(): Promise<RendezVous[]> {
@@ -25,4 +25,16 @@ export async function demanderRendezVous(payload: RendezVousPayload): Promise<Re
 export async function annulerRendezVous(id: number): Promise<RendezVous> {
   const { data } = await api.patch<{ rendez_vous: RendezVous }>(`/v1/rendez-vous/${id}/annuler`);
   return data.rendez_vous;
+}
+
+/** N1/N2 — Paie (simulé) un RDV et récupère son reçu + QR de check-in. */
+export async function payerRendezVous(id: number, mode: ModePaiement): Promise<RecuRdv> {
+  const { data } = await api.post<{ recu: RecuRdv }>(`/v1/rendez-vous/${id}/paiement`, { mode });
+  return data.recu;
+}
+
+/** N2/N3 — Reçu d'un RDV (404 si non encore payé). Le `code` est régénéré à chaque appel. */
+export async function obtenirRecu(id: number): Promise<RecuRdv> {
+  const { data } = await api.get<{ recu: RecuRdv }>(`/v1/rendez-vous/${id}/recu`);
+  return data.recu;
 }

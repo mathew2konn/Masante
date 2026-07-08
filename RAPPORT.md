@@ -725,6 +725,18 @@ et le **scan/validation du QR à l'accueil**.
   (propriété du flux agent Module 4) — léger écart avec N1 « statut RDV intègre payé », au profit d'un cloisonnement
   clair des responsabilités.
 
-**Reste (étape B, après « backend N2 validé »)** : depuis « Mes rendez-vous », action « Payer » (choix du mode) →
-écran **Reçu** avec le QR de check-in (`react-native-qrcode-svg`), référence, montant, mode, statut, mention « à
-présenter à l'accueil — ne donne pas accès au dossier ».
+## Étape B — Frontend (2026-07-08)
+
+Réutilise le client axios unique, les composants DS et `react-native-qrcode-svg` (déjà installé pour le QR carnet).
+**Aucune dépendance ajoutée.** Aucun changement backend (l'écran reçu fait `GET recu` → 404 = propose de payer).
+
+- **`types/structure.ts`** : `ModePaiement` (`mobile_money`/`especes`/`carte`), interface `RecuRdv`,
+  `LIBELLE_MODE_PAIEMENT`.
+- **`api/rendezvous.ts`** : `payerRendezVous(id, mode)` (POST paiement) ; `obtenirRecu(id)` (GET reçu, 404 si non payé).
+- **`app/(app)/structures/recu/[id].tsx`** (route feuille) : au montage, `GET recu` → si **404**, écran **paiement**
+  (choix du mode + bandeau « paiement de démonstration, aucun débit réel ») ; sinon écran **reçu** avec le **QR de
+  check-in** (`QRCode value={recu.code}`), référence, statut, patient/structure/service/médecin/date, montant + mode,
+  `transaction_ref` (simulée), et la mention **« ne donne pas accès à votre dossier médical »**.
+- **`mes-rendez-vous.tsx`** : action **« Reçu / paiement »** sur chaque RDV non annulé/refusé → navigue vers l'écran reçu.
+
+**Vérifs** : `tsc --noEmit` OK ; aucune dépendance ajoutée.

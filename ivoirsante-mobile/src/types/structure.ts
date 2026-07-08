@@ -141,6 +141,35 @@ export interface RendezVous {
   medecin: { id: number; titre: string; nom: string; prenom: string; specialite: string } | null;
 }
 
+/** Mode de paiement (N1, simulé). */
+export type ModePaiement = 'mobile_money' | 'especes' | 'carte';
+
+/** Reçu de RDV présentable (N2) + code de check-in (N3). Aucune donnée médicale dans `code`. */
+export interface RecuRdv {
+  reference: string;
+  statut: string;
+  expires_at: string | null;
+  patient: string | null;
+  structure: { nom: string; commune: string } | null;
+  service: string | null;
+  medecin: string | null;
+  date: string | null;
+  montant: number | null;
+  mode: ModePaiement | null;
+  transaction_ref: string | null;
+  /** Contenu du QR de check-in (token signé autonome, n'ouvre pas le dossier). */
+  code: string;
+  /** Durée de validité du code, en secondes. */
+  code_expire_dans: number;
+}
+
+/** Libellés lisibles des modes de paiement. */
+export const LIBELLE_MODE_PAIEMENT: Record<ModePaiement, string> = {
+  mobile_money: 'Mobile Money',
+  especes: 'Espèces',
+  carte: 'Carte bancaire',
+};
+
 /** Corps des actions patient (3A.2). */
 export interface AvisPayload {
   note: number;

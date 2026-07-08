@@ -100,6 +100,8 @@ export default function MesRendezVous() {
 function LigneRdv({ item, onAnnuler }: { item: RendezVous; onAnnuler: () => void }) {
   const couleur = COULEUR_RDV[item.statut];
   const annulable = item.statut === 'en_attente' || item.statut === 'confirme';
+  // Reçu/paiement disponible tant que le RDV n'est pas annulé/refusé.
+  const reglable = item.statut !== 'annule' && item.statut !== 'refuse';
   return (
     <Card style={styles.card}>
       <View style={styles.haut}>
@@ -126,12 +128,29 @@ function LigneRdv({ item, onAnnuler }: { item: RendezVous; onAnnuler: () => void
       {item.motif ? <Text style={styles.motif}>« {item.motif} »</Text> : null}
       {item.message_agent ? <Text style={styles.message}>Réponse : {item.message_agent}</Text> : null}
 
-      {annulable && (
-        <Pressable onPress={onAnnuler} accessibilityRole="button" style={styles.annuler}>
-          <Ionicons name="close-circle-outline" size={16} color={colors.danger.solid} />
-          <Text style={styles.annulerTxt}>Annuler</Text>
-        </Pressable>
-      )}
+      <View style={styles.actions}>
+        {reglable && (
+          <Pressable
+            onPress={() =>
+              router.push({
+                pathname: '/(app)/structures/recu/[id]',
+                params: { id: String(item.id), nom: item.structure?.nom ?? 'Structure' },
+              })
+            }
+            accessibilityRole="button"
+            style={styles.action}
+          >
+            <Ionicons name="receipt-outline" size={16} color={colors.blue[600]} />
+            <Text style={styles.actionTxt}>Reçu / paiement</Text>
+          </Pressable>
+        )}
+        {annulable && (
+          <Pressable onPress={onAnnuler} accessibilityRole="button" style={styles.annuler}>
+            <Ionicons name="close-circle-outline" size={16} color={colors.danger.solid} />
+            <Text style={styles.annulerTxt}>Annuler</Text>
+          </Pressable>
+        )}
+      </View>
     </Card>
   );
 }
@@ -157,7 +176,10 @@ const styles = StyleSheet.create({
   ligneTxt: { ...typography.body, color: colors.ink[700], flex: 1 },
   motif: { ...typography.body, color: colors.ink[900], fontStyle: 'italic', marginTop: 2 },
   message: { ...typography.caption, color: colors.ink[700], marginTop: 2 },
-  annuler: { flexDirection: 'row', alignItems: 'center', gap: spacing[1], alignSelf: 'flex-start', marginTop: spacing[2], minHeight: 44 },
+  actions: { flexDirection: 'row', alignItems: 'center', gap: spacing[4], marginTop: spacing[2] },
+  action: { flexDirection: 'row', alignItems: 'center', gap: spacing[1], minHeight: 44 },
+  actionTxt: { ...typography.bodyStrong, color: colors.blue[600] },
+  annuler: { flexDirection: 'row', alignItems: 'center', gap: spacing[1], minHeight: 44 },
   annulerTxt: { ...typography.bodyStrong, color: colors.danger.solid },
   reessayer: {
     marginTop: spacing[2],
