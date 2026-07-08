@@ -17,6 +17,8 @@ class RendezVous extends Model
         'membre_id',
         'structure_id',
         'service_id',
+        'medecin_id',
+        'mode_attribution',
         'triage_id',
         'motif',
         'date_souhaitee',
@@ -46,6 +48,12 @@ class RendezVous extends Model
     public function service(): BelongsTo
     {
         return $this->belongsTo(ServiceEtablissement::class, 'service_id');
+    }
+
+    /** Praticien choisi (F3.5). NULL si l'établissement attribue (fixé par l'agent au Module 4). */
+    public function medecin(): BelongsTo
+    {
+        return $this->belongsTo(Medecin::class, 'medecin_id');
     }
 
     public function triage(): BelongsTo

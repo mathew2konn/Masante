@@ -62,12 +62,14 @@ class StructureService
         return $this->appliquerProximite($structures, $filtres);
     }
 
-    /** Fiche détaillée : services actifs + disponibilité du jour de chacun + statut global. */
+    /** Fiche détaillée : services actifs + disponibilité du jour + médecins réservables + statut global. */
     public function fiche(StructureSanitaire $structure): StructureSanitaire
     {
         $structure->load([
             'services' => fn ($s) => $s->where('actif', true),
             'services.disponibilites' => fn ($d) => $d->whereDate('date', Carbon::today()),
+            // Médecins réservables du service (F3.5) — annuaire public, non sensible.
+            'services.medecins' => fn ($m) => $m->where('actif', true)->orderBy('nom'),
         ]);
 
         $structure->setAttribute('statut_jour', $this->statutDuJour($structure));

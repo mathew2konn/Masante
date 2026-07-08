@@ -566,3 +566,36 @@ route, sous le verrou B2). Aucune dépendance ajoutée.
 
 **Vérifs** : `tsc --noEmit` propre hormis les 2 littéraux de routes typées (`.expo/types` généré, gitignoré) qui se
 régénèrent au premier `npx expo start` — confirmé côté utilisateur. **« B3 validé » le 2026-07-07. Phase B COMPLÈTE.**
+
+---
+
+# Module 3 — F3.5 : Choix du médecin au rendez-vous
+
+Source : `Analyse_Delta_RDV_MaSante.md` **N5** (« choix du médecin selon 3 modes : patient choisit / hôpital
+attribue / mixte »). Décisions validées le 2026-07-08 : **mode à 2 valeurs** (le « mixte » = préférence patient
+réassignable par l'agent au Module 4, pas de 3ᵉ état stocké) · **1 médecin rattaché à 1 service** (FK, cascade
+naturelle) · **`tarif_consultation` indicatif à l'affichage, AUCUNE logique de paiement** (le bloc Mobile Money
+FT5/N1 reste hors périmètre du prototype).
+
+## Étape A — Backend (2026-07-08)
+
+- **Migration `medecins`** : `structure_id` + `service_id` (FK cascade), `titre` (Dr/Pr), `nom`, `prenom`,
+  `specialite` (libellé), `tarif_consultation` (unsigned nullable, FCFA), `actif`. Annuaire **professionnel public,
+  non sensible** (aucun chiffrement, cohérent avec `structures`/`services`).
+- **Migration `rendez_vous`** : `medecin_id` **nullable** (FK `nullOnDelete`) + `mode_attribution`
+  enum `patient_choisit` / `etablissement_attribue` (défaut `etablissement_attribue`).
+- **Modèle `Medecin`** (+ relations `structure`/`service`) ; `ServiceEtablissement::medecins()` ; `RendezVous::medecin()`.
+- **Exposition** : `StructureService::fiche()` imbrique `services.medecins` **actifs** (triés par nom) → l'écran RDV,
+  qui charge déjà la fiche via `GET /v1/structures/{id}`, reçoit les médecins **sans round-trip supplémentaire**.
+  Lecture publique (aucun endpoint dédié ajouté).
+- **`RendezVousController::store()`** : `medecin_id` nullable validé ; s'il est fourni, garde anti-incohérence
+  (**doit appartenir au `service_id` ET à la `structure_id` choisis**, sinon 422) ; `mode_attribution` **déduit
+  côté serveur** (jamais piloté par le client). `index()` charge le médecin (projection `id,titre,nom,prenom,specialite`).
+- **Seeder** : 1–2 praticiens par service de consultation (officines/labos exclus), noms ivoiriens, tarif calé sur
+  le type de structure. **Nécessite `migrate:fresh --seed`** pour peupler les médecins.
+- **Tests `RendezVousMedecinTest` (5)** : médecins actifs exposés en public sous les services (inactif masqué) ;
+  RDV avec médecin → `patient_choisit` ; RDV sans médecin → `etablissement_attribue` ; médecin d'un autre
+  service → 422 ; médecin d'une autre structure → 422. **Suite : 99/99 (308 assertions)**, `composer audit` 0 avis.
+
+**Reste (étape B, après « backend F3.5 validé »)** : étape « Médecin » (chips) sous le service dans l'écran RDV, avec
+option « Peu importe — laisser l'établissement choisir » ; affichage du praticien dans « Mes rendez-vous ».

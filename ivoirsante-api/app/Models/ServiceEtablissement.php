@@ -37,4 +37,10 @@ class ServiceEtablissement extends Model
     {
         return $this->hasMany(DisponibiliteJour::class, 'service_id');
     }
+
+    /** Praticiens réservables du service (F3.5). */
+    public function medecins(): HasMany
+    {
+        return $this->hasMany(Medecin::class, 'service_id');
+    }
 }

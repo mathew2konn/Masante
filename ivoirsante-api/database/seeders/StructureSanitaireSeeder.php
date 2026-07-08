@@ -3,6 +3,7 @@
 namespace Database\Seeders;
 
 use App\Models\DisponibiliteJour;
+use App\Models\Medecin;
 use App\Models\PharmacieGarde;
 use App\Models\ServiceEtablissement;
 use App\Models\StructureSanitaire;
@@ -21,6 +22,18 @@ use Illuminate\Support\Carbon;
  */
 class StructureSanitaireSeeder extends Seeder
 {
+    /** Spécialités SANS praticien réservable (F3.5) : on ne prend pas de RDV « médecin » en officine/labo. */
+    private const SPECIALITES_SANS_MEDECIN = ['pharmacie', 'biologie'];
+
+    /** Pools de noms ivoiriens pour générer des praticiens plausibles (données de démo). */
+    private const NOMS = ['Koffi', 'Kouassi', 'Kouamé', 'Yao', 'Aka', 'Bamba', 'Traoré', 'Coulibaly',
+        'Diomandé', 'N\'Guessan', 'Konan', 'Touré', 'Ouattara', 'Gnahoré', 'Assé'];
+    private const PRENOMS = ['Kablan', 'Serge', 'Aya', 'Mariam', 'Aristide', 'Chantal', 'Franck',
+        'Nadège', 'Hervé', 'Estelle', 'Ismaël', 'Rose', 'Marc', 'Adjoua'];
+
+    /** Curseur global pour faire varier les noms entre praticiens. */
+    private int $curseur = 0;
+
     public function run(): void
     {
         $aujourdhui = Carbon::today();
@@ -215,6 +228,8 @@ class StructureSanitaireSeeder extends Seeder
                     'nb_places_restantes' => $statut === 'disponible' ? random_int(2, 12) : null,
                     'heure_debut_dispo' => $statut === 'disponible_apres_14h' ? '14:00' : null,
                 ]);
+
+                $this->seedMedecins($service, $structure);
             }
 
             if (! empty($bloc['garde'])) {
@@ -224,6 +239,43 @@ class StructureSanitaireSeeder extends Seeder
                     'periode' => $bloc['garde'],
                 ]);
             }
+        }
+    }
+
+    /**
+     * Crée 1 à 2 praticiens réservables pour un service de consultation (F3.5). Les officines et
+     * laboratoires n'ont pas de médecin réservable. Tarif indicatif (aucun paiement) calé sur le
+     * type de structure.
+     */
+    private function seedMedecins(ServiceEtablissement $service, StructureSanitaire $structure): void
+    {
+        if (in_array($service->specialite, self::SPECIALITES_SANS_MEDECIN, true)) {
+            return;
+        }
+
+        $tarifBase = match ($structure->type) {
+            'clinique_privee' => 20000,
+            'cabinet'         => 15000,
+            'chu', 'chr'      => 5000,
+            default           => 8000,
+        };
+
+        $nb = random_int(1, 2);
+        for ($i = 0; $i < $nb; $i++) {
+            $nom = self::NOMS[$this->curseur % count(self::NOMS)];
+            $prenom = self::PRENOMS[$this->curseur % count(self::PRENOMS)];
+            $this->curseur++;
+
+            Medecin::create([
+                'structure_id'       => $structure->id,
+                'service_id'         => $service->id,
+                'titre'              => $this->curseur % 5 === 0 ? 'Pr' : 'Dr',
+                'nom'                => $nom,
+                'prenom'             => $prenom,
+                'specialite'         => $service->nom_service,
+                'tarif_consultation' => $tarifBase + random_int(0, 4) * 1000,
+                'actif'              => true,
+            ]);
         }
     }
 }
