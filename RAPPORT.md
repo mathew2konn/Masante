@@ -679,5 +679,14 @@ sont déjà sur `structures_sanitaires`.
 - **Test `test_filtre_par_tarif_max_budget`** : budget 25 000 → seule la structure « Abordable » (min 5 000) ressort ;
   « Chère » (min 30 000) et « Officine » (NULL) exclues. **Suite : 100/100**.
 
-**Reste (étape B, après « backend F3.2 validé »)** : rangée de puces « budget » dans l'onglet Carte (`carte.tsx`) +
-`tarif_max` sur `FiltresStructure` / l'appel `rechercherStructures`.
+## Étape B — Frontend (2026-07-08)
+
+`carte.tsx` (onglet Carte) + `types/structure.ts`. **Aucune dépendance ajoutée.**
+
+- **`types/structure.ts`** : `tarif_max?` sur `FiltresStructure` ; constante **`BUDGETS`** (paliers « Tous tarifs »,
+  « ≤ 5 000 », « ≤ 10 000 », « ≤ 25 000 », « ≤ 50 000 »).
+- **`carte.tsx`** : state `tarifMax` (null = tous) ; ajouté à la requête `rechercherStructures` (`if (tarifMax !== null)`)
+  et aux dépendances du chargement debouncé ; **3ᵉ rangée de puces « budget »** (même composant `FiltreChip` que
+  type/commune), libellé suffixé « FCFA » sauf « Tous tarifs ».
+
+**Vérifs** : `tsc --noEmit` OK ; aucune dépendance ajoutée. **→ Clôt les trous CdC géoloc du Module 3 (F3.1, F3.2, F3.7).**

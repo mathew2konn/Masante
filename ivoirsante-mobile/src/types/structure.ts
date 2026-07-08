@@ -98,6 +98,8 @@ export interface FiltresStructure {
   commune?: string;
   specialite?: string;
   statut?: StatutDispo;
+  /** Budget max (F3.2) : structures dont la consultation débute à ce tarif ou moins. */
+  tarif_max?: number;
   q?: string;
   lat?: number;
   lng?: number;
@@ -176,6 +178,15 @@ export const LIBELLE_RDV: Record<StatutRdv, string> = {
   annule: 'Annulé',
   honore: 'Honoré',
 };
+
+/** Paliers de budget max pour le filtre tarif (F3.2), en FCFA. `valeur: null` = « Tous tarifs ». */
+export const BUDGETS: readonly { label: string; valeur: number | null }[] = [
+  { label: 'Tous tarifs', valeur: null },
+  { label: '≤ 5 000', valeur: 5000 },
+  { label: '≤ 10 000', valeur: 10000 },
+  { label: '≤ 25 000', valeur: 25000 },
+  { label: '≤ 50 000', valeur: 50000 },
+];
 
 /** Communes couvertes par le catalogue (seeder 3A.1, district d'Abidjan). */
 export const COMMUNES: readonly string[] = [

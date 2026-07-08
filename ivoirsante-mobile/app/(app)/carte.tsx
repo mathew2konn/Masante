@@ -23,6 +23,7 @@ import { rechercherStructures } from '../../src/api/structures';
 import { obtenirPosition } from '../../src/utils/geoloc';
 import { messageErreur } from '../../src/utils/erreurs';
 import {
+  BUDGETS,
   COMMUNES,
   LIBELLE_TYPE,
   type Coordonnees,
@@ -48,6 +49,8 @@ export default function CarteTab() {
   const [q, setQ] = useState('');
   const [type, setType] = useState<TypeStructure | null>(null);
   const [commune, setCommune] = useState<string | null>(null);
+  // Budget max (F3.2). null = « Tous tarifs ».
+  const [tarifMax, setTarifMax] = useState<number | null>(null);
   const [position, setPosition] = useState<Coordonnees | null>(null);
   const [geoEnCours, setGeoEnCours] = useState(false);
   const [vue, setVue] = useState<Vue>('liste');
@@ -64,6 +67,7 @@ export default function CarteTab() {
       if (q.trim()) filtres.q = q.trim();
       if (type) filtres.type = type;
       if (commune) filtres.commune = commune;
+      if (tarifMax !== null) filtres.tarif_max = tarifMax;
       if (position) {
         filtres.lat = position.lat;
         filtres.lng = position.lng;
@@ -74,7 +78,7 @@ export default function CarteTab() {
     } finally {
       setChargement(false);
     }
-  }, [q, type, commune, position]);
+  }, [q, type, commune, tarifMax, position]);
 
   // Recherche debouncée : on évite une requête à chaque frappe.
   useEffect(() => {
@@ -207,6 +211,23 @@ export default function CarteTab() {
             <FiltreChip label="Toutes communes" actif={commune === null} onPress={() => setCommune(null)} />
             {COMMUNES.map((c) => (
               <FiltreChip key={c} label={c} actif={commune === c} onPress={() => setCommune(c)} />
+            ))}
+          </ScrollView>
+
+          {/* Filtre budget (F3.2) */}
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.filtres}
+            keyboardShouldPersistTaps="handled"
+          >
+            {BUDGETS.map((b) => (
+              <FiltreChip
+                key={b.label}
+                label={b.valeur === null ? b.label : `${b.label} FCFA`}
+                actif={tarifMax === b.valeur}
+                onPress={() => setTarifMax(b.valeur)}
+              />
             ))}
           </ScrollView>
         </View>
