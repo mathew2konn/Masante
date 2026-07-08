@@ -1,0 +1,111 @@
+1) : Pour la page d'inscription, on doit seulement entrer le nom en premier, le prénom, le numéro de téléphone, un mot de passe de 8 caractère minimum au fur et mesure qu'il saisis le mot de passe il y aura une barre de progression et on lui dira ce qu'il manque, une fois que s'est bon il le confirmera.
+Une fois sur son espace, l'utilisateur mettra à jours ses informations(date et lieu de naissance, groupe sanguin, son sexe, une photo de profil qu'il pourra la prendre directement dans l'application ou l'importée depuis sa galerie, deux contacts d'urgence à prévenir qui ne doivent pas être pareils) pour les contact d'urgence, on va supprimer l'email; pour chaque contact on a le nom complet, pour le lien parenté il y aura une liste déroulante(papa, maman, ma femme, mon mari, frère, sœur, cousin, cousine, tante, oncle, tuteur, grande mère, grand père, ami(e), autre si ça ne se trouve pas dans la liste), le premier contact sera automatique le contact principale et le second sera le contact secondaire.
+
+On va augmenter le nombre de famille à 15 membres maximum.
+
+Un rappel aura trois sources possibles : patient : il se règle ses propres rappels (médicament, RDV).
+					système : rappels auto-générés à partir d'une ordonnance saisie, d'un RDV confirmé, ou du calendrier vaccinal.
+médecin : lors d'un accès au dossier via QR, le médecin ajoute un rappel de suivi (« contrôle dans 3 mois », « refaire l'analyse X », « reprise du traitement »). Trois garde-fous à respecter pour que ce soit cohérents avec la ligne de sécurité :
+Le médecin ne peut ajouter un rappel que pendant une session d'accès autorisée (scan du QR carnet, session 30 min) — jamais en dehors. L'ajout est tracé au journal d'audit (FT6), comme tout accès au dossier. Et le patient garde le contrôle : il voit qui a créé le rappel, et peut le désactiver.
+Ça reste minimaliste côté interface : dans la liste des rappels, une petite étiquette d'origine (« ajouté par Dr X ») suffit à distinguer un rappel médecin d'un rappel auto.
+
+Pour toutes les dates, je veux qu'il y ai une liste déroulante pour le jour, le moi, l'année.
+
+Pour la note et les observations :  les médecins écrivent aussi dans les notes et observations. Le patient y consigne son vécu au quotidien — « fièvre le soir depuis 3 jours », « toux plus forte la nuit », « questions à poser au prochain RDV ».
+Le médecin y ajoute ses observations cliniques lors d'une consultation — évolution constatée, points à surveiller, conseils de suivi. C'est cohérent avec des systèmes chinois, où le médecin évalue les résultats téléversés par le patient et guide la conduite à tenir à travers l'app.
+Trois garde-fous encadrent l'écriture du médecin : Le médecin ne peut écrire que pendant une session d'accès autorisée — c'est-à-dire après avoir scanné le QR carnet du patient (session de 30 minutes). Jamais en dehors. Chaque note qu'il ajoute est tracée au journal d'audit (FT6), comme tout accès au dossier, conforme à la loi n°2013-450. Et le patient reste propriétaire de son dossier : il voit l'étiquette d'origine (« ajouté par Dr X »), garde l'historique, et contrôle son carnet.
+Côté interface minimaliste, ça se traduit par une simple étiquette d'auteur sur chaque carte de note — rien de plus. On distingue d'un coup d'œil une observation du médecin d'une note du patient, sans surcharge.
+La notes du patient modifiables par lui, notes du médecin en append-only.
+
+Pour un mot de passe oublié, 
+
+F2.3 « Intégration CMU » → ajout de la Carte CMU numérique
+
+
+Portée : ce document couvre une seule modification — l'enrichissement de la fonctionnalité F2.3 existante du Module 2 (Carnet de Santé Familial) par une carte CMU numérique présentable. Aucune autre fonctionnalité n'est modifiée. Inspiré du certificat électronique d'assurance maladie chinois (碼医保电子凭证), adapté au contexte ivoirien et à la Couverture Maladie Universelle (CMU / CNAM).
+
+
+
+
+1. Justification et cadrage
+
+En Chine, la carte d'assurance physique a été remplacée par un certificat électronique présenté sous forme de QR code depuis le téléphone : le patient n'a plus besoin de sa carte physique pour les rendez-vous, visites, examens et achats de médicaments. Ce modèle repose toutefois sur une plateforme nationale interconnectée en temps réel entre assureur public et hôpitaux.
+
+Limite assumée pour MaSanté : la CMU ivoirienne (CNAM) n'expose pas d'API publique de règlement en temps réel accessible à ce projet. Le remboursement / règlement automatique de l'assurance est donc explicitement hors périmètre et ne doit pas être promis. Ce qui est transposable et réaliste, c'est la dématérialisation de la carte : « présenter son téléphone au lieu de la carte physique ».
+
+La fonctionnalité F2.3 actuelle gère déjà la saisie du numéro CMU, le statut (actif / expiré / non-inscrit), la date de validité et l'alerte 30 jours avant expiration. La présente modification ajoute la couche de présentation : une carte numérique affichable et vérifiable à l'accueil.
+
+
+2. Modification de la fonctionnalité F2.3
+
+IDFonctionnalitéDescription détaillée (mise à jour)ActeurPrio.F2.3Intégration CMU + Carte CMU numériqueSaisie du numéro CMU par membre, statut de couverture (actif / expiré / non-inscrit), date de validité, alerte automatique 30 jours avant expiration (inchangé). Ajout : génération d'une carte CMU numérique présentable à l'accueil d'une structure — vue « carte » affichant le nom du titulaire, le numéro CMU masqué (seuls les derniers chiffres visibles), un badge de statut coloré, la date de validité et un code de présentation vérifiable visuellement par l'agent. La carte n'est disponible que pour un compte au palier vérifié. Le numéro complet reste chiffré et n'est jamais inclus dans le code présenté.Utilisateur / AgentHAUTE
+
+
+3. Description détaillée de la carte CMU numérique
+
+3.1 Contenu affiché (vue « carte »)
+
+
+Nom et prénom du membre titulaire.
+Numéro CMU masqué (format •••• •••• 1234 — seuls les 4 derniers chiffres visibles).
+Badge de statut : Actif (vert) / Expiré (rouge) / Non-inscrit (gris).
+Date de validité (et rappel visuel si expiration proche, cohérent avec l'alerte 30 jours existante).
+Code de présentation (QR ou code-barres) destiné à la vérification par l'agent d'accueil.
+
+
+3.2 Vérification côté structure
+
+
+L'agent d'accueil confirme visuellement la carte (nom, statut, validité) et, si besoin, scanne le code de présentation.
+La vérification est tolérante au réseau : elle ne dépend d'aucune API CNAM en temps réel. Le code de présentation ne fait que restituer, côté serveur MaSanté, le statut déclaré du membre — jamais un règlement.
+
+
+3.3 Palier de confiance requis
+
+
+La carte CMU numérique n'est générée que pour un compte au palier vérifié (identité confirmée par CNI ou CMU). C'est l'équivalent local de l'authentification « personne réelle » (reconnaissance faciale) exigée par le système chinois avant d'activer le certificat électronique.
+Un compte au palier de base (téléphone vérifié uniquement) peut saisir ses informations CMU mais ne peut pas présenter la carte comme justificatif tant que l'identité n'est pas confirmée.
+
+
+
+4. Assurances privées (hors CMU) — filet low-tech via F2.10
+
+Pour les assurances privées (hors CMU), le mécanisme est déjà couvert par la fonctionnalité F2.10 (Documents médicaux importés) : la catégorie assurance permet au patient de photographier et stocker sa carte d'assurance privée dans son carnet. C'est le filet low-tech qui couvre tous les assureurs sans intégration — aucun connecteur spécifique n'est nécessaire, le patient conserve simplement une image consultable et présentable de sa carte.
+
+Ainsi, la couverture est complète :
+
+
+CMU → carte numérique structurée et présentable (F2.3, ce document).
+Assurances privées → carte importée en photo/document (F2.10, catégorie assurance).
+
+
+
+5. Impact technique
+
+5.1 Base de données
+
+Impact minimal : les champs CMU existent déjà sur membres_famille (cmu_numero chiffré, cmu_statut, cmu_validite). La carte numérique est une couche de présentation ; elle ne requiert aucune nouvelle table. Optionnellement, si un code de présentation à durée de vie doit être tracé, il réutilise le mécanisme de token existant plutôt qu'une table dédiée.
+
+5.2 Sécurité (cohérence avec le document Sécurité MaSanté)
+
+
+Numéro CMU chiffré AES-256 en base (déjà le cas), masqué à l'affichage, et jamais inclus dans le QR/code présenté — même principe que le matricule interne jamais exposé.
+Carte réservée au palier vérifié ; tout accès reste inscrit au journal d'audit (FT6), conforme à la loi n°2013-450.
+Rappel de vigilance : la donnée d'assurance/identité est parmi les plus sensibles (des fuites de données de santé revendues en ligne ont été documentées sur le système chinois) → exposition minimale et chiffrement systématique.
+
+
+5.3 Design (minimaliste)
+
+
+Une vue carte épurée, lisible d'un coup d'œil, avec le badge de statut comme élément visuel principal.
+Un bouton unique « Présenter ma carte » qui affiche le code en grand pour l'agent.
+Aucun encombrement : le numéro complet n'est jamais affiché, seule l'information utile à la vérification l'est.
+
+
+
+Modification de spécification isolée — à intégrer au §5.2 du CdC en remplacement de la ligne F2.3 actuelle. Aucune donnée inventée : ancré au CdC v3.1, au document Sécurité MaSanté, et aux pratiques documentées du certificat électronique d'assurance chinois.
+
+En cas d'oublie de mot de passe, voici comment le récupérer : Étape 1 — Demande de réinitialisation. Sur l'écran de connexion, un lien « Mot de passe oublié ? » mène à un écran où l'utilisateur saisit uniquement son numéro de téléphone. L'API (POST /api/auth/password/forgot) vérifie que le numéro existe, génère un OTP 6 chiffres, le hache, l'enregistre avec but = 'recuperation' et expires_at = now + 5 min, puis l'envoie par SMS. Point de sécurité important : la réponse de l'API doit être identique que le numéro existe ou non (« Si ce numéro est enregistré, un code a été envoyé »), pour empêcher un attaquant d'énumérer les comptes existants.
+Étape 2 — Vérification de l'OTP. L'utilisateur saisit le code reçu (POST /api/auth/password/verify-otp). L'API applique tes règles déjà définies : comparaison par hachage, non expiré, non utilisé, maximum 5 tentatives. Si le code est bon, l'API le marque used_at = now et renvoie un token de réinitialisation temporaire (usage unique, expire ~10 min). Ce token intermédiaire est essentiel : il prouve que l'étape OTP a été franchie sans permettre de changer le mot de passe directement dans la même requête que la saisie du code.
+Étape 3 — Nouveau mot de passe. L'utilisateur définit son nouveau mot de passe (POST /api/auth/password/reset avec le token de réinitialisation). L'API applique ta politique existante (Password::min(8)->letters()->mixedCase()->numbers()->symbols()->uncompromised()), hache en Argon2id, puis — mesure critique — révoque tous les refresh tokens actifs du compte. Ainsi, si quelqu'un avait volé une session, elle devient inutilisable dès le changement de mot de passe.
+Modification volontaire (pas d'oubli). Quand l'utilisateur est connecté et veut simplement changer son mot de passe depuis son profil, le flux est différent et plus simple : POST /api/auth/password/change exige l'ancien mot de passe + le nouveau. Pas d'OTP nécessaire ici, car la connaissance de l'ancien mot de passe suffit comme preuve. Même révocation des autres sessions à la fin.

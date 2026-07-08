@@ -1,0 +1,15 @@
+Dans les règles de gestions tu as parlé de SAMU, c'est quoi exactement ? est-ce une structure comme le CHU ?
+
+que signifie c'est abréviations et leur fonctionnalité : seul un token TOTP (UUID v4 + horodatage + HMAC-SHA256) circule
+
+pour le 6.1 Modèle Conceptuel de Données (MCD), pour quoi as-tu utilisé mérise ?
+
+C'est quoi l'ORM Eloquent ?
+
+C'est quoi le throttling ?
+
+Qu'est-ce que cela signifie?  : Le token encodé dans le QR est construit à partir d'un UUID v4; précisément le UUID
+
+C'est quoi un Chiffrement AES-256 et AES-256-CBC ?
+
+Qu signifie  :  l'ARTCI et son rôle ?  
