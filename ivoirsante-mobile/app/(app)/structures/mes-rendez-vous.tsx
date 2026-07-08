@@ -112,6 +112,14 @@ function LigneRdv({ item, onAnnuler }: { item: RendezVous; onAnnuler: () => void
       </View>
 
       <Ligne icone="medkit-outline" texte={item.service?.nom_service ?? '—'} />
+      {item.medecin ? (
+        <Ligne
+          icone="person-circle-outline"
+          texte={`${item.medecin.titre} ${item.medecin.prenom} ${item.medecin.nom}`}
+        />
+      ) : (
+        <Ligne icone="person-circle-outline" texte="Médecin attribué par l'établissement" />
+      )}
       <Ligne icone="person-outline" texte={item.membre ? `${item.membre.prenom} ${item.membre.nom}` : '—'} />
       <Ligne icone="calendar-outline" texte={`Souhaité le ${formatDateFr(item.date_souhaitee)}`} />
       {item.date_confirmee && <Ligne icone="checkmark-circle-outline" texte={`Confirmé le ${formatDateFr(item.date_confirmee)}`} />}

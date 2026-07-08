@@ -35,13 +35,25 @@ export interface Disponibilite {
   note: string | null;
 }
 
-/** Service médical d'une structure (avec sa disponibilité du jour). */
+/** Praticien réservable d'un service (F3.5). Annuaire public ; tarif indicatif (aucun paiement). */
+export interface Medecin {
+  id: number;
+  titre: string; // Dr / Pr
+  nom: string;
+  prenom: string;
+  specialite: string;
+  tarif_consultation: number | null;
+}
+
+/** Service médical d'une structure (avec sa disponibilité du jour et ses médecins réservables). */
 export interface Service {
   id: number;
   nom_service: string;
   specialite: string;
   actif: boolean;
   disponibilites: Disponibilite[];
+  /** Praticiens réservables actifs (présent sur la fiche détaillée, F3.5). */
+  medecins?: Medecin[];
 }
 
 /** Avis patient (lecture publique ; auteur anonymisé au prénom). */
@@ -108,10 +120,14 @@ export type TypeSignalement =
 /** Statut d'un rendez-vous (F3.6, enum backend ; validation agent → Module 4). */
 export type StatutRdv = 'en_attente' | 'confirme' | 'refuse' | 'annule' | 'honore';
 
+/** Mode d'attribution du médecin (F3.5). `etablissement_attribue` = médecin fixé par l'agent au M4. */
+export type ModeAttribution = 'patient_choisit' | 'etablissement_attribue';
+
 /** Rendez-vous tel que renvoyé par GET /v1/rendez-vous (avec relations légères). */
 export interface RendezVous {
   id: number;
   statut: StatutRdv;
+  mode_attribution: ModeAttribution;
   motif: string;
   date_souhaitee: string;
   date_confirmee: string | null;
@@ -120,6 +136,7 @@ export interface RendezVous {
   membre: { id: number; nom: string; prenom: string } | null;
   structure: { id: number; nom: string; commune: string } | null;
   service: { id: number; nom_service: string; specialite: string } | null;
+  medecin: { id: number; titre: string; nom: string; prenom: string; specialite: string } | null;
 }
 
 /** Corps des actions patient (3A.2). */
@@ -135,6 +152,8 @@ export interface RendezVousPayload {
   membre_id: number;
   structure_id: number;
   service_id: number;
+  /** Médecin choisi (F3.5). Omis = l'établissement attribue. */
+  medecin_id?: number;
   triage_id?: number;
   motif: string;
   date_souhaitee: string; // AAAA-MM-JJ

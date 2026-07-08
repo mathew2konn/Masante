@@ -597,5 +597,19 @@ FT5/N1 reste hors périmètre du prototype).
   RDV avec médecin → `patient_choisit` ; RDV sans médecin → `etablissement_attribue` ; médecin d'un autre
   service → 422 ; médecin d'une autre structure → 422. **Suite : 99/99 (308 assertions)**, `composer audit` 0 avis.
 
-**Reste (étape B, après « backend F3.5 validé »)** : étape « Médecin » (chips) sous le service dans l'écran RDV, avec
-option « Peu importe — laisser l'établissement choisir » ; affichage du praticien dans « Mes rendez-vous ».
+## Étape B — Frontend (2026-07-08)
+
+Réutilise le client axios unique, les composants DS (`Chip`, `Card`) et l'écran RDV existant. **Aucune dépendance
+ajoutée.**
+
+- **`types/structure.ts`** : interface `Medecin` (`titre/nom/prenom/specialite/tarif_consultation`) ; `Service.medecins?`
+  (présent sur la fiche détaillée) ; `RendezVous.medecin` + `mode_attribution` (`ModeAttribution`) ; `medecin_id?`
+  optionnel sur `RendezVousPayload`.
+- **`rendez-vous-nouveau.tsx`** : nouvelle carte **« Médecin »** affichée sous le service **choisi** (masquée si le
+  service n'a aucun praticien). Chips = **« Peu importe »** (défaut) + un chip par médecin (`Dr Prénom Nom`). Changer
+  de service réinitialise le médecin. Tarif indicatif affiché sous les chips si présent (`formatFcfa`, séparateur de
+  milliers compatible Hermes). `medecin_id` transmis **uniquement** s'il est choisi → sinon l'établissement attribue.
+- **`mes-rendez-vous.tsx`** : ligne médecin (`Dr Prénom Nom`) ou « Médecin attribué par l'établissement » selon le cas.
+
+**Vérifs** : `tsc --noEmit` **OK** ; aucune dépendance ajoutée. Les praticiens n'apparaissent dans l'app que si la
+base est seedée (`migrate:fresh --seed`, destructif).

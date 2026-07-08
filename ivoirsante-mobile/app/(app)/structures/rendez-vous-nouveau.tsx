@@ -12,7 +12,7 @@ import { listerMembres } from '../../../src/api/membres';
 import { demanderRendezVous } from '../../../src/api/rendezvous';
 import { messageErreur } from '../../../src/utils/erreurs';
 import { isoVersDateInput } from '../../../src/utils/dates';
-import type { Service } from '../../../src/types/structure';
+import type { Medecin, Service } from '../../../src/types/structure';
 import type { Membre } from '../../../src/types/membre';
 import { colors, spacing, typography } from '../../../src/theme/theme';
 
@@ -23,6 +23,11 @@ import { colors, spacing, typography } from '../../../src/theme/theme';
  * est créé au statut « en attente » : la confirmation par l'agent relève du Module 4. L'isolation
  * anti-IDOR (membre du compte, service de la structure) est revalidée côté serveur.
  */
+/** Formate un montant en FCFA avec séparateur de milliers (Hermes n'a pas toujours toLocaleString). */
+function formatFcfa(montant: number): string {
+  return `${montant.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ' ')} FCFA`;
+}
+
 export default function RendezVousForm() {
   const { id, nom } = useLocalSearchParams<{ id: string; nom: string }>();
   const structureId = Number(id);
@@ -34,6 +39,8 @@ export default function RendezVousForm() {
 
   const [membreId, setMembreId] = useState<number | null>(null);
   const [serviceId, setServiceId] = useState<number | null>(null);
+  // null = « Peu importe » (l'établissement attribue le médecin). Sinon id du praticien choisi (F3.5).
+  const [medecinId, setMedecinId] = useState<number | null>(null);
   const [motif, setMotif] = useState('');
   const [date, setDate] = useState('');
   const [envoi, setEnvoi] = useState(false);
@@ -54,6 +61,16 @@ export default function RendezVousForm() {
       }
     })();
   }, [structureId]);
+
+  const serviceChoisi = services.find((s) => s.id === serviceId) ?? null;
+  const medecins: Medecin[] = serviceChoisi?.medecins ?? [];
+  const medecinChoisi = medecins.find((m) => m.id === medecinId) ?? null;
+
+  // Changer de service réinitialise le médecin (les praticiens sont propres au service).
+  function choisirService(id: number) {
+    setServiceId(id);
+    setMedecinId(null);
+  }
 
   function dateValide(saisie: string): string | null {
     const v = saisie.trim();
@@ -80,6 +97,8 @@ export default function RendezVousForm() {
         membre_id: membreId,
         structure_id: structureId,
         service_id: serviceId,
+        // Médecin optionnel : omis = l'établissement attribue (F3.5).
+        ...(medecinId ? { medecin_id: medecinId } : {}),
         motif: motif.trim(),
         date_souhaitee: date.trim(),
       });
@@ -158,12 +177,40 @@ export default function RendezVousForm() {
                 key={s.id}
                 label={s.nom_service}
                 selected={serviceId === s.id}
-                onPress={() => setServiceId(s.id)}
+                onPress={() => choisirService(s.id)}
               />
             ))}
           </View>
         )}
       </Card>
+
+      {serviceChoisi && medecins.length > 0 && (
+        <Card style={styles.bloc}>
+          <Text style={styles.label}>Médecin</Text>
+          <View style={styles.chips}>
+            <Chip
+              label="Peu importe"
+              selected={medecinId === null}
+              onPress={() => setMedecinId(null)}
+            />
+            {medecins.map((m) => (
+              <Chip
+                key={m.id}
+                label={`${m.titre} ${m.prenom} ${m.nom}`}
+                selected={medecinId === m.id}
+                onPress={() => setMedecinId(m.id)}
+              />
+            ))}
+          </View>
+          {medecinChoisi
+            ? medecinChoisi.tarif_consultation != null && (
+                <Text style={styles.muted}>
+                  Consultation : {formatFcfa(medecinChoisi.tarif_consultation)} (indicatif)
+                </Text>
+              )
+            : <Text style={styles.muted}>L'établissement vous attribuera un médecin.</Text>}
+        </Card>
+      )}
 
       <TextField
         label="Motif"
