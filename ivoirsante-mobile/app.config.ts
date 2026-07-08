@@ -15,6 +15,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   ...config,
   name: 'MaSante',
   slug: 'ivoirsante-mobile',
+  owner: 'mathieu-27',
   version: '1.0.0',
   // Schéma de deep-linking requis par Expo Router (navigation par fichiers).
   scheme: 'masante',
@@ -82,5 +83,9 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   // Valeurs lues à l'exécution côté app via expo-constants (voir src/config/api.ts).
   extra: {
     apiUrl: API_URL,
+    // Identifiant du projet EAS (config dynamique : à renseigner à la main, cf. `eas init`).
+    eas: {
+      projectId: '6647289e-ee43-4b20-9fd9-34ef98b68b97',
+    },
   },
 });
