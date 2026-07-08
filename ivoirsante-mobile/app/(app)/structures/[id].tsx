@@ -91,6 +91,8 @@ export default function FicheStructure() {
 
   const horaires = structure.horaires_json ? Object.entries(structure.horaires_json) : [];
   const services = structure.services ?? [];
+  // F3.4 (c) : si l'établissement est complet aujourd'hui, on propose automatiquement un RDV.
+  const estComplet = structure.statut_jour === 'complet';
 
   return (
     <Screen>
@@ -119,6 +121,23 @@ export default function FicheStructure() {
           </View>
         )}
       </Card>
+
+      {/* F3.4 (c) — Établissement complet : proposition automatique de rendez-vous */}
+      {estComplet && (
+        <Card style={styles.complet}>
+          <View style={styles.completHaut}>
+            <Ionicons name="alert-circle" size={20} color={colors.danger.solid} />
+            <Text style={styles.completTitre}>Complet aujourd'hui</Text>
+          </View>
+          <Text style={styles.completTxt}>
+            Cet établissement affiche complet. Prenez un rendez-vous pour être reçu sans attendre.
+          </Text>
+          <PrimaryButton
+            label="Prendre un rendez-vous"
+            onPress={() => allerVers('rendez-vous-nouveau', structure)}
+          />
+        </Card>
+      )}
 
       {/* Actions */}
       <View style={styles.actions}>
@@ -149,13 +168,15 @@ export default function FicheStructure() {
         />
       </View>
 
-      {/* Demande de rendez-vous (F3.6) */}
-      <View style={styles.rdvBtn}>
-        <PrimaryButton
-          label="Demander un rendez-vous"
-          onPress={() => allerVers('rendez-vous-nouveau', structure)}
-        />
-      </View>
+      {/* Demande de rendez-vous (F3.6) — masquée si complet : la bannière ci-dessus porte déjà le CTA. */}
+      {!estComplet && (
+        <View style={styles.rdvBtn}>
+          <PrimaryButton
+            label="Demander un rendez-vous"
+            onPress={() => allerVers('rendez-vous-nouveau', structure)}
+          />
+        </View>
+      )}
 
       {/* Coordonnées */}
       {structure.adresse && (
@@ -351,6 +372,10 @@ const styles = StyleSheet.create({
   },
   actionPresse: { backgroundColor: colors.blue[50] },
   actionTxt: { ...typography.caption, color: colors.blue[600], fontWeight: '700' },
+  complet: { marginBottom: spacing[4], gap: spacing[2], backgroundColor: colors.danger.bg, borderWidth: 1, borderColor: colors.danger.solid },
+  completHaut: { flexDirection: 'row', alignItems: 'center', gap: spacing[2] },
+  completTitre: { ...typography.bodyStrong, color: colors.danger.text },
+  completTxt: { ...typography.body, color: colors.danger.text },
   rdvBtn: { marginBottom: spacing[4] },
   avisEntete: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   lien: { ...typography.caption, color: colors.blue[600], fontWeight: '700' },
