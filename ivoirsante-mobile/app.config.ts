@@ -31,6 +31,8 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     supportsTablet: true,
   },
   android: {
+    // Identifiant unique de l'app Android (requis pour builder un APK/AAB via EAS).
+    package: 'com.mathew2konn.masante',
     adaptiveIcon: {
       foregroundImage: './assets/images/adaptive-icon.png',
       backgroundColor: '#FFFFFF',
