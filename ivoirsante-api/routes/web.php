@@ -1,9 +1,30 @@
 <?php
 
+use App\Http\Controllers\Portail\AuthController;
+use App\Http\Controllers\Portail\DashboardController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
     return view('welcome');
+});
+
+/*
+|--------------------------------------------------------------------------
+| Module 4 / 4.1 — Portail administratif (web, à sessions)
+|--------------------------------------------------------------------------
+| Auth navigateur email + mot de passe (guard `web`), RBAC spatie (3 rôles).
+| DISTINCT de l'API mobile stateless. Les fonctions métier arrivent en 4.2 → 4.6.
+*/
+Route::prefix('portail')->name('portail.')->group(function () {
+    // Connexion (invités). Anti-bruteforce via le limiteur `login` (AppServiceProvider).
+    Route::get('login', [AuthController::class, 'showLogin'])->name('login');
+    Route::post('login', [AuthController::class, 'login'])->name('login.attempt')->middleware('throttle:login');
+
+    // Espace authentifié.
+    Route::middleware('auth')->group(function () {
+        Route::get('/', [DashboardController::class, 'index'])->name('dashboard');
+        Route::post('logout', [AuthController::class, 'logout'])->name('logout');
+    });
 });
 
 // Page de démonstration/test du Module 1 (Triage), servie par le backend lui-même.

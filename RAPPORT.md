@@ -740,3 +740,33 @@ Réutilise le client axios unique, les composants DS et `react-native-qrcode-svg
 - **`mes-rendez-vous.tsx`** : action **« Reçu / paiement »** sur chaque RDV non annulé/refusé → navigue vers l'écran reçu.
 
 **Vérifs** : `tsc --noEmit` OK ; aucune dépendance ajoutée.
+
+---
+
+# Module 4 — Portail administratif (web Blade)
+
+Sources : **CdC §5.4** (portail web, workflow établissement→gestionnaire→agents, 3 rôles) ; **Sécurité §4**
+(RBAC via **`spatie/laravel-permission`**, 3 rôles, middleware) ; §3 (activation par lien, sessions). Nouvelle
+surface : **site web à sessions** (guard `web`), **distinct** de l'API mobile stateless (Sanctum). Découpage :
+4.1 socle · 4.2 établissements · 4.3 services+agents · 4.4 dispo+validation RDV · 4.5 scan QR · 4.6 modération.
+
+## 4.1 — Socle portail (backend + Blade, 2026-07-08)
+
+- **Dépendance** : `spatie/laravel-permission ^8.3` (composer, audit 0). Migration publiée + migrée. Trait
+  `HasRoles` sur `User`.
+- **Décision** : les comptes **staff** vivent dans la **même table `users`** (email+password, `telephone` NULL),
+  distingués par leur **rôle** ; les patients n'ont aucun rôle portail. Login portail = email+password (web),
+  login mobile = téléphone+OTP (Sanctum) — inchangé.
+- **`PortailRolesSeeder`** : 11 permissions + 3 rôles (guard `web`) — `admin_ivoirsante` (tout),
+  `gestionnaire_etablissement` (service/agent/stats/rdv/dispo), `agent_garde` (dispo/rdv/qr/triage). Idempotent.
+  Crée l'**admin de bootstrap** `admin@masante.ci` / `Admin@2026!` (sans lui, personne ne pourrait démarrer).
+- **Auth web** (`Portail\AuthController`) : `showLogin`/`login`/`logout` (sessions, `session()->regenerate()`).
+  **Cloisonnement** : un compte sans rôle portail est **refusé** même avec des identifiants valides. Anti-bruteforce
+  via le limiteur `login` (`throttle:login`).
+- **`bootstrap/app.php`** : alias middleware spatie (`role`/`permission`/`role_or_permission`) ; `redirectGuestsTo`
+  affiné → **API = 401 JSON** (inchangé), **web = redirection vers `/portail/login`**.
+- **Vues Blade** (Bootstrap 5 via CDN — pas de CSP qui bloque) : `layout` (navbar de marque, badge rôle, logout),
+  `auth/login`, `dashboard` (cartes **filtrées par permission** via `@can`, marquées « Bientôt » — écrans en 4.2→4.6).
+- **Routes** `/portail` (`login`, `login.attempt`, `dashboard`, `logout`).
+- **Tests `PortailAuthTest` (7)** : login page publique, invité redirigé, admin connecté, dashboard admin (cartes),
+  **compte sans rôle refusé**, mauvais mot de passe, déconnexion. **Suite : 115/115**, audit 0.

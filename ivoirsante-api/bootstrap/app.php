@@ -21,12 +21,19 @@ return Application::configure(basePath: dirname(__DIR__))
         // §7.1 — En-têtes de sécurité posés sur TOUTES les réponses (web + api).
         $middleware->append(\App\Http\Middleware\SecurityHeaders::class);
 
-        // API pure : aucune route web `login`. Un invité sur une route protégée ne doit JAMAIS
-        // déclencher une redirection vers `login` (RouteNotFoundException → 500) — cas rencontré
-        // quand un client omet `Accept: application/json` (ex. <Image> RN chargeant une photo avec
-        // un token expiré). On neutralise la redirection : combiné à `shouldRenderJsonWhen(api/*)`,
-        // l'invité reçoit un 401 JSON propre, jamais un 500.
-        $middleware->redirectGuestsTo(fn () => null);
+        // Middlewares RBAC du portail (Sécurité §4.2) — spatie/laravel-permission.
+        $middleware->alias([
+            'role'               => \Spatie\Permission\Middleware\RoleMiddleware::class,
+            'permission'         => \Spatie\Permission\Middleware\PermissionMiddleware::class,
+            'role_or_permission' => \Spatie\Permission\Middleware\RoleOrPermissionMiddleware::class,
+        ]);
+
+        // Invités : sur l'API (`api/*`) on NE redirige PAS (null) → combiné à `shouldRenderJsonWhen`,
+        // l'invité reçoit un 401 JSON propre (jamais un 500 `Route [login] not defined`). Sur le
+        // PORTAIL web, on redirige vers l'écran de connexion du portail (Module 4).
+        $middleware->redirectGuestsTo(
+            fn (Request $request) => $request->is('api/*') ? null : route('portail.login'),
+        );
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->shouldRenderJsonWhen(
