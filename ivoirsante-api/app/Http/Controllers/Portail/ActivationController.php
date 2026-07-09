@@ -7,6 +7,7 @@ use App\Models\ActivationPortail;
 use App\Rules\PasswordPolicy;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\View\View;
 
@@ -53,6 +54,17 @@ class ActivationController extends Controller
 
             $activation->update(['used_at' => now()]); // consommation → usage unique
         });
+
+        // L'activation peut être ouverte dans un navigateur où un AUTRE compte est déjà connecté
+        // (typiquement le gestionnaire qui vient de créer l'agent). Sans cela, `showLogin` verrait la
+        // session existante et redirigerait vers le dashboard de ce compte, jamais vers l'écran de
+        // connexion. On repart donc d'une session propre pour que le compte fraîchement activé se
+        // connecte lui-même.
+        if (Auth::check()) {
+            Auth::logout();
+            $request->session()->invalidate();
+            $request->session()->regenerateToken();
+        }
 
         return redirect()
             ->route('portail.login')

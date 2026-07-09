@@ -109,6 +109,25 @@ class EtablissementPortailTest extends TestCase
         $this->assertAuthenticated();
     }
 
+    public function test_activation_ferme_la_session_en_cours(): void
+    {
+        // L'admin crée l'établissement puis ouvre le lien d'activation SANS se déconnecter (même
+        // navigateur). Après activation, la session doit être vidée pour ne pas rester sur le compte
+        // en cours (sinon la page de connexion redirige vers son dashboard).
+        $this->actingAs($this->admin())->post('/portail/etablissements', $this->payload());
+
+        $gestionnaire = User::where('email', 'awa.kone@chu-cocody.ci')->first();
+        $token = $this->dernierTokenClair($gestionnaire);
+
+        $this->actingAs($this->admin())
+            ->post(route('portail.activation.attempt', ['token' => $token]), [
+                'password' => 'Gestion@2026!', 'password_confirmation' => 'Gestion@2026!',
+            ])
+            ->assertRedirect(route('portail.login'));
+
+        $this->assertGuest();
+    }
+
     public function test_un_jeton_deja_utilise_est_refuse(): void
     {
         $this->actingAs($this->admin())->post('/portail/etablissements', $this->payload());
