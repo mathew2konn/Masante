@@ -88,4 +88,24 @@ class User extends Authenticatable
     {
         return $this->belongsTo(ServiceEtablissement::class, 'service_id');
     }
+
+    /**
+     * Périmètre d'action « dispo & RDV » (Module 4.4) : identifiants des services que ce compte peut
+     * gérer. AGENT = son seul service (accès limité à son service, §5.4.2) ; GESTIONNAIRE = tous les
+     * services de son établissement (superviseur) ; autres (admin/patient) = aucun.
+     *
+     * @return array<int, int>
+     */
+    public function servicesGeresIds(): array
+    {
+        if ($this->service_id !== null) {
+            return [$this->service_id];
+        }
+
+        if ($this->structure_id !== null && $this->hasRole('gestionnaire_etablissement')) {
+            return ServiceEtablissement::where('structure_id', $this->structure_id)->pluck('id')->all();
+        }
+
+        return [];
+    }
 }

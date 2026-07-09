@@ -828,3 +828,30 @@ strict** : toute action est bornée à `structure_id` = l'établissement du gest
   **édition d'un service tiers = 404**, **admin sans établissement = 403**, création d'agent **sans mot de passe**
   (avec lien, rôle et service), **affectation à un service tiers rejetée**, **agent ne gère ni services ni agents**,
   désactivation service. **Suite : 130/130**, audit 0.
+- **Correctif** : à l'activation d'un compte, la session en cours est fermée (sinon, lien ouvert dans le
+  navigateur du gestionnaire → `showLogin` redirigeait vers SON dashboard au lieu de l'écran de connexion).
+
+## 4.4 — Disponibilité + validation des RDV (backend + Blade, 2026-07-09)
+
+Usage quotidien du portail (CdC §5.4.1 étape 6, §5.4.2 ; F3.3 dispo, F3.6 RDV). **Conflit de documents
+tranché avec le porteur** : le seeder 4.1 donne `disponibilite.manage` + `rdv.validate` au gestionnaire, là
+où le CdC §5.4.2 les réserve à l'agent → décision **agent + gestionnaire** (gestionnaire = superviseur).
+Périmètre unifié `User::servicesGeresIds()` : **agent = son seul service**, **gestionnaire = tous les services
+de son établissement**.
+
+- **`DisponibiliteController`** (`permission:disponibilite.manage`) : `index` (sélecteur de date, table des
+  services du périmètre + statut du jour), `edit`/`update` = **upsert** `updateOrCreate(service_id+date)` (ligne
+  unique par jour), `updated_by_agent_id` = auteur. Statuts `disponible / disponible_apres_14h / complet / ferme` ;
+  date bornée à aujourd'hui minimum. `serviceEnPerimetre()` → 404 sur accès hors périmètre.
+- **`RendezVousController`** (portail, `permission:rdv.validate`) : `index` (filtre par statut, onglets),
+  `show` (détail + fiche de triage jointe si présente), `confirmer` (date/heure définitive `after_or_equal:today`,
+  **assignation médecin optionnelle validée comme appartenant au service du RDV**, message), `refuser` (**motif
+  obligatoire**). `assertTraitable()` → **409** si le RDV n'est plus `en_attente` ; `rdvEnPerimetre()` → 404 hors
+  périmètre. Réutilise les statuts existants du cycle patient (Module 3), sans les altérer.
+- **Vues Blade** : `disponibilites/{index,edit}`, `rdv/{index,show}` ; cartes **« Disponibilité »/« Rendez-vous »**
+  du dashboard activées (masquées pour l'admin).
+- **Routes** `/portail/disponibilites` (`disponibilite.manage`) et `/portail/rendez-vous` (`rdv.validate`).
+- **Tests `DispoRdvPortailTest` (8)** : agent met à jour SA dispo (upsert), **dispo d'un autre service = 404**,
+  gestionnaire voit **tous** ses services, agent **confirme** un RDV, **refus sans motif rejeté**, **RDV d'un
+  autre service = 404**, **reconfirmation d'un RDV traité = 409**, **médecin d'un autre service rejeté**.
+  **Suite : 139/139**, audit 0.

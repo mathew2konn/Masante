@@ -4,7 +4,9 @@ use App\Http\Controllers\Portail\ActivationController;
 use App\Http\Controllers\Portail\AgentController;
 use App\Http\Controllers\Portail\AuthController;
 use App\Http\Controllers\Portail\DashboardController;
+use App\Http\Controllers\Portail\DisponibiliteController;
 use App\Http\Controllers\Portail\EtablissementController;
+use App\Http\Controllers\Portail\RendezVousController;
 use App\Http\Controllers\Portail\ServiceController;
 use Illuminate\Support\Facades\Route;
 
@@ -64,6 +66,21 @@ Route::prefix('portail')->name('portail.')->group(function () {
             Route::put('agents/{agent}', [AgentController::class, 'update'])->name('agents.update');
             Route::patch('agents/{agent}/actif', [AgentController::class, 'toggleActif'])->name('agents.toggle');
             Route::post('agents/{agent}/lien', [AgentController::class, 'regenererLien'])->name('agents.lien');
+        });
+
+        // 4.4 — Disponibilité des services (AGENT / GESTIONNAIRE, permission disponibilite.manage, cloisonné).
+        Route::middleware('permission:disponibilite.manage')->group(function () {
+            Route::get('disponibilites', [DisponibiliteController::class, 'index'])->name('disponibilites.index');
+            Route::get('disponibilites/{service}/editer', [DisponibiliteController::class, 'edit'])->name('disponibilites.edit');
+            Route::put('disponibilites/{service}', [DisponibiliteController::class, 'update'])->name('disponibilites.update');
+        });
+
+        // 4.4 — Validation des rendez-vous (AGENT / GESTIONNAIRE, permission rdv.validate, cloisonné).
+        Route::middleware('permission:rdv.validate')->group(function () {
+            Route::get('rendez-vous', [RendezVousController::class, 'index'])->name('rdv.index');
+            Route::get('rendez-vous/{rdv}', [RendezVousController::class, 'show'])->name('rdv.show');
+            Route::patch('rendez-vous/{rdv}/confirmer', [RendezVousController::class, 'confirmer'])->name('rdv.confirmer');
+            Route::patch('rendez-vous/{rdv}/refuser', [RendezVousController::class, 'refuser'])->name('rdv.refuser');
         });
     });
 });
