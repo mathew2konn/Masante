@@ -43,8 +43,11 @@ class AuthController extends Controller
                 ->withErrors(['email' => 'Identifiants incorrects.']);
         }
 
-        // Cloisonnement : seul un compte STAFF (avec rôle portail) peut entrer.
-        if (! $request->user()->hasAnyRole(self::ROLES_PORTAIL)) {
+        // Cloisonnement : seul un compte STAFF (avec rôle portail) ET actif peut entrer. Un compte
+        // sans rôle (patient) ou désactivé (établissement suspendu / compte révoqué) est refusé même
+        // avec des identifiants valides. Message volontairement identique pour ne pas révéler la cause.
+        $utilisateur = $request->user();
+        if (! $utilisateur->hasAnyRole(self::ROLES_PORTAIL) || ! $utilisateur->actif) {
             Auth::logout();
             $request->session()->invalidate();
             $request->session()->regenerateToken();

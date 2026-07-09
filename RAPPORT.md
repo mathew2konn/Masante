@@ -770,3 +770,33 @@ surface : **site web à sessions** (guard `web`), **distinct** de l'API mobile s
 - **Routes** `/portail` (`login`, `login.attempt`, `dashboard`, `logout`).
 - **Tests `PortailAuthTest` (7)** : login page publique, invité redirigé, admin connecté, dashboard admin (cartes),
   **compte sans rôle refusé**, mauvais mot de passe, déconnexion. **Suite : 115/115**, audit 0.
+
+## 4.2 — Établissements + gestionnaire (backend + Blade, 2026-07-08)
+
+Workflow **CdC §5.4.1** (établissement → gestionnaire) et **§5.4.2** (droits par profil). Réservé à l'**admin
+IVOIRSANTÉ** (`permission:etablissement.manage`). Point de sécurité clé du CdC : « **le mot de passe temporaire
+n'existe pas** » → le compte gestionnaire naît **sans mot de passe** et l'active lui-même via un **lien à usage
+unique (24h)**.
+
+- **DB** : `users.structure_id` (FK nullable → cloisonnement staff↔établissement, NULL pour patients/admin) +
+  `users.actif` ; `structures_sanitaires.actif` (désactivation, cf. infra) ; table **`activations_portail`**
+  (seul le **hash** du jeton est stocké, `expires_at`, `used_at` = usage unique) ; **`users.password` rendu
+  nullable** (compte inactivable tant que non activé — `Auth::attempt` reste faux sur un hash nul).
+- **`EtablissementController`** : `index` (recherche nom/commune + filtre type, pagination, statut activation du
+  gestionnaire), `create`/`store` (crée l'établissement **et** son gestionnaire en transaction + émet le lien),
+  `edit`/`update` (champs établissement), `toggleActif`, `regenererLien` (si compte non encore activé).
+  Spécialités saisies en texte « ORL, Cardiologie » → tableau JSON. Les tarifs valident `max ≥ min`.
+- **Décision — désactiver plutôt que supprimer** : la structure est référencée par RDV/avis/services
+  (intégrité + historique médical). `actif=false` la retire de l'annuaire public et **suspend en cascade ses
+  comptes staff** (`users.actif`). Réversible. Écart assumé vs. « supprimer » du §5.4.2, signalé.
+- **`ActivationController`** (PUBLIC, le titulaire n'a pas de mot de passe) : `show`/`activate`, mot de passe
+  soumis à la **politique unique** du projet (`PasswordPolicy`), consommation du jeton en transaction (usage
+  unique + expiration). `AuthController` durci : un compte **désactivé** est refusé au login.
+- **Vues Blade** : `etablissements/{index,create,edit,_form}`, `activation/set-password` ; lien d'activation
+  affiché dans le `layout` (dev sans passerelle mail — simulé comme l'OTP) ; carte « Établissements » du
+  dashboard désormais **cliquable**.
+- **Routes** `/portail/etablissements` (CRUD + `actif` + `lien`) sous `permission:etablissement.manage` ;
+  `/portail/activation/{token}` (public, `throttle:login`).
+- **Tests `EtablissementPortailTest` (7)** : liste admin, **gestionnaire interdit (403)**, création établissement +
+  gestionnaire **sans mot de passe** + lien, **activation → connexion**, **rejeu de jeton refusé**, désactivation
+  **suspend le gestionnaire**, **compte désactivé refusé au login**. **Suite : 122/122**, audit 0.

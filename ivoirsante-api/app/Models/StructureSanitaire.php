@@ -31,6 +31,7 @@ class StructureSanitaire extends Model
         'note_moyenne',
         'nb_avis',
         'partenaire_ivoirsante',
+        'actif',
     ];
 
     protected function casts(): array
@@ -42,6 +43,7 @@ class StructureSanitaire extends Model
             'specialites_json' => 'array',
             'note_moyenne' => 'float',
             'partenaire_ivoirsante' => 'boolean',
+            'actif' => 'boolean',
         ];
     }
 
@@ -49,6 +51,12 @@ class StructureSanitaire extends Model
     public function services(): HasMany
     {
         return $this->hasMany(ServiceEtablissement::class, 'structure_id');
+    }
+
+    /** Comptes staff (gestionnaire + agents) rattachés à cet établissement (4.2/4.3). */
+    public function staff(): HasMany
+    {
+        return $this->hasMany(User::class, 'structure_id');
     }
 
     /** Disponibilités quotidiennes, à travers les services. */

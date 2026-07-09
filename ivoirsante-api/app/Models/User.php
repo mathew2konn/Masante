@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
@@ -33,6 +34,8 @@ class User extends Authenticatable
         'commune',
         'contact_urgence_nom',
         'contact_urgence_tel',
+        'structure_id',
+        'actif',
     ];
 
     protected $hidden = [
@@ -48,6 +51,7 @@ class User extends Authenticatable
             'compte_verifie_at' => 'datetime',
             'date_naissance' => 'date',
             'password' => 'hashed',
+            'actif' => 'boolean',
         ];
     }
 
@@ -70,5 +74,11 @@ class User extends Authenticatable
     public function membresFamille(): HasMany
     {
         return $this->hasMany(MembreFamille::class);
+    }
+
+    /** Établissement de rattachement d'un compte STAFF (gestionnaire/agent). NULL pour patients/admin (4.2). */
+    public function structure(): BelongsTo
+    {
+        return $this->belongsTo(StructureSanitaire::class, 'structure_id');
     }
 }

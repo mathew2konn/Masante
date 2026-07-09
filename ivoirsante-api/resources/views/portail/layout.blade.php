@@ -48,6 +48,22 @@
     </div>
   @endif
 
+  {{-- Lien d'activation d'un compte staff (dev : pas de passerelle mail → affiché à l'écran, §5.4.1). --}}
+  @if (session('lien_activation'))
+    <div class="alert alert-info alert-dismissible fade show" role="alert">
+      <strong><i class="bi bi-link-45deg"></i> Lien d'activation (valable 24h, usage unique)</strong>
+      <p class="small mb-2">À transmettre au titulaire du compte. En production, ce lien serait envoyé par e-mail.</p>
+      <div class="input-group input-group-sm">
+        <input type="text" class="form-control font-monospace" id="lien-activation" value="{{ session('lien_activation') }}" readonly>
+        <button class="btn btn-outline-secondary" type="button"
+                onclick="navigator.clipboard.writeText(document.getElementById('lien-activation').value)">
+          <i class="bi bi-clipboard"></i> Copier
+        </button>
+      </div>
+      <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+  @endif
+
   @yield('content')
 </main>
 
