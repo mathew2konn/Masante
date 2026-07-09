@@ -9,7 +9,6 @@ use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Str;
 use Illuminate\View\View;
 
 /**
@@ -187,21 +186,9 @@ class EtablissementController extends Controller
         return $valide;
     }
 
-    /**
-     * Émet un jeton d'activation à usage unique (24h) pour un compte staff et renvoie l'URL en clair.
-     * Seul le HASH est stocké. Tout jeton antérieur non consommé est invalidé (marqué utilisé).
-     */
+    /** Émet un jeton d'activation (usage unique, 24h) pour un compte staff et renvoie l'URL du lien. */
     private function emettreLienActivation(User $user): string
     {
-        ActivationPortail::where('user_id', $user->id)->whereNull('used_at')->update(['used_at' => now()]);
-
-        $token = Str::random(64);
-        ActivationPortail::create([
-            'user_id'    => $user->id,
-            'token_hash' => hash('sha256', $token),
-            'expires_at' => now()->addHours(24),
-        ]);
-
-        return route('portail.activation.show', ['token' => $token]);
+        return route('portail.activation.show', ['token' => ActivationPortail::genererPour($user)]);
     }
 }
