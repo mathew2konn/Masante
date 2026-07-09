@@ -43,4 +43,10 @@ class ServiceEtablissement extends Model
     {
         return $this->hasMany(Medecin::class, 'service_id');
     }
+
+    /** Agents de garde affectés à ce service (4.3). */
+    public function agents(): HasMany
+    {
+        return $this->hasMany(User::class, 'service_id');
+    }
 }

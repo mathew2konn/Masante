@@ -13,13 +13,16 @@
 @php
   // Cartes des fonctions du portail. Chaque carte n'apparaît que si le rôle a la permission.
   // `route` = écran livré (carte cliquable) ; absent = écran à venir (badge « Bientôt »).
+  // `structure` = carte réservée aux comptes rattachés à un établissement (gestionnaire/agent) :
+  // l'admin possède toutes les permissions mais n'a pas d'établissement → on masque « Mes … ».
+  $rattacheEtab = $utilisateur->structure_id !== null;
   $cartes = [
     ['perm' => 'etablissement.manage', 'icone' => 'bi-hospital',        'titre' => 'Établissements',  'desc' => 'Créer et gérer les établissements partenaires.', 'route' => 'portail.etablissements.index'],
     ['perm' => 'compte.manage',        'icone' => 'bi-people',           'titre' => 'Comptes',         'desc' => 'Gérer tous les comptes du portail.'],
     ['perm' => 'moderation.manage',    'icone' => 'bi-shield-check',      'titre' => 'Modération',      'desc' => 'Modérer les avis et signalements.'],
     ['perm' => 'stats.global',         'icone' => 'bi-graph-up',          'titre' => 'Statistiques',    'desc' => 'Vue globale de la plateforme.'],
-    ['perm' => 'service.manage',       'icone' => 'bi-clipboard2-pulse',  'titre' => 'Mes services',    'desc' => 'Gérer les services de votre établissement.'],
-    ['perm' => 'agent.manage',         'icone' => 'bi-person-badge',      'titre' => 'Mes agents',      'desc' => 'Créer et gérer les agents de garde.'],
+    ['perm' => 'service.manage',       'icone' => 'bi-clipboard2-pulse',  'titre' => 'Mes services',    'desc' => 'Gérer les services de votre établissement.', 'route' => 'portail.services.index', 'structure' => true],
+    ['perm' => 'agent.manage',         'icone' => 'bi-person-badge',      'titre' => 'Mes agents',      'desc' => 'Créer et gérer les agents de garde.', 'route' => 'portail.agents.index', 'structure' => true],
     ['perm' => 'disponibilite.manage', 'icone' => 'bi-toggles',          'titre' => 'Disponibilité',   'desc' => 'Mettre à jour la disponibilité de votre service.'],
     ['perm' => 'rdv.validate',         'icone' => 'bi-calendar-check',    'titre' => 'Rendez-vous',     'desc' => 'Valider ou refuser les demandes de RDV.'],
     ['perm' => 'qr.scan',              'icone' => 'bi-qr-code-scan',      'titre' => 'Scan QR',         'desc' => 'Scanner le QR patient (carnet / RDV).'],
@@ -28,6 +31,7 @@
 
 <div class="row g-3">
   @foreach ($cartes as $c)
+    @continue(($c['structure'] ?? false) && ! $rattacheEtab)
     @can($c['perm'])
       @php($lien = isset($c['route']) ? route($c['route']) : null)
       <div class="col-sm-6 col-lg-4">

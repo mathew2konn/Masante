@@ -35,6 +35,7 @@ class User extends Authenticatable
         'contact_urgence_nom',
         'contact_urgence_tel',
         'structure_id',
+        'service_id',
         'actif',
     ];
 
@@ -80,5 +81,11 @@ class User extends Authenticatable
     public function structure(): BelongsTo
     {
         return $this->belongsTo(StructureSanitaire::class, 'structure_id');
+    }
+
+    /** Service d'affectation d'un AGENT de garde (accès limité à son service, §5.4.2). NULL sinon (4.3). */
+    public function service(): BelongsTo
+    {
+        return $this->belongsTo(ServiceEtablissement::class, 'service_id');
     }
 }

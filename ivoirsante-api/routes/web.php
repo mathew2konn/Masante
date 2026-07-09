@@ -1,9 +1,11 @@
 <?php
 
 use App\Http\Controllers\Portail\ActivationController;
+use App\Http\Controllers\Portail\AgentController;
 use App\Http\Controllers\Portail\AuthController;
 use App\Http\Controllers\Portail\DashboardController;
 use App\Http\Controllers\Portail\EtablissementController;
+use App\Http\Controllers\Portail\ServiceController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
@@ -41,6 +43,27 @@ Route::prefix('portail')->name('portail.')->group(function () {
             Route::put('etablissements/{etablissement}', [EtablissementController::class, 'update'])->name('etablissements.update');
             Route::patch('etablissements/{etablissement}/actif', [EtablissementController::class, 'toggleActif'])->name('etablissements.toggle');
             Route::post('etablissements/{etablissement}/lien', [EtablissementController::class, 'regenererLien'])->name('etablissements.lien');
+        });
+
+        // 4.3 — Services de MON établissement (GESTIONNAIRE, permission service.manage, cloisonné).
+        Route::middleware('permission:service.manage')->group(function () {
+            Route::get('services', [ServiceController::class, 'index'])->name('services.index');
+            Route::get('services/creer', [ServiceController::class, 'create'])->name('services.create');
+            Route::post('services', [ServiceController::class, 'store'])->name('services.store');
+            Route::get('services/{service}/editer', [ServiceController::class, 'edit'])->name('services.edit');
+            Route::put('services/{service}', [ServiceController::class, 'update'])->name('services.update');
+            Route::patch('services/{service}/actif', [ServiceController::class, 'toggleActif'])->name('services.toggle');
+        });
+
+        // 4.3 — Agents de garde de MON établissement (GESTIONNAIRE, permission agent.manage, cloisonné).
+        Route::middleware('permission:agent.manage')->group(function () {
+            Route::get('agents', [AgentController::class, 'index'])->name('agents.index');
+            Route::get('agents/creer', [AgentController::class, 'create'])->name('agents.create');
+            Route::post('agents', [AgentController::class, 'store'])->name('agents.store');
+            Route::get('agents/{agent}/editer', [AgentController::class, 'edit'])->name('agents.edit');
+            Route::put('agents/{agent}', [AgentController::class, 'update'])->name('agents.update');
+            Route::patch('agents/{agent}/actif', [AgentController::class, 'toggleActif'])->name('agents.toggle');
+            Route::post('agents/{agent}/lien', [AgentController::class, 'regenererLien'])->name('agents.lien');
         });
     });
 });

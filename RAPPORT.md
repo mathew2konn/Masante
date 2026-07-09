@@ -800,3 +800,31 @@ unique (24h)**.
 - **Tests `EtablissementPortailTest` (7)** : liste admin, **gestionnaire interdit (403)**, création établissement +
   gestionnaire **sans mot de passe** + lien, **activation → connexion**, **rejeu de jeton refusé**, désactivation
   **suspend le gestionnaire**, **compte désactivé refusé au login**. **Suite : 122/122**, audit 0.
+- **Outil DEV** `php artisan portail:gestionnaires-demo [--base=URL]` : rattache un gestionnaire à chaque
+  établissement et affiche les liens d'activation (test du flux sans passerelle mail). Génération du jeton
+  extraite dans `ActivationPortail::genererPour()` (source unique contrôleur + commande).
+
+## 4.3 — Services + agents de garde (backend + Blade, 2026-07-09)
+
+Le **gestionnaire** configure SES services et crée SES agents (CdC §5.4.1 étapes 4-5, §5.4.2). **Cloisonnement
+strict** : toute action est bornée à `structure_id` = l'établissement du gestionnaire connecté ; l'admin (sans
+établissement) est refusé sur ces écrans (403). L'agent est affecté à **un service** (décision retenue :
+`users.service_id`, conforme à « accès limité à son service »).
+
+- **DB** : `users.service_id` (FK nullable → `services_etablissement`, `nullOnDelete`) — renseigné pour les
+  **agents** seulement (NULL pour patients/admin/gestionnaire).
+- **`ServiceController`** (`permission:service.manage`) : CRUD des services de MON établissement + `toggleActif`.
+  `structureId()` (403 si compte non rattaché) et `servicePossede()` (404 sur accès croisé). Le code `specialite`
+  est validé `^[a-z_]+$` (cohérence matching triage F1.5) ; datalist des spécialités déjà en base.
+- **`AgentController`** (`permission:agent.manage`) : liste/création/édition/`toggleActif`/`regenererLien`. Création
+  d'agent = **même flux que le gestionnaire** (compte sans mot de passe + lien d'activation à usage unique via
+  `ActivationPortail::genererPour`). Le `service_id` choisi est **validé comme appartenant à MON établissement**
+  (`Rule::exists(...)->where('structure_id', …)`). Un agent ne peut pas gérer services/agents (pas la permission).
+- **Vues Blade** : `services/{index,create,edit,_form}`, `agents/{index,create,edit,_form}` ; garde-fou « créez
+  d'abord un service » avant d'ajouter un agent ; cartes **« Mes services »/« Mes agents »** du dashboard
+  activées et **masquées pour l'admin** (compte sans établissement).
+- **Routes** `/portail/services` (`service.manage`) et `/portail/agents` (`agent.manage`), sous `auth`.
+- **Tests `ServiceAgentPortailTest` (8)** : gestionnaire ne voit **que** ses services, création scoped,
+  **édition d'un service tiers = 404**, **admin sans établissement = 403**, création d'agent **sans mot de passe**
+  (avec lien, rôle et service), **affectation à un service tiers rejetée**, **agent ne gère ni services ni agents**,
+  désactivation service. **Suite : 130/130**, audit 0.
