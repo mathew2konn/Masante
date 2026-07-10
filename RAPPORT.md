@@ -1040,3 +1040,51 @@ retenus, des **agrégats d'activité**, cloisonnés par permission.
   globales**, **stats du gestionnaire cloisonnées** (3 RDV chez lui, 5 ignorés chez le voisin ; taux 67 %),
   **taux à 0 % sans division par zéro**, **admin 403 sur les stats d'établissement**, **note moyenne globale
   ignorant les avis masqués**. **Suite : 165/165**, audit 0.
+
+---
+
+# Module 5 — Santé publique & urgences
+
+Périmètre validé : **FN1 → FN8 + bris de glace** (voie 4). Découpage en 8 sous-étapes :
+5.1 carte vitale (FN2) · 5.2 SOS (FN1) · 5.3 bris de glace · 5.4 alertes épidémiques (FN3) ·
+5.5 suivi grossesse (FN4) · 5.6 maladies chroniques (FN5) · 5.7 don de sang (FN6) ·
+5.8 comparateur de prix + ruptures (FN7/FN8).
+
+**Conflits de documents tranchés d'emblée**, avant tout code :
+
+1. **SAMU : le CdC écrit « (15) »** — c'est le numéro français. En Côte d'Ivoire, le SAMU est le **185**
+   (numéro vert), déjà appliqué par `TriageService` depuis le Module 1. On maintient **185**.
+2. **FN2 « affichage depuis l'écran verrouillé du téléphone »** — c'est une fonction du système
+   d'exploitation (Medical ID iOS, Informations d'urgence Android), hors de portée d'une application Expo,
+   et en tension avec le verrou applicatif B2. **Décision** : la carte vitale s'ouvre depuis l'écran de
+   connexion, **sans compte ni PIN**, depuis un cache chiffré local. Le verrou continue de protéger le
+   dossier complet. Écart assumé et documenté.
+3. **FN1 « fonctionne offline via SMS »** — le projet n'a aucune passerelle SMS (l'OTP est simulé). Mais le
+   téléphone en a une. **Décision** : liens natifs `tel:` et `sms:` pré-remplis — c'est l'appareil qui émet,
+   pas notre serveur. Fonctionne sans données mobiles, ce qui est précisément le cas visé.
+4. **FN5 « partage automatique avec le médecin référent »** — la voie « référent » figure dans l'enum
+   `type_acces` mais n'a jamais été implémentée. À traiter en 5.6, ou à documenter comme différée.
+
+## 5.1 — Fiche vitale d'urgence · Étape A backend (2026-07-10)
+
+**`FicheVitaleService` est la source unique du « sous-ensemble vital minimal »**, partagée par les trois
+usages qui doivent voir exactement le même périmètre : la carte vitale du secouriste (5.1), le corps du SMS
+d'urgence (5.2) et le bris de glace du service d'urgences (5.3). Un seul endroit à auditer.
+
+**Le périmètre se dérive du carnet existant**, sans nouvelle table : les allergies et les maladies chroniques
+sont déjà des **types d'antécédents** (`allergie`, `maladie_chronique`), et les vaccinations portent un drapeau
+`obligatoire`. Inclus (Note_Continuite §5.2) : identité, âge, sexe, groupe sanguin, allergies, maladies
+chroniques **avec le traitement en cours** (interactions médicamenteuses), vaccinations obligatoires
+effectivement faites, contacts d'urgence. Exclus : consultations, documents importés, notes libres, autres
+membres — et jamais le **matricule** ni le **numéro CMU** : une fiche vitale sert à soigner, pas à identifier.
+
+Cette sévérité n'est pas décorative : **ces données seront lues sans authentification** par qui tient le
+téléphone. Tout champ ajouté au service est un champ exposé au premier venu qui ramasse un appareil.
+
+- **`FicheVitaleService::pour()`** (fiche complète) et **`::resume()`** (une ligne, pour le SMS de 5.2).
+- **`FicheVitaleController::show()`** + `GET /api/v1/membres/{membre}/fiche-vitale` (auth, Policy `view`).
+  L'endpoint reste protégé : seul le titulaire (ou un délégué actif) **constitue** le cache local. Pas de
+  `no-store` — contrairement à la photo ou à la carte CMU, cette fiche est **faite** pour être conservée.
+- **Tests `FicheVitaleTest` (5)** : contenu vital exact ; **exclusion** vérifiée d'un antécédent chirurgical,
+  d'un vaccin facultatif, d'un vaccin non fait et d'une note médicale ; **403 sur le membre d'autrui** ;
+  résumé SMS d'une seule ligne ; membre au carnet vide → fiche vide sans erreur. **Suite : 170/170**, audit 0.

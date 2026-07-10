@@ -12,6 +12,7 @@ use App\Http\Controllers\Api\V1\Carnet\ResultatAnalyseController;
 use App\Http\Controllers\Api\V1\Carnet\VaccinationController;
 use App\Http\Controllers\Api\V1\CarteCmuController;
 use App\Http\Controllers\Api\V1\DelegationController;
+use App\Http\Controllers\Api\V1\FicheVitaleController;
 use App\Http\Controllers\Api\V1\MembreController;
 use App\Http\Controllers\Api\V1\PasswordController;
 use App\Http\Controllers\Api\V1\PhotoMembreController;
@@ -115,6 +116,10 @@ Route::middleware('throttle:api')->group(function () {
             // F2.3 — Carte CMU numérique (couche de présentation) : n° masqué + code signé,
             // gated par le palier « vérifié » (stub dev). N'ouvre PAS le dossier (distinct du QR).
             Route::get('membres/{membre}/carte-cmu', [CarteCmuController::class, 'show']);
+
+            // Module 5 / FN2 — Fiche vitale d'urgence : sous-ensemble vital minimal du membre,
+            // destiné à être mis en cache chiffré sur le téléphone puis affiché hors connexion.
+            Route::get('membres/{membre}/fiche-vitale', [FicheVitaleController::class, 'show']);
 
             // Profil — Photo de profil : upload/lecture/suppression. Chiffrée au repos, disque privé,
             // servie uniquement déchiffrée par le contrôleur (jamais d'URL publique).
