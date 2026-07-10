@@ -999,3 +999,44 @@ l'historique. Le bouton « Publier » du portail n'avait donc aucun effet observ
   un bloc « aucun signalement » laisserait croire à un problème latent.
 - **Anonymat vérifiable de bout en bout** : ni auteur, ni motif, ni modérateur ne transitent — le contrôleur
   d'API sélectionne explicitement les quatre colonnes. `tsc` OK, aucune dépendance ajoutée.
+
+## 4.7 — Comptes du portail (backend + Blade, 2026-07-10)
+
+CdC §5.4.2, « gérer tous les comptes ». **Périmètre volontairement restreint au STAFF** : admin, gestionnaires
+et agents. Les comptes **patients n'y figurent pas** — ils portent des carnets de santé, et donner prise dessus
+à l'administration contredirait la règle des trois voies d'accès au dossier (Sécurité §4.4), où la voie « admin »
+reste exceptionnelle et auditée. Le portail n'est pas un annuaire des patients.
+
+- **`CompteController`** (`permission:compte.manage`, admin) : `index` (filtres rôle / établissement /
+  recherche nom-prénom-email, pagination), `toggleActif`, `regenererLien`. La **création** reste là où elle a du
+  sens : un gestionnaire se crée depuis Établissements (4.2), un agent depuis son établissement (4.3).
+- **Deux garde-fous** : l'admin ne peut pas **se** désactiver (il se verrouillerait dehors), et le **dernier
+  admin actif** ne peut pas être suspendu — sinon plus personne ne pourrait administrer la plateforme, pas même
+  pour le réactiver. `staff()` → **404** si la cible est un compte patient (aucun rôle).
+- **États affichés** : Actif · Suspendu · **En attente d'activation** (compte créé, `password` encore nul :
+  le lien d'activation à usage unique n'a jamais été consommé). Le lien est régénérable depuis cet écran.
+
+## 4.8 — Statistiques (backend + Blade, 2026-07-10)
+
+CdC §5.4.2 et §5.4.1 (« consulte les statistiques de rendez-vous et d'avis »). Le CdC n'énumère aucun indicateur :
+retenus, des **agrégats d'activité**, cloisonnés par permission.
+
+- **`StatistiqueController::global()`** (`stats.global`, admin) : établissements actifs / total, comptes par rôle,
+  RDV par statut, triages par niveau, avis publiés + note moyenne, file de modération, scans QR du mois.
+- **`StatistiqueController::etablissement()`** (`stats.etablissement`, gestionnaire, **cloisonné `structure_id`**,
+  403 si non rattaché — ce qui exclut l'admin) : ses RDV par statut, **taux de confirmation**, services ouverts,
+  note moyenne et signalements publiés sur sa fiche. Le taux ne porte que sur les demandes **tranchées**
+  (confirmées + refusées) : les demandes en attente n'y entrent pas, et le dénominateur nul renvoie 0 %.
+- **Minimisation (loi n°2013-450)** : les triages portent des données de santé. On en compte la **répartition
+  par niveau de gravité** ; aucun triage individuel n'est consultable, aucun indicateur n'est rattachable à un
+  patient. « 22 triages urgents ce mois-ci » n'est pas une fuite ; une liste nominative en serait une.
+- **Graphiques** : Chart.js par CDN (comme Bootstrap et html5-qrcode). Données injectées via `@json` — JSON
+  échappé par Blade, jamais d'interpolation de chaîne dans le `<script>` (Sécurité §A03).
+- **Dashboard** : les cartes « Comptes » et « Statistiques » sont activées, et une carte **« Mes statistiques »**
+  sert enfin la permission `stats.etablissement`, en sommeil depuis 4.1. Plus aucune carte « Bientôt ».
+- **Tests `ComptesStatsPortailTest` (10)** : **patients absents de la liste** et **404 si on tente de les
+  suspendre**, **auto-désactivation refusée**, **dernier admin protégé** (en tenant compte de l'admin de
+  bootstrap du seeder), lien d'activation régénéré, **gestionnaire 403 sur les comptes et sur les stats
+  globales**, **stats du gestionnaire cloisonnées** (3 RDV chez lui, 5 ignorés chez le voisin ; taux 67 %),
+  **taux à 0 % sans division par zéro**, **admin 403 sur les stats d'établissement**, **note moyenne globale
+  ignorant les avis masqués**. **Suite : 165/165**, audit 0.

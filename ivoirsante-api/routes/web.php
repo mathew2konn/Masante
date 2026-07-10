@@ -3,6 +3,7 @@
 use App\Http\Controllers\Portail\ActivationController;
 use App\Http\Controllers\Portail\AgentController;
 use App\Http\Controllers\Portail\AuthController;
+use App\Http\Controllers\Portail\CompteController;
 use App\Http\Controllers\Portail\DashboardController;
 use App\Http\Controllers\Portail\DisponibiliteController;
 use App\Http\Controllers\Portail\DossierController;
@@ -11,6 +12,7 @@ use App\Http\Controllers\Portail\ModerationController;
 use App\Http\Controllers\Portail\RendezVousController;
 use App\Http\Controllers\Portail\ScanController;
 use App\Http\Controllers\Portail\ServiceController;
+use App\Http\Controllers\Portail\StatistiqueController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
@@ -49,6 +51,19 @@ Route::prefix('portail')->name('portail.')->group(function () {
             Route::patch('etablissements/{etablissement}/actif', [EtablissementController::class, 'toggleActif'])->name('etablissements.toggle');
             Route::post('etablissements/{etablissement}/lien', [EtablissementController::class, 'regenererLien'])->name('etablissements.lien');
         });
+
+        // 4.7 — Comptes du portail (ADMIN). Staff seulement : les comptes patients n'y figurent pas.
+        Route::middleware('permission:compte.manage')->group(function () {
+            Route::get('comptes', [CompteController::class, 'index'])->name('comptes.index');
+            Route::patch('comptes/{compte}/actif', [CompteController::class, 'toggleActif'])->name('comptes.toggle');
+            Route::post('comptes/{compte}/lien', [CompteController::class, 'regenererLien'])->name('comptes.lien');
+        });
+
+        // 4.8 — Statistiques : globales (ADMIN) et par établissement (GESTIONNAIRE, cloisonné).
+        Route::get('statistiques', [StatistiqueController::class, 'global'])
+            ->middleware('permission:stats.global')->name('statistiques.global');
+        Route::get('statistiques/mon-etablissement', [StatistiqueController::class, 'etablissement'])
+            ->middleware('permission:stats.etablissement')->name('statistiques.etablissement');
 
         // 4.6 — Modération des avis et signalements (ADMIN IVOIRSANTÉ uniquement).
         Route::middleware('permission:moderation.manage')->group(function () {

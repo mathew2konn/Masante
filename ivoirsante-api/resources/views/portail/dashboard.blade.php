@@ -18,9 +18,10 @@
   $rattacheEtab = $utilisateur->structure_id !== null;
   $cartes = [
     ['perm' => 'etablissement.manage', 'icone' => 'bi-hospital',        'titre' => 'Établissements',  'desc' => 'Créer et gérer les établissements partenaires.', 'route' => 'portail.etablissements.index'],
-    ['perm' => 'compte.manage',        'icone' => 'bi-people',           'titre' => 'Comptes',         'desc' => 'Gérer tous les comptes du portail.'],
+    ['perm' => 'compte.manage',        'icone' => 'bi-people',           'titre' => 'Comptes',         'desc' => 'Gérer les comptes du portail (staff).', 'route' => 'portail.comptes.index'],
     ['perm' => 'moderation.manage',    'icone' => 'bi-shield-check',      'titre' => 'Modération',      'desc' => 'Modérer les avis et signalements.', 'route' => 'portail.moderation.index'],
-    ['perm' => 'stats.global',         'icone' => 'bi-graph-up',          'titre' => 'Statistiques',    'desc' => 'Vue globale de la plateforme.'],
+    ['perm' => 'stats.global',         'icone' => 'bi-graph-up',          'titre' => 'Statistiques',    'desc' => 'Vue globale de la plateforme.', 'route' => 'portail.statistiques.global'],
+    ['perm' => 'stats.etablissement',  'icone' => 'bi-bar-chart-line',    'titre' => 'Mes statistiques', 'desc' => 'Rendez-vous et avis de votre établissement.', 'route' => 'portail.statistiques.etablissement', 'structure' => true],
     ['perm' => 'service.manage',       'icone' => 'bi-clipboard2-pulse',  'titre' => 'Mes services',    'desc' => 'Gérer les services de votre établissement.', 'route' => 'portail.services.index', 'structure' => true],
     ['perm' => 'agent.manage',         'icone' => 'bi-person-badge',      'titre' => 'Mes agents',      'desc' => 'Créer et gérer les agents de garde.', 'route' => 'portail.agents.index', 'structure' => true],
     ['perm' => 'disponibilite.manage', 'icone' => 'bi-toggles',          'titre' => 'Disponibilité',   'desc' => 'Mettre à jour la disponibilité de votre service.', 'route' => 'portail.disponibilites.index', 'structure' => true],
@@ -57,8 +58,4 @@
 
 <style>.card-active { transition: transform .12s ease, box-shadow .12s ease; } .card-active:hover { transform: translateY(-2px); box-shadow: 0 .5rem 1rem rgba(0,0,0,.12) !important; }</style>
 
-<p class="text-muted small mt-4">
-  <i class="bi bi-info-circle"></i>
-  Les fonctions restantes seront activées aux prochaines étapes du Module 4.
-</p>
 @endsection
