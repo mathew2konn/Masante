@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 import { Screen } from '../../src/components/Screen';
 import { Logo } from '../../src/components/Logo';
 import { TextField } from '../../src/components/TextField';
@@ -73,6 +74,18 @@ export default function ConnexionScreen() {
         <View style={styles.sep} />
         <SecondaryButton label="Créer un compte" onPress={() => router.push('/(auth)/inscription')} />
       </View>
+
+      {/* FN2 — Accès d'urgence : un secouriste doit atteindre la fiche vitale sans identifiants.
+          Volontairement placé hors du bloc d'authentification, et signalé en rouge. */}
+      <Pressable
+        onPress={() => router.push('/(auth)/carte-vitale')}
+        accessibilityRole="button"
+        accessibilityLabel="Voir la carte vitale d'urgence, sans connexion"
+        style={styles.urgence}
+      >
+        <Ionicons name="medkit" size={18} color={colors.danger.solid} />
+        <Text style={styles.urgenceTxt}>Carte vitale d'urgence</Text>
+      </Pressable>
     </Screen>
   );
 }
@@ -86,4 +99,13 @@ const styles = StyleSheet.create({
   oublieTxt: { ...typography.bodyStrong, color: colors.blue[600] },
   actions: { marginTop: spacing[4] },
   sep: { height: spacing[3] },
+  urgence: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing[2],
+    minHeight: 48,
+    marginTop: spacing[6],
+  },
+  urgenceTxt: { ...typography.bodyStrong, color: colors.danger.solid },
 });

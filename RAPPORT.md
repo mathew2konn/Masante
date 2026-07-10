@@ -1088,3 +1088,38 @@ téléphone. Tout champ ajouté au service est un champ exposé au premier venu 
 - **Tests `FicheVitaleTest` (5)** : contenu vital exact ; **exclusion** vérifiée d'un antécédent chirurgical,
   d'un vaccin facultatif, d'un vaccin non fait et d'une note médicale ; **403 sur le membre d'autrui** ;
   résumé SMS d'une seule ligne ; membre au carnet vide → fiche vide sans erreur. **Suite : 170/170**, audit 0.
+
+## 5.1 — Carte vitale d'urgence · Étape B mobile (2026-07-10)
+
+**Le point délicat du module.** Le CdC veut la carte vitale « depuis l'écran verrouillé, sans
+déverrouillage ». C'est une fonction du système d'exploitation, pas de l'application. On tient la promesse
+au plus près : la carte s'ouvre **depuis l'écran de connexion**, sans compte, sans mot de passe et sans PIN.
+Un secouriste qui prend le téléphone atteint la fiche en deux touches, sans rien connaître du patient.
+
+Cela impose un **cache local** : l'API exige un token, or il n'y a pas de session à ce moment-là. Le cache
+vit dans `expo-secure-store` (Keychain iOS / Keystore Android), chiffré par le matériel, jamais dans
+AsyncStorage. Une fiche par membre (les valeurs de SecureStore doivent rester petites), plus un index.
+
+**Ce que cela expose, et pourquoi c'est acceptable.** Qui tient le téléphone déverrouillé lit les fiches
+activées — c'est le but même de FN2. Ce sont exactement les données que le CdC destine aux secouristes.
+Le dossier complet reste derrière le verrou applicatif B2. Garde-fous : **rien n'est activé par défaut**,
+le titulaire choisit **membre par membre**, l'écran de gestion l'avertit explicitement que la carte sera
+lisible sans mot de passe, et désactiver un membre **efface immédiatement** sa fiche de l'appareil.
+
+- **`src/urgence/carteVitale.ts`** : `activer` / `desactiver` / `lireCache` / `rafraichir` / `membresActives`.
+  `lireCache()` **ignore une entrée corrompue** au lieu d'échouer : en urgence, deux fiches sur trois valent
+  mieux qu'une page d'erreur.
+- **`src/screens/CarteVitaleEcran.tsx`** : lecture seule, **ne touche jamais l'API**. Hiérarchie visuelle
+  voulue — groupe sanguin (encart rouge) et allergies (bloc bordé de rouge) en tête : ce sont les deux
+  informations qui changent un geste de secours dans les premières secondes. Contacts d'urgence appelables
+  d'une touche (`tel:`), bouton SAMU **185**.
+- **Deux routes, un seul écran** : `(auth)/carte-vitale` (secouriste, hors session) et
+  `(app)/parametres/apercu-carte-vitale` (le titulaire vérifie ce qu'il expose). Même composant, mêmes
+  données : l'aperçu ne peut pas mentir.
+- **`(app)/parametres/carte-vitale`** : interrupteur par membre, « Mettre à jour depuis mon carnet »
+  (le carnet a pu changer : nouvelle allergie, nouveau contact).
+- **Points d'entrée** : lien rouge « Carte vitale d'urgence » sous le formulaire de connexion, hors du bloc
+  d'authentification ; bouton dans l'onglet Carnet.
+- **Existant réutilisé** : `SosButton` (SAMU 185) était déjà là depuis le Module 1 — il n'appelle que le
+  SAMU. Son enrichissement (GPS + SMS au contact d'urgence) est l'objet de 5.2.
+- `tsc` OK, aucune dépendance ajoutée (`expo-secure-store` était déjà présent pour le token et le PIN).
