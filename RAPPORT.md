@@ -1159,3 +1159,52 @@ en ajoute une pour la revue a posteriori et les statistiques, comme le portail t
 - **Tests `AlerteSosTest` (6)** : alerte complète journalisée ; **alerte sans position ni membre acceptée** ;
   position incomplète, hors bornes et canal inconnu **rejetés** ; **alerte au nom du membre d'autrui
   refusée** ; historique cloisonné au compte ; 401 sans authentification. **Suite : 176/176**, audit 0.
+
+## 5.2 — Bouton SOS · Étape B mobile (2026-07-10)
+
+**Décision d'ergonomie qui contredit la lettre du CdC.** FN1 dit « au tap : envoie la position GPS et la
+fiche vitale au SAMU et à un contact d'urgence ». Un appel et un SMS **ne peuvent pas partir du même
+geste** : lancer l'appel met l'application en arrière-plan, le SMS serait perdu. Le bouton ouvre donc un
+écran d'urgence à **deux actions explicites** — appeler le 185, alerter le proche — sur une page où tout est
+déjà prêt. L'esprit est tenu : deux touches, aucune saisie, aucune attente.
+
+**Rien n'attend le réseau.** La position est cherchée en tâche de fond dès l'ouverture de l'écran ; si elle
+n'est pas là au moment de l'appui, l'alerte part sans elle et le message le dit (« Position indisponible »).
+`obtenirPositionUrgence()` tente d'abord la **dernière position connue** (< 2 min) avant d'interroger le GPS :
+en urgence, une position approximative tout de suite vaut mieux qu'une position exacte dans trente secondes.
+Les données du message viennent du **cache de la carte vitale** (5.1), jamais de l'API — demander au serveur
+qui alerter supposerait le réseau que l'on n'a précisément pas.
+
+- **`src/urgence/sos.ts`** : `contactAAlerter()` (contact principal, sinon le premier), `messageUrgence()`
+  (identité, groupe sanguin, allergies, chroniques **avec traitements**, position + lien OpenStreetMap),
+  `appelerSamu()`, `envoyerSmsUrgence()` (séparateur `&body=` sur iOS, `?body=` sur Android), `tracerAlerte()`.
+- **L'utilisateur garde la main sur l'envoi du SMS** : aucune application ne peut envoyer un SMS à son insu,
+  et c'est heureux. On pré-remplit, il valide.
+- **`src/api/sos.ts`** : `journaliserSos()` **n'échoue jamais** (renvoie un booléen). Aucun appelant ne
+  conditionne l'alerte à son résultat — hors ligne, il échoue, et c'est le cas nominal de FN1.
+- **`src/screens/SosEcran.tsx`** + route `(app)/sos` (masquée de la barre d'onglets par `href: null`, sinon
+  elle deviendrait un cinquième onglet). **Choix du membre** si plusieurs cartes vitales sont activées : le
+  carnet est familial, ce n'est pas toujours le titulaire qui fait le malaise.
+- **`SosButton`** n'appelle plus directement : il ouvre l'écran. Le composant reste le seul élément rouge
+  proéminent de l'accueil (§5.1 DS).
+- **`utils/geoloc.ts`** : le commentaire affirmait que la position « n'est jamais persistée ». Ce n'est plus
+  vrai — corrigé, avec la mention explicite de l'exception SOS et de son unique mesure ponctuelle.
+- **Dépendance au 5.1 assumée** : sans carte vitale activée, le SOS se réduit à l'appel SAMU, et l'écran
+  explique comment y remédier. `tsc` OK, `expo-doctor` 18/18, aucune dépendance ajoutée.
+
+### Complément — Historique des alertes SOS (mobile)
+
+`GET /api/v1/sos` avait été livré pour la **transparence** (loi n°2013-450 : le patient doit pouvoir
+consulter ce qui est conservé sur lui — ici une position GPS), mais **aucun écran ne le consommait** —
+même situation qu'en 4.6 avec l'historique public des signalements. Complété :
+
+- `api/sos.ts` : type `AlerteSos` + `listerAlertesSos()`.
+- Écran `(app)/parametres/alertes-sos` : date et heure, membre concerné, canal réellement utilisé
+  (appel / SMS / les deux), proche prévenu, et **position enregistrée** ouvrable sur OpenStreetMap.
+  Consultation pure : le journal est en ajout seul. Pied de page rappelant que la position n'est
+  enregistrée qu'au déclenchement d'un SOS, **jamais en suivi continu**.
+- Point d'entrée : bouton « Mes alertes d'urgence » dans l'onglet Carnet, sous « Carte vitale d'urgence ».
+
+**Défaut trouvé au passage (backend)** : `declenchee_le` a un défaut SQL (`useCurrent`), donc l'objet en
+mémoire ne le portait pas après `create()` — la réponse du `POST /sos` renvoyait `declenchee_le: null`.
+Corrigé par `->refresh()`, et **verrouillé par un test**. Suite 176/176.

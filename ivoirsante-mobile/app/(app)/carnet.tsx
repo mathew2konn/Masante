@@ -113,6 +113,11 @@ export default function CarnetTab() {
           onPress={() => router.push('/(app)/parametres/carte-vitale')}
         />
         <View style={styles.sep} />
+        <SecondaryButton
+          label="Mes alertes d'urgence"
+          onPress={() => router.push('/(app)/parametres/alertes-sos')}
+        />
+        <View style={styles.sep} />
         <SecondaryButton label="Sécurité" onPress={() => router.push('/(app)/parametres/securite')} />
         <View style={styles.sep} />
         <SecondaryButton
