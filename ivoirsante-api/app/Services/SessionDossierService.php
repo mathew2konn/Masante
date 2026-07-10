@@ -119,10 +119,11 @@ class SessionDossierService
             return;
         }
 
-        // Minutes entamées : une consultation de 30 secondes compte pour 1 minute. Les secondes
-        // sont tronquées AVANT l'arrondi, sinon une fraction de seconde ajouterait une minute.
+        // Durée en minutes, arrondie au plus proche, avec un plancher de 1 : une consultation
+        // éclair reste une consultation. (Un `ceil` transformerait les quelques secondes de
+        // traitement d'une session de 5 min en 6 min.)
         $secondes = (int) Carbon::parse($etat['ouvert_a'])->diffInSeconds(now());
-        $duree = (int) ceil($secondes / 60);
+        $duree = max(1, (int) round($secondes / 60));
 
         AccesDossier::create([
             'membre_id'           => $ouverture->membre_id,

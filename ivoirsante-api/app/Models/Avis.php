@@ -22,11 +22,18 @@ class Avis extends Model
         'consultation_verifiee',
         'signale',
         'visible',
+        'modere_par_user_id',
+        'modere_at',
+        'motif_moderation',
     ];
 
     protected $hidden = [
         'user_id',
         'user',
+        // 4.6 — la décision de modération est tracée en base, jamais renvoyée au public :
+        // ni l'identité du modérateur ni le motif ne regardent les lecteurs de la fiche.
+        'modere_par_user_id',
+        'motif_moderation',
     ];
 
     protected $appends = ['auteur'];
@@ -38,7 +45,14 @@ class Avis extends Model
             'consultation_verifiee' => 'boolean',
             'signale' => 'boolean',
             'visible' => 'boolean',
+            'modere_at' => 'datetime',
         ];
+    }
+
+    /** Modérateur ayant pris la dernière décision (portail admin, 4.6). */
+    public function moderateur(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'modere_par_user_id');
     }
 
     public function structure(): BelongsTo

@@ -7,6 +7,7 @@ use App\Http\Controllers\Portail\DashboardController;
 use App\Http\Controllers\Portail\DisponibiliteController;
 use App\Http\Controllers\Portail\DossierController;
 use App\Http\Controllers\Portail\EtablissementController;
+use App\Http\Controllers\Portail\ModerationController;
 use App\Http\Controllers\Portail\RendezVousController;
 use App\Http\Controllers\Portail\ScanController;
 use App\Http\Controllers\Portail\ServiceController;
@@ -47,6 +48,14 @@ Route::prefix('portail')->name('portail.')->group(function () {
             Route::put('etablissements/{etablissement}', [EtablissementController::class, 'update'])->name('etablissements.update');
             Route::patch('etablissements/{etablissement}/actif', [EtablissementController::class, 'toggleActif'])->name('etablissements.toggle');
             Route::post('etablissements/{etablissement}/lien', [EtablissementController::class, 'regenererLien'])->name('etablissements.lien');
+        });
+
+        // 4.6 — Modération des avis et signalements (ADMIN IVOIRSANTÉ uniquement).
+        Route::middleware('permission:moderation.manage')->group(function () {
+            Route::get('moderation', [ModerationController::class, 'index'])->name('moderation.index');
+            Route::patch('moderation/avis/{avis}', [ModerationController::class, 'basculerAvis'])->name('moderation.avis');
+            Route::patch('moderation/signalements/{signalement}', [ModerationController::class, 'trancher'])->name('moderation.trancher');
+            Route::patch('moderation/signalements/{signalement}/publication', [ModerationController::class, 'basculerPublication'])->name('moderation.publication');
         });
 
         // 4.3 — Services de MON établissement (GESTIONNAIRE, permission service.manage, cloisonné).

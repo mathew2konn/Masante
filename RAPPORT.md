@@ -930,3 +930,72 @@ titulaire) ; le **matricule** et le **numéro CMU complet** ne sont jamais affic
   **clôture journalisant durée + sections**, **expiration à 30 min**, **dossier inaccessible sans scan**,
   **gestionnaire 403 / admin 403**, check-in nominal (**sans aucune ligne d'audit dossier**), et check-in refusé
   pour RDV non confirmé / **code falsifié** / **autre établissement (404)**. **Suite : 148/148**, audit 0.
+
+## 4.6 — Modération des avis et signalements (backend + Blade, 2026-07-10)
+
+Dernière étape du Module 4 (CdC §5.4.2 ; F3.9 avis, F3.10 signalements). Réservée à l'**admin IVOIRSANTÉ**
+(`permission:moderation.manage`) : le gestionnaire ne modère pas, **pas même les avis portant sur son propre
+établissement** — il serait juge et partie.
+
+### Trois décisions
+
+1. **Valider ≠ publier.** Le schéma porte deux colonnes distinctes (`statut`, `visible_publiquement`) et on
+   les garde distinctes : valider répond à « le fait est-il avéré ? », publier à « faut-il l'afficher sur la
+   fiche de la structure ? ». Un signalement de **pot-de-vin** peut ainsi être reconnu et traité en interne
+   **sans être publié** — afficher une accusation nominative sur la fiche d'un hôpital n'est pas anodin. Un
+   signalement **rejeté est automatiquement dépublié** s'il l'avait été par erreur.
+2. **Traçabilité des décisions.** Le CdC §8.6 porte l'*état* de modération, pas la *décision* qui l'a produit.
+   Migration ajoutant `modere_par_user_id` + `modere_at` + `motif_moderation` aux deux tables. **Motif
+   obligatoire** pour toute décision défavorable (masquer un avis, rejeter un signalement), facultatif pour
+   une décision favorable (rétablir) — même logique que le motif de refus d'un RDV en 4.4.
+3. **Masquer, jamais supprimer.** Un avis modéré bascule `visible=false` et reste en base : la modération est
+   réversible, et l'auteur peut contester. Le drapeau `signale` (levé par la détection automatique de mots
+   interdits au dépôt) retombe : la décision humaine remplace l'alerte machine.
+
+### Le piège de la note dénormalisée
+
+`structures_sanitaires.note_moyenne` et `nb_avis` résument les avis **visibles**. Ils étaient recalculés par une
+méthode **privée** d'`AvisController` (API mobile). Masquer un avis depuis le portail sans refaire ce calcul
+aurait laissé la fiche publique afficher une moyenne sans rapport avec les avis affichés. Le recalcul est donc
+extrait dans **`NoteStructureService`**, appelé par les deux chemins (dépôt d'avis et modération) : une seule
+source de vérité.
+
+### Confidentialité
+
+L'**anonymat du signalant** est préservé jusque dans le portail : `user_id` reste `$hidden`, le modérateur
+tranche sur le seul contenu. Symétriquement, l'identité du **modérateur** et le **motif** sont `$hidden` : ils
+sont tracés en base mais ne sont jamais renvoyés à l'API publique. Tous les textes libres (commentaires,
+descriptions) sont rendus par Blade, qui échappe par défaut — **aucun `{!! !!}`** (Sécurité §A03, XSS).
+
+### Livrables
+
+- **`ModerationController`** : `index` (deux onglets avec compteurs, filtres par état, pagination),
+  `basculerAvis` (masquer/rétablir + recalcul de la note), `trancher` (valider/rejeter), `basculerPublication`
+  (publier/retirer, **422 si le signalement n'est pas validé**).
+- **`NoteStructureService`** ; `AvisController` (API) refactoré pour l'utiliser.
+- **Migration** `modere_par_user_id` / `modere_at` / `motif_moderation` sur `avis` et `signalements`.
+- **Modèles** : champs de modération `$fillable` mais `$hidden`, relation `moderateur()`, `Signalement::estTraite()`.
+- **Vue Blade** `moderation/index` ; carte « Modération » du dashboard activée.
+- **Tests `ModerationPortailTest` (7)** : **gestionnaire et agent 403**, masquage **recalculant la note**
+  (5★ + 1★ → moyenne 3 puis 5) sans supprimer la ligne, **motif exigé pour masquer mais pas pour rétablir**,
+  **valider ne publie pas**, **publication réservée aux signalements validés** (bascule aller-retour),
+  **rejet exigeant un motif et dépubliant**, **anonymat du signalant**. **Suite : 155/155**, audit 0.
+- **Correctif 4.5 en passant** : `SessionDossierService` arrondissait la durée de session avec `ceil`, ce qui
+  comptait 6 minutes pour une session de 5 min + quelques centaines de millisecondes de traitement (test
+  intermittent). Remplacé par un arrondi au plus proche, plancher de 1 minute.
+
+### Étape B — Historique public des signalements (mobile, 2026-07-10)
+
+**Manque constaté au test de 4.6** : l'endpoint public `GET /v1/structures/{id}/signalements` existait depuis le
+Module 3, mais **aucun écran mobile ne le consommait** — le mobile savait déposer un signalement, jamais lire
+l'historique. Le bouton « Publier » du portail n'avait donc aucun effet observable côté patient. Complété ici
+(dette F3.10, partie lecture) :
+
+- `types/structure.ts` : `SignalementPublic` (4 champs seulement : `id`, `type`, `description`, `created_at`).
+- `api/structures.ts` : `getSignalementsStructure()`.
+- Fiche structure `[id].tsx` : chargement en parallèle des trois ressources ; nouvelle section
+  **« Signalements vérifiés (n) »** entre les avis et le bouton de signalement, avec pastille de type
+  (tokens `warning` du DS, aucune couleur en dur). La section est **absente s'il n'y a aucun signalement** :
+  un bloc « aucun signalement » laisserait croire à un problème latent.
+- **Anonymat vérifiable de bout en bout** : ni auteur, ni motif, ni modérateur ne transitent — le contrôleur
+  d'API sélectionne explicitement les quatre colonnes. `tsc` OK, aucune dépendance ajoutée.

@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Avis;
 use App\Models\RendezVous;
 use App\Models\StructureSanitaire;
+use App\Services\NoteStructureService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
@@ -24,6 +25,10 @@ class AvisController extends Controller
 {
     /** Mots interdits (modération automatique minimale). */
     private const MOTS_INTERDITS = ['insulte', 'arnaque', 'connard', 'idiot', 'voleur'];
+
+    public function __construct(private readonly NoteStructureService $notes)
+    {
+    }
 
     /** Avis visibles d'une structure (public), les plus récents d'abord. */
     public function index(StructureSanitaire $structure): JsonResponse
@@ -66,19 +71,10 @@ class AvisController extends Controller
             ],
         );
 
-        $this->recalculerNote($structure);
+        // Dénormalisation partagée avec la modération du portail (4.6) : une seule source de vérité.
+        $this->notes->recalculer($structure);
 
         return response()->json(['avis' => $avis->load('user:id,prenom')], 201);
-    }
-
-    /** Recalcule la note moyenne et le nombre d'avis VISIBLES de la structure (dénormalisation). */
-    private function recalculerNote(StructureSanitaire $structure): void
-    {
-        $visibles = $structure->avis()->where('visible', true);
-        $nb = $visibles->count();
-        $moyenne = $nb > 0 ? round((float) $structure->avis()->where('visible', true)->avg('note'), 2) : null;
-
-        $structure->update(['nb_avis' => $nb, 'note_moyenne' => $moyenne]);
     }
 
     /** Détecte un mot interdit (modération automatique minimale). */
