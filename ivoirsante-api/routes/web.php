@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Portail\ActivationController;
 use App\Http\Controllers\Portail\AgentController;
+use App\Http\Controllers\Portail\AlerteEpidemiqueController as PortailAlerteEpidemiqueController;
 use App\Http\Controllers\Portail\AuthController;
 use App\Http\Controllers\Portail\BrisDeGlaceController;
 use App\Http\Controllers\Portail\CompteController;
@@ -61,6 +62,16 @@ Route::prefix('portail')->name('portail.')->group(function () {
                 ->name('bris.ouvrir')->middleware('throttle:10,1');
             Route::get('dossier', [BrisDeGlaceController::class, 'dossier'])->name('dossier');
             Route::post('dossier/fermer', [BrisDeGlaceController::class, 'fermer'])->name('fermer');
+        });
+
+        // 5.4 — Alertes épidémiques (ADMIN, sante_publique.manage). L'admin reporte les bulletins OMS.
+        Route::middleware('permission:sante_publique.manage')->group(function () {
+            Route::get('sante-publique', [PortailAlerteEpidemiqueController::class, 'index'])->name('sante-publique.index');
+            Route::get('sante-publique/creer', [PortailAlerteEpidemiqueController::class, 'create'])->name('sante-publique.create');
+            Route::post('sante-publique', [PortailAlerteEpidemiqueController::class, 'store'])->name('sante-publique.store');
+            Route::get('sante-publique/{alerte}/editer', [PortailAlerteEpidemiqueController::class, 'edit'])->name('sante-publique.edit');
+            Route::put('sante-publique/{alerte}', [PortailAlerteEpidemiqueController::class, 'update'])->name('sante-publique.update');
+            Route::patch('sante-publique/{alerte}/actif', [PortailAlerteEpidemiqueController::class, 'toggleActif'])->name('sante-publique.toggle');
         });
 
         // 4.7 — Comptes du portail (ADMIN). Staff seulement : les comptes patients n'y figurent pas.

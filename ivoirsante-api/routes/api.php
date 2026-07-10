@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\V1\AlerteEpidemiqueController;
 use App\Http\Controllers\Api\V1\AlerteSosController;
 use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\AvisController;
@@ -126,6 +127,9 @@ Route::middleware('throttle:api')->group(function () {
             // ces routes ne font que journaliser l'alerte a posteriori, en best-effort.
             Route::post('sos', [AlerteSosController::class, 'store']);
             Route::get('sos', [AlerteSosController::class, 'index']);
+
+            // Module 5 / FN3 — Alertes épidémiques de MA commune (+ alertes nationales).
+            Route::get('alertes-epidemiques', [AlerteEpidemiqueController::class, 'index']);
 
             // Profil — Photo de profil : upload/lecture/suppression. Chiffrée au repos, disque privé,
             // servie uniquement déchiffrée par le contrôleur (jamais d'URL publique).

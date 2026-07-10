@@ -25,6 +25,7 @@ class PortailRolesSeeder extends Seeder
         'compte.manage',          // gérer tous les comptes
         'moderation.manage',      // modérer avis + signalements
         'stats.global',           // statistiques globales
+        'sante_publique.manage',  // publier / gérer les alertes épidémiques (FN3)
         // Gestionnaire d'établissement
         'service.manage',         // CRUD de SES services
         'agent.manage',           // créer / gérer SES agents

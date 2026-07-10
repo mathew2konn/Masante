@@ -21,6 +21,7 @@
     ['perm' => 'compte.manage',        'icone' => 'bi-people',           'titre' => 'Comptes',         'desc' => 'Gérer les comptes du portail (staff).', 'route' => 'portail.comptes.index'],
     ['perm' => 'moderation.manage',    'icone' => 'bi-shield-check',      'titre' => 'Modération',      'desc' => 'Modérer les avis et signalements.', 'route' => 'portail.moderation.index'],
     ['perm' => 'stats.global',         'icone' => 'bi-graph-up',          'titre' => 'Statistiques',    'desc' => 'Vue globale de la plateforme.', 'route' => 'portail.statistiques.global'],
+    ['perm' => 'sante_publique.manage','icone' => 'bi-broadcast',         'titre' => 'Alertes épidémiques', 'desc' => 'Publier les bulletins sanitaires par commune.', 'route' => 'portail.sante-publique.index'],
     ['perm' => 'stats.etablissement',  'icone' => 'bi-bar-chart-line',    'titre' => 'Mes statistiques', 'desc' => 'Rendez-vous et avis de votre établissement.', 'route' => 'portail.statistiques.etablissement', 'structure' => true],
     ['perm' => 'service.manage',       'icone' => 'bi-clipboard2-pulse',  'titre' => 'Mes services',    'desc' => 'Gérer les services de votre établissement.', 'route' => 'portail.services.index', 'structure' => true],
     ['perm' => 'agent.manage',         'icone' => 'bi-person-badge',      'titre' => 'Mes agents',      'desc' => 'Créer et gérer les agents de garde.', 'route' => 'portail.agents.index', 'structure' => true],

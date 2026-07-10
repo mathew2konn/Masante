@@ -1273,3 +1273,37 @@ tâtons laisse une trace.
   exposant le vital minimal **sans** l'antécédent chirurgical ni la note médicale ; **expiration à 15 min**
   journalisant la durée et les sections ; fermeture manuelle ; l'accès figure au journal du patient.
   **Suite : 186/186**, audit 0.
+
+## 5.4 — Alertes épidémiques · Étape A backend (2026-07-10)
+
+Bulletins sanitaires locaux (CdC FN3, table `alertes_epidemiques` du §8). Deux facettes : la **gestion**
+par l'admin (portail) et le **ciblage** par commune côté patient (API mobile).
+
+**Décisions.**
+
+- **L'admin publie**, depuis le portail (`permission:sante_publique.manage`), en reportant les bulletins
+  OMS / Ministère de la Santé CI. Le CdC ne nommait aucun acteur ; c'est cohérent avec le rôle de pilotage
+  national de l'admin. Le gestionnaire ne publie pas (OMS ≠ un hôpital).
+- **Ciblage par commune de résidence** : l'API renvoie les alertes en vigueur dont la commune = celle du
+  compte (`users.commune`, déjà présent), plus les alertes nationales (`commune = 'toutes_communes'`). FN3 :
+  « alerte uniquement les utilisateurs de la commune concernée ». Un compte sans commune ne voit que le
+  national. Pas de GPS : le CdC parle de commune de **résidence**, pas de position instantanée.
+
+**En vigueur ≠ actif.** Le scope `enVigueur()` combine le drapeau `actif` ET la fenêtre de dates : une alerte
+peut être `actif` mais programmée pour le mois prochain, ou expirée sans qu'on l'ait désactivée. Le mobile ne
+voit que ce qui est réellement d'actualité.
+
+- Migration `alertes_epidemiques` (schéma CdC §8) + modèle avec scopes `enVigueur()` / `pourCommune()`.
+- API `GET /api/v1/alertes-epidemiques` (auth) : tri par gravité (alerte > vigilance > information) via `CASE`
+  **portable** (pas `FIELD()`, propre à MySQL). Pas de push (ni Firebase ni FCM) : le mobile interroge et
+  affiche une bannière ; la notification poussée reste à brancher.
+- Portail `AlerteEpidemiqueController` (CRUD, admin) : formulaire portée commune/nationale, désactivation
+  plutôt que suppression (historique des épisodes conservé), `date_fin ≥ date_debut`. Carte dashboard.
+- **Pièges** : Laravel pluralise `AlerteEpidemique` en `alerte_epidemiques` (seul le dernier mot) → `$table`
+  fixé explicitement. `actif` géré par `toggleActif` seul, pas par le formulaire (une case décochée serait
+  absente de la requête, donc ambiguë en update).
+- **Seeder de démo** `AlerteEpidemiqueSeeder` (paludisme Cocody, choléra national, dengue Yopougon).
+- **Tests `AlerteEpidemiqueTest` (10)** : patient voit **sa commune + le national**, pas les autres communes ;
+  compte sans commune → national seul ; **inactives / futures / expirées exclues** ; tri par gravité ; 401
+  sans auth ; admin publie (communale et nationale avec sentinelle) ; `date_fin` antérieure refusée ; toggle
+  sans suppression ; **gestionnaire 403**. **Suite : 196/196**, audit 0.
