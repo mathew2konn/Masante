@@ -30,7 +30,11 @@ class AlerteSosTest extends TestCase
             'latitude' => 5.3599517, 'longitude' => -4.0082563, 'precision_metres' => 12,
             'canal' => 'appel_sms',
             'contact_prevenu_nom' => 'Kouassi', 'contact_prevenu_tel' => '0701020304',
-        ])->assertCreated();
+        ])
+            ->assertCreated()
+            ->assertJsonPath('alerte.canal', 'appel_sms')
+            // `declenchee_le` vient d'un défaut SQL : sans `refresh()`, la réponse renverrait null.
+            ->assertJsonPath('alerte.declenchee_le', fn ($valeur) => $valeur !== null);
 
         $alerte = AlerteSos::firstOrFail();
         $this->assertSame($user->id, $alerte->user_id);

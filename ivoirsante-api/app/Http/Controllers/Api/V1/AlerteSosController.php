@@ -4,7 +4,6 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
 use App\Models\AlerteSos;
-use App\Models\MembreFamille;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -45,7 +44,9 @@ class AlerteSosController extends Controller
             'contact_prevenu_tel' => ['nullable', 'string', 'max:20'],
         ]);
 
-        $alerte = AlerteSos::create([...$data, 'user_id' => $userId]);
+        // `declenchee_le` a une valeur par défaut SQL (`useCurrent`) : sans `refresh()`, l'objet en
+        // mémoire ne la porte pas et la réponse renverrait `null`.
+        $alerte = AlerteSos::create([...$data, 'user_id' => $userId])->refresh();
 
         // Trace applicative : en production, c'est ici que partirait la notification au CHU de
         // garde le plus proche (hors périmètre : ni Firebase ni intégration SAMU dans ce projet).
