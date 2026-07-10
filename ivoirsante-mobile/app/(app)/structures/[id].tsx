@@ -7,10 +7,21 @@ import { Card } from '../../../src/components/Card';
 import { ScreenHeader } from '../../../src/components/ScreenHeader';
 import { PastilleDispo } from '../../../src/components/PastilleDispo';
 import { PrimaryButton } from '../../../src/components/PrimaryButton';
-import { getStructure, getAvisStructure } from '../../../src/api/structures';
+import {
+  getStructure,
+  getAvisStructure,
+  getSignalementsStructure,
+} from '../../../src/api/structures';
 import { messageErreur } from '../../../src/utils/erreurs';
 import { formatDateFr, heureCourte } from '../../../src/utils/dates';
-import { LIBELLE_TYPE, type Avis, type Service, type Structure } from '../../../src/types/structure';
+import {
+  LIBELLE_SIGNALEMENT,
+  LIBELLE_TYPE,
+  type Avis,
+  type Service,
+  type SignalementPublic,
+  type Structure,
+} from '../../../src/types/structure';
 import { colors, radius, spacing, typography } from '../../../src/theme/theme';
 
 /** Libellés lisibles des clés d'horaires (horaires_json). */
@@ -25,8 +36,9 @@ const LIBELLE_HORAIRE: Record<string, string> = {
  * Fiche détaillée d'une structure (Module 3 / 3B.3, F3.5/F3.9).
  *
  * Lecture publique (accès léger sans identité). Affiche coordonnées, horaires, tarifs, services
- * et leur disponibilité du jour, avis patients. Actions : Appeler / WhatsApp / Itinéraire (OSRM).
- * Le dépôt d'avis, signalement et demande de RDV arrivent en 3B.4 — non anticipés ici.
+ * et leur disponibilité du jour, avis patients, et l'historique public des signalements validés
+ * par la modération (F3.10, alimenté par le portail 4.6). Actions : Appeler / WhatsApp /
+ * Itinéraire (OSRM).
  */
 export default function FicheStructure() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -34,6 +46,7 @@ export default function FicheStructure() {
 
   const [structure, setStructure] = useState<Structure | null>(null);
   const [avis, setAvis] = useState<Avis[]>([]);
+  const [signalements, setSignalements] = useState<SignalementPublic[]>([]);
   const [chargement, setChargement] = useState(true);
   const [erreur, setErreur] = useState<string | null>(null);
 
@@ -41,9 +54,14 @@ export default function FicheStructure() {
     setChargement(true);
     setErreur(null);
     try {
-      const [s, a] = await Promise.all([getStructure(structureId), getAvisStructure(structureId)]);
+      const [s, a, sig] = await Promise.all([
+        getStructure(structureId),
+        getAvisStructure(structureId),
+        getSignalementsStructure(structureId),
+      ]);
       setStructure(s);
       setAvis(a);
+      setSignalements(sig);
     } catch (e) {
       setErreur(messageErreur(e));
     } finally {
@@ -233,6 +251,20 @@ export default function FicheStructure() {
         )}
       </Card>
 
+      {/* Historique public des signalements (F3.10). Section absente s'il n'y en a aucun :
+          afficher un bloc « aucun signalement » laisserait croire à un problème latent. */}
+      {signalements.length > 0 && (
+        <Card style={styles.bloc}>
+          <Titre icone="flag-outline" texte={`Signalements vérifiés (${signalements.length})`} />
+          <Text style={styles.corpsMuted}>
+            Signalements de patients confirmés par la modération MaSanté.
+          </Text>
+          {signalements.map((s) => (
+            <SignalementLigne key={s.id} signalement={s} />
+          ))}
+        </Card>
+      )}
+
       {/* Signalement (F3.10) */}
       <Pressable
         onPress={() => allerVers('signaler', structure)}
@@ -325,6 +357,19 @@ function AvisLigne({ avis }: { avis: Avis }) {
   );
 }
 
+/** Ligne d'un signalement public : type + description + date. L'auteur reste anonyme. */
+function SignalementLigne({ signalement }: { signalement: SignalementPublic }) {
+  return (
+    <View style={styles.signalement}>
+      <View style={styles.signalementType}>
+        <Text style={styles.signalementTypeTxt}>{LIBELLE_SIGNALEMENT[signalement.type]}</Text>
+      </View>
+      <Text style={styles.corps}>{signalement.description}</Text>
+      <Text style={styles.avisMeta}>{formatDateFr(signalement.created_at)}</Text>
+    </View>
+  );
+}
+
 /** Affichage des 5 étoiles (note 1-5). */
 function Etoiles({ note }: { note: number }) {
   return (
@@ -398,6 +443,15 @@ const styles = StyleSheet.create({
   verifie: { flexDirection: 'row', alignItems: 'center', gap: 3 },
   verifieTxt: { ...typography.caption, color: colors.success.text, fontWeight: '600' },
   avisMeta: { ...typography.caption, color: colors.ink[500] },
+  signalement: { paddingVertical: spacing[3], borderTopWidth: 1, borderTopColor: colors.line, gap: 4 },
+  signalementType: {
+    alignSelf: 'flex-start',
+    backgroundColor: colors.warning.bg,
+    borderRadius: radius.sm,
+    paddingHorizontal: spacing[2],
+    paddingVertical: 2,
+  },
+  signalementTypeTxt: { ...typography.caption, color: colors.warning.text, fontWeight: '600' },
   etatTxt: { ...typography.body, color: colors.ink[700], textAlign: 'center' },
   reessayer: {
     marginTop: spacing[2],

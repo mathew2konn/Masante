@@ -12,6 +12,7 @@ import type {
   Coordonnees,
   FiltresStructure,
   SignalementPayload,
+  SignalementPublic,
   Structure,
   StructuresResponse,
 } from '../types/structure';
@@ -45,6 +46,19 @@ export async function getAvisStructure(id: number): Promise<Avis[]> {
 export async function deposerAvis(id: number, payload: AvisPayload): Promise<Avis> {
   const { data } = await api.post<{ avis: Avis }>(`/v1/structures/${id}/avis`, payload);
   return data.avis;
+}
+
+/**
+ * F3.10 — Historique PUBLIC des signalements d'une structure.
+ *
+ * Le serveur ne renvoie que les signalements validés PUIS publiés par la modération (Module 4.6) :
+ * un signalement en attente, rejeté, ou validé sans être publié n'apparaît jamais ici.
+ */
+export async function getSignalementsStructure(id: number): Promise<SignalementPublic[]> {
+  const { data } = await api.get<{ signalements: SignalementPublic[] }>(
+    `/v1/structures/${id}/signalements`,
+  );
+  return data.signalements;
 }
 
 /** F3.10 — Dépose un signalement (anonyme ou rattaché au compte). */

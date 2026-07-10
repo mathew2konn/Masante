@@ -119,6 +119,20 @@ export type TypeSignalement =
   | 'mauvais_traitement'
   | 'autre';
 
+/**
+ * Signalement de l'historique PUBLIC d'une structure (F3.10).
+ *
+ * Le serveur ne renvoie que les signalements validés ET publiés par la modération (Module 4.6),
+ * et seulement ces quatre champs : jamais l'auteur (anonymat du signalant), ni le motif ni
+ * l'identité du modérateur.
+ */
+export interface SignalementPublic {
+  id: number;
+  type: TypeSignalement;
+  description: string;
+  created_at: string;
+}
+
 /** Statut d'un rendez-vous (F3.6, enum backend ; validation agent → Module 4). */
 export type StatutRdv = 'en_attente' | 'confirme' | 'refuse' | 'annule' | 'honore';
 
