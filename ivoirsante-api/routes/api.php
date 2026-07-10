@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\V1\AlerteSosController;
 use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\AvisController;
 use App\Http\Controllers\Api\V1\Carnet\AntecedentController;
@@ -120,6 +121,11 @@ Route::middleware('throttle:api')->group(function () {
             // Module 5 / FN2 — Fiche vitale d'urgence : sous-ensemble vital minimal du membre,
             // destiné à être mis en cache chiffré sur le téléphone puis affiché hors connexion.
             Route::get('membres/{membre}/fiche-vitale', [FicheVitaleController::class, 'show']);
+
+            // Module 5 / FN1 — Alertes SOS. L'appel SAMU et le SMS partent du TÉLÉPHONE (tel:/sms:) :
+            // ces routes ne font que journaliser l'alerte a posteriori, en best-effort.
+            Route::post('sos', [AlerteSosController::class, 'store']);
+            Route::get('sos', [AlerteSosController::class, 'index']);
 
             // Profil — Photo de profil : upload/lecture/suppression. Chiffrée au repos, disque privé,
             // servie uniquement déchiffrée par le contrôleur (jamais d'URL publique).

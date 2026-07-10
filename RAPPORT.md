@@ -1123,3 +1123,39 @@ lisible sans mot de passe, et désactiver un membre **efface immédiatement** sa
 - **Existant réutilisé** : `SosButton` (SAMU 185) était déjà là depuis le Module 1 — il n'appelle que le
   SAMU. Son enrichissement (GPS + SMS au contact d'urgence) est l'objet de 5.2.
 - `tsc` OK, aucune dépendance ajoutée (`expo-secure-store` était déjà présent pour le token et le PIN).
+
+## 5.2 — Bouton SOS · Étape A backend (2026-07-10)
+
+**L'alerte ne passe pas par le backend, et c'est délibéré.** FN1 exige un fonctionnement « offline via SMS
+si pas de data ». L'appel au SAMU **185** et le SMS au contact d'urgence partent donc du **téléphone**
+(liens `tel:` / `sms:`), sans passerelle et sans réseau de données. Le backend n'est jamais sur le chemin
+critique de l'alerte.
+
+Ce qu'il fait : un **enregistrement a posteriori, best-effort**. Le mobile appelle `POST /api/v1/sos` après
+avoir déclenché l'alerte, et **ignore l'échec** de cet appel. Le CdC ne prévoit aucune table pour FN1 ; on
+en ajoute une pour la revue a posteriori et les statistiques, comme le portail trace déjà les accès au dossier.
+
+**Décisions.**
+
+- **Cible du SOS** : le SOS lira le **cache de la carte vitale** (5.1) — il doit fonctionner sans réseau, il
+  ne peut donc pas demander au serveur qui alerter. Le SMS part au **contact principal du membre** (F2.11).
+  On n'ajoute donc **pas** `contact_urgence_nom` / `contact_urgence_tel` sur `users` comme le fait le schéma
+  du CdC §8.1 : ce serait dupliquer, en moins bien, ce que la révision validée de F2.11 gère par membre.
+- **Position GPS journalisée**, parce qu'elle est la trace la plus utile à une revue d'incident. C'est une
+  **donnée personnelle sensible** (loi n°2013-450) : elle n'est enregistrée que parce que le patient a
+  lui-même déclenché l'alerte, uniquement à cet instant. **Aucun suivi continu**, aucune position hors SOS.
+- **`latitude` nullable** : GPS refusé, indisponible ou en intérieur. Un SOS sans position vaut mieux qu'un
+  SOS refusé. Mais une latitude **sans** longitude est rejetée (`required_with`) : une trace à moitié
+  renseignée est inexploitable.
+- **Contact prévenu dénormalisé** (nom + téléphone copiés) : la trace doit rester exacte même si le contact
+  d'urgence est modifié ou supprimé ensuite.
+
+- **Table `alertes_sos`** + modèle `AlerteSos` (ajout seul, `timestamps = false`, `declenchee_le`).
+- **`AlerteSosController`** : `store` (journalise) et `index` (transparence — le patient voit ce qui a été
+  enregistré sur lui). `membre_id` validé comme **appartenant à l'appelant** (`Rule::exists(...)->where(
+  'user_id')`) : on ne journalise pas une alerte au nom du membre d'autrui. `Log::warning` en trace
+  applicative — c'est là que partirait, en production, la notification au CHU de garde (hors périmètre :
+  ni Firebase ni intégration SAMU dans ce projet).
+- **Tests `AlerteSosTest` (6)** : alerte complète journalisée ; **alerte sans position ni membre acceptée** ;
+  position incomplète, hors bornes et canal inconnu **rejetés** ; **alerte au nom du membre d'autrui
+  refusée** ; historique cloisonné au compte ; 401 sans authentification. **Suite : 176/176**, audit 0.
