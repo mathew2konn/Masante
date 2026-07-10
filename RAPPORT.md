@@ -1208,3 +1208,68 @@ même situation qu'en 4.6 avec l'historique public des signalements. Complété 
 **Défaut trouvé au passage (backend)** : `declenchee_le` a un défaut SQL (`useCurrent`), donc l'objet en
 mémoire ne le portait pas après `create()` — la réponse du `POST /sos` renvoyait `declenchee_le: null`.
 Corrigé par `->refresh()`, et **verrouillé par un test**. Suite 176/176.
+
+## 5.3 — Bris de glace, la quatrième voie d'accès (portail, 2026-07-10)
+
+Accès d'exception au dossier d'un patient **hors d'état de consentir**, quand ni le titulaire ni un délégué
+n'est joignable (Note_Continuite §5, inspiré du mode bris de glace du DMP français). Cette voie était
+**bloquée depuis le Module 2** : elle dépendait du RBAC et du journal d'audit, tous deux livrés au Module 4.
+
+La règle d'accès de Sécurité §4.4 passe de **trois à cinq voies** : `qr_scan`, `referent`, `delegation`,
+`bris_de_glace`, `admin`.
+
+### Le problème que la note laisse ouvert : identifier le patient
+
+Sans QR, l'agent doit désigner le membre. Une recherche par nom exposerait un **annuaire national des
+malades** — un agent curieux pourrait parcourir le dossier d'une personnalité. Le numéro CMU, chiffré et sans
+index, n'est de toute façon pas cherchable. **Décision** : correspondance **exacte sur trois critères** (nom,
+prénom, date de naissance). Pas de `LIKE`, pas de recherche floue, pas de liste de résultats : la réponse est
+un membre ou rien. On ne peut pas explorer, seulement **confirmer** une identité déjà connue — par les papiers
+du patient ou un proche présent. Casse et espaces normalisés (refuser « KONE » pour « Koné » relèverait de
+l'obstruction, pas de la sécurité). **Toute tentative infructueuse est journalisée** : un agent qui cherche à
+tâtons laisse une trace.
+
+### Les six garde-fous de la note §5.3, tous implémentés
+
+1. **Permission `urgence.bris_de_glace` attribuée à AUCUN rôle** dans le seeder. Le gestionnaire l'accorde
+   **individuellement**, et seulement à un agent d'un service de spécialité `urgences`. La permission ne
+   suffit pas : la spécialité est **revalidée à chaque accès** — un agent habilité puis muté en ORL ne peut
+   plus ouvrir de dossier.
+2. **Justification obligatoire** (min. 20 caractères) : motif de l'urgence + mode d'identification du patient.
+3. **Notification immédiate** au titulaire et aux contacts d'urgence — `Log::warning` avec la liste des
+   destinataires réels (ni Firebase ni passerelle SMS dans le projet ; à brancher au module Notifications).
+4. **Audit renforcé** : `motif_urgence` sur `acces_dossier`, immuable comme le reste du journal, reporté sur
+   la ligne de clôture pour que les deux lignes d'un même accès portent le même motif. Consultable par le patient.
+5. **Session de 15 minutes** (contre 30 pour un scan QR : le patient n'a rien consenti, la fenêtre doit être
+   la plus étroite possible), **lecture seule**, périmètre limité au vital minimal.
+6. **Revue a posteriori** : les bris de glace apparaissent dans les statistiques admin (compte du mois et
+   total), en encart rouge dès qu'il y en a eu.
+
+### Réutilisation plutôt que duplication
+
+- Le périmètre exposé est **exactement** celui de `FicheVitaleService` (5.1) : la même définition du vital
+  minimal sert la carte du secouriste, le SMS d'urgence et le bris de glace. Un seul endroit à auditer.
+- `SessionDossierService` est **généralisé** : la durée devient un attribut de la session (30 ou 15 min) au
+  lieu d'une constante figée, et le type d'accès y est mémorisé. L'audit en deux lignes (ouverture + clôture)
+  fonctionne sans modification. Défense en profondeur : l'écran d'urgence **refuse d'afficher** une session
+  ouverte par QR, et réciproquement.
+- Anti-IDOR conservé : aucun identifiant de membre dans l'URL, le dossier consulté est celui de la session.
+
+### Livrables
+
+- Migration : enum `type_acces` à 5 valeurs + `motif_urgence`. **Piège rencontré** : SQLite *applique* bien
+  une contrainte `CHECK` sur les enums de Laravel — un `ALTER TABLE ... MODIFY` réservé à MySQL laissait
+  les tests échouer. Résolu par `->change()`, portable sur les deux moteurs.
+- `BrisDeGlaceService` (identification, ouverture, notification), `BrisDeGlaceController` (formulaire, dossier
+  vital, fermeture), `AgentController::toggleBrisDeGlace` (habilitation), vues `urgence/{bris-de-glace,dossier}`.
+- Carte dashboard **bordée de rouge** avec la mention « Procédure justifiée et auditée » : une procédure
+  d'exception ne doit pas se confondre avec une fonction ordinaire du portail. Le formulaire dit à l'agent ce
+  qu'il engage **avant** qu'il ne le remplisse.
+- `throttle:10,1` sur l'ouverture.
+- **Tests `BrisDeGlacePortailTest` (10)** : agent non habilité **403** ; agent habilité **hors service
+  d'urgences 403** (cas de la mutation) ; le gestionnaire ne peut habiliter qu'un agent des urgences (bascule
+  aller-retour) ; **les trois critères sont exigés exactement** (un seul faux → aucun dossier, aucune trace) ;
+  casse et espaces tolérés ; **justification trop courte refusée** ; ouverture journalisant le motif et
+  exposant le vital minimal **sans** l'antécédent chirurgical ni la note médicale ; **expiration à 15 min**
+  journalisant la durée et les sections ; fermeture manuelle ; l'accès figure au journal du patient.
+  **Suite : 186/186**, audit 0.

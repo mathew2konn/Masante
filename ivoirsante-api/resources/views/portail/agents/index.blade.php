@@ -43,9 +43,28 @@
               @else
                 <span class="badge bg-secondary">Désactivé</span>
               @endif
+
+              {{-- 5.3 — habilitation d'exception, visible d'un coup d'œil dans la liste. --}}
+              @if ($agent->hasPermissionTo('urgence.bris_de_glace'))
+                <span class="badge bg-danger-subtle text-danger-emphasis border border-danger-subtle d-block mt-1">
+                  <i class="bi bi-unlock"></i> Accès d'urgence
+                </span>
+              @endif
             </td>
             <td class="text-end text-nowrap">
               <a href="{{ route('portail.agents.edit', $agent) }}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-pencil"></i></a>
+
+              {{-- Réservé aux agents des urgences : ailleurs, le bouton n'a pas lieu d'être. --}}
+              @if ($agent->service?->specialite === 'urgences' || $agent->hasPermissionTo('urgence.bris_de_glace'))
+                <form method="POST" action="{{ route('portail.agents.bris', $agent) }}" class="d-inline"
+                      onsubmit="return confirm('{{ $agent->hasPermissionTo('urgence.bris_de_glace') ? 'Retirer l\'habilitation d\'accès d\'urgence ?' : 'Habiliter cet agent à ouvrir un dossier en urgence, sans le consentement du patient ?' }}');">
+                  @csrf @method('PATCH')
+                  <button class="btn btn-sm {{ $agent->hasPermissionTo('urgence.bris_de_glace') ? 'btn-danger' : 'btn-outline-danger' }}"
+                          type="submit" title="Habilitation au bris de glace">
+                    <i class="bi bi-unlock"></i>
+                  </button>
+                </form>
+              @endif
               @if ($agent->password === null)
                 <form method="POST" action="{{ route('portail.agents.lien', $agent) }}" class="d-inline">
                   @csrf

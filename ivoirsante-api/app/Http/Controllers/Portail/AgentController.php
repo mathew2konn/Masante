@@ -101,6 +101,35 @@ class AgentController extends Controller
         return redirect()->route('portail.agents.index')->with('statut', 'Agent mis à jour.');
     }
 
+    /**
+     * Module 5 / 5.3 — Habilite (ou retire l'habilitation) un agent au bris de glace.
+     *
+     * Permission accordée DIRECTEMENT à l'utilisateur, hors rôle (Note_Continuite §5.3 : « attribuée
+     * par le gestionnaire aux seuls services d'urgences »). Le contrôle de spécialité est fait ici, et
+     * refait au moment de l'accès : un agent habilité puis muté en ORL ne doit plus pouvoir ouvrir de
+     * dossier en urgence.
+     */
+    public function toggleBrisDeGlace(User $agent): RedirectResponse
+    {
+        $this->agentPossede($agent);
+
+        if ($agent->hasPermissionTo('urgence.bris_de_glace')) {
+            $agent->revokePermissionTo('urgence.bris_de_glace');
+
+            return back()->with('statut', 'Habilitation d\'urgence retirée.');
+        }
+
+        if ($agent->service?->specialite !== 'urgences') {
+            return back()->withErrors([
+                'agent' => 'Seul un agent affecté à un service d\'urgences peut être habilité au bris de glace.',
+            ]);
+        }
+
+        $agent->givePermissionTo('urgence.bris_de_glace');
+
+        return back()->with('statut', 'Agent habilité à l\'accès d\'urgence. Chaque accès sera justifié et audité.');
+    }
+
     public function toggleActif(User $agent): RedirectResponse
     {
         $this->agentPossede($agent);

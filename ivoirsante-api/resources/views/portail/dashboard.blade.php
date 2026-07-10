@@ -28,6 +28,7 @@
     ['perm' => 'rdv.validate',         'icone' => 'bi-calendar-check',    'titre' => 'Rendez-vous',     'desc' => 'Valider ou refuser les demandes de RDV.', 'route' => 'portail.rdv.index', 'structure' => true],
     ['perm' => 'qr.scan',              'icone' => 'bi-qr-code-scan',      'titre' => 'Scan carnet',     'desc' => 'Scanner le QR du carnet et ouvrir le dossier (30 min).', 'route' => 'portail.scan.index', 'structure' => true],
     ['perm' => 'qr.scan',              'icone' => 'bi-person-check',      'titre' => 'Accueil patient', 'desc' => 'Enregistrer l\'arrivée par le QR du reçu de RDV.', 'route' => 'portail.scan.rdv', 'structure' => true],
+    ['perm' => 'urgence.bris_de_glace','icone' => 'bi-exclamation-octagon', 'titre' => 'Accès d\'urgence', 'desc' => 'Patient inconscient : ouvrir ses informations vitales.', 'route' => 'portail.urgence.bris', 'structure' => true, 'danger' => true],
   ];
 @endphp
 
@@ -38,12 +39,16 @@
       @php($lien = isset($c['route']) ? route($c['route']) : null)
       <div class="col-sm-6 col-lg-4">
         <a href="{{ $lien ?? '#' }}" class="text-decoration-none text-reset {{ $lien ? '' : 'pe-none' }}">
-          <div class="card h-100 border-0 shadow-sm {{ $lien ? 'card-active' : '' }}">
+          {{-- La carte d'accès d'urgence est bordée de rouge : c'est une procédure d'exception,
+               elle ne doit pas se confondre avec une fonction ordinaire du portail. --}}
+          <div class="card h-100 shadow-sm {{ ($c['danger'] ?? false) ? 'border-danger' : 'border-0' }} {{ $lien ? 'card-active' : '' }}">
             <div class="card-body">
-              <div class="text-ms mb-2" style="font-size:1.75rem"><i class="bi {{ $c['icone'] }}"></i></div>
+              <div class="{{ ($c['danger'] ?? false) ? 'text-danger' : 'text-ms' }} mb-2" style="font-size:1.75rem"><i class="bi {{ $c['icone'] }}"></i></div>
               <h2 class="h6 mb-1">{{ $c['titre'] }}</h2>
               <p class="text-muted small mb-2">{{ $c['desc'] }}</p>
-              @if ($lien)
+              @if ($lien && ($c['danger'] ?? false))
+                <span class="badge bg-danger-subtle text-danger-emphasis border border-danger-subtle">Procédure justifiée et auditée</span>
+              @elseif ($lien)
                 <span class="badge bg-primary-subtle text-primary-emphasis border border-primary-subtle">Ouvrir <i class="bi bi-arrow-right"></i></span>
               @else
                 <span class="badge bg-light text-muted border">Bientôt</span>

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Portail;
 
 use App\Http\Controllers\Controller;
+use App\Models\AccesDossier;
 use App\Models\Avis;
 use App\Models\RendezVous;
 use App\Models\Signalement;
@@ -60,6 +61,16 @@ class StatistiqueController extends Controller
             'avisAModerer'         => Avis::where('signale', true)->count(),
             'scansDuMois'          => TokenQr::whereNotNull('used_at')->where('used_at', '>=', $debutMois)->count(),
             'moisCourant'          => self::MOIS[$debutMois->month].' '.$debutMois->year,
+            // Revue a posteriori des bris de glace (Note_Continuite §5.3, garde-fou n°6) : un taux
+            // anormal par établissement révèle un abus. On compte les OUVERTURES (`duree_minutes`
+            // nulle) : la ligne de clôture référence le même accès, elle ferait doublon.
+            'brisDeGlaceDuMois'    => AccesDossier::where('type_acces', 'bris_de_glace')
+                ->whereNull('duree_minutes')
+                ->where('created_at', '>=', $debutMois)
+                ->count(),
+            'brisDeGlaceTotal'     => AccesDossier::where('type_acces', 'bris_de_glace')
+                ->whereNull('duree_minutes')
+                ->count(),
         ]);
     }
 

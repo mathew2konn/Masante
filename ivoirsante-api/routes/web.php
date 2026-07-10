@@ -3,6 +3,7 @@
 use App\Http\Controllers\Portail\ActivationController;
 use App\Http\Controllers\Portail\AgentController;
 use App\Http\Controllers\Portail\AuthController;
+use App\Http\Controllers\Portail\BrisDeGlaceController;
 use App\Http\Controllers\Portail\CompteController;
 use App\Http\Controllers\Portail\DashboardController;
 use App\Http\Controllers\Portail\DisponibiliteController;
@@ -52,6 +53,16 @@ Route::prefix('portail')->name('portail.')->group(function () {
             Route::post('etablissements/{etablissement}/lien', [EtablissementController::class, 'regenererLien'])->name('etablissements.lien');
         });
 
+        // 5.3 — Bris de glace (AGENT DES URGENCES habilité individuellement). Voie 4 d'accès au
+        // dossier : périmètre vital minimal, 15 min, justification obligatoire, audit renforcé.
+        Route::middleware('permission:urgence.bris_de_glace')->prefix('urgence')->name('urgence.')->group(function () {
+            Route::get('bris-de-glace', [BrisDeGlaceController::class, 'index'])->name('bris');
+            Route::post('bris-de-glace', [BrisDeGlaceController::class, 'ouvrir'])
+                ->name('bris.ouvrir')->middleware('throttle:10,1');
+            Route::get('dossier', [BrisDeGlaceController::class, 'dossier'])->name('dossier');
+            Route::post('dossier/fermer', [BrisDeGlaceController::class, 'fermer'])->name('fermer');
+        });
+
         // 4.7 — Comptes du portail (ADMIN). Staff seulement : les comptes patients n'y figurent pas.
         Route::middleware('permission:compte.manage')->group(function () {
             Route::get('comptes', [CompteController::class, 'index'])->name('comptes.index');
@@ -91,6 +102,8 @@ Route::prefix('portail')->name('portail.')->group(function () {
             Route::get('agents/{agent}/editer', [AgentController::class, 'edit'])->name('agents.edit');
             Route::put('agents/{agent}', [AgentController::class, 'update'])->name('agents.update');
             Route::patch('agents/{agent}/actif', [AgentController::class, 'toggleActif'])->name('agents.toggle');
+            // 5.3 — habilitation individuelle au bris de glace (agents des urgences uniquement).
+            Route::patch('agents/{agent}/bris-de-glace', [AgentController::class, 'toggleBrisDeGlace'])->name('agents.bris');
             Route::post('agents/{agent}/lien', [AgentController::class, 'regenererLien'])->name('agents.lien');
         });
 

@@ -25,6 +25,9 @@ class AccesDossier extends Model
         'agent_id',
         'token_qr_id',
         'type_acces',
+        // Bris de glace (Note_Continuite §5.3) : justification saisie AVANT l'ouverture. Immuable
+        // comme le reste du journal — un accès d'exception doit rester explicable après coup.
+        'motif_urgence',
         'sections_consultees',
         'donnees_ajoutees',
         'ip_address',

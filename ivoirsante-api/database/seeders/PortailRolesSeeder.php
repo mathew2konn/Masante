@@ -34,6 +34,9 @@ class PortailRolesSeeder extends Seeder
         'rdv.validate',           // valider / refuser les RDV
         'qr.scan',                // scanner le QR patient (carnet / RDV)
         'triage.view',            // consulter la fiche de triage reçue
+        // Urgences — VOLONTAIREMENT ATTRIBUÉE À AUCUN RÔLE (Note_Continuite §5.3) : le gestionnaire
+        // l'accorde individuellement, et seulement aux agents d'un service d'urgences.
+        'urgence.bris_de_glace',  // ouvrir le vital minimal d'un patient hors d'état de consentir
     ];
 
     /** Permissions par rôle (moindre privilège). L'admin reçoit tout. */

@@ -29,21 +29,36 @@ use Illuminate\Support\Facades\Session;
  */
 class SessionDossierService
 {
-    /** Durée d'une session dossier, en minutes (CdC §4.3 étape 5). */
+    /** Durée d'une session ouverte par scan QR, en minutes (CdC §4.3 étape 5). */
     public const DUREE_MINUTES = 30;
+
+    /** Durée d'une session de bris de glace (Note_Continuite §5.3) : plus courte, car non consentie. */
+    public const DUREE_BRIS_DE_GLACE = 15;
 
     /** Clé de la session web portant le dossier ouvert. */
     private const CLE = 'dossier_ouvert';
 
-    /** Ouvre la fenêtre de consultation à la suite d'un scan valide. */
-    public function ouvrir(AccesDossier $ouverture): void
+    /**
+     * Ouvre la fenêtre de consultation. La durée dépend de la voie d'accès : 30 minutes après un
+     * scan QR (le patient a consenti en présentant son QR), 15 minutes en bris de glace (il n'a
+     * rien consenti — la fenêtre doit être la plus étroite possible).
+     */
+    public function ouvrir(AccesDossier $ouverture, int $dureeMinutes = self::DUREE_MINUTES): void
     {
         Session::put(self::CLE, [
             'acces_id'  => $ouverture->id,
             'membre_id' => $ouverture->membre_id,
+            'type'      => $ouverture->type_acces,
+            'duree'     => $dureeMinutes,
             'ouvert_a'  => now()->toIso8601String(),
             'sections'  => [],
         ]);
+    }
+
+    /** Voie par laquelle le dossier courant a été ouvert (`qr_scan`, `bris_de_glace`, …). */
+    public function typeAcces(): ?string
+    {
+        return Session::get(self::CLE.'.type');
     }
 
     /** Y a-t-il une session dossier encore valide ? (une session expirée est close et purgée) */
@@ -130,10 +145,13 @@ class SessionDossierService
             'agent_id'            => $ouverture->agent_id,
             'token_qr_id'         => $ouverture->token_qr_id,
             'type_acces'          => $ouverture->type_acces,
+            // La justification du bris de glace est reportée sur la ligne de clôture : les deux
+            // lignes d'un même accès portent ainsi le même motif.
+            'motif_urgence'       => $ouverture->motif_urgence,
             'sections_consultees' => $etat['sections'],
             'ip_address'          => $ouverture->ip_address,
-            // Bornée à la durée accordée : une session expirée n'a pas duré plus de 30 min.
-            'duree_minutes'       => min($duree, self::DUREE_MINUTES),
+            // Bornée à la durée ACCORDÉE pour cette voie : une session expirée n'a pas duré plus.
+            'duree_minutes'       => min($duree, $etat['duree'] ?? self::DUREE_MINUTES),
         ]);
 
         Log::info('Session dossier fermée', [
@@ -143,9 +161,9 @@ class SessionDossierService
         ]);
     }
 
-    /** Instant d'expiration de la fenêtre de 30 minutes. */
+    /** Instant d'expiration de la fenêtre, selon la durée accordée à la voie d'accès. */
     private function expireA(array $etat): Carbon
     {
-        return Carbon::parse($etat['ouvert_a'])->addMinutes(self::DUREE_MINUTES);
+        return Carbon::parse($etat['ouvert_a'])->addMinutes($etat['duree'] ?? self::DUREE_MINUTES);
     }
 }

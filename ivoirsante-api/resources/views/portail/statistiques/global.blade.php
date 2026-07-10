@@ -39,6 +39,21 @@
   @include('portail.statistiques._kpi', ['valeur' => $noteMoyenne !== null ? number_format($noteMoyenne, 2).' ★' : '—', 'libelle' => 'Note moyenne', 'icone' => 'bi-star', 'couleur' => 'text-warning'])
 </div>
 
+{{-- 5.3 — Revue a posteriori des accès d'exception (Note_Continuite §5.3, garde-fou n°6).
+     Un taux anormal, par établissement ou dans le temps, révèle un abus. --}}
+@if ($brisDeGlaceTotal > 0)
+  <div class="alert {{ $brisDeGlaceDuMois > 0 ? 'alert-danger' : 'alert-secondary' }} d-flex justify-content-between align-items-center">
+    <div>
+      <strong><i class="bi bi-exclamation-octagon"></i> Accès d'urgence (bris de glace)</strong>
+      <div class="small">
+        {{ $brisDeGlaceDuMois }} en {{ $moisCourant }} · {{ $brisDeGlaceTotal }} depuis l'ouverture de la plateforme.
+        Chaque accès est justifié, notifié au patient et journalisé.
+      </div>
+    </div>
+    <span class="fs-2 fw-semibold">{{ $brisDeGlaceDuMois }}</span>
+  </div>
+@endif
+
 <div class="row g-3">
   <div class="col-lg-4">
     <div class="card border-0 shadow-sm h-100">
