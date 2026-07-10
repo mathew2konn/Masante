@@ -27,6 +27,8 @@ class RendezVous extends Model
         'date_confirmee',
         'statut',
         'message_agent',
+        'checked_in_at',
+        'checked_in_by_agent_id',
     ];
 
     protected function casts(): array
@@ -34,7 +36,14 @@ class RendezVous extends Model
         return [
             'date_souhaitee' => 'date',
             'date_confirmee' => 'datetime',
+            'checked_in_at'  => 'datetime',
         ];
+    }
+
+    /** Le patient est-il déjà enregistré à l'accueil ? (4.5 / N6 — le check-in est idempotent.) */
+    public function estEnregistre(): bool
+    {
+        return $this->checked_in_at !== null;
     }
 
     public function membre(): BelongsTo

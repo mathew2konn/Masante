@@ -117,6 +117,15 @@
           @if ($rdv->date_confirmee)
             <p class="mb-0 mt-2">Confirmé pour le <strong>{{ \Illuminate\Support\Carbon::parse($rdv->date_confirmee)->format('d/m/Y H:i') }}</strong>.</p>
           @endif
+
+          {{-- 4.5 / N6 — arrivée physique du patient, enregistrée par scan du QR de reçu. --}}
+          @if ($rdv->estEnregistre())
+            <p class="mb-0 mt-2">
+              <span class="badge bg-success-subtle text-success-emphasis border border-success-subtle">
+                <i class="bi bi-person-check"></i> Patient présent à l'accueil depuis {{ $rdv->checked_in_at->format('H:i') }}
+              </span>
+            </p>
+          @endif
         </div>
       </div>
     @endif

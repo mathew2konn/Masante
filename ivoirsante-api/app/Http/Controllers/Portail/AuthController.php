@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Portail;
 
 use App\Http\Controllers\Controller;
+use App\Services\SessionDossierService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -62,8 +63,12 @@ class AuthController extends Controller
         return redirect()->intended(route('portail.dashboard'));
     }
 
-    public function logout(Request $request): RedirectResponse
+    public function logout(Request $request, SessionDossierService $dossier): RedirectResponse
     {
+        // 4.5 — un dossier resté ouvert est clos AVANT de détruire la session : sans cela, la
+        // ligne d'audit de clôture (durée réelle + sections consultées) serait perdue.
+        $dossier->fermer('deconnexion');
+
         Auth::logout();
         $request->session()->invalidate();
         $request->session()->regenerateToken();

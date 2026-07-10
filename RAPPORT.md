@@ -855,3 +855,78 @@ de son établissement**.
   gestionnaire voit **tous** ses services, agent **confirme** un RDV, **refus sans motif rejeté**, **RDV d'un
   autre service = 404**, **reconfirmation d'un RDV traité = 409**, **médecin d'un autre service rejeté**.
   **Suite : 139/139**, audit 0.
+
+## 4.5 — Scan QR à l'accueil (backend + Blade, 2026-07-10)
+
+Cœur différenciateur du projet (CdC §4.3 « Flux du système QR Code dynamique » ; Sécurité §5 et §10 ;
+Analyse_Delta_RDV N3/N6). Le portail expose enfin la **consommation** du token QR, dont la logique
+serveur existait depuis le Module 2 (`QrTokenService::validerEtConsommer`, verrou pessimiste, usage unique).
+
+### Deux flux volontairement séparés
+
+L'Analyse_Delta_RDV (§46) avertit : « confondre les deux serait une faille ». On livre donc **deux écrans,
+deux routes, deux secrets de signature** :
+
+| Flux | Écran | Ce qu'il fait | Ce qu'il ne fait jamais |
+|---|---|---|---|
+| **QR carnet** | « Scanner le carnet » | Consomme un token à usage unique (10 min), ouvre le **dossier médical** pour 30 min, journalise | — |
+| **QR reçu de RDV** | « Accueil patient » | Enregistre l'**arrivée physique** (`checked_in_at`, N6) | N'ouvre **aucun** dossier ; ne porte aucune donnée médicale |
+
+### Qui peut scanner — décision
+
+`qr.scan` reste **réservée à `agent_garde`** (CdC §5.4.2 ; Sécurité §4.1), contrairement au périmètre
+unifié agent+gestionnaire retenu en 4.4 pour la dispo et les RDV : ouvrir un dossier médical est un acte
+plus sensible que valider un rendez-vous. Le **gestionnaire ne scanne pas**. L'**admin**, qui hérite pourtant
+de toutes les permissions, est **refusé (403)** faute d'établissement de rattachement — son accès à un dossier
+relèverait de la voie « admin » du §4.4, exceptionnelle et hors périmètre de 4.5.
+
+### Session dossier de 30 minutes
+
+`SessionDossierService` porte la fenêtre dans la **session web** de l'agent : elle meurt avec sa déconnexion,
+et **l'identifiant du membre n'apparaît jamais dans l'URL** — un agent ne peut pas atteindre un autre dossier
+en modifiant l'adresse (**anti-IDOR par construction**, OWASP A01). Le middleware `dossier.actif` referme la
+fenêtre à l'échéance ; la vue affiche un compte à rebours.
+
+### Audit : deux lignes plutôt qu'une réécriture
+
+Le journal `acces_dossier` est **immuable** (§10.2 : `updating`/`deleting` → 403), mais `duree_minutes` et
+`sections_consultees` ne sont connus **qu'à la fermeture**, alors que la ligne est écrite **au scan**. Plutôt
+que d'affaiblir l'immuabilité par une exception de clôture, on écrit **deux lignes en ajout seul**, liées par
+le même `token_qr_id` :
+
+1. **ouverture** — écrite par `QrTokenService::consommer()` au scan (durée et sections nulles) ;
+2. **clôture** — écrite à la fermeture (manuelle, expiration des 30 min, ou déconnexion), portant la
+   **durée réelle** (bornée à 30) et les **sections effectivement consultées**.
+
+La promesse « rien n'est jamais réécrit » reste donc entière. `validerEtConsommer()` conserve sa signature
+(le Module 2 l'utilise) et délègue désormais à `consommer()`, qui renvoie la ligne d'ouverture.
+
+### Minimisation (loi n°2013-450)
+
+L'agent consulte **en lecture seule** : fiche vitale, antécédents, vaccinations, ordonnances, analyses, notes,
+contacts d'urgence, documents et fiche de triage. Les **documents et la photo sont listés mais non
+téléchargeables** depuis le portail (le déchiffrement des blobs reste réservé à l'API mobile, pour le
+titulaire) ; le **matricule** et le **numéro CMU complet** ne sont jamais affichés.
+
+### Livrables
+
+- **`ScanController`** (`permission:qr.scan`, `throttle:20,1` sur les POST — un token est un secret) :
+  `index`/`scanner` (carnet) et `indexRdv`/`checkIn` (reçu). Les échecs 404/409/410 sont traduits en
+  **messages d'accueil** (« QR expiré, demandez-en un nouveau ») plutôt qu'en pages d'exception : à l'accueil,
+  un QR périmé est un cas courant, pas un bug.
+- **`DossierController`** (lecture seule, 9 sections, aucune section dans l'URL hors clé connue → 404).
+- **`SessionDossierService`** + middleware **`dossier.actif`** ; clôture aussi déclenchée au **logout**.
+- **`RecuRdvService::verifierCode()`** : signature HMAC vérifiée en **temps constant** (`hash_equals`, pas
+  d'oracle de timing), type de payload, expiration, puis cloisonnement `structure_id` → **404** (on ne confirme
+  pas l'existence du reçu d'un autre établissement). Check-in **idempotent** ; le reçu passe à `utilise`.
+- **Migration** `checked_in_at` + `checked_in_by_agent_id` sur `rendez_vous` (N6 : champ horodaté plutôt qu'une
+  valeur d'énumération, pour conserver l'historique — le RDV reste `confirme`).
+- **Vues Blade** `scan/{index,rdv,_lecteur}` et `dossier/show` ; lecteur caméra **html5-qrcode** (CDN) avec
+  **saisie manuelle de secours** (`getUserMedia` exige une origine sécurisée : https/Ngrok ou localhost).
+  Badge « patient présent » sur la fiche RDV. Deux cartes au dashboard.
+- **Écart assumé** : la **notification push** au patient (CdC §4.3 étape 6, FT3) est une trace `Log::info` —
+  Firebase n'est pas intégré au projet ; à brancher au module Notifications.
+- **Tests `ScanQrPortailTest` (9)** : scan valide → dossier + audit, **rejeu refusé**, **QR expiré refusé**,
+  **clôture journalisant durée + sections**, **expiration à 30 min**, **dossier inaccessible sans scan**,
+  **gestionnaire 403 / admin 403**, check-in nominal (**sans aucune ligne d'audit dossier**), et check-in refusé
+  pour RDV non confirmé / **code falsifié** / **autre établissement (404)**. **Suite : 148/148**, audit 0.

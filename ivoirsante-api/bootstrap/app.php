@@ -26,6 +26,8 @@ return Application::configure(basePath: dirname(__DIR__))
             'role'               => \Spatie\Permission\Middleware\RoleMiddleware::class,
             'permission'         => \Spatie\Permission\Middleware\PermissionMiddleware::class,
             'role_or_permission' => \Spatie\Permission\Middleware\RoleOrPermissionMiddleware::class,
+            // 4.5 — fenêtre de consultation d'un dossier ouverte par un scan QR (30 min).
+            'dossier.actif'      => \App\Http\Middleware\SessionDossierActive::class,
         ]);
 
         // Invités : sur l'API (`api/*`) on NE redirige PAS (null) → combiné à `shouldRenderJsonWhen`,

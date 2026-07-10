@@ -5,8 +5,10 @@ use App\Http\Controllers\Portail\AgentController;
 use App\Http\Controllers\Portail\AuthController;
 use App\Http\Controllers\Portail\DashboardController;
 use App\Http\Controllers\Portail\DisponibiliteController;
+use App\Http\Controllers\Portail\DossierController;
 use App\Http\Controllers\Portail\EtablissementController;
 use App\Http\Controllers\Portail\RendezVousController;
+use App\Http\Controllers\Portail\ScanController;
 use App\Http\Controllers\Portail\ServiceController;
 use Illuminate\Support\Facades\Route;
 
@@ -81,6 +83,25 @@ Route::prefix('portail')->name('portail.')->group(function () {
             Route::get('rendez-vous/{rdv}', [RendezVousController::class, 'show'])->name('rdv.show');
             Route::patch('rendez-vous/{rdv}/confirmer', [RendezVousController::class, 'confirmer'])->name('rdv.confirmer');
             Route::patch('rendez-vous/{rdv}/refuser', [RendezVousController::class, 'refuser'])->name('rdv.refuser');
+        });
+
+        // 4.5 — Scan des QR à l'accueil (AGENT DE GARDE, permission qr.scan).
+        // Deux flux volontairement séparés : le QR carnet ouvre le dossier médical ; le QR de
+        // reçu enregistre l'arrivée du patient. `throttle` : un token QR est un secret, on borne
+        // les tentatives de devinette (Sécurité §5.1).
+        Route::middleware('permission:qr.scan')->group(function () {
+            Route::get('scan', [ScanController::class, 'index'])->name('scan.index');
+            Route::post('scan', [ScanController::class, 'scanner'])->name('scan.carnet')->middleware('throttle:20,1');
+
+            Route::get('scan/rendez-vous', [ScanController::class, 'indexRdv'])->name('scan.rdv');
+            Route::post('scan/rendez-vous', [ScanController::class, 'checkIn'])->name('scan.checkin')->middleware('throttle:20,1');
+
+            // Dossier ouvert par un scan : aucun identifiant de membre dans l'URL (anti-IDOR).
+            Route::middleware('dossier.actif')->group(function () {
+                Route::get('dossier', [DossierController::class, 'show'])->name('dossier.show');
+                Route::post('dossier/fermer', [DossierController::class, 'fermer'])->name('dossier.fermer');
+                Route::get('dossier/{section}', [DossierController::class, 'section'])->name('dossier.section');
+            });
         });
     });
 });

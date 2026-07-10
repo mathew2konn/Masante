@@ -100,6 +100,40 @@ class RecuRdvService
         ];
     }
 
+    /**
+     * Vérifie un code de check-in scanné à l'accueil (4.5 / N3) et renvoie le reçu correspondant.
+     *
+     * Contrôles, dans l'ordre : forme du code, signature HMAC (comparaison en TEMPS CONSTANT,
+     * `hash_equals` → pas d'oracle de timing), type de payload, expiration, existence du reçu.
+     * Ce code ne donne JAMAIS accès au dossier : il ne référence qu'un rendez-vous.
+     *
+     * @throws \Symfony\Component\HttpKernel\Exception\HttpException  404 code invalide · 410 expiré
+     */
+    public function verifierCode(string $code): RecuRdv
+    {
+        $morceaux = explode('.', $code);
+        abort_if(count($morceaux) !== 2, 404, 'Code de reçu invalide.');
+
+        [$corps, $signature] = $morceaux;
+        $attendue = hash_hmac('sha256', $corps, $this->secret());
+
+        // hash_equals : la comparaison ne fuit pas la position du premier octet divergent.
+        abort_if(! hash_equals($attendue, $signature), 404, 'Code de reçu invalide.');
+
+        $payload = json_decode((string) base64_decode(strtr($corps, '-_', '+/'), true), true);
+
+        abort_if(! is_array($payload) || ($payload['typ'] ?? null) !== 'rdv', 404, 'Code de reçu invalide.');
+        abort_if(($payload['exp'] ?? 0) < now()->timestamp, 410, 'Code de reçu expiré.');
+
+        $recu = RecuRdv::where('reference', $payload['ref'] ?? '')
+            ->where('rendez_vous_id', $payload['rdv'] ?? 0)
+            ->first();
+
+        abort_if($recu === null, 404, 'Reçu introuvable.');
+
+        return $recu;
+    }
+
     /** Montant = tarif du médecin choisi (F3.5) sinon tarif plancher de la structure ; null si aucun. */
     private function montantPour(RendezVous $rdv): ?int
     {

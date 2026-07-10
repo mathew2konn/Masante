@@ -19,8 +19,8 @@ use Illuminate\Support\Str;
  *  - Éphémère : expiration 10 minutes.
  *  - Usage unique : consommation sous verrou pessimiste (lockForUpdate) → pas de rejeu (§5.3).
  *
- * La consommation (scan) est ici utilisable côté serveur ; son exposition HTTP côté agent
- * est branchée au Module 3 (les `agents_garde` n'existent pas encore).
+ * La consommation (scan) est exposée au portail depuis le Module 4.5 (agent de garde,
+ * permission `qr.scan`) — voir {@see \App\Http\Controllers\Portail\ScanController}.
  */
 class QrTokenService
 {
@@ -64,6 +64,19 @@ class QrTokenService
      */
     public function validerEtConsommer(string $tokenPublic, array $contexte = []): MembreFamille
     {
+        return $this->consommer($tokenPublic, $contexte)->membre;
+    }
+
+    /**
+     * Même opération, mais renvoie la ligne d'audit d'OUVERTURE plutôt que le membre.
+     * Le portail (4.5) en a besoin : à la fermeture de la session dossier, il écrit une ligne
+     * de CLÔTURE qui référence le même token et porte la durée réelle + les sections consultées
+     * (le journal étant immuable, on ne peut pas compléter la ligne d'ouverture — cf. §10.2).
+     *
+     * @param  array{agent_id?: int|null, etablissement?: string|null, ip?: string|null, sections?: array<string>|null}  $contexte
+     */
+    public function consommer(string $tokenPublic, array $contexte = []): AccesDossier
+    {
         $hash = hash('sha256', $tokenPublic);
 
         // Transaction + verrou pessimiste : deux scans simultanés ne peuvent pas
@@ -82,7 +95,7 @@ class QrTokenService
             ]);
 
             // Journal d'audit immuable (§10) : trace l'accès au dossier.
-            AccesDossier::create([
+            return AccesDossier::create([
                 'membre_id'           => $token->membre_id,
                 'agent_id'            => $contexte['agent_id'] ?? null,
                 'token_qr_id'         => $token->id,
@@ -90,8 +103,6 @@ class QrTokenService
                 'sections_consultees' => $contexte['sections'] ?? null,
                 'ip_address'          => $contexte['ip'] ?? null,
             ]);
-
-            return $token->membre;
         });
     }
 
