@@ -25,6 +25,25 @@ export interface ContactUrgenceVital {
   principal: boolean;
 }
 
+/** Niveau de gravité d'une alerte épidémique (FN3, enum backend). */
+export type NiveauAlerte = 'information' | 'vigilance' | 'alerte';
+
+/**
+ * Alerte épidémique visible par l'utilisateur (FN3). Le serveur ne renvoie que les alertes en
+ * vigueur de sa commune de résidence, plus les alertes nationales.
+ */
+export interface AlerteEpidemique {
+  id: number;
+  commune: string;
+  titre: string;
+  description: string;
+  maladie: string;
+  niveau_alerte: NiveauAlerte;
+  source: string;
+  date_debut: string;
+  date_fin: string | null;
+}
+
 export interface FicheVitale {
   membre_id: number;
   nom: string;

@@ -1307,3 +1307,19 @@ voit que ce qui est réellement d'actualité.
   compte sans commune → national seul ; **inactives / futures / expirées exclues** ; tri par gravité ; 401
   sans auth ; admin publie (communale et nationale avec sentinelle) ; `date_fin` antérieure refusée ; toggle
   sans suppression ; **gestionnaire 403**. **Suite : 196/196**, audit 0.
+
+## 5.4 — Alertes épidémiques · Étape B mobile (2026-07-10)
+
+Bannière sur l'accueil quand une alerte concerne la commune de l'utilisateur, écran de détail avec les
+consignes. Le ciblage est entièrement côté serveur (5.4 A) : le mobile ne décide de rien, il affiche.
+
+- **Bannière `BanniereAlerte`** sur l'accueil : teintée selon la gravité, elle montre la **plus grave** et
+  annonce le nombre d'autres (« +2 autres alertes dans votre zone »). L'accueil n'est pas un mur d'alertes.
+  Chargée à chaque focus, **échec silencieux** : une bannière est un plus, son absence ne doit pas gêner
+  l'accueil (ni bloquer un utilisateur hors ligne).
+- **Écran `AlertesEcran`** (`/(app)/alertes`, hors barre d'onglets) : liste complète, chaque alerte avec sa
+  maladie, son niveau, la période, les **consignes** (l'essentiel — c'est ce qui protège) et la source.
+- **`src/urgence/alertes.ts`** : `styleNiveau()`, source unique de la couleur / du libellé / de l'icône par
+  niveau, partagée par la bannière et l'écran — pour qu'ils ne divergent jamais.
+- **Vide géré** : « Aucune alerte en cours », avec l'invite à renseigner sa commune dans le profil.
+- `tsc` OK, `expo-doctor` 18/18, aucune dépendance ajoutée.

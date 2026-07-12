@@ -1,20 +1,36 @@
-import React from 'react';
+import React, { useCallback, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Screen } from '../../src/components/Screen';
 import { Card } from '../../src/components/Card';
+import { BanniereAlerte } from '../../src/components/BanniereAlerte';
+import { getAlertesEpidemiques } from '../../src/api/alertes';
 import { useSession } from '../../src/auth/SessionContext';
+import type { AlerteEpidemique } from '../../src/types/urgence';
 import { colors, radius, spacing, typography } from '../../src/theme/theme';
 
 /** Accueil — tableau de bord d'entrée (§5.2 tuiles d'accès rapide). */
 export default function AccueilTab() {
   const { user } = useSession();
+  const [alertes, setAlertes] = useState<AlerteEpidemique[]>([]);
+
+  // Alertes sanitaires de la commune : rafraîchies à chaque retour sur l'accueil. Échec silencieux
+  // (réseau, etc.) : une bannière d'alerte est un plus, son absence ne doit pas gêner l'accueil.
+  useFocusEffect(
+    useCallback(() => {
+      getAlertesEpidemiques()
+        .then(setAlertes)
+        .catch(() => setAlertes([]));
+    }, []),
+  );
 
   return (
     <Screen>
       <Text style={styles.salut}>Bonjour{user?.prenom ? `, ${user.prenom}` : ''} 👋</Text>
       <Text style={styles.sous}>Bienvenue sur votre espace santé.</Text>
+
+      <BanniereAlerte alertes={alertes} onPress={() => router.navigate('/(app)/alertes')} />
 
       <View style={styles.tuiles}>
         <Tuile
