@@ -1371,3 +1371,33 @@ médicale) et libère la déclaration d'une nouvelle grossesse. La fiche vitale 
   réécrire le tableau ; ajustement DDG (rappels 8→6, rappel personnel intact) ; clôture (rappels désactivés,
   suivi figé, nouvelle grossesse possible) ; anti-IDOR 403 ; 401 sans auth. **Suite : 209/209
   (730 assertions)**, audit 0.
+
+## 5.5 — Suivi de grossesse (FN4) · Étape B mobile (2026-07-12)
+
+Écran dédié `GrossesseEcran`, accessible depuis la fiche d'un membre **féminin** (une ligne « Suivi de
+grossesse » n'apparaît que si `sexe === 'F'` — le backend refuse un homme, une entrée serait un cul-de-sac).
+La route vit sous `membres/`, donc **déjà derrière le VerrouGate** (biométrie/PIN, données sensibles).
+Le mobile n'affiche que ce que le serveur décide : ni terme, ni semaine d'aménorrhée recalculés côté client.
+
+**Un seul écran, deux visages** (selon la réponse de l'API) :
+
+- **Sans grossesse en cours** : formulaire de **déclaration** (DateField DDG borné à 43 semaines en arrière,
+  miroir de la règle serveur) + le **calendrier éducatif** des 8 contacts (non daté) + l'historique des
+  grossesses clôturées (dates + issue accouchement/interruption).
+- **Grossesse en cours** : **bandeau de tête** (semaine d'aménorrhée + terme prévu), **carte « signes de
+  danger »** avec appel direct au **SAMU 185** (réutilise `appelerSamu` du SOS 5.2 — information de sécurité,
+  aucune détection automatique, décision actée au cadrage M5), **timeline datée** des 8 contacts (pastille
+  ✓ passé / n° à venir, description + conseils nutrition **dépliables** au tap comme les consignes 5.4),
+  **consultations** (liste + ajout append-only, sans édition ni suppression), et la **gestion** (ajuster la
+  DDG après échographie → terme et rappels recalculés serveur ; clôturer via `Alert` à choix
+  Accouchement/Interruption, action **définitive**).
+
+- **Nouveaux** : `src/types/grossesse.ts` (types miroir de l'API), `src/api/grossesse.ts` (obtenir/déclarer/
+  ajuster/clôturer/ajouter-consultation, client axios unique), `src/screens/GrossesseEcran.tsx`,
+  route `app/(app)/membres/grossesse/[id].tsx` (wrapper mince).
+- **Modifié** : fiche membre `[id].tsx` (ligne « Suivi de grossesse » conditionnée au sexe F) ; `RAPPORT.md`.
+- **Rappels CPN non dupliqués** : ils vivent déjà dans la section « Rappels » du carnet ; la timeline sert de
+  calendrier visuel. À la déclaration, un message confirme le nombre de rappels ajoutés.
+- **Piège** : la route typée n'existe qu'après régénération des types expo-router (`experiments.typedRoutes`) —
+  Metro relancé une fois pour régénérer `.expo/types/router.d.ts`, puis `tsc`. **`tsc` OK**, **`expo-doctor`
+  18/18**, aucune dépendance ajoutée.

@@ -296,6 +296,27 @@ export default function DetailMembreScreen() {
           <Ionicons name="chevron-forward" size={20} color={colors.ink[500]} />
         </Pressable>
 
+        {/* Suivi de grossesse (FN4) : réservé aux membres féminins (le backend refuse un homme). */}
+        {membre.sexe === 'F' ? (
+          <Pressable
+            onPress={() =>
+              router.push({
+                pathname: '/(app)/membres/grossesse/[id]',
+                params: { id: membreId, nom: `${membre.prenom} ${membre.nom}` },
+              })
+            }
+            accessibilityRole="button"
+            accessibilityLabel="Suivi de grossesse"
+            style={[styles.sectionRow, styles.sectionRowBordure]}
+          >
+            <View style={styles.sectionPastille}>
+              <Ionicons name="heart-circle-outline" size={18} color={colors.blue[600]} />
+            </View>
+            <Text style={styles.sectionTxt}>Suivi de grossesse</Text>
+            <Ionicons name="chevron-forward" size={20} color={colors.ink[500]} />
+          </Pressable>
+        ) : null}
+
         {/* Aperçu : les 1-2 contacts saisis (principal en premier), rechargé au focus. */}
         {contacts.length > 0 ? (
           <View style={styles.contactsResume}>
