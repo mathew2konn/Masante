@@ -29,5 +29,8 @@ class DatabaseSeeder extends Seeder
 
         // Annuaire géolocalisé des structures sanitaires d'Abidjan (Module 3 / 3A.1).
         $this->call(StructureSanitaireSeeder::class);
+
+        // Référentiel des 8 contacts prénatals OMS/PSN-CI (Module 5 / FN4).
+        $this->call(EtapePrenataleSeeder::class);
     }
 }

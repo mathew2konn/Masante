@@ -143,4 +143,10 @@ class MembreFamille extends Model
     {
         return $this->hasMany(NoteObservation::class, 'membre_id');
     }
+
+    /** Module 5 / FN4 — Suivis de grossesse (en cours + historique clos). */
+    public function suivisGrossesse(): HasMany
+    {
+        return $this->hasMany(SuiviGrossesse::class, 'membre_id');
+    }
 }

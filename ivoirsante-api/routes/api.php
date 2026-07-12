@@ -7,6 +7,7 @@ use App\Http\Controllers\Api\V1\AvisController;
 use App\Http\Controllers\Api\V1\Carnet\AntecedentController;
 use App\Http\Controllers\Api\V1\Carnet\ContactUrgenceController;
 use App\Http\Controllers\Api\V1\Carnet\DocumentMedicalController;
+use App\Http\Controllers\Api\V1\Carnet\GrossesseController;
 use App\Http\Controllers\Api\V1\Carnet\NoteObservationController;
 use App\Http\Controllers\Api\V1\Carnet\OrdonnanceController;
 use App\Http\Controllers\Api\V1\Carnet\RappelController;
@@ -169,6 +170,14 @@ Route::middleware('throttle:api')->group(function () {
                 Route::post('notes-observations', [NoteObservationController::class, 'store']);
                 Route::get('notes-observations/{id}', [NoteObservationController::class, 'show']);
                 Route::delete('notes-observations/{id}', [NoteObservationController::class, 'destroy']);
+
+                // Module 5 / FN4 — Suivi de grossesse : déclaration, ajustement DDG/clôture (pas de
+                // suppression : rétention médicale), consultations CPN en append-only. Le GET renvoie
+                // aussi le calendrier des 8 contacts OMS (référentiel en base, cf. F1.3).
+                Route::get('grossesse', [GrossesseController::class, 'index']);
+                Route::post('grossesse', [GrossesseController::class, 'store']);
+                Route::match(['put', 'patch'], 'grossesse/{id}', [GrossesseController::class, 'update']);
+                Route::post('grossesse/{id}/consultations', [GrossesseController::class, 'ajouterConsultation']);
 
                 // F2.10 — Documents médicaux importés : upload multipart chiffré + antivirus.
                 // Immuables (pas d'update) ; `show` renvoie le fichier déchiffré (si `sain`) ;

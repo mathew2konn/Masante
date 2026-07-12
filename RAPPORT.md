@@ -1323,3 +1323,51 @@ consignes. Le ciblage est entièrement côté serveur (5.4 A) : le mobile ne dé
   niveau, partagée par la bannière et l'écran — pour qu'ils ne divergent jamais.
 - **Vide géré** : « Aucune alerte en cours », avec l'invite à renseigner sa commune dans le profil.
 - `tsc` OK, `expo-doctor` 18/18, aucune dépendance ajoutée.
+
+## 5.5 — Suivi de grossesse (FN4) · Étape A backend (2026-07-12)
+
+Calendrier prénatal des **8 contacts OMS/PSN-CI** (validés par l'utilisateur), suivi semaine par semaine,
+consultations réalisées, conseils nutrition adaptés CI. Décisions arbitrées avant code (« ok tel quel ») :
+
+**Décisions.**
+
+- **`semaine_actuelle` jamais stockée** (écart assumé vs CdC, qui l'annote lui-même « calculée
+  automatiquement ») : une colonne périmerait chaque semaine et exigerait un cron. Accessor calculé depuis
+  la DDG — `jours ÷ 7 + 1`, borné 1→43, sérialisé via `$appends` : le mobile voit le champ du CdC, toujours
+  exact. Même principe que l'âge déduit de la date de naissance. `null` une fois le suivi clos.
+- **`consultations_json` conservé (forme CdC) mais verrouillé** : le client n'écrit JAMAIS le tableau —
+  endpoint dédié `POST .../consultations` qui ajoute UNE consultation validée champ par champ (date réelle,
+  ≥ DDG, ≤ aujourd'hui ; textes bornés), horodatée serveur (`enregistree_le`), plafond 30 entrées.
+  Append-only, principe des notes F2.12. Le champ n'est pas dans `$fillable` : impossible à écraser.
+- **Référentiel en base, pas en dur dans le mobile** : table `etapes_prenatales` (8 contacts : SA
+  recommandée, objet du contact, conseils nutrition CI — TPI paludisme, moustiquaire, aliments locaux),
+  seedée (`EtapePrenataleSeeder`, idempotent), modifiable sans redéploiement — pattern F1.3 (`symptomes`).
+  Contenu médical à faire relire (mémoire).
+- **Rappels CPN = table `rappels` existante (F2.7)**, pas un second mécanisme. FK nullable
+  `rappels.suivi_grossesse_id` : seule marque fiable des rappels auto-gérés (un préfixe de titre serait
+  fragile). Régénérés si la DDG est ajustée (datation échographique), **désactivés** (trace conservée) à la
+  clôture ; les rappels créés à la main (FK `NULL`) ne sont jamais touchés. Pas de rappel rétroactif pour
+  les contacts déjà dépassés à la déclaration.
+
+**Règles produit.** Membre de sexe F uniquement ; **une seule grossesse `en_cours` par membre** (422 sinon) ;
+DDG plausible (ni future, ni > 43 SA) ; **terme = DDG + 280 j, calculé serveur** (jamais accepté du client) ;
+**aucune suppression** : clôture par `statut` (`termine`/`interruption`), un suivi clos est figé (rétention
+médicale) et libère la déclaration d'une nouvelle grossesse. La fiche vitale (FN2) n'expose pas ce suivi.
+
+- Migrations : `suivi_grossesse` (nom CdC, sans `semaine_actuelle`), `etapes_prenatales`,
+  `add_suivi_grossesse_to_rappels` (FK nullable, `nullOnDelete`).
+- Modèles `SuiviGrossesse` (accessor + constantes `DUREE_JOURS`/`SEMAINE_MAX`/`MAX_CONSULTATIONS`,
+  `membre_id` hors `$fillable`) et `EtapePrenatale` (lecture seule côté API).
+- `GrossesseController` : `GET` (suivi en cours + historique clos + **calendrier daté** — `date_estimee` =
+  DDG + SA×7, `passee` ; calendrier renvoyé même sans grossesse : contenu éducatif), `POST` (déclaration +
+  génération des rappels CPN à venir), `PUT` (ajuster DDG → terme et rappels recalculés ; clore),
+  `POST .../consultations`. Routes nichées sous `membres/{membre}` (anti-IDOR par la Policy du membre).
+- **Piège rencontré** : `statut` vient d'un défaut SQL → `refresh()` avant la réponse du `POST` (même
+  correctif que `declenchee_le` du SOS 5.2).
+- **Tests `GrossesseTest` (13)** : terme calculé + champs interdits ignorés à la création ; pas de rappel
+  rétroactif (déclaration à 30 SA → 4 rappels) ; membre masculin refusé ; unicité de la grossesse en cours ;
+  DDG future/invraisemblable refusée ; GET complet (semaine 22, contact 1 passé, contact 3 à venir) ;
+  calendrier éducatif sans grossesse ; consultation append-only (bornes de date) ; le client ne peut pas
+  réécrire le tableau ; ajustement DDG (rappels 8→6, rappel personnel intact) ; clôture (rappels désactivés,
+  suivi figé, nouvelle grossesse possible) ; anti-IDOR 403 ; 401 sans auth. **Suite : 209/209
+  (730 assertions)**, audit 0.
