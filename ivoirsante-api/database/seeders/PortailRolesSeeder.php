@@ -35,6 +35,7 @@ class PortailRolesSeeder extends Seeder
         'rdv.validate',           // valider / refuser les RDV
         'qr.scan',                // scanner le QR patient (carnet / RDV)
         'triage.view',            // consulter la fiche de triage reçue
+        'dossier.referent',       // ouvrir sans QR le dossier des patients qui vous ont désigné (5.6)
         // Urgences — VOLONTAIREMENT ATTRIBUÉE À AUCUN RÔLE (Note_Continuite §5.3) : le gestionnaire
         // l'accorde individuellement, et seulement aux agents d'un service d'urgences.
         'urgence.bris_de_glace',  // ouvrir le vital minimal d'un patient hors d'état de consentir
@@ -45,8 +46,11 @@ class PortailRolesSeeder extends Seeder
         'gestionnaire_etablissement' => [
             'service.manage', 'agent.manage', 'stats.etablissement', 'rdv.validate', 'disponibilite.manage',
         ],
+        // La permission `dossier.referent` ne donne accès à RIEN à elle seule : encore faut-il que le
+        // gestionnaire ait relié le compte à une fiche de l'annuaire, ET qu'un patient ait désigné ce
+        // praticien. C'est le patient qui ouvre la porte, pas le rôle (Sécurité §4.4).
         'agent_garde' => [
-            'disponibilite.manage', 'rdv.validate', 'qr.scan', 'triage.view',
+            'disponibilite.manage', 'rdv.validate', 'qr.scan', 'triage.view', 'dossier.referent',
         ],
     ];
 

@@ -35,6 +35,7 @@ class DossierController extends Controller
         'vaccinations' => 'Vaccinations',
         'ordonnances'  => 'Ordonnances',
         'analyses'     => 'Résultats d\'analyses',
+        'mesures'      => 'Journal de mesures',
         'notes'        => 'Notes & observations',
         'contacts'     => 'Contacts d\'urgence',
         'documents'    => 'Documents importés',
@@ -70,12 +71,20 @@ class DossierController extends Controller
         ]);
     }
 
-    /** Ferme la session : écrit la ligne d'audit de clôture (durée réelle + sections). */
+    /**
+     * Ferme la session : écrit la ligne d'audit de clôture (durée réelle + sections).
+     * On retourne d'où l'on vient : à l'écran de scan après un QR, à la liste des patients suivis
+     * après un accès référent (5.6) — le type d'accès est lu AVANT la fermeture, qui purge la session.
+     */
     public function fermer(): RedirectResponse
     {
+        $referent = $this->session->typeAcces() === 'referent';
+
         $this->session->fermer('manuelle');
 
-        return redirect()->route('portail.scan.index')->with('statut', 'Dossier fermé. L\'accès est journalisé.');
+        return redirect()
+            ->route($referent ? 'portail.patients.index' : 'portail.scan.index')
+            ->with('statut', 'Dossier fermé. L\'accès est journalisé.');
     }
 
     /**
@@ -89,6 +98,13 @@ class DossierController extends Controller
             'vaccinations' => $membre->vaccinations()->orderByDesc('date_administration')->get(),
             'ordonnances'  => $membre->ordonnances()->orderByDesc('date_prescription')->get(),
             'analyses'     => $membre->resultatsAnalyses()->orderByDesc('date_analyse')->get(),
+            // FN5 — « partage automatique avec le médecin référent » : le journal de bord du patient
+            // (glycémie, tension…) est une section du dossier comme une autre. Elle n'est donc PAS
+            // poussée hors du serveur : elle se lit ici, dans une session tracée. 90 derniers jours.
+            'mesures'      => $membre->mesuresSante()
+                ->where('date_mesure', '>=', now()->subDays(90))
+                ->orderByDesc('date_mesure')
+                ->get(),
             'notes'        => $membre->notesObservations()->latest()->get(),
             'contacts'     => $membre->contactsUrgence()->orderByDesc('est_principal')->get(),
             'documents'    => $membre->documentsMedicaux()->latest()->get(),

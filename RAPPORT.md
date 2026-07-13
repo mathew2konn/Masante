@@ -1402,3 +1402,60 @@ Le mobile n'affiche que ce que le serveur décide : ni terme, ni semaine d'amén
 - **Piège** : la route typée n'existe qu'après régénération des types expo-router (`experiments.typedRoutes`) —
   Metro relancé une fois pour régénérer `.expo/types/router.d.ts`, puis `tsc`. **`tsc` OK**, **`expo-doctor`
   18/18**, aucune dépendance ajoutée.
+
+## 5.6 — Maladies chroniques (FN5) + médecin référent (voie 2) · Étape A backend (2026-07-13)
+
+Journal de bord quotidien (glycémie, tension…), alertes sur valeurs anormales, **partage automatique avec le
+médecin référent** — et, du même coup, la **voie 2 d'accès au dossier** (Sécurité §4.4), annoncée « existante »
+par la `Note_Continuite` mais **jamais implémentée** depuis le Module 2. Elle l'est ici. Décisions arbitrées
+avant code (3 questions posées, 3 recommandations retenues) :
+
+**Décisions.**
+
+- **Le référent se choisit dans l'annuaire PUBLIC des médecins** (`medecins`, déjà exposé par la fiche d'une
+  structure — F3.5), pas dans une liste des comptes du portail : on n'ouvre aucun annuaire nouveau, même refus
+  qu'au bris de glace (5.3). Nouvelle colonne **`medecins.user_id`** (nullable, unique) reliant une fiche à un
+  compte, lien posé par le **gestionnaire** depuis « Mes agents ». Sans lien, la fiche reste désignable mais
+  `consulte_en_ligne = false` — le patient doit le savoir **avant** de désigner.
+- **Table `referents` dédiée** (écart assumé vs CdC §8.1, qui prévoit une simple colonne
+  `membres_famille.medecin_referent_id`) : une colonne ne dit ni qui a désigné, ni quand, ni ce qui a été
+  révoqué — or §4.4 exige « révocable à tout moment » et la loi 2013-450 la traçabilité. Calquée sur
+  `delegations` (voie 3). La règle « **un seul référent actif** » qu'imposait la colonne unique est appliquée
+  côté service : désigner remplace, et la révocation reste à l'historique.
+- **« Permanent » = le DROIT, pas la fenêtre.** Chaque ouverture par le référent crée une session de
+  **30 minutes** et **deux lignes d'audit** (ouverture + clôture), exactement comme un scan QR, sans
+  `token_qr_id` (CdC §8.4 : « NULL si médecin référent »). Le titulaire est notifié à chaque accès et voit tout
+  dans son historique. Un droit permanent non tracé serait un angle mort.
+- **Périmètre = dossier complet**, comme un scan (Note_Continuite §2 : « dossier du membre, en continu ») : le
+  patient a explicitement désigné ce médecin. La qualité de référent est **revérifiée à l'ouverture**, pas
+  seulement à l'affichage de la liste : une révocation faite à l'instant referme la porte (404, pas 403).
+- **Seuils médicaux en base** (`referentiels_mesure`, seedé — pattern F1.3 comme `symptomes` et
+  `etapes_prenatales`) : plausibilité de saisie (`valeur_min/max` : 500 g/L de glycémie est une **faute de
+  frappe**, refusée avant écriture) ET normalité clinique (`normal_*`, `critique_*` → `statut_norme`).
+  **Le statut est calculé serveur**, jamais reçu du client — même principe que le score de triage. Le mobile ne
+  code aucune norme médicale : il reçoit le référentiel. Contenu à faire relire par un professionnel (mémoire).
+- **La tension : une saisie, deux lignes.** L'ENUM du CdC impose `tension_systolique` + `tension_diastolique` ;
+  le patient, lui, saisit « 12/8 ». On garde les deux lignes et on les relie par **`groupe_uuid`** (ajout au
+  schéma CdC) : elles naissent dans une transaction et se suppriment ensemble — jamais de systolique orpheline.
+- **Pas d'`update` sur une mesure** : c'est un fait daté. Une erreur se **supprime** (si `source = 'patient'`,
+  F2.13) et se ressaisit ; une mesure enregistrée par une structure n'est pas au patient de l'effacer.
+- **« Partage automatique » ≠ envoi de données.** Une valeur **critique** notifie le référent (stub journalisé —
+  ni Firebase ni SMS dans le projet, comme le bris de glace) ; la notification dit **qu'il faut regarder**. Le
+  référent lit ensuite le journal comme une **section du dossier** (`mesures`), dans une session tracée. Aucune
+  donnée médicale ne quitte le serveur hors d'un accès audité.
+
+**Sécurité.** Désignation gated par le palier **« compte vérifié »** (même règle que la délégation : partager le
+dossier exige une identité confirmée) ; **révocation sans condition** (reprendre le contrôle doit toujours être
+plus facile que de le céder). Nouvelle permission **`dossier.referent`** (rôle `agent_garde`) qui **n'ouvre rien
+à elle seule** : il faut la permission ET le lien vers une fiche ET une désignation par le patient. `note`
+chiffrée AES-256 (§6.1) ; `valeur` en clair, sans quoi ni courbe ni seuil.
+
+**Fichiers.** 4 migrations (`medecins.user_id`, `referents`, `referentiels_mesure`, `mesures_sante`) ;
+modèles `Referent`, `MesureSante`, `ReferentielMesure` (+ `Medecin`, `User`, `MembreFamille`) ; services
+`ReferentService`, `MesureSanteService` ; API `MedecinController` (annuaire, public), `ReferentController`,
+`Carnet/MesureSanteController` ; portail `MesPatientsController` + vue « Mes patients suivis », section
+`mesures` du dossier, sélecteur de fiche praticien dans « Mes agents » ; `ReferentielMesureSeeder`.
+Les routes `dossier/*` du portail **sortent du groupe `permission:qr.scan`** (elles n'y avaient rien à faire :
+c'est la SESSION qui autorise, ouverte par un scan OU par la voie référent) et restent sous `dossier.actif`.
+
+**Tests : 225/225** (16 nouveaux — `MesureSanteTest`, `MedecinReferentTest`), `composer audit` 0 avis.

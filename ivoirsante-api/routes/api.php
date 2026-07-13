@@ -8,6 +8,7 @@ use App\Http\Controllers\Api\V1\Carnet\AntecedentController;
 use App\Http\Controllers\Api\V1\Carnet\ContactUrgenceController;
 use App\Http\Controllers\Api\V1\Carnet\DocumentMedicalController;
 use App\Http\Controllers\Api\V1\Carnet\GrossesseController;
+use App\Http\Controllers\Api\V1\Carnet\MesureSanteController;
 use App\Http\Controllers\Api\V1\Carnet\NoteObservationController;
 use App\Http\Controllers\Api\V1\Carnet\OrdonnanceController;
 use App\Http\Controllers\Api\V1\Carnet\RappelController;
@@ -16,11 +17,13 @@ use App\Http\Controllers\Api\V1\Carnet\VaccinationController;
 use App\Http\Controllers\Api\V1\CarteCmuController;
 use App\Http\Controllers\Api\V1\DelegationController;
 use App\Http\Controllers\Api\V1\FicheVitaleController;
+use App\Http\Controllers\Api\V1\MedecinController;
 use App\Http\Controllers\Api\V1\MembreController;
 use App\Http\Controllers\Api\V1\PasswordController;
 use App\Http\Controllers\Api\V1\PhotoMembreController;
 use App\Http\Controllers\Api\V1\QrController;
 use App\Http\Controllers\Api\V1\RecuRdvController;
+use App\Http\Controllers\Api\V1\ReferentController;
 use App\Http\Controllers\Api\V1\RendezVousController;
 use App\Http\Controllers\Api\V1\SignalementController;
 use App\Http\Controllers\Api\V1\StructureController;
@@ -179,6 +182,19 @@ Route::middleware('throttle:api')->group(function () {
                 Route::match(['put', 'patch'], 'grossesse/{id}', [GrossesseController::class, 'update']);
                 Route::post('grossesse/{id}/consultations', [GrossesseController::class, 'ajouterConsultation']);
 
+                // Module 5 / FN5 — Journal de bord des maladies chroniques. Pas d'`update` : une
+                // mesure est un fait daté (on supprime et on ressaisit). Le GET renvoie le
+                // référentiel des seuils : le mobile ne code aucune norme médicale.
+                Route::get('mesures', [MesureSanteController::class, 'index']);
+                Route::post('mesures', [MesureSanteController::class, 'store']);
+                Route::delete('mesures/{id}', [MesureSanteController::class, 'destroy']);
+
+                // Module 5 / 5.6 — Médecin référent (voie 2, Sécurité §4.4) : désignation (accès
+                // PERMANENT au dossier, d'où le palier « compte vérifié ») et révocation immédiate.
+                Route::get('referent', [ReferentController::class, 'index']);
+                Route::post('referent', [ReferentController::class, 'store']);
+                Route::delete('referent/{id}', [ReferentController::class, 'destroy']);
+
                 // F2.10 — Documents médicaux importés : upload multipart chiffré + antivirus.
                 // Immuables (pas d'update) ; `show` renvoie le fichier déchiffré (si `sain`) ;
                 // `destroy` = soft-delete (rétention médicale, blob conservé).
@@ -217,6 +233,10 @@ Route::middleware('throttle:api')->group(function () {
         Route::get('/pharmacies-garde', [StructureController::class, 'pharmaciesGarde']); // F3.8
         Route::get('/structures', [StructureController::class, 'index']);                 // F3.1/F3.2/F3.3
         Route::get('/structures/{structure}', [StructureController::class, 'show']);       // F3.5
+
+        // Module 5 / 5.6 — Recherche par nom dans l'annuaire des praticiens (choix d'un référent).
+        // Mêmes données que la fiche d'une structure (F3.5), avec une entrée par nom : public.
+        Route::get('/medecins', [MedecinController::class, 'index']);
 
         /*
         |------------------------------------------------------------------

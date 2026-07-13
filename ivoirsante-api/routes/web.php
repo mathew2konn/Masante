@@ -10,6 +10,7 @@ use App\Http\Controllers\Portail\DashboardController;
 use App\Http\Controllers\Portail\DisponibiliteController;
 use App\Http\Controllers\Portail\DossierController;
 use App\Http\Controllers\Portail\EtablissementController;
+use App\Http\Controllers\Portail\MesPatientsController;
 use App\Http\Controllers\Portail\ModerationController;
 use App\Http\Controllers\Portail\RendezVousController;
 use App\Http\Controllers\Portail\ScanController;
@@ -143,13 +144,25 @@ Route::prefix('portail')->name('portail.')->group(function () {
 
             Route::get('scan/rendez-vous', [ScanController::class, 'indexRdv'])->name('scan.rdv');
             Route::post('scan/rendez-vous', [ScanController::class, 'checkIn'])->name('scan.checkin')->middleware('throttle:20,1');
+        });
 
-            // Dossier ouvert par un scan : aucun identifiant de membre dans l'URL (anti-IDOR).
-            Route::middleware('dossier.actif')->group(function () {
-                Route::get('dossier', [DossierController::class, 'show'])->name('dossier.show');
-                Route::post('dossier/fermer', [DossierController::class, 'fermer'])->name('dossier.fermer');
-                Route::get('dossier/{section}', [DossierController::class, 'section'])->name('dossier.section');
-            });
+        // 5.6 — Voie 2 « médecin référent » : mes patients suivis (permission dossier.referent).
+        // Le compte doit AUSSI être relié à une fiche de l'annuaire par son gestionnaire : la
+        // permission dit « ce rôle peut être référent », le lien dit « ce compte EST ce médecin ».
+        Route::middleware('permission:dossier.referent')->group(function () {
+            Route::get('mes-patients', [MesPatientsController::class, 'index'])->name('patients.index');
+            Route::post('mes-patients/{membre}/ouvrir', [MesPatientsController::class, 'ouvrir'])
+                ->name('patients.ouvrir')->middleware('throttle:20,1');
+        });
+
+        // Dossier ouvert — par un scan QR (4.5) OU par la voie référent (5.6). Aucun identifiant de
+        // membre dans l'URL (anti-IDOR) : le dossier consulté est celui que porte la session, dont
+        // l'ouverture est déjà journalisée. C'est la SESSION qui autorise, pas une permission de
+        // plus : elle n'existe que si le patient a présenté son QR ou désigné son référent.
+        Route::middleware('dossier.actif')->group(function () {
+            Route::get('dossier', [DossierController::class, 'show'])->name('dossier.show');
+            Route::post('dossier/fermer', [DossierController::class, 'fermer'])->name('dossier.fermer');
+            Route::get('dossier/{section}', [DossierController::class, 'section'])->name('dossier.section');
         });
     });
 });

@@ -6,6 +6,7 @@ use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
@@ -87,6 +88,15 @@ class User extends Authenticatable
     public function service(): BelongsTo
     {
         return $this->belongsTo(ServiceEtablissement::class, 'service_id');
+    }
+
+    /**
+     * Module 5 / 5.6 — Fiche de l'annuaire public correspondant à ce compte (voie 2 « référent »).
+     * NULL pour tout compte qui n'est pas un praticien relié par son gestionnaire.
+     */
+    public function medecin(): HasOne
+    {
+        return $this->hasOne(Medecin::class, 'user_id');
     }
 
     /**

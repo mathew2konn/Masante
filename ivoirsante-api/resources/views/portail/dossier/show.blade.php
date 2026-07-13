@@ -121,6 +121,33 @@
             </div>
           @endforeach
 
+        @elseif ($section === 'mesures')
+          {{-- FN5 — Journal de bord du patient (90 derniers jours). Le statut est celui calculé par
+               le serveur à partir du référentiel de seuils : le portail ne rejuge rien. --}}
+          <table class="table table-sm align-middle mb-2">
+            <thead><tr><th>Date</th><th>Mesure</th><th class="text-end">Valeur</th><th>Statut</th><th>Note</th></tr></thead>
+            <tbody>
+              @foreach ($donnees as $m)
+                @php($couleur = match ($m->statut_norme) {
+                  'critique' => 'danger',
+                  'eleve', 'bas' => 'warning',
+                  default => 'success',
+                })
+                <tr>
+                  <td class="text-nowrap">{{ $m->date_mesure->format('d/m/Y H:i') }}</td>
+                  <td>{{ str_replace('_', ' ', $m->type_mesure) }}</td>
+                  <td class="text-end fw-semibold text-nowrap">{{ rtrim(rtrim(number_format($m->valeur, 2, ',', ' '), '0'), ',') }} {{ $m->unite }}</td>
+                  <td>
+                    <span class="badge bg-{{ $couleur }}-subtle text-{{ $couleur }}-emphasis border border-{{ $couleur }}-subtle">
+                      {{ $m->statut_norme }}
+                    </span>
+                  </td>
+                  <td class="small text-muted">{{ $m->note ?? '—' }}</td>
+                </tr>
+              @endforeach
+            </tbody>
+          </table>
+
         @elseif ($section === 'notes')
           @foreach ($donnees as $n)
             <div class="border-bottom py-2">

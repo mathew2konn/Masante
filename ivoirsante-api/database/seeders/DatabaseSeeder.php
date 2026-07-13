@@ -32,5 +32,8 @@ class DatabaseSeeder extends Seeder
 
         // Référentiel des 8 contacts prénatals OMS/PSN-CI (Module 5 / FN4).
         $this->call(EtapePrenataleSeeder::class);
+
+        // Référentiel des seuils de mesure — glycémie, tension, température… (Module 5 / FN5).
+        $this->call(ReferentielMesureSeeder::class);
     }
 }

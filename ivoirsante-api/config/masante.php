@@ -69,4 +69,16 @@ return [
         'exiger_titulaire_verifie' => env('MASANTE_DELEGATION_EXIGER_VERIFIE', false),
     ],
 
+    /*
+     * 5.6 — Médecin référent (voie 2, Sécurité §4.4).
+     *  - `exiger_titulaire_verifie` : désigner un référent ouvre un accès PERMANENT au dossier —
+     *    en prod, seul un compte « vérifié » (CMU/CNI) doit pouvoir le faire, comme pour la
+     *    délégation. Dormant en dev (`false`) faute de flux de vérification. La RÉVOCATION, elle,
+     *    n'est jamais gated : reprendre le contrôle de ses données doit rester plus facile que de
+     *    le céder.
+     */
+    'referent' => [
+        'exiger_titulaire_verifie' => env('MASANTE_REFERENT_EXIGER_VERIFIE', false),
+    ],
+
 ];

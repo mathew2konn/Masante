@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Portail;
 
 use App\Http\Controllers\Controller;
 use App\Models\ActivationPortail;
+use App\Models\Medecin;
 use App\Models\ServiceEtablissement;
 use App\Models\User;
 use Illuminate\Http\RedirectResponse;
@@ -36,6 +37,35 @@ class AgentController extends Controller
         return ServiceEtablissement::where('structure_id', $this->structureId())->orderBy('nom_service')->get();
     }
 
+    /**
+     * Module 5 / 5.6 — Fiches de praticien de MON établissement, pour le sélecteur « ce compte est
+     * le Dr X ». On propose les fiches libres, plus celle déjà reliée à l'agent édité (sinon elle
+     * disparaîtrait de son propre formulaire). Une fiche = au plus un compte.
+     */
+    private function mesMedecins(?User $agent = null)
+    {
+        return Medecin::where('structure_id', $this->structureId())
+            ->where(fn ($q) => $q->whereNull('user_id')->orWhere('user_id', $agent?->id))
+            ->orderBy('nom')
+            ->get();
+    }
+
+    /**
+     * Applique le lien compte ↔ fiche d'annuaire. C'est ce lien qui rend la voie 2 opérante : sans
+     * lui, un patient peut désigner le Dr X, mais le compte du Dr X ne verra rien. On délie d'abord
+     * l'ancienne fiche (la colonne `user_id` est UNIQUE : un compte ne peut pas être deux médecins).
+     */
+    private function lierFicheMedecin(User $agent, ?int $medecinId): void
+    {
+        Medecin::where('user_id', $agent->id)->update(['user_id' => null]);
+
+        if ($medecinId !== null) {
+            Medecin::where('id', $medecinId)
+                ->where('structure_id', $this->structureId())   // jamais une fiche d'un autre hôpital
+                ->update(['user_id' => $agent->id]);
+        }
+    }
+
     /** Récupère un agent DE MON établissement, ou 404 (empêche l'accès croisé). */
     private function agentPossede(User $agent): User
     {
@@ -60,7 +90,10 @@ class AgentController extends Controller
 
     public function create(): View
     {
-        return view('portail.agents.create', ['services' => $this->mesServices()]);
+        return view('portail.agents.create', [
+            'services' => $this->mesServices(),
+            'medecins' => $this->mesMedecins(),
+        ]);
     }
 
     public function store(Request $request): RedirectResponse
@@ -78,6 +111,9 @@ class AgentController extends Controller
         ]);
         $agent->assignRole('agent_garde');
 
+        // 5.6 — « ce compte est le Dr X » : rend la voie du médecin référent opérante pour ce praticien.
+        $this->lierFicheMedecin($agent, $data['medecin_id'] ?? null);
+
         $lien = route('portail.activation.show', ['token' => ActivationPortail::genererPour($agent)]);
 
         return redirect()->route('portail.agents.index')
@@ -89,14 +125,21 @@ class AgentController extends Controller
     {
         $this->agentPossede($agent);
 
-        return view('portail.agents.edit', ['agent' => $agent, 'services' => $this->mesServices()]);
+        return view('portail.agents.edit', [
+            'agent'    => $agent,
+            'services' => $this->mesServices(),
+            'medecins' => $this->mesMedecins($agent),
+        ]);
     }
 
     public function update(Request $request, User $agent): RedirectResponse
     {
         $this->agentPossede($agent);
         $data = $this->valider($request, $agent->id);
-        $agent->update($data);
+
+        // `medecin_id` vit sur la fiche d'annuaire, pas sur le compte : il ne passe pas par update().
+        $agent->update(collect($data)->except('medecin_id')->all());
+        $this->lierFicheMedecin($agent, $data['medecin_id'] ?? null);
 
         return redirect()->route('portail.agents.index')->with('statut', 'Agent mis à jour.');
     }
@@ -165,6 +208,12 @@ class AgentController extends Controller
             'service_id' => [
                 'required',
                 Rule::exists('services_etablissement', 'id')->where('structure_id', $this->structureId()),
+            ],
+            // 5.6 — Fiche de praticien correspondant à ce compte (facultatif : tous les agents ne
+            // sont pas médecins). Bornée à MON établissement : on ne s'approprie pas la fiche d'un autre.
+            'medecin_id' => [
+                'nullable',
+                Rule::exists('medecins', 'id')->where('structure_id', $this->structureId()),
             ],
         ]);
     }

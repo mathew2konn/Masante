@@ -149,4 +149,16 @@ class MembreFamille extends Model
     {
         return $this->hasMany(SuiviGrossesse::class, 'membre_id');
     }
+
+    /** Module 5 / FN5 — Journal de bord des mesures (glycémie, tension, poids…). */
+    public function mesuresSante(): HasMany
+    {
+        return $this->hasMany(MesureSante::class, 'membre_id');
+    }
+
+    /** Module 5 / 5.6 — Désignations de médecin référent (active + historique révoqué, voie 2). */
+    public function referents(): HasMany
+    {
+        return $this->hasMany(Referent::class, 'membre_id');
+    }
 }
