@@ -224,9 +224,18 @@ class GrossesseTest extends TestCase
         $this->assertTrue($perso->refresh()->actif);
     }
 
-    public function test_la_cloture_desactive_les_rappels_cpn_et_libere_un_nouveau_suivi(): void
+    public function test_la_cloture_supprime_les_rappels_cpn_et_libere_un_nouveau_suivi(): void
     {
         $suivi = $this->declarer(now()->subWeeks(10)->toDateString());
+
+        // Rappel personnel : il ne doit pas être supprimé par la clôture (FK nulle).
+        $perso = new Rappel([
+            'type' => 'medicament', 'titre' => 'Fer + acide folique', 'contenu' => 'Chaque matin',
+            'frequence' => 'quotidien', 'heure' => '07:00', 'date_debut' => now()->toDateString(),
+            'actif' => true,
+        ]);
+        $this->membre->rappels()->save($perso);
+        $this->assertSame(8, $suivi->rappelsCpn()->count());
 
         $this->putJson("/api/v1/membres/{$this->membre->id}/grossesse/{$suivi->id}", [
             'statut' => 'termine',
@@ -234,7 +243,9 @@ class GrossesseTest extends TestCase
             ->assertJsonPath('suivi.statut', 'termine')
             ->assertJsonPath('suivi.semaine_actuelle', null); // plus de « semaine en cours » après clôture
 
-        $this->assertSame(0, $suivi->rappelsCpn()->where('actif', true)->count());
+        // Les rappels CPN prennent fin (supprimés) ; le rappel personnel reste.
+        $this->assertSame(0, $suivi->rappelsCpn()->count());
+        $this->assertTrue($perso->refresh()->actif);
 
         // Un suivi clos est figé (rétention) ; une nouvelle grossesse peut être déclarée.
         $this->putJson("/api/v1/membres/{$this->membre->id}/grossesse/{$suivi->id}", [

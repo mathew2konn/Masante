@@ -22,8 +22,8 @@ use Illuminate\Validation\ValidationException;
  *  - pas de suppression : clôture par `statut` (termine/interruption) — rétention médicale ;
  *  - consultations : append-only via l'endpoint dédié, le tableau JSON n'est jamais accepté du client ;
  *  - rappels CPN générés dans la table `rappels` (F2.7), marqués par `suivi_grossesse_id` :
- *    régénérés si la DDG est ajustée (échographie), désactivés à la clôture. Les rappels créés
- *    à la main par l'utilisateur (FK NULL) ne sont jamais touchés.
+ *    régénérés si la DDG est ajustée (échographie), SUPPRIMÉS à la clôture (plus aucun rendez-vous à
+ *    venir). Les rappels créés à la main par l'utilisateur (FK NULL) ne sont jamais touchés.
  *
  * La fiche vitale (FN2) n'expose PAS ce suivi (exposition minimale, §5.2 Sécurité).
  */
@@ -117,8 +117,10 @@ class GrossesseController extends Controller
             $suivi->statut = $donnees['statut'];
             $suivi->save();
 
-            // Clôture : les rappels CPN restants n'ont plus lieu d'être (trace conservée, désactivés).
-            $suivi->rappelsCpn()->update(['actif' => false]);
+            // Clôture : la grossesse n'a plus aucun rendez-vous à venir. Les rappels CPN (aides
+            // opérationnelles, pas des données médicales) prennent fin et sont supprimés — l'historique
+            // médical reste dans `consultations_json`. Les rappels créés à la main (FK nulle) intacts.
+            $suivi->rappelsCpn()->delete();
         }
 
         return response()->json(['suivi' => $suivi->refresh()]);

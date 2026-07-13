@@ -1345,9 +1345,10 @@ consultations réalisées, conseils nutrition adaptés CI. Décisions arbitrées
   Contenu médical à faire relire (mémoire).
 - **Rappels CPN = table `rappels` existante (F2.7)**, pas un second mécanisme. FK nullable
   `rappels.suivi_grossesse_id` : seule marque fiable des rappels auto-gérés (un préfixe de titre serait
-  fragile). Régénérés si la DDG est ajustée (datation échographique), **désactivés** (trace conservée) à la
-  clôture ; les rappels créés à la main (FK `NULL`) ne sont jamais touchés. Pas de rappel rétroactif pour
-  les contacts déjà dépassés à la déclaration.
+  fragile). Régénérés si la DDG est ajustée (datation échographique), **supprimés** à la clôture (la
+  grossesse n'a plus aucun rendez-vous à venir, et un rappel est un pense-bête, pas une donnée médicale —
+  l'historique médical reste dans `consultations_json`) ; les rappels créés à la main (FK `NULL`) ne sont
+  jamais touchés. Pas de rappel rétroactif pour les contacts déjà dépassés à la déclaration.
 
 **Règles produit.** Membre de sexe F uniquement ; **une seule grossesse `en_cours` par membre** (422 sinon) ;
 DDG plausible (ni future, ni > 43 SA) ; **terme = DDG + 280 j, calculé serveur** (jamais accepté du client) ;
@@ -1368,9 +1369,9 @@ médicale) et libère la déclaration d'une nouvelle grossesse. La fiche vitale 
   rétroactif (déclaration à 30 SA → 4 rappels) ; membre masculin refusé ; unicité de la grossesse en cours ;
   DDG future/invraisemblable refusée ; GET complet (semaine 22, contact 1 passé, contact 3 à venir) ;
   calendrier éducatif sans grossesse ; consultation append-only (bornes de date) ; le client ne peut pas
-  réécrire le tableau ; ajustement DDG (rappels 8→6, rappel personnel intact) ; clôture (rappels désactivés,
-  suivi figé, nouvelle grossesse possible) ; anti-IDOR 403 ; 401 sans auth. **Suite : 209/209
-  (730 assertions)**, audit 0.
+  réécrire le tableau ; ajustement DDG (rappels 8→6, rappel personnel intact) ; clôture (rappels CPN
+  supprimés, rappel personnel conservé, suivi figé, nouvelle grossesse possible) ; anti-IDOR 403 ; 401 sans
+  auth. **Suite : 209/209 (730 assertions)**, audit 0.
 
 ## 5.5 — Suivi de grossesse (FN4) · Étape B mobile (2026-07-12)
 
