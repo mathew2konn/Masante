@@ -31,6 +31,7 @@ class PortailRolesSeeder extends Seeder
         'agent.manage',           // créer / gérer SES agents
         'medecin.manage',         // annuaire des praticiens de SON établissement (RDV F3.5 + référent 5.6)
         'don_sang.manage',        // publier les besoins en sang de SON établissement (FN6)
+        'medicament.manage',      // prix et ruptures de SA pharmacie (FN7/FN8, modèle freemium)
         'stats.etablissement',    // statistiques de SON établissement
         // Agent de garde
         'disponibilite.manage',   // mettre à jour la dispo de SON service
@@ -45,8 +46,11 @@ class PortailRolesSeeder extends Seeder
 
     /** Permissions par rôle (moindre privilège). L'admin reçoit tout. */
     private const ROLES = [
+        // `medicament.manage` est donnée à tous les gestionnaires, mais l'écran se referme sur ceux
+        // dont l'établissement n'est pas une PHARMACIE (revérifié à chaque accès, comme le bris de
+        // glace vérifie le service d'urgences) : la permission dit le rôle, pas la nature du lieu.
         'gestionnaire_etablissement' => [
-            'service.manage', 'agent.manage', 'medecin.manage', 'don_sang.manage',
+            'service.manage', 'agent.manage', 'medecin.manage', 'don_sang.manage', 'medicament.manage',
             'stats.etablissement', 'rdv.validate', 'disponibilite.manage',
         ],
         // La permission `dossier.referent` ne donne accès à RIEN à elle seule : encore faut-il que le

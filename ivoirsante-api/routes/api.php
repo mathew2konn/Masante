@@ -19,6 +19,7 @@ use App\Http\Controllers\Api\V1\DelegationController;
 use App\Http\Controllers\Api\V1\DonSangController;
 use App\Http\Controllers\Api\V1\FicheVitaleController;
 use App\Http\Controllers\Api\V1\MedecinController;
+use App\Http\Controllers\Api\V1\MedicamentController;
 use App\Http\Controllers\Api\V1\MembreController;
 use App\Http\Controllers\Api\V1\PasswordController;
 use App\Http\Controllers\Api\V1\PhotoMembreController;
@@ -140,6 +141,13 @@ Route::middleware('throttle:api')->group(function () {
             // peuvent répondre (ciblage serveur). L'inscription est un consentement, membre par
             // membre. Les CENTRES de collecte n'ont pas d'endpoint : ce sont les structures de
             // l'annuaire portant un service `don_sang` (GET /v1/structures?specialite=don_sang).
+            // Module 5 / FN7-FN8 — Signaler un prix ou une rupture exige un COMPTE : un relevé
+            // anonyme ne se conteste pas, et un comparateur ouvert à l'anonymat s'empoisonne en une
+            // nuit. Le « scan de reçu » ne crée rien : il PROPOSE des montants (photo détruite aussitôt).
+            Route::post('medicaments/{medicament}/prix', [MedicamentController::class, 'releverPrix']);
+            Route::post('medicaments/{medicament}/rupture', [MedicamentController::class, 'signalerRupture']);
+            Route::post('recus/lecture', [MedicamentController::class, 'lireRecu'])->middleware('throttle:10,1');
+
             Route::get('don-sang', [DonSangController::class, 'index']);
             Route::post('membres/{membre}/donneur', [DonSangController::class, 'inscrire']);
             Route::post('membres/{membre}/donneur/don', [DonSangController::class, 'declarerDon']);
@@ -243,6 +251,13 @@ Route::middleware('throttle:api')->group(function () {
         Route::get('/pharmacies-garde', [StructureController::class, 'pharmaciesGarde']); // F3.8
         Route::get('/structures', [StructureController::class, 'index']);                 // F3.1/F3.2/F3.3
         Route::get('/structures/{structure}', [StructureController::class, 'show']);       // F3.5
+
+        // Module 5 / FN7-FN8 — Catalogue, comparateur de prix et ruptures : PUBLICS en lecture.
+        // Savoir où trouver un médicament et à quel prix ne demande aucune identité, et une
+        // information de prix n'a d'utilité que largement diffusée.
+        Route::get('/medicaments', [MedicamentController::class, 'index']);
+        Route::get('/medicaments/{medicament}/prix', [MedicamentController::class, 'prix']);
+        Route::get('/ruptures', [MedicamentController::class, 'ruptures']);
 
         // Module 5 / FN6 — Groupes sanguins les plus demandés (public : un appel au don n'a de sens
         // que largement visible). Les urgences remontent en tête. Les donneurs INSCRITS reçoivent en

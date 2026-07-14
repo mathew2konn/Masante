@@ -1608,3 +1608,54 @@ Quatre blocs, dans l'ordre où ils comptent pour l'utilisateur :
 - **Modifié** : accueil `app/(app)/index.tsx` (tuile + bannière d'urgence ciblée) ; `RAPPORT.md`.
 - **`tsc` OK**, **`expo-doctor` 18/18**, **aucune dépendance ajoutée**. Piège habituel : Metro relancé une fois
   pour régénérer `.expo/types/router.d.ts`.
+
+## 5.8 — Comparateur de prix (FN7) + ruptures (FN8) · Étape A backend (2026-07-14)
+
+Dernier lot du Module 5. Le CdC fournit ici **deux tables** (§8) : `medicaments` (catalogue CENAME/DPM) et
+`prix_pharmacie` (relevés crowdsourcés). Décisions arbitrées avant code :
+
+**Décisions.**
+
+- **UNE seule table pour FN7 et FN8.** Le champ `disponible` de `prix_pharmacie` porte déjà la rupture : une
+  rupture n'est rien d'autre qu'un relevé disant « ce médicament n'est pas en rayon ici, ce jour ». Une table
+  `ruptures` séparée aurait créé deux mécanismes concurrents pour dire le même fait — et deux vérités possibles.
+- **Écart CdC : `prix_cfa` devient NULLABLE.** On ne relève pas le prix d'un médicament absent des rayons.
+  Le laisser NOT NULL rendait FN8 inapplicable — ou poussait à inventer un chiffre.
+- **Le problème de FN7 n'est pas technique, il est ÉPISTÉMIQUE** : un prix rapporté par un inconnu n'a aucune
+  garantie. Quatre défenses : (1) **hiérarchie des sources** — le pharmacien fait autorité sur SA officine
+  (`pharmacie_portail`), à défaut on agrège les patients ; (2) **médiane, pas dernier relevé** — un plaisantin
+  isolé ne déplace pas l'affichage, il faut convaincre la majorité ; (3) **plausibilité AVANT écriture** — un
+  prix hors proportion avec la référence CENAME (bornes 0,2× à 5×, larges à dessein : on n'écarte que
+  l'absurde) est refusé, comme la glycémie à 500 g/L du 5.6 ; (4) **fraîcheur affichée et fenêtre de 90 jours**
+  — un prix sans date ne vaut rien.
+- **Signaler exige un COMPTE ; lire est PUBLIC.** Un relevé anonyme ne se conteste pas, et un comparateur ouvert
+  à l'anonymat s'empoisonne en une nuit. Mais savoir où trouver un médicament ne demande aucune identité.
+- **Génériques moins chers** (FN7) : rapprochement par **DCI** (`nom_generique`), suggestion fondée sur le prix
+  de RÉFÉRENCE officiel, jamais sur un prix crowdsourcé — on n'oriente pas un achat sur la foi d'un passant.
+- **« Scan de reçu » : OCR AUTO-HÉBERGÉ (Tesseract), choix explicite de l'utilisateur.** Un reçu de pharmacie
+  dit quels médicaments une personne identifiable a achetés : c'est une **donnée de santé** (loi n°2013-450).
+  L'envoyer à Google Vision ou à un OCR en ligne l'exporterait chez un tiers étranger — même refus qu'au
+  Module 3 (OSM contre Google Maps). Tesseract 5.4 installé, fichiers de langue **dans le projet**
+  (`storage/app/tessdata`, fra+eng) pour ne pas dépendre d'un dossier système en prod. Aucune dépendance
+  Composer ajoutée : le binaire est appelé via `symfony/process`, déjà présent.
+- **L'OCR ne décide RIEN et l'image est DÉTRUITE.** Il PROPOSE des montants (heuristique explicable : les plus
+  grands d'abord, les années écartées) ; le patient choisit, corrige, confirme. Un chiffre mal reconnu qui
+  entrerait silencieusement dans le comparateur empoisonnerait la médiane de tous les autres. La photo n'est
+  jamais écrite dans le stockage applicatif : elle vit le temps d'un appel à Tesseract, dans le dossier
+  temporaire, et disparaît — ce qu'on garde, c'est un nombre, pas une image du ticket.
+- **Portail « Prix & stock »** (permission `medicament.manage`) : le « modèle freemium » du CdC — la pharmacie
+  tient ses prix et déclare ses ruptures, et gagne la source la plus fiable au comparateur. La permission dit
+  le rôle ; l'écran se referme sur les établissements qui **ne sont pas une pharmacie** (revérifié à chaque
+  accès, comme le bris de glace revérifie le service d'urgences).
+
+**Bug trouvé par les tests (vrai bug, pas artefact) :** deux relevés créés dans la même seconde portent le même
+horodatage → « le plus récent » devenait indéterminé, et une **rupture survivait au réapprovisionnement** qui
+l'annulait. Départage désormais par l'identifiant, strictement croissant.
+
+**Fichiers.** Migrations `medicaments`, `prix_pharmacie` ; modèles `Medicament`, `PrixPharmacie` ; services
+`PrixMedicamentService` (médiane, plausibilité, génériques, ruptures agrégées), `RecuOcrService` (Tesseract,
+image détruite) ; API `MedicamentController` (catalogue, comparateur, ruptures, relevé, rupture, lecture de
+reçu) ; portail `StockPharmacieController` + vue ; `MedicamentSeeder` (18 essentiels CI, prix CENAME
+indicatifs) ; config `masante.prix` et `masante.ocr`.
+
+**Tests : 250/250** (9 nouveaux — `PrixMedicamentTest`, dont l'OCR réellement exécuté), `composer audit` 0 avis.

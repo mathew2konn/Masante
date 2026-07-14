@@ -18,6 +18,7 @@ use App\Http\Controllers\Portail\RendezVousController;
 use App\Http\Controllers\Portail\ScanController;
 use App\Http\Controllers\Portail\ServiceController;
 use App\Http\Controllers\Portail\StatistiqueController;
+use App\Http\Controllers\Portail\StockPharmacieController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
@@ -159,6 +160,14 @@ Route::prefix('portail')->name('portail.')->group(function () {
             Route::get('medecins/{medecin}/editer', [PortailMedecinController::class, 'edit'])->name('medecins.edit');
             Route::put('medecins/{medecin}', [PortailMedecinController::class, 'update'])->name('medecins.update');
             Route::patch('medecins/{medecin}/actif', [PortailMedecinController::class, 'toggleActif'])->name('medecins.toggle');
+        });
+
+        // 5.8 — Prix & stock d'une PHARMACIE partenaire (FN7/FN8, « modèle freemium » du CdC).
+        // Le pharmacien fait autorité sur SA officine : sa déclaration prime sur les relevés des
+        // patients. Réservé aux structures de type `pharmacie` (revérifié dans le contrôleur).
+        Route::middleware('permission:medicament.manage')->group(function () {
+            Route::get('stock', [StockPharmacieController::class, 'index'])->name('stock.index');
+            Route::post('stock/{medicament}', [StockPharmacieController::class, 'declarer'])->name('stock.declarer');
         });
 
         // 5.7 — Don de sang (FN6) : l'ÉTABLISSEMENT publie ses besoins — lui seul sait qu'il manque

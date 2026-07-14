@@ -94,4 +94,38 @@ return [
         'delai_jours' => (int) env('MASANTE_DON_DELAI_JOURS', 90),
     ],
 
+    /*
+     * 5.8 — Comparateur de prix (FN7) et ruptures (FN8).
+     *
+     * `facteur_min`/`facteur_max` : bornes de plausibilité d'un prix crowdsourcé, en multiples du
+     * prix de référence CENAME. Larges à dessein — une officine privée vend plus cher qu'une
+     * pharmacie publique, ce n'est pas à nous d'en juger : on n'écarte que l'ABSURDE (un
+     * paracétamol à 50 000 F est une faute de frappe, pas un scandale tarifaire).
+     * `fraicheur_jours` : au-delà, un relevé n'est plus affiché. Un prix sans date ne vaut rien.
+     */
+    'prix' => [
+        'plancher_cfa'    => (int) env('MASANTE_PRIX_PLANCHER', 50),
+        'plafond_cfa'     => (int) env('MASANTE_PRIX_PLAFOND', 500000),
+        'facteur_min'     => (float) env('MASANTE_PRIX_FACTEUR_MIN', 0.2),
+        'facteur_max'     => (float) env('MASANTE_PRIX_FACTEUR_MAX', 5.0),
+        'fraicheur_jours' => (int) env('MASANTE_PRIX_FRAICHEUR_JOURS', 90),
+    ],
+
+    /*
+     * 5.8 — OCR du reçu de pharmacie (FN7 « scan de reçu »).
+     *
+     * Tesseract AUTO-HÉBERGÉ : un reçu dit quels médicaments une personne a achetés — donnée de
+     * santé (loi n°2013-450). L'envoyer à un OCR en ligne l'exporterait chez un tiers étranger.
+     * Même logique que le choix d'OpenStreetMap contre Google Maps (Module 3).
+     * Les fichiers de langue vivent DANS le projet (`storage/app/tessdata`) : le serveur de prod
+     * n'a pas à dépendre d'un dossier système.
+     */
+    'ocr' => [
+        'binaire'   => env('MASANTE_TESSERACT_BIN', 'C:\\Program Files\\Tesseract-OCR\\tesseract.exe'),
+        'tessdata'  => env('MASANTE_TESSDATA_DIR', storage_path('app/tessdata')),
+        'langue'    => env('MASANTE_TESSERACT_LANG', 'fra'),
+        'timeout_s' => (float) env('MASANTE_TESSERACT_TIMEOUT', 20),
+        'max_ko'    => (int) env('MASANTE_RECU_MAX_KO', 8192),   // 8 Mo : une photo de ticket
+    ],
+
 ];

@@ -28,6 +28,12 @@ Monorepo de **deux projets strictement séparés** qui ne communiquent **que** v
   - `.pdf` → `pdftotext -layout fichier.pdf sortie.txt` (poppler, dispo dans le shell).
 - **Mobile** : installer les dépendances **uniquement** via `npx expo install <pkg>` (jamais `npm install` brut),
   pour garantir la compatibilité **SDK 54**. Vérifier avec `npx expo-doctor` + `npx expo install --check`.
+- **Tesseract OCR** (Module 5.8, « scan de reçu » FN7) : binaire installé via
+  `winget install --id UB-Mannheim.TesseractOCR`. Les fichiers de langue vivent **dans le projet**
+  (`ivoirsante-api/storage/app/tessdata/`, fra + eng — **git-ignorés**, à retélécharger sur un clone neuf depuis
+  `tessdata_fast`), pour ne pas dépendre d'un dossier système en prod. Auto-hébergé **par exigence légale** :
+  un reçu de pharmacie est une donnée de santé (loi 2013-450), il ne part pas chez un OCR en ligne. Absent →
+  l'API renvoie 503 et le mobile bascule sur la saisie manuelle (dégradation prévue).
 
 ## Commandes courantes
 

@@ -35,5 +35,8 @@ class DatabaseSeeder extends Seeder
 
         // Référentiel des seuils de mesure — glycémie, tension, température… (Module 5 / FN5).
         $this->call(ReferentielMesureSeeder::class);
+
+        // Catalogue des médicaments essentiels + prix de référence CENAME (Module 5 / FN7).
+        $this->call(MedicamentSeeder::class);
     }
 }
