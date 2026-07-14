@@ -16,6 +16,7 @@ use App\Http\Controllers\Api\V1\Carnet\ResultatAnalyseController;
 use App\Http\Controllers\Api\V1\Carnet\VaccinationController;
 use App\Http\Controllers\Api\V1\CarteCmuController;
 use App\Http\Controllers\Api\V1\DelegationController;
+use App\Http\Controllers\Api\V1\DonSangController;
 use App\Http\Controllers\Api\V1\FicheVitaleController;
 use App\Http\Controllers\Api\V1\MedecinController;
 use App\Http\Controllers\Api\V1\MembreController;
@@ -135,6 +136,15 @@ Route::middleware('throttle:api')->group(function () {
             // Module 5 / FN3 — Alertes épidémiques de MA commune (+ alertes nationales).
             Route::get('alertes-epidemiques', [AlerteEpidemiqueController::class, 'index']);
 
+            // Module 5 / FN6 — Don de sang. Mes membres donneurs + les urgences auxquelles ils
+            // peuvent répondre (ciblage serveur). L'inscription est un consentement, membre par
+            // membre. Les CENTRES de collecte n'ont pas d'endpoint : ce sont les structures de
+            // l'annuaire portant un service `don_sang` (GET /v1/structures?specialite=don_sang).
+            Route::get('don-sang', [DonSangController::class, 'index']);
+            Route::post('membres/{membre}/donneur', [DonSangController::class, 'inscrire']);
+            Route::post('membres/{membre}/donneur/don', [DonSangController::class, 'declarerDon']);
+            Route::delete('membres/{membre}/donneur', [DonSangController::class, 'retirer']);
+
             // Profil — Photo de profil : upload/lecture/suppression. Chiffrée au repos, disque privé,
             // servie uniquement déchiffrée par le contrôleur (jamais d'URL publique).
             Route::post('membres/{membre}/photo', [PhotoMembreController::class, 'store']);
@@ -233,6 +243,11 @@ Route::middleware('throttle:api')->group(function () {
         Route::get('/pharmacies-garde', [StructureController::class, 'pharmaciesGarde']); // F3.8
         Route::get('/structures', [StructureController::class, 'index']);                 // F3.1/F3.2/F3.3
         Route::get('/structures/{structure}', [StructureController::class, 'show']);       // F3.5
+
+        // Module 5 / FN6 — Groupes sanguins les plus demandés (public : un appel au don n'a de sens
+        // que largement visible). Les urgences remontent en tête. Les donneurs INSCRITS reçoivent en
+        // plus une alerte personnelle et ciblée (GET /v1/don-sang, sous auth).
+        Route::get('/don-sang/besoins', [DonSangController::class, 'besoins']);
 
         // Module 5 / 5.6 — Recherche par nom dans l'annuaire des praticiens (choix d'un référent).
         // Mêmes données que la fiche d'une structure (F3.5), avec une entrée par nom : public.

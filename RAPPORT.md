@@ -1533,3 +1533,53 @@ depuis la fiche (« compte du praticien ») ou depuis l'agent (« fiche de prati
 `permission:medecin.manage`, carte « Mes médecins » au tableau de bord, permission ajoutée au rôle
 `gestionnaire_etablissement`, recherche mot à mot dans `Api/V1/MedecinController`.
 **Tests : 230/230** (5 nouveaux — `PortailMedecinTest`, dont la recherche multi-mots).
+
+## 5.7 — Don de sang (FN6) · Étape A backend (2026-07-14)
+
+Quatre besoins au CdC (§5.5.2) : localiser les centres, voir les groupes demandés, s'inscrire donneur, alerter
+les donneurs compatibles en cas d'urgence. **Le CdC ne fournit AUCUNE table pour FN6** (contrairement à FN3 ou
+FN5) : le schéma est entièrement conçu ici. Décisions arbitrées avant code (3 questions, 3 recommandations
+retenues) :
+
+**Décisions.**
+
+- **Les centres de collecte n'ont AUCUN code.** Un centre = une structure de l'annuaire portant un **service de
+  spécialité `don_sang`** (créé par le gestionnaire depuis « Mes services »). Le mobile les obtient par
+  `GET /v1/structures?specialite=don_sang&lat=&lng=` — la recherche géolocalisée du Module 3, déjà triée par
+  proximité. Une table `centres_collecte` aurait dupliqué la carte, les fiches, la géoloc et l'admin.
+- **Le donneur est un MEMBRE du carnet**, pas le compte : c'est lui qui porte `groupe_sanguin` (indispensable au
+  ciblage) et `date_naissance` (donc l'éligibilité par l'âge). Le compte reste le canal de contact. L'inscription
+  est un **consentement explicite, membre par membre** : le groupe sanguin existait déjà au carnet, ce qui change
+  c'est qu'il devient interrogeable POUR ALERTER.
+- **La compatibilité ABO/Rhésus est FIGÉE dans le service PHP** — écart RAISONNÉ au pattern F1.3 (« les règles
+  médicales vivent en base »). Les symptômes, étapes prénatales et seuils de mesure sont des politiques de santé
+  révisables ; la compatibilité des groupes sanguins est de l'immunologie. La mettre en base laisserait croire
+  qu'un gestionnaire pourrait décider qu'un A+ donne à un O−. **Une erreur ici tue** : la règle est figée, testée
+  (O− donneur universel, AB+ receveur universel, le Rhésus compte), et relue.
+- **Éligibilité et carence sont, elles, configurables** (`config/masante.php` : 18-65 ans, 90 jours entre deux
+  dons — CNTS ivoirien) : ce sont des politiques de collecte, elles varient. Un donneur en carence est **au
+  repos, pas désinscrit** : on ne le sollicite pas, et le retrait de consentement **conserve la date du dernier
+  don** (sinon la carence se remettrait à zéro à volonté).
+- **Deux niveaux de besoin.** Le `courant` s'affiche dans la liste publique des groupes demandés ; seule
+  l'**urgence** alerte les donneurs compatibles. Si tout alertait, plus rien n'alerterait.
+- **C'est l'ÉTABLISSEMENT qui publie** (permission `don_sang.manage`, gestionnaire) : lui seul sait qu'il manque
+  de O− ce matin — le CdC dit « urgence signalée par un CHU ». L'admin MaSanté n'a aucune visibilité sur les
+  stocks d'un hôpital.
+- **MINIMISATION (loi 2013-450) — le point à défendre en soutenance** : le portail affiche un **COMPTEUR** de
+  donneurs mobilisables, **jamais leur identité**. Aucun nom, aucun numéro, aucun export. Un hôpital n'a pas à
+  repartir avec un fichier de porteurs de O−, et l'application n'a pas à devenir un annuaire de groupes sanguins.
+  Les donneurs sont alertés chez eux et se présentent d'eux-mêmes : **donner reste une décision, pas une
+  convocation**.
+- **Ciblage 100 % serveur** (comme FN3) : `GET /v1/don-sang` ne renvoie que les urgences auxquelles les membres
+  donneurs de CE compte peuvent réellement répondre — un O− est alerté pour une poche A+, un A+ ne l'est jamais
+  pour une poche O−.
+
+**Fichiers.** Migrations `donneurs_sang`, `besoins_sang` ; modèles `DonneurSang`, `BesoinSang` ; service
+`DonSangService` (compatibilité, éligibilité, carence, ciblage, compteur) ; API `DonSangController` (besoins
+publics, alertes ciblées, inscription/don/retrait) ; portail `BesoinSangController` + vues `portail/don-sang/*` ;
+permission `don_sang.manage` (gestionnaire) ; carte « Don de sang » au tableau de bord ; config `masante.don_sang`.
+
+**Piège rencontré** : `FIELD()` (tri par niveau) est propre à **MySQL** — la suite tourne sur **SQLite**.
+Remplacé par un `CASE WHEN`. Même famille de piège que les CHECK d'enum du 5.5.
+
+**Tests : 241/241** (11 nouveaux — `DonSangTest`), `composer audit` 0 avis.

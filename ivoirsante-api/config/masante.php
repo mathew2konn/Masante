@@ -81,4 +81,17 @@ return [
         'exiger_titulaire_verifie' => env('MASANTE_REFERENT_EXIGER_VERIFIE', false),
     ],
 
+    /*
+     * 5.7 — Don de sang (CdC FN6). Règles de POLITIQUE de collecte, elles : les bornes d'âge et le
+     * délai entre deux dons varient d'un pays et d'une époque à l'autre (le CNTS ivoirien retient
+     * 18-65 ans et un intervalle de 3 mois). Elles sont donc configurables — à la différence de la
+     * compatibilité ABO/Rhésus, figée dans {@see App\Services\DonSangService}, qui relève de
+     * l'immunologie et non d'une politique.
+     */
+    'don_sang' => [
+        'age_min'     => (int) env('MASANTE_DON_AGE_MIN', 18),
+        'age_max'     => (int) env('MASANTE_DON_AGE_MAX', 65),
+        'delai_jours' => (int) env('MASANTE_DON_DELAI_JOURS', 90),
+    ],
+
 ];

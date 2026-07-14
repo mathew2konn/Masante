@@ -4,6 +4,7 @@ use App\Http\Controllers\Portail\ActivationController;
 use App\Http\Controllers\Portail\AgentController;
 use App\Http\Controllers\Portail\AlerteEpidemiqueController as PortailAlerteEpidemiqueController;
 use App\Http\Controllers\Portail\AuthController;
+use App\Http\Controllers\Portail\BesoinSangController;
 use App\Http\Controllers\Portail\BrisDeGlaceController;
 use App\Http\Controllers\Portail\CompteController;
 use App\Http\Controllers\Portail\DashboardController;
@@ -158,6 +159,18 @@ Route::prefix('portail')->name('portail.')->group(function () {
             Route::get('medecins/{medecin}/editer', [PortailMedecinController::class, 'edit'])->name('medecins.edit');
             Route::put('medecins/{medecin}', [PortailMedecinController::class, 'update'])->name('medecins.update');
             Route::patch('medecins/{medecin}/actif', [PortailMedecinController::class, 'toggleActif'])->name('medecins.toggle');
+        });
+
+        // 5.7 — Don de sang (FN6) : l'ÉTABLISSEMENT publie ses besoins — lui seul sait qu'il manque
+        // de O− ce matin. Seul le niveau « urgent » alerte les donneurs compatibles. L'écran ne montre
+        // qu'un COMPTEUR de donneurs mobilisables, jamais leur identité (minimisation).
+        Route::middleware('permission:don_sang.manage')->prefix('don-sang')->name('don-sang.')->group(function () {
+            Route::get('/', [BesoinSangController::class, 'index'])->name('index');
+            Route::get('creer', [BesoinSangController::class, 'create'])->name('create');
+            Route::post('/', [BesoinSangController::class, 'store'])->name('store');
+            Route::get('{besoin}/editer', [BesoinSangController::class, 'edit'])->name('edit');
+            Route::put('{besoin}', [BesoinSangController::class, 'update'])->name('update');
+            Route::patch('{besoin}/actif', [BesoinSangController::class, 'toggleActif'])->name('toggle');
         });
 
         // 5.6 — Voie 2 « médecin référent » : mes patients suivis (permission dossier.referent).
