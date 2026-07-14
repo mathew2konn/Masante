@@ -1583,3 +1583,28 @@ permission `don_sang.manage` (gestionnaire) ; carte « Don de sang » au tableau
 Remplacé par un `CASE WHEN`. Même famille de piège que les CHECK d'enum du 5.5.
 
 **Tests : 241/241** (11 nouveaux — `DonSangTest`), `composer audit` 0 avis.
+
+## 5.7 — Don de sang (FN6) · Étape B mobile (2026-07-14)
+
+Un écran (`DonSangEcran`, tuile **« Don de sang »** à l'accueil) + une **bannière d'urgence** sur l'accueil.
+Le mobile **ne compare aucun groupe sanguin** : le ciblage vient du serveur (une erreur de compatibilité tue,
+elle n'a rien à faire dans une app). Il n'affiche que ce que le serveur lui a dit le concerner.
+
+Quatre blocs, dans l'ordre où ils comptent pour l'utilisateur :
+
+1. **Urgences qui me concernent** — carte rouge : « le CHU de Cocody recherche du sang A+, **votre don peut
+   convenir** (O−) ». Si elle s'affiche, c'est qu'un membre donneur du foyer peut réellement fournir la poche.
+   Doublée d'une **bannière rouge à l'accueil** (`BanniereDonSang`, sœur de celle des alertes épidémiques).
+2. **Donneurs de mon carnet** — inscription **membre par membre** (consentement explicite), retrait en un
+   geste, et déclaration d'un don qui met le donneur **au repos** (« repos 80 j ») sans le désinscrire.
+   Les règles affichées (18–65 ans, 90 jours) viennent de la config serveur, jamais codées ici.
+3. **Groupes les plus demandés** (public) — urgences en tête, pastille du groupe teintée par le niveau.
+4. **Centres de collecte** — bouton « Trouver les centres proches » : appelle `rechercherStructures` avec
+   `specialite=don_sang` (Module 3), donc **distances et fiches existantes**, aucune carte refaite. La géoloc
+   refusée n'empêche pas la liste : refuser sa position ne doit pas priver d'une information de santé publique.
+
+- **Nouveaux** : `src/types/donSang.ts`, `src/api/donSang.ts`, `src/components/BanniereDonSang.tsx`,
+  `src/screens/DonSangEcran.tsx`, route `app/(app)/don-sang.tsx`.
+- **Modifié** : accueil `app/(app)/index.tsx` (tuile + bannière d'urgence ciblée) ; `RAPPORT.md`.
+- **`tsc` OK**, **`expo-doctor` 18/18**, **aucune dépendance ajoutée**. Piège habituel : Metro relancé une fois
+  pour régénérer `.expo/types/router.d.ts`.

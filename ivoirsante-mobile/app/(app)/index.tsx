@@ -5,23 +5,33 @@ import { Ionicons } from '@expo/vector-icons';
 import { Screen } from '../../src/components/Screen';
 import { Card } from '../../src/components/Card';
 import { BanniereAlerte } from '../../src/components/BanniereAlerte';
+import { BanniereDonSang } from '../../src/components/BanniereDonSang';
 import { getAlertesEpidemiques } from '../../src/api/alertes';
+import { obtenirDonSang } from '../../src/api/donSang';
 import { useSession } from '../../src/auth/SessionContext';
 import type { AlerteEpidemique } from '../../src/types/urgence';
+import type { AlerteDon } from '../../src/types/donSang';
 import { colors, radius, spacing, typography } from '../../src/theme/theme';
 
 /** Accueil — tableau de bord d'entrée (§5.2 tuiles d'accès rapide). */
 export default function AccueilTab() {
   const { user } = useSession();
   const [alertes, setAlertes] = useState<AlerteEpidemique[]>([]);
+  const [appelsDon, setAppelsDon] = useState<AlerteDon[]>([]);
 
-  // Alertes sanitaires de la commune : rafraîchies à chaque retour sur l'accueil. Échec silencieux
-  // (réseau, etc.) : une bannière d'alerte est un plus, son absence ne doit pas gêner l'accueil.
+  // Alertes sanitaires de la commune + appels au don qui NOUS concernent (ciblés serveur : si une
+  // urgence transfusionnelle apparaît ici, c'est qu'un membre donneur du foyer peut y répondre).
+  // Rafraîchies à chaque retour sur l'accueil. Échec silencieux (réseau, etc.) : une bannière est un
+  // plus, son absence ne doit pas gêner l'accueil.
   useFocusEffect(
     useCallback(() => {
       getAlertesEpidemiques()
         .then(setAlertes)
         .catch(() => setAlertes([]));
+
+      obtenirDonSang()
+        .then((vue) => setAppelsDon(vue.alertes))
+        .catch(() => setAppelsDon([]));
     }, []),
   );
 
@@ -31,6 +41,7 @@ export default function AccueilTab() {
       <Text style={styles.sous}>Bienvenue sur votre espace santé.</Text>
 
       <BanniereAlerte alertes={alertes} onPress={() => router.navigate('/(app)/alertes')} />
+      <BanniereDonSang alertes={appelsDon} onPress={() => router.navigate('/(app)/don-sang')} />
 
       <View style={styles.tuiles}>
         <Tuile
@@ -62,6 +73,12 @@ export default function AccueilTab() {
           titre="Pharmacies de garde"
           desc="Les officines ouvertes aujourd'hui"
           onPress={() => router.navigate('/(app)/structures/pharmacies-garde')}
+        />
+        <Tuile
+          icone="water-outline"
+          titre="Don de sang"
+          desc="Centres proches, groupes demandés, devenir donneur"
+          onPress={() => router.navigate('/(app)/don-sang')}
         />
       </View>
     </Screen>
