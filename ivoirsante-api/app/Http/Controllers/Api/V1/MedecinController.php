@@ -35,10 +35,7 @@ class MedecinController extends Controller
             ->where('actif', true)
             ->when(
                 $filtres['q'] ?? null,
-                fn ($q, $terme) => $q->where(
-                    fn ($sous) => $sous->where('nom', 'like', "%{$terme}%")
-                        ->orWhere('prenom', 'like', "%{$terme}%")
-                ),
+                fn ($requete, $terme) => $this->filtrerParNom($requete, $terme),
             )
             ->when($filtres['specialite'] ?? null, fn ($q, $s) => $q->where('specialite', 'like', "%{$s}%"))
             ->when($filtres['structure_id'] ?? null, fn ($q, $id) => $q->where('structure_id', $id))
@@ -48,5 +45,34 @@ class MedecinController extends Controller
             ->get();
 
         return response()->json(['medecins' => $medecins]);
+    }
+
+    /**
+     * Recherche par nom, MOT À MOT.
+     *
+     * Un patient tape « Aya Kouamé », « Dr Kouamé » ou « Kouamé cardiologue » — pas un nom de famille
+     * isolé. Comparer la saisie entière à `nom` puis à `prenom` ne trouve alors rien : aucun champ ne
+     * contient la chaîne complète. On découpe donc la saisie et on exige que CHAQUE mot se retrouve
+     * quelque part (nom, prénom ou spécialité) : les mots affinent, ils ne s'excluent pas.
+     *
+     * Le titre (« Dr », « Pr ») est ignoré : c'est un mot que le patient écrit naturellement et qui ne
+     * distingue personne.
+     *
+     * @param  \Illuminate\Database\Eloquent\Builder<Medecin>  $requete
+     * @return \Illuminate\Database\Eloquent\Builder<Medecin>
+     */
+    private function filtrerParNom($requete, string $terme)
+    {
+        $mots = collect(preg_split('/\s+/', trim($terme), -1, PREG_SPLIT_NO_EMPTY))
+            ->reject(fn (string $mot) => in_array(mb_strtolower(rtrim($mot, '.')), ['dr', 'pr'], true))
+            ->take(4);   // au-delà, la saisie n'affine plus : elle exclut
+
+        foreach ($mots as $mot) {
+            $requete->where(fn ($sous) => $sous->where('nom', 'like', "%{$mot}%")
+                ->orWhere('prenom', 'like', "%{$mot}%")
+                ->orWhere('specialite', 'like', "%{$mot}%"));
+        }
+
+        return $requete;
     }
 }

@@ -25,6 +25,7 @@
     ['perm' => 'stats.etablissement',  'icone' => 'bi-bar-chart-line',    'titre' => 'Mes statistiques', 'desc' => 'Rendez-vous et avis de votre établissement.', 'route' => 'portail.statistiques.etablissement', 'structure' => true],
     ['perm' => 'service.manage',       'icone' => 'bi-clipboard2-pulse',  'titre' => 'Mes services',    'desc' => 'Gérer les services de votre établissement.', 'route' => 'portail.services.index', 'structure' => true],
     ['perm' => 'agent.manage',         'icone' => 'bi-person-badge',      'titre' => 'Mes agents',      'desc' => 'Créer et gérer les agents de garde.', 'route' => 'portail.agents.index', 'structure' => true],
+    ['perm' => 'medecin.manage',       'icone' => 'bi-person-vcard',      'titre' => 'Mes médecins',    'desc' => 'Praticiens visibles des patients (RDV, médecin référent).', 'route' => 'portail.medecins.index', 'structure' => true],
     ['perm' => 'disponibilite.manage', 'icone' => 'bi-toggles',          'titre' => 'Disponibilité',   'desc' => 'Mettre à jour la disponibilité de votre service.', 'route' => 'portail.disponibilites.index', 'structure' => true],
     ['perm' => 'rdv.validate',         'icone' => 'bi-calendar-check',    'titre' => 'Rendez-vous',     'desc' => 'Valider ou refuser les demandes de RDV.', 'route' => 'portail.rdv.index', 'structure' => true],
     ['perm' => 'qr.scan',              'icone' => 'bi-qr-code-scan',      'titre' => 'Scan carnet',     'desc' => 'Scanner le QR du carnet et ouvrir le dossier (30 min).', 'route' => 'portail.scan.index', 'structure' => true],

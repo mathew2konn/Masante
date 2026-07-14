@@ -10,6 +10,7 @@ use App\Http\Controllers\Portail\DashboardController;
 use App\Http\Controllers\Portail\DisponibiliteController;
 use App\Http\Controllers\Portail\DossierController;
 use App\Http\Controllers\Portail\EtablissementController;
+use App\Http\Controllers\Portail\MedecinController as PortailMedecinController;
 use App\Http\Controllers\Portail\MesPatientsController;
 use App\Http\Controllers\Portail\ModerationController;
 use App\Http\Controllers\Portail\RendezVousController;
@@ -144,6 +145,19 @@ Route::prefix('portail')->name('portail.')->group(function () {
 
             Route::get('scan/rendez-vous', [ScanController::class, 'indexRdv'])->name('scan.rdv');
             Route::post('scan/rendez-vous', [ScanController::class, 'checkIn'])->name('scan.checkin')->middleware('throttle:20,1');
+        });
+
+        // 5.6 — Annuaire des praticiens de MON établissement (gestionnaire). Le CdC renvoyait cette
+        // configuration « au portail admin » sans qu'elle soit jamais construite : sans elle, un
+        // établissement créé après le seed n'a aucun praticien — donc aucune fiche à relier à un
+        // compte, donc pas de médecin référent possible. Pas de suppression : on désactive.
+        Route::middleware('permission:medecin.manage')->group(function () {
+            Route::get('medecins', [PortailMedecinController::class, 'index'])->name('medecins.index');
+            Route::get('medecins/creer', [PortailMedecinController::class, 'create'])->name('medecins.create');
+            Route::post('medecins', [PortailMedecinController::class, 'store'])->name('medecins.store');
+            Route::get('medecins/{medecin}/editer', [PortailMedecinController::class, 'edit'])->name('medecins.edit');
+            Route::put('medecins/{medecin}', [PortailMedecinController::class, 'update'])->name('medecins.update');
+            Route::patch('medecins/{medecin}/actif', [PortailMedecinController::class, 'toggleActif'])->name('medecins.toggle');
         });
 
         // 5.6 — Voie 2 « médecin référent » : mes patients suivis (permission dossier.referent).

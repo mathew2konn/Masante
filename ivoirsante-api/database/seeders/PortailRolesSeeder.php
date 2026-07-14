@@ -29,6 +29,7 @@ class PortailRolesSeeder extends Seeder
         // Gestionnaire d'établissement
         'service.manage',         // CRUD de SES services
         'agent.manage',           // créer / gérer SES agents
+        'medecin.manage',         // annuaire des praticiens de SON établissement (RDV F3.5 + référent 5.6)
         'stats.etablissement',    // statistiques de SON établissement
         // Agent de garde
         'disponibilite.manage',   // mettre à jour la dispo de SON service
@@ -44,7 +45,8 @@ class PortailRolesSeeder extends Seeder
     /** Permissions par rôle (moindre privilège). L'admin reçoit tout. */
     private const ROLES = [
         'gestionnaire_etablissement' => [
-            'service.manage', 'agent.manage', 'stats.etablissement', 'rdv.validate', 'disponibilite.manage',
+            'service.manage', 'agent.manage', 'medecin.manage', 'stats.etablissement',
+            'rdv.validate', 'disponibilite.manage',
         ],
         // La permission `dossier.referent` ne donne accès à RIEN à elle seule : encore faut-il que le
         // gestionnaire ait relié le compte à une fiche de l'annuaire, ET qu'un patient ait désigné ce

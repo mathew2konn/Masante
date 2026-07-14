@@ -296,6 +296,27 @@ export default function DetailMembreScreen() {
           <Ionicons name="chevron-forward" size={20} color={colors.ink[500]} />
         </Pressable>
 
+        {/* Journal de santé (FN5) : glycémie, tension, poids… avec courbes d'évolution. Ouvert à
+            tous les membres — le poids et la température parlent à tout le monde, pas seulement
+            aux malades chroniques. */}
+        <Pressable
+          onPress={() =>
+            router.push({
+              pathname: '/(app)/membres/mesures/[id]',
+              params: { id: membreId, nom: `${membre.prenom} ${membre.nom}` },
+            })
+          }
+          accessibilityRole="button"
+          accessibilityLabel="Journal de santé"
+          style={[styles.sectionRow, styles.sectionRowBordure]}
+        >
+          <View style={styles.sectionPastille}>
+            <Ionicons name="pulse-outline" size={18} color={colors.blue[600]} />
+          </View>
+          <Text style={styles.sectionTxt}>Journal de santé</Text>
+          <Ionicons name="chevron-forward" size={20} color={colors.ink[500]} />
+        </Pressable>
+
         {/* Suivi de grossesse (FN4) : réservé aux membres féminins (le backend refuse un homme). */}
         {membre.sexe === 'F' ? (
           <Pressable
@@ -374,6 +395,18 @@ export default function DetailMembreScreen() {
             router.push({
               pathname: '/(app)/membres/delegues/[id]',
               params: { id: membreId, prenom: membre.prenom, nom: membre.nom },
+            })
+          }
+        />
+        <View style={styles.sep} />
+        {/* Le référent est une VOIE DE PARTAGE (la 2e des quatre) : sa place est ici, à côté du QR
+            et des délégués — pas dans les sections du carnet. Accès permanent, tracé, révocable. */}
+        <SecondaryButton
+          label="Médecin référent"
+          onPress={() =>
+            router.push({
+              pathname: '/(app)/membres/referent/[id]',
+              params: { id: membreId, nom: `${membre.prenom} ${membre.nom}` },
             })
           }
         />

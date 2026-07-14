@@ -1459,3 +1459,77 @@ Les routes `dossier/*` du portail **sortent du groupe `permission:qr.scan`** (el
 c'est la SESSION qui autorise, ouverte par un scan OU par la voie référent) et restent sous `dossier.actif`.
 
 **Tests : 225/225** (16 nouveaux — `MesureSanteTest`, `MedecinReferentTest`), `composer audit` 0 avis.
+
+## 5.6 — Journal de santé + médecin référent · Étape B mobile (2026-07-13)
+
+Deux écrans, tous deux sous la pile `membres/` donc **déjà derrière le VerrouGate** (biométrie/PIN).
+Le mobile **ne code aucune norme médicale** : unités, décimales, bornes de saisie, seuils et conseils viennent
+tous du référentiel renvoyé par l'API. Corriger un seuil = un UPDATE en base, sans mise à jour de l'app.
+
+**Journal de santé** (`MesuresEcran`, entrée « Journal de santé » dans les sections du carnet — ouvert à
+**tous** les membres : le poids et la température ne concernent pas que les malades chroniques) :
+
+- **Dernières mesures** en tête (une case par type, teintée par le statut serveur) ;
+- **6 gestes de saisie** en chips (Glycémie · Tension · Poids · Température · Pouls · Saturation) — la
+  **tension est un seul geste** (systolique + diastolique côte à côte) alors que la base écrit deux lignes ;
+- **courbe d'évolution** (`CourbeMesure`, react-native-svg **déjà installé** — pas de librairie de graphes
+  ajoutée pour une polyligne) : **bande verte = la norme, tracée d'après les seuils du serveur**, points bleus
+  dans la norme, orange hors norme, rouges si critiques. L'échelle englobe toujours la bande normale, sans
+  quoi un patient durablement hors norme la croirait invisible — donc normale ;
+- **historique** du type suivi (tension regroupée « 150/95 »), **appui long = supprimer** (avec avertissement
+  si la mesure vient d'une structure : elle n'est pas au patient de l'effacer). Pas de modification : une
+  mesure est un fait daté ;
+- **alerte valeur critique** : `Alert` portant le **conseil du référentiel** (texte de la base, oriente vers le
+  SAMU 185) — l'app n'invente aucun texte médical.
+- **Horodatage** : aujourd'hui → heure courante ; jour passé → midi (une mesure ne peut pas être future, et
+  une heure fixe à 08:00 aurait basculé dans le futur pour une saisie matinale).
+
+**Médecin référent** (`ReferentEcran`, dans le bloc **« Partage sécurisé »** de la fiche membre, à côté du QR
+et des délégués — car c'est bien une **voie de partage**, la 2e des quatre, pas une section du carnet) :
+
+- l'écran **dit franchement** ce qu'il engage : « ce médecin pourra consulter le dossier à tout moment, sans
+  QR Code », avec les deux contreparties (journal d'accès, révocation immédiate) ;
+- **recherche par nom** dans l'**annuaire public** (`GET /v1/medecins`) — le patient cherche le médecin qu'il
+  connaît déjà ; un praticien sans compte relié est signalé **« Ne consulte pas encore en ligne »** (il peut
+  être désigné, mais il ne verra rien : autant le savoir avant) ;
+- **confirmation explicite** avant désignation (et mention du référent remplacé, le cas échéant), **révocation**
+  en un geste, **anciens référents** listés avec leurs dates (la trace opposable, loi 2013-450).
+
+- **Nouveaux** : `src/types/mesure.ts`, `src/types/referent.ts`, `src/api/mesures.ts`, `src/api/referent.ts`,
+  `src/components/CourbeMesure.tsx`, `src/screens/MesuresEcran.tsx`, `src/screens/ReferentEcran.tsx`,
+  routes `app/(app)/membres/mesures/[id].tsx` et `app/(app)/membres/referent/[id].tsx`.
+- **Modifié** : fiche membre `[id].tsx` (ligne « Journal de santé » + bouton « Médecin référent ») ; `RAPPORT.md`.
+- **Piège (déjà rencontré en 5.5)** : les routes typées n'existent qu'après régénération de
+  `.expo/types/router.d.ts` — Metro relancé une fois. **`tsc` OK**, **`expo-doctor` 18/18**, **aucune
+  dépendance ajoutée**.
+
+## 5.6 — Correction : l'annuaire des praticiens n'était alimenté que par le seeder (2026-07-14)
+
+**Symptôme remonté au test** : dans l'app, un médecin cherché « existe bien en base » mais ne remonte pas ; et
+un agent créé au nom d'un praticien reste marqué « ne consulte pas encore en ligne ».
+
+Deux causes distinctes, l'une superficielle, l'autre structurelle :
+
+1. **Recherche trop littérale.** `GET /v1/medecins?q=` comparait la saisie ENTIÈRE à `nom`, puis à `prenom`.
+   Un patient tape « Aya Kouamé » ou « Dr Kouamé » — aucune de ces chaînes n'est contenue dans un champ pris
+   isolément, d'où « aucun médecin ne correspond ». La recherche est désormais **mot à mot** : chaque mot doit
+   se retrouver dans le nom, le prénom OU la spécialité (les mots affinent, ils ne s'excluent pas) ; les titres
+   « Dr »/« Pr » sont ignorés.
+
+2. **Le vrai trou : aucun écran pour créer une fiche de praticien.** Le Module 3 avait posé la table `medecins`
+   en notant « configuration par les gestionnaires : Module 4 » — et cet écran n'a jamais été construit.
+   L'annuaire n'existait donc QUE pour les 12 structures seedées d'Abidjan. Conséquence : un établissement créé
+   depuis le portail (ici la Clinique de Morofé) n'avait **aucune fiche**, donc rien à relier à un compte, donc
+   **la voie 2 y était inutilisable** — et créer un agent homonyme n'y changeait rien (le lien se fait par
+   `medecins.user_id`, jamais par le nom).
+
+**Ajouté** : écran **« Mes médecins »** (gestionnaire, permission `medecin.manage`) — création, modification,
+**désactivation** (jamais de suppression : la fiche est référencée par des RDV et peut l'être par des
+désignations de référent), et **lien vers le compte du praticien** (`user_id`, UNIQUE : un compte = une fiche).
+Cloisonnement strict par `structure_id`, comme les services (4.3). Le lien reste posable des deux côtés :
+depuis la fiche (« compte du praticien ») ou depuis l'agent (« fiche de praticien ») — même colonne.
+
+**Fichiers** : `Portail/MedecinController`, vues `portail/medecins/{index,create,edit,_form}`, route
+`permission:medecin.manage`, carte « Mes médecins » au tableau de bord, permission ajoutée au rôle
+`gestionnaire_etablissement`, recherche mot à mot dans `Api/V1/MedecinController`.
+**Tests : 230/230** (5 nouveaux — `PortailMedecinTest`, dont la recherche multi-mots).
