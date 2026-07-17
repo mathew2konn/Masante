@@ -1659,3 +1659,35 @@ reçu) ; portail `StockPharmacieController` + vue ; `MedicamentSeeder` (18 essen
 indicatifs) ; config `masante.prix` et `masante.ocr`.
 
 **Tests : 250/250** (9 nouveaux — `PrixMedicamentTest`, dont l'OCR réellement exécuté), `composer audit` 0 avis.
+
+## 5.8 — Comparateur de prix + ruptures · Étape B mobile (2026-07-14) — DERNIÈRE ÉTAPE DU MODULE 5
+
+Deux écrans, tuile **« Médicaments »** à l'accueil. Le mobile n'a **aucune règle de prix** : il affiche ce que
+le serveur a retenu, avec sa provenance et sa date.
+
+**`MedicamentsEcran`** — les **ruptures du moment en tête** (bandeau orange : « manquant dans 3 pharmacies ») :
+c'est l'information qui fait faire demi-tour, raison d'être de FN8. Puis la **recherche au catalogue**, avec le
+prix de référence CENAME en pastille.
+
+**`ComparateurEcran`** — pour un médicament :
+
+- le **prix de référence officiel** en tête : le repère qui permet de juger tous les autres ;
+- **« Même molécule, moins cher »** (FN7) : les génériques de même DCI, cliquables — c'est là que le
+  Doliprane à 1 200 F renvoie au Paracétamol à 300 F ;
+- **prix par pharmacie**, du moins cher au plus cher, chacun portant **sa source** (« déclaré par la
+  pharmacie » en vert vs « rapporté par des patients (3) » en bleu) et **sa date de relevé**. Un prix sans
+  provenance ni fraîcheur serait une affirmation ; ici c'est un constat daté, que le patient peut pondérer ;
+- **la contribution** : choisir la pharmacie (chips des officines proches), saisir le prix payé, ou **signaler
+  une rupture**. Le bouton **« Photographier le reçu »** appelle l'OCR : les montants lus sont **proposés dans
+  une Alert** (« choisissez le prix payé pour ce médicament »), jamais imposés — un ticket porte plusieurs
+  lignes et un total, aucune machine ne peut deviner laquelle compte. Le texte de l'écran dit explicitement que
+  la photo est **lue puis immédiatement détruite**.
+
+Réutilise `prendrePhoto`/`choisirDansGalerie` de F2.10 (compression déjà gérée) : aucune brique nouvelle.
+
+- **Nouveaux** : `src/types/medicament.ts`, `src/api/medicaments.ts`, `src/screens/MedicamentsEcran.tsx`,
+  `src/screens/ComparateurEcran.tsx`, routes `app/(app)/medicaments/index.tsx` et `app/(app)/medicaments/[id].tsx`.
+- **Modifié** : accueil `app/(app)/index.tsx` (tuile « Médicaments ») ; `RAPPORT.md`.
+- **`tsc` OK**, **`expo-doctor` 18/18**, **aucune dépendance ajoutée**.
+- **Piège** : tuer Metro pendant la génération de `.expo/types/router.d.ts` produit un fichier **corrompu**
+  (routes parasites pointant vers `src/`). Supprimer le fichier et laisser Metro finir.

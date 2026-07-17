@@ -80,6 +80,12 @@ export default function AccueilTab() {
           desc="Centres proches, groupes demandés, devenir donneur"
           onPress={() => router.navigate('/(app)/don-sang')}
         />
+        <Tuile
+          icone="medical-outline"
+          titre="Médicaments"
+          desc="Comparer les prix et voir les ruptures du moment"
+          onPress={() => router.navigate('/(app)/medicaments')}
+        />
       </View>
     </Screen>
   );
