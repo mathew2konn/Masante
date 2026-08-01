@@ -15,10 +15,12 @@ import { StatusBar as ExpoStatusBar } from 'expo-status-bar';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { GradientBackground } from '../../src/components/GradientBackground';
+import { BanniereHorsLigne } from '../../src/components/BanniereHorsLigne';
 import { ScreenHeader } from '../../src/components/ScreenHeader';
 import { StructureCard } from '../../src/components/StructureCard';
 import { Segmented } from '../../src/components/Segmented';
 import { MapWebView } from '../../src/components/MapWebView';
+import { useReseau } from '../../src/store/reseau';
 import { rechercherStructures } from '../../src/api/structures';
 import { obtenirPosition } from '../../src/utils/geoloc';
 import { messageErreur } from '../../src/utils/erreurs';
@@ -58,6 +60,7 @@ export default function CarteTab() {
   const [structures, setStructures] = useState<Structure[]>([]);
   const [chargement, setChargement] = useState(true);
   const [erreur, setErreur] = useState<string | null>(null);
+  const horsLigne = useReseau((e) => e.horsLigne);
 
   const charger = useCallback(async () => {
     setChargement(true);
@@ -129,6 +132,7 @@ export default function CarteTab() {
     <GradientBackground>
       <ExpoStatusBar style="dark" />
       <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
+        <BanniereHorsLigne />
         {/* En-tête fixe : recherche + filtres + bascule de vue */}
         <View style={styles.header}>
           <ScreenHeader title="Structures de santé" subtitle="Trouvez un établissement près de vous" />
@@ -265,6 +269,16 @@ export default function CarteTab() {
               ) : null
             }
           />
+        ) : horsLigne ? (
+          // La carte (Leaflet + tuiles OSM) exige le réseau : hors ligne, on renvoie vers la liste
+          // (elle, servie depuis le cache). Dégradation gracieuse — la carte offline reste à activer.
+          <View style={styles.etat}>
+            <Ionicons name="map-outline" size={28} color={colors.ink[500]} />
+            <Text style={styles.etatTxt}>Carte indisponible hors ligne.</Text>
+            <Pressable onPress={() => setVue('liste')} accessibilityRole="button" style={styles.reessayer}>
+              <Text style={styles.reessayerTxt}>Voir la liste</Text>
+            </Pressable>
+          </View>
         ) : (
           <View style={styles.carteZone}>
             <MapWebView structures={structures} position={position} onSelect={choisirSurCarte} />
