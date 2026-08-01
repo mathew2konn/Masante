@@ -8,7 +8,6 @@ import { QueryClientProvider } from '@tanstack/react-query';
 import { SessionProvider, useSession } from '../src/auth/SessionContext';
 import { VerrouProvider } from '../src/auth/VerrouContext';
 import { GradientBackground } from '../src/components/GradientBackground';
-import { SpheresRebondissantes } from '../src/components/SpheresRebondissantes';
 import { Logo } from '../src/components/Logo';
 import { queryClient } from '../src/services/queryClient';
 import { colors } from '../src/theme/theme';
@@ -57,7 +56,6 @@ function RootNavigator() {
 function SplashAttente() {
   return (
     <GradientBackground>
-      <SpheresRebondissantes />
       <View style={styles.splash}>
         <Logo size={96} />
         <ActivityIndicator color={colors.blue[600]} style={styles.spinner} />
