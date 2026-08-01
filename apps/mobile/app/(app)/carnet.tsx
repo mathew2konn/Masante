@@ -126,6 +126,11 @@ export default function CarnetTab() {
         <SecondaryButton label="Sécurité" onPress={() => router.push('/(app)/parametres/securite')} />
         <View style={styles.sep} />
         <SecondaryButton
+          label="Double authentification"
+          onPress={() => router.push('/(app)/parametres/mfa')}
+        />
+        <View style={styles.sep} />
+        <SecondaryButton
           label="Changer mon mot de passe"
           onPress={() => router.push('/(app)/parametres/mot-de-passe')}
         />
