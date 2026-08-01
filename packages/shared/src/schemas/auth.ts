@@ -34,3 +34,10 @@ export const inscriptionSchema = z.object({
   prenom: z.string().trim().min(2, 'Prénom requis.'),
 });
 export type InscriptionInput = z.infer<typeof inscriptionSchema>;
+
+/** Connexion professionnelle (portail web) : téléphone + mot de passe (compte vérifié). */
+export const connexionProSchema = z.object({
+  telephone: telephoneSchema,
+  password: z.string().min(1, 'Mot de passe requis.'),
+});
+export type ConnexionProInput = z.infer<typeof connexionProSchema>;
