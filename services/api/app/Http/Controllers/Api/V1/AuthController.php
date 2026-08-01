@@ -47,6 +47,9 @@ class AuthController extends Controller
             'password'  => $data['password'], // haché par le cast 'hashed'.
         ]);
 
+        // P1 — rôle par défaut de tout compte citoyen (RBAC, CDC_10 §3.6). Requiert RoleSeeder.
+        $user->assignRole('patient');
+
         $code = $this->otp->generer($user->telephone, 'inscription', $user->id);
         $this->otp->enregistrerEnvoi($user->telephone);
 
@@ -145,7 +148,7 @@ class AuthController extends Controller
      */
     public function me(Request $request): JsonResponse
     {
-        return response()->json(['user' => $request->user()]);
+        return response()->json(['user' => $this->userPayload($request->user())]);
     }
 
     /** Construit la charge utile commune { token, token_type, user } après authentification. */
@@ -160,8 +163,19 @@ class AuthController extends Controller
         return [
             'token'      => $token,
             'token_type' => 'Bearer',
-            'user'       => $user,
+            'user'       => $this->userPayload($user),
         ];
+    }
+
+    /**
+     * Charge utile utilisateur exposée au front : attributs visibles + rôles (RBAC).
+     * Les rôles viennent du backend (autorité) ; le front les affiche, ne les déduit pas.
+     *
+     * @return array<string, mixed>
+     */
+    private function userPayload(User $user): array
+    {
+        return [...$user->toArray(), 'roles' => $user->getRoleNames()];
     }
 
     /** En dev uniquement : expose le code OTP pour les tests (jamais en production). */

@@ -48,7 +48,86 @@ paths:
       responses:
         '201': { description: OTP envoyé }
         '422': { $ref: '#/components/responses/ValidationFailed' }
+  /auth/verify-otp:
+    post:
+      tags: [Auth]
+      summary: Vérifie l'OTP → délivre un token Bearer (compte de niveau « base »)
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [telephone, code]
+              properties:
+                telephone: { type: string, example: '+2250700000000' }
+                code: { type: string, example: '123456' }
+                but: { type: string, enum: [inscription, connexion, recuperation] }
+      responses:
+        '200':
+          description: Téléphone vérifié
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AuthResponse' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: Connexion téléphone + mot de passe (compte vérifié)
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [telephone, password]
+              properties:
+                telephone: { type: string, example: '+2250700000000' }
+                password: { type: string, format: password }
+      responses:
+        '200':
+          description: Authentifié
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AuthResponse' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+  /auth/me:
+    get:
+      tags: [Auth]
+      summary: Profil de l'utilisateur authentifié (avec ses rôles RBAC)
+      responses:
+        '200':
+          description: Profil
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user: { $ref: '#/components/schemas/User' }
+        '401': { description: Non authentifié }
 components:
+  schemas:
+    User:
+      type: object
+      properties:
+        id: { type: integer }
+        nom: { type: string }
+        prenom: { type: string }
+        telephone: { type: string }
+        telephone_verified_at: { type: string, format: date-time, nullable: true }
+        roles:
+          type: array
+          items: { type: string, example: patient }
+          description: Rôles RBAC fournis par le backend (CDC_10 §3.6). Le mobile n'utilise que « patient ».
+    AuthResponse:
+      type: object
+      properties:
+        message: { type: string }
+        token: { type: string }
+        token_type: { type: string, example: Bearer }
+        user: { $ref: '#/components/schemas/User' }
   securitySchemes:
     bearerAuth:
       type: http

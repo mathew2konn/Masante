@@ -15,5 +15,6 @@ Une décision = une entrée (Rule-003). Statuts : **Accepté** (validé par le p
 | ADR-008 | Voies d'accès dossier (délégation + bris de glace) | **Accepté** | Existant (`Delegation`, `BrisDeGlaceService`, `AccesDossier`) conservé, aligné CDC_10 (lecture 15 min, audit, revue admin). |
 | ADR-009 | Retrofit mobile vs Expo Go (MMKV) | **Accepté** | Retrofit complet du stack CDC_01 **sauf MMKV** (casse Expo Go). Cache via expo-sqlite/SecureStore ; MMKV « prêt à activer » en development build. |
 | ADR-010 | Tailwind v3 (mobile+web) | **Accepté** | Pin **Tailwind 3.4** (NativeWind 4 exige v3 ; Tailwind v4 = config CSS incompatible). Preset partagé `@masante/shared/tailwind-preset`. |
+| ADR-011 | Rôles & portails = Web ; mobile = patient | **Accepté** | **Mobile = app citoyenne patient uniquement** (pas de nav par rôle pro). **Tous les rôles pros + portails** (médecin, infirmier, secrétaire, pharmacien, labo, radio, admin établissement, super-admin, ministère, assurance) = **Web Next.js** (CDC_02 : Next.js 15 + Tailwind + **Shadcn UI** + TanStack + Zustand + RHF/Zod). Le **Portail Blade existant est à migrer vers Next.js**. Backend commun (API) sert les deux. |
 
 > Détail complet et alternatives : voir le Knowledge Book et l'historique de conversation de la bascule v2.0 (2026-07-31).

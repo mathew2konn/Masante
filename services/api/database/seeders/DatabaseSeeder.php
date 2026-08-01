@@ -15,14 +15,17 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
-        // Utilisateur de test pré-vérifié (connexion : +2250700000000 / password).
+        // Jeu de rôles national CDC_10 §3.6 (P1 — Identité). Idempotent. À seeder en premier.
+        $this->call(RoleSeeder::class);
+
+        // Utilisateur de test pré-vérifié (connexion : +2250700000000 / password), rôle patient.
         // L'inscription réelle se fait via l'auth téléphone+OTP (Module 2A.1).
         User::factory()->create([
             'nom' => 'Test',
             'prenom' => 'User',
             'telephone' => '+2250700000000',
             'email' => 'test@example.com',
-        ]);
+        ])->assignRole('patient');
 
         // Référentiel des symptômes du triage (Module 1).
         $this->call(SymptomeSeeder::class);

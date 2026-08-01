@@ -47,18 +47,22 @@ export const TriageNiveauHospitalier = {
 export type TriageNiveauHospitalier =
   (typeof TriageNiveauHospitalier)[keyof typeof TriageNiveauHospitalier];
 
-/** Rôles RBAC (CDC_10 §3.6) — utilisés par la navigation ET le rendu. */
+/**
+ * Rôles RBAC (CDC_10 §3.6). Valeurs = noms spatie côté backend (snake_case minuscule,
+ * guard `web`), tels que renvoyés par `getRoleNames()`. Le mobile n'utilise que `patient` ;
+ * les autres servent aux portails web (ADR-011).
+ */
 export const Role = {
-  PATIENT: 'PATIENT',
-  MEDECIN: 'MEDECIN',
-  INFIRMIER: 'INFIRMIER',
-  SECRETAIRE: 'SECRETAIRE',
-  PHARMACIEN: 'PHARMACIEN',
-  LABORANTIN: 'LABORANTIN',
-  RADIOLOGUE: 'RADIOLOGUE',
-  ADMIN_ETABLISSEMENT: 'ADMIN_ETABLISSEMENT',
-  SUPER_ADMIN: 'SUPER_ADMIN',
-  MINISTERE: 'MINISTERE',
-  ASSURANCE: 'ASSURANCE',
+  PATIENT: 'patient',
+  MEDECIN: 'medecin',
+  INFIRMIER: 'infirmier',
+  SECRETAIRE: 'secretaire',
+  PHARMACIEN: 'pharmacien',
+  LABORANTIN: 'laborantin',
+  RADIOLOGUE: 'radiologue',
+  ADMIN_ETABLISSEMENT: 'admin_etablissement',
+  SUPER_ADMIN: 'super_admin',
+  MINISTERE: 'ministere',
+  ASSURANCE: 'assurance',
 } as const;
 export type Role = (typeof Role)[keyof typeof Role];
