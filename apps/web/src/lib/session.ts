@@ -14,16 +14,26 @@ import type { ApiUser, MfaStatus } from './types';
 const ROLES_PATIENT: Role[] = ['patient'];
 
 export const getMe = cache(async (): Promise<ApiUser | null> => {
-  const res = await authedFetch('/v1/auth/me');
-  if (!res.ok) return null;
-  const data = (await res.json()) as { user?: ApiUser };
-  return data.user ?? null;
+  try {
+    const res = await authedFetch('/v1/auth/me');
+    if (!res.ok) return null;
+    const data = (await res.json()) as { user?: ApiUser };
+    return data.user ?? null;
+  } catch {
+    // API injoignable (backend coupé/redémarrage) : on dégrade en « non connecté »
+    // plutôt que de planter la garde serveur (« TypeError: fetch failed »).
+    return null;
+  }
 });
 
 export const getMfaStatus = cache(async (): Promise<MfaStatus | null> => {
-  const res = await authedFetch('/v1/auth/mfa/status');
-  if (!res.ok) return null;
-  return (await res.json()) as MfaStatus;
+  try {
+    const res = await authedFetch('/v1/auth/mfa/status');
+    if (!res.ok) return null;
+    return (await res.json()) as MfaStatus;
+  } catch {
+    return null;
+  }
 });
 
 /** Le compte a-t-il au moins un rôle professionnel (accès au portail) ? */
