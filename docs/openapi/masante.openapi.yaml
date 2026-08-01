@@ -1,0 +1,72 @@
+openapi: 3.1.0
+info:
+  title: MASANTÉ API
+  version: 0.0.1-p0
+  description: >
+    Squelette OpenAPI de la plateforme MaSanté. Chaque endpoint consommé par le
+    mobile/web DOIT être documenté ici AVANT écriture d'écran (gate G2, CDC_03 Rule-003).
+    Les types TypeScript front dérivent de ce contrat (jamais écrits à la main).
+servers:
+  - url: https://api.masante.ci/api/v1
+    description: Production (à venir)
+  - url: http://localhost:8000/api/v1
+    description: Dev local (exposé via Ngrok pour Expo Go)
+tags:
+  - name: Système
+  - name: Auth
+paths:
+  /health:
+    get:
+      tags: [Système]
+      summary: Liveness
+      security: []
+      responses:
+        '200':
+          description: Service disponible
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string, example: ok }
+  /auth/register:
+    post:
+      tags: [Auth]
+      summary: Inscription (téléphone + OTP simulé en dev)
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [telephone, nom, prenom]
+              properties:
+                telephone: { type: string, example: '0700000000' }
+                nom: { type: string }
+                prenom: { type: string }
+      responses:
+        '201': { description: OTP envoyé }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  responses:
+    ValidationFailed:
+      description: Données invalides
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: object
+                properties:
+                  code: { type: string, example: VALIDATION_FAILED }
+                  message: { type: string }
+                  request_id: { type: string }
+security:
+  - bearerAuth: []

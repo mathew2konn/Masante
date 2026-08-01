@@ -10,22 +10,31 @@
 **/vendor/
 **/node_modules/
 
-# Laravel (backend)
-ivoirsante-api/storage/*.key
-ivoirsante-api/.phpunit.result.cache
-ivoirsante-api/storage/framework/cache/data/*
-ivoirsante-api/storage/framework/sessions/*
-ivoirsante-api/storage/framework/views/*
-ivoirsante-api/storage/logs/*
-ivoirsante-api/public/storage
-ivoirsante-api/bootstrap/cache/*.php
-ivoirsante-api/database/database.sqlite
+# Laravel (backend) — déplacé en services/api (réorg monorepo ADR-003)
+services/api/storage/*.key
+services/api/.phpunit.result.cache
+services/api/storage/framework/cache/data/*
+services/api/storage/framework/sessions/*
+services/api/storage/framework/views/*
+services/api/storage/logs/*
+services/api/public/storage
+services/api/bootstrap/cache/*.php
+services/api/database/database.sqlite
 
-# Expo / React Native (mobile)
-ivoirsante-mobile/.expo/
-ivoirsante-mobile/dist/
-ivoirsante-mobile/web-build/
-ivoirsante-mobile/*.log
+# Ancien emplacement (résidu verrouillé à nettoyer quand le process php le relâche)
+ivoirsante-api/
+
+# Expo / React Native (mobile) — déplacé en apps/mobile
+apps/mobile/.expo/
+apps/mobile/dist/
+apps/mobile/web-build/
+apps/mobile/*.log
+
+# Monorepo
+pnpm-lock.yaml.bak
+**/.next/
+**/.turbo/
+*.tsbuildinfo
 
 # OS / IDE
 .DS_Store

@@ -1,0 +1,80 @@
+{
+  "blue": {
+    "50": "#F2F8FD",
+    "100": "#DCEAF8",
+    "200": "#BCD6F0",
+    "300": "#93BBE6",
+    "400": "#6BA0DD",
+    "500": "#2E83CC",
+    "600": "#1E6BB8",
+    "700": "#17569A",
+    "800": "#124680",
+    "900": "#0C3463"
+  },
+  "orange": {
+    "50": "#FEF3E9",
+    "100": "#FBDFC4",
+    "200": "#F6BE8C",
+    "300": "#F19B52",
+    "400": "#EC7E2A",
+    "500": "#E8641B",
+    "600": "#C9500F",
+    "700": "#9A3D0B"
+  },
+  "gradient": [
+    "#F2F8FD",
+    "#DCEAF8",
+    "#BCD6F0",
+    "#93BBE6",
+    "#6BA0DD",
+    "#4684CE",
+    "#2E6FBE",
+    "#1E5BAA"
+  ],
+  "ink": { "900": "#11212E", "700": "#33475A", "500": "#62768A" },
+  "semantic": {
+    "primary": "#1E6BB8",
+    "secondary": "#E8641B",
+    "successSolid": "#1F9D57",
+    "successBg": "#E4F5EA",
+    "successText": "#146C3A",
+    "warningSolid": "#E8911F",
+    "warningBg": "#FDF0DD",
+    "warningText": "#9A5A07",
+    "dangerSolid": "#DC2626",
+    "dangerBg": "#FCE8E8",
+    "dangerText": "#A11616",
+    "infoSolid": "#2E83CC",
+    "infoBg": "#F2F8FD",
+    "infoText": "#124680",
+    "surface": "#FFFFFF",
+    "surfaceMuted": "#F3F7FB",
+    "background": "#FFFFFF",
+    "line": "#D9E2EA",
+    "disabled": "#AEBDCB"
+  },
+  "triage": {
+    "faible": "#1F9D57",
+    "recommandee": "#E8B008",
+    "rapide": "#E8641B",
+    "urgence": "#DC2626",
+    "rouge": "#DC2626",
+    "orange": "#E8641B",
+    "jaune": "#E8B008",
+    "vert": "#1F9D57",
+    "bleu": "#2E83CC"
+  },
+  "spacing": { "1": 4, "2": 8, "3": 12, "4": 16, "6": 24, "8": 32, "12": 48, "16": 64 },
+  "radius": { "sm": 8, "md": 12, "lg": 16, "card": 24, "pill": 999 },
+  "fontSize": {
+    "xs": 12,
+    "sm": 14,
+    "base": 16,
+    "lg": 18,
+    "xl": 20,
+    "2xl": 24,
+    "3xl": 32,
+    "4xl": 40,
+    "5xl": 48
+  }
+}

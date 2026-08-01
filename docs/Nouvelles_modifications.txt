@@ -1,0 +1,20 @@
+1) : Comment un hôpital sera-t-il ajouté ?
+
+Comme dans les grandes plateformes,
+
+L'administrateur créera simplement le compte de l'hôpital.
+
+Ensuite, le directeur ou un responsable de l'hôpital reçoit un accès.
+
+C'est ensuite cet hôpital qui renseigne :
+
+les médecins
+les spécialités
+les horaires
+les chambres
+les services
+les urgences
+les prix
+etc.
+
+Comme le fait exactement Doctolib.

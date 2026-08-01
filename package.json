@@ -1,0 +1,16 @@
+{
+  "name": "masante-monorepo",
+  "version": "0.0.0",
+  "private": true,
+  "packageManager": "pnpm@9.15.9",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "mobile": "pnpm --filter @masante/mobile start",
+    "web": "pnpm --filter @masante/web dev",
+    "shared:build": "pnpm --filter @masante/shared build",
+    "typecheck": "pnpm -r typecheck",
+    "lint": "pnpm -r lint"
+  }
+}

@@ -1,111 +1,56 @@
-1) : Pour la page d'inscription, on doit seulement entrer le nom en premier, le prénom, le numéro de téléphone, un mot de passe de 8 caractère minimum au fur et mesure qu'il saisis le mot de passe il y aura une barre de progression et on lui dira ce qu'il manque, une fois que s'est bon il le confirmera.
-Une fois sur son espace, l'utilisateur mettra à jours ses informations(date et lieu de naissance, groupe sanguin, son sexe, une photo de profil qu'il pourra la prendre directement dans l'application ou l'importée depuis sa galerie, deux contacts d'urgence à prévenir qui ne doivent pas être pareils) pour les contact d'urgence, on va supprimer l'email; pour chaque contact on a le nom complet, pour le lien parenté il y aura une liste déroulante(papa, maman, ma femme, mon mari, frère, sœur, cousin, cousine, tante, oncle, tuteur, grande mère, grand père, ami(e), autre si ça ne se trouve pas dans la liste), le premier contact sera automatique le contact principale et le second sera le contact secondaire.
+MODIFICATION A APPORTER :
 
-On va augmenter le nombre de famille à 15 membres maximum.
+1) : Partie triage 1 : est-ce que la partie triage existe dans les autres grandes et modernes applications de santé que se soit en chine, en France, au canada et autre ? si oui comment elles font ? et je suppose qu'elles utilisent de bonnes bases de données dans l'entièreté de l'application.
 
-Un rappel aura trois sources possibles : patient : il se règle ses propres rappels (médicament, RDV).
-					système : rappels auto-générés à partir d'une ordonnance saisie, d'un RDV confirmé, ou du calendrier vaccinal.
-médecin : lors d'un accès au dossier via QR, le médecin ajoute un rappel de suivi (« contrôle dans 3 mois », « refaire l'analyse X », « reprise du traitement »). Trois garde-fous à respecter pour que ce soit cohérents avec la ligne de sécurité :
-Le médecin ne peut ajouter un rappel que pendant une session d'accès autorisée (scan du QR carnet, session 30 min) — jamais en dehors. L'ajout est tracé au journal d'audit (FT6), comme tout accès au dossier. Et le patient garde le contrôle : il voit qui a créé le rappel, et peut le désactiver.
-Ça reste minimaliste côté interface : dans la liste des rappels, une petite étiquette d'origine (« ajouté par Dr X ») suffit à distinguer un rappel médecin d'un rappel auto.
+2) : Partie triage 2 : pour la fiche récapitulative d'un triage lorsque le niveau est Legé on lui propose de consulter soit un médecin grâce au bouton médecin ou d'aller s'acheter des médicaments à la pharmacie grâce au bouton pharmacie, dans une pharmacie avec un message du genre "vue votre niveau de résultat (Legé), vous pouvez aller à la pharmacie pour vous acheter des médicaments en cliquant sur le bouton pharmacie il sera redirigé sur la page pharmacie avec les pharmacies disponibles tout en gardant la proximité et une fois là-bas montrez la fiche au pharmacien, toute fois par précaution et par prudence, vous pouvez aller vous consultez dans un hôpital ou faire part de vos symptômes à votre médecin référent en lui envoyant la fiche et ensuite l'appeler pour en discuter". Quand il clique sur la fiche elle s'affiche entièrement à l'écran pour qu'il puisse la montrer au pharmacien parce que pour l'instant tous qu'on peut faire c'est la partager lorsqu'on clique dessus. Quand il clique sur le bouton médecin il y aura deux autres boutons apparaissent dont "Médecin Référent et Hôpital" quand il clique sur médecin référent, il ira automatiquement sur la page de son médecin référent où  il pourra lui transférer la fiche et pourra l'appeler s'il est disponible et s'il ne l'est pas nous lui enverrons un message du genre "monsieur ou madame x n'est pas disponible pour l'instant, il vous donnera rendez-vous quand il sera disponible" et le médecin sur sa page pourra lui donner rendez-vous qui sera vu dans "Mes rendez-vous et dans Rappel sur la page mobile du patient et se dernier(patient) recevra une notification. Et le médecin sur sa page on ajoutera un nouveau bouton "Mes Patients" où il verra tous ses patients qui lui ont été  référés. S'il clique sur "Hôpital", il aura les différents hôpitaux où il pourra en choisir un et prendre rendez-vous.
 
-Pour toutes les dates, je veux qu'il y ai une liste déroulante pour le jour, le moi, l'année.
+3) : Partie Inscription  : C'est quoi le OTP ? Comment est-ce qu'il est conçu en backends et en frontends ? comment est-ce que la vérification se fait et dans la base de données comment est-ce qu'il est stocké ?
 
-Pour la note et les observations :  les médecins écrivent aussi dans les notes et observations. Le patient y consigne son vécu au quotidien — « fièvre le soir depuis 3 jours », « toux plus forte la nuit », « questions à poser au prochain RDV ».
-Le médecin y ajoute ses observations cliniques lors d'une consultation — évolution constatée, points à surveiller, conseils de suivi. C'est cohérent avec des systèmes chinois, où le médecin évalue les résultats téléversés par le patient et guide la conduite à tenir à travers l'app.
-Trois garde-fous encadrent l'écriture du médecin : Le médecin ne peut écrire que pendant une session d'accès autorisée — c'est-à-dire après avoir scanné le QR carnet du patient (session de 30 minutes). Jamais en dehors. Chaque note qu'il ajoute est tracée au journal d'audit (FT6), comme tout accès au dossier, conforme à la loi n°2013-450. Et le patient reste propriétaire de son dossier : il voit l'étiquette d'origine (« ajouté par Dr X »), garde l'historique, et contrôle son carnet.
-Côté interface minimaliste, ça se traduit par une simple étiquette d'auteur sur chaque carte de note — rien de plus. On distingue d'un coup d'œil une observation du médecin d'une note du patient, sans surcharge.
-La notes du patient modifiables par lui, notes du médecin en append-only.
+4) : Partie Connexion : 
 
-Pour un mot de passe oublié, 
+5) : Partie Déconnexion  : on va ajouter le bouton se déconnecter au profil du titulaire du compte et le supprimer à la page de "Mon Carnet"
+.
 
-F2.3 « Intégration CMU » → ajout de la Carte CMU numérique
+6) : Partie Changer mon mot de passe : on va aussi l'ajouter au profil du titulaire et le supprimer à la page de "Mon Carnet"
 
+7) : Partie Sécurité ; bouton désactiver le verrou : pour l'instant pour désactiver le verrou, il suffit de cliquer sur désactiver et le tour est joué, alors dorénavant, quand on clique sur désactivé, on doit demander le code PIN. Parce que pour l'instant une personne tiède peut simplement la désactivé.
 
-Portée : ce document couvre une seule modification — l'enrichissement de la fonctionnalité F2.3 existante du Module 2 (Carnet de Santé Familial) par une carte CMU numérique présentable. Aucune autre fonctionnalité n'est modifiée. Inspiré du certificat électronique d'assurance maladie chinois (碼医保电子凭证), adapté au contexte ivoirien et à la Couverture Maladie Universelle (CMU / CNAM).
+8) : Titulaire du compte : pour l'instant le titulaire du compte qui est "compte de base" n'a pas de carnet, donc il faut que quand on clique sur la partie "compte de base" qui est le compte du titulaire, il puisse être rediriger sur son propre carnet identique à celui d'un membre tout en précisant "le compte du titulaire" et on va ajouter un bouton paramètre où il pourra changer de mode claire ou sombre et aussi désactiver s'il le souhaite sa géo-localisation.
 
+9) : Partie Pharmacie  : Pour l'instant on a la partie pharmacie de garde, on va simplement l'appeler Pharmacie qui sera un page où on verra toutes les pharmacies disponibles tous jours par proximité, on y ajoutera le bouton "pharmacie de garde" qui sera uniquement actif que pendant les week-ends, si on clique dessus pendant les jours ouvrables on aura un message du genre "les pharmacies de garde ne sont ouvertes que pendant les week-ends" et pendant les week-ends il sera automatiquement activé pour afficher les différentes pharmacies de garde. On va y aussi ajouter "Médicaments" qui est actuellement à la page d'accueil, sur cette page il pourra rechercher un médicament avec autocomplétions et verra toutes les pharmacies qui en ont à leur disposition avec le prix et pourra ensuite s'y rendre. Il pourra photographier ou importer une ordonnance pour faire la recherche de disponibilité, il peut y arriver que les médicaments soient dispersés dans différentes pharmacies, par exemple, sur 10 médicaments on peut avoir 2 dans x pharmacie, 2 dans y pharmacie ainsi de suite, donc on affichera toutes les pharmacies qui en ont mais tout en commençant par celle qui a tous les médicaments sur l'ordonnance et s'il y a en un qui manque on affichera la pharmacie qui en a à sa disposition toujours en gardant la proximité.  Il pourra aussi commander après les avoir ajouter au panier en choisissant un mode de paiement Wave, Orange Money, Moov, MTN.
+Toujours dans la partie pharmacie on y ajoutera un bouton "info" ou il pourra s'informer sur un médicament en le recherchant ou photographier, importer son ordonnance, que se soit une recherche ou une ordonnance il verra un bref résumé sur chacun d'eux, ce qu'il soigne exactement , comment il faut le prendre, ce qu'il faut faire ou ne pas faire avant et après l'avoir ou les avoir prises comme par exemple se reposer, ne pas trop manger. Si on passe une commande on aura un reçu avec chaque médicament de chaque pharmacie avec leur prix et la totalité des prix. Tous les boutons seront juste des icones.
+Et donc toujours sur la page pharmacie on ajoutera un bouton "commande" représentée par une icône dans laquelle il verra les différentes commandes de médicaments, une historique de toutes ces commandes, les commandes de médicaments qui n'ont pas encore été livrées ou encore celles qui sont en cours de livraison, effectuer une commande soit en faisant une recherche des médicaments avec auto-complétions, soit en prenant une photo d'une ordonnance, soit en important une ordonnance depuis l'application ou soit depuis son appareil  et tous ces boutons seront représentés par des icônes.
+Maintenant dans la partie "info" on ajoutera l'IA Gemini à travers laquelle le patient pourra poser des questions sur ses médicaments en particulier (clé API Gemini RETIRÉE du dépôt — à stocker en variable d'environnement / Vault côté backend, jamais en clair dans un fichier ni côté client).
 
+10) : Partie Don de sang  : quand on veut inscrire un membre qui n'a pas l'âge, voici le message qui s'affiche : Le don de sang est réservé aux personnes de 18 à  65. Il faut compléter la phrase avec : par conséquent (le nom du membre) a x âge donc il ne peut pas encore faire ce don de sang.
+Et donc la phrase entière sera : Le don de sang est réservé aux personnes de 18 à  65 par conséquent (le nom du membre) n'a que x âge donc il ne peut pas encore faire de don de sang.
 
+11) : Partie Structure  : on va changer le nom Structure en Hôpital, on va supprimer le bouton pharmacie car elle aura sa propre page, supprimer les tarifs, sur la page d'une structure on va aussi supprimer tarifs indicatifs pour l'ajouter à la demande de rendez-vous. Pour le moment on n'a que la ville d'Abidjan, on va ajouter Yamoussoukro et Bouaké, en fonction de sa localisation on affichera la ville dans laquelle il se trouve avec l'icone de géo-localisation lorsqu'il clique dessus on affiche juste en bas "vous êtes à x". S'il est à Abidjan on affichera les communes, par contre en dehors d'Abidjan on va uniquement afficher les structures vue qu'il n'y a pas de communes.
 
-1. Justification et cadrage
+12) : Question : quelle la différence entre Clinique, centre de santé, hôpital et cabinet ? et quelle est l'importance ou quel rôle joue un laboratoire dans une application de santé ?
 
-En Chine, la carte d'assurance physique a été remplacée par un certificat électronique présenté sous forme de QR code depuis le téléphone : le patient n'a plus besoin de sa carte physique pour les rendez-vous, visites, examens et achats de médicaments. Ce modèle repose toutefois sur une plateforme nationale interconnectée en temps réel entre assureur public et hôpitaux.
-
-Limite assumée pour MaSanté : la CMU ivoirienne (CNAM) n'expose pas d'API publique de règlement en temps réel accessible à ce projet. Le remboursement / règlement automatique de l'assurance est donc explicitement hors périmètre et ne doit pas être promis. Ce qui est transposable et réaliste, c'est la dématérialisation de la carte : « présenter son téléphone au lieu de la carte physique ».
-
-La fonctionnalité F2.3 actuelle gère déjà la saisie du numéro CMU, le statut (actif / expiré / non-inscrit), la date de validité et l'alerte 30 jours avant expiration. La présente modification ajoute la couche de présentation : une carte numérique affichable et vérifiable à l'accueil.
+13) : Partie localisation  : une fois que tu te connectes on te demandera automatiquement d'activer ta localisation pour qu'on puisse traiter et t'afficher les différentes données. si tu refuses on t'enverra un message du genre "au refus d'activation de votre localisation, nous vous afficherons les données d'Abidjan, si vous voulez trouver celle de votre position veuillez l'activée" et on t'affichera par défaut les données d'Abidjan.
 
 
-2. Modification de la fonctionnalité F2.3
+14) : Partie médecin référent : pour l'instant pour désigner un médecin référent il faut faire une recherche en tapant son nom et est appliqué un chaque membre de la famille, il doit être désigné pour toute la famille donc un médecin référent pour toute la famille dont le bouton sera ajouter à la page de "Mon Carnet" comme partages reçus, sécurité et autre. Pour designer un médecin on va soit scanner son compte comme le fait WhatsApp, soit importer ses données depuis mon téléphone ou remplir ses infos manuellement, son nom complet, l'hôpital dans lequel il travaille, son domaine, son numéro, une photo de profil on peut le supprimer et faire une mise à jour.
 
-IDFonctionnalitéDescription détaillée (mise à jour)ActeurPrio.F2.3Intégration CMU + Carte CMU numériqueSaisie du numéro CMU par membre, statut de couverture (actif / expiré / non-inscrit), date de validité, alerte automatique 30 jours avant expiration (inchangé). Ajout : génération d'une carte CMU numérique présentable à l'accueil d'une structure — vue « carte » affichant le nom du titulaire, le numéro CMU masqué (seuls les derniers chiffres visibles), un badge de statut coloré, la date de validité et un code de présentation vérifiable visuellement par l'agent. La carte n'est disponible que pour un compte au palier vérifié. Le numéro complet reste chiffré et n'est jamais inclus dans le code présenté.Utilisateur / AgentHAUTE
+15) : Partie Fiche d'un membre : on doit pouvoir ajouter une autre carte d'assurance autre que la CMU s'il le souhaite, pour la carte CMU ou autre carte d'assurance il pourra prendre des photo des deux phases et l'enregistrée. Quand on ajoute des contacts d'urgences en juste en bas du carnet de santé, je veux qu'ils soient sur la page Contacts d'urgences donc en haut on aura les contactes d'urgences ajouter avec les bouton modifier et supprimer juste en bas. Si les deux contacts sont ajoutés le bouton "ajouter" sera grisé si on clique on aura le message "on ne peut ajouter que deux contacts d'urgences", il ne sera actif que si un contact est supprimé, si on clique sur modifier on choisira un contact à modifier pareil si on veut faire une suppression. Pour l'instant l'ajout de photo pour un contact d'urgence ne fonctionne pas, il dois fonctionner.
 
+16) : Partie Demander un rdv  : quand on choisit un médecin, il y a son prix de consultation qui s'affiche, supprimes ça et attribues le aux service, donc quand on choisit un service on a son tarif plutôt qu'un médecin. Sur la fiche d'un rendez-vous prise on a Médecin attribué par établissement, je veux que se soit plutôt Médecin attribué suivie de son profil(l nom complet, numéro, sa photo) et s'il a été choisit par le patient se sera Médecin Choisit suivie de son profil également. On a aussi serge Ives qui est le nom du patient , ça doit être "Patient" suivi du nom du patient . Si ce rendez-vous a été pris par le médecin référent, on aura son nom et numéro  suivi de la raison pour laquelle il vous a réservé ce rendez-vous par exemple s'il a pris à cause de la fiche de triage que vous lui avez envoyé pour en discuter. Il pourra aussi ajouter un message. On va ajouter le tarif sur la fiche du rendez-vous et supprimer le bouton "reçu". sur la fiche d'un rendez-vous prise on aura un bouton "associer un triage" à travers lequel il pourra associer un triage fait. On aura un bouton "partages", quand on clique dessus  on aura le profil du médecin choisit ou attribué quand il clique dessus on aura un bouton "partager" et quand il clique dessus le médecin aura accès à son carnet avec le décompte de 30 minutes et la fiche de triage s'il y en a, après avoir remplir les données comme l'ordonnance et autre il cliquera sur "terminer" et quittera automatiquement la page du patient et le patient de son côté verra tous ce que fait le médecin s'il est en train d'écrire dans son ordonnance il verra "en train d'écrire dans votre ordonnance" quelque soit ce qu'il fait il le verra "en train de…" ainsi de suite et ensuite à la fin il ajoutera la facture, le profil de la secrétaire qui a accepté le rendez-vous, quand il clique dessus ensuite sur "partager" , elle verra le reçu qui est marqué payé et qui sera automatiquement marqué vérifié. On aura aussi le bouton "autre" ou il pourra scanner le profil d'une autre secrétaire pour partager la fiche de rendez-vous en cas d'absence de celle qui a confirmé le rendez-vous. On aura dans le carnet, le bouton "rdv vérifiés" juste en bas de "journal d'accès" ou il verra tous les rendez-vous vérifiés avec celle qui l'a vérifié, la date, l'heure et autres.
+Toujours sur la fiche de rendez-vous, il y aura le bouton "paiement", quand il clique dessus il sera redirigé sur la page de paiement dont il pourra choisir le mode, son numéro ou autre, saisir la somme et pourra valider. Quand il clique sur "valider" un code vérification qui expire dans deux minutes lui sera envoyé quelque soit le mode sauf Wave et cash . Bien maintenant je veux que le traitement de retrait s'effectue en arrière-plan par exemple s'il choisit MTN et qu'il clique sur "valider" normalement il doit aller taper *133# pour pouvoir confirmer le retrait. Donc je veux que ce mode de traitement des retraits là se fasse en arrière-plan donc une fois qu'il choisit le mode et qu'il valide l'application elle-même fera le traitement de retrait en arrière plan grâce au numéro de paiement donc c'est grâce à la passerelle du réseau en question que se soit orange Moov et MTN, et une fois la vérification du compte et la somme est faite on lui envoie un code de vérification si la somme est suffisante, et va juste valider le code de vérification et le retrait sera fait automatiquement, par contre si la somme du compte et insuffisante on lui  enverra un message pour lui dire que la somme est insuffisante donc du coup le paiement ne peut pas être effectuer. Donc une fois le traitement du retrait effectué le réseau en question enverra un message de confirmation pour dire que le retrait a été effectué. S'il choisit wave il sera automatiquement redirigé sur son application wave pour ensuite valider la transaction et s'il choisit cash le paiement sera automatiquement marqué cash
+Une fois que le médecin clique sur "terminer", le patient recevra s'il y en a, la facture dans la notification et une fois qu'il clique sur le facture il sera redirigé sur la même page de paiement que celle du rendez-vous.
 
-3. Description détaillée de la carte CMU numérique
+17) : Partie Journal d'accès  : pour la partie journal d'accès sur une fiche d'accès on a "agent" mais on a pas le nom de l'agent en question c'est-à-dire le nom du médecin en question, on a la durée,  on a toutes les sections qui ont été consulté par le médecin mais on ne sait pas exactement ce qu'il a fait donc il va falloir qu'on ait le nom je veux dire même le profil du médecin qui a eu accès, ensuite toutes les sections qu'il a consultées ce qu'il a exactement fait pour chaque section par exemple s'il a écrit dans ordonnance, s'il a ajouté des rappels, s'il a ajouté des notes, il va falloir qu'on voit tous, absolument tous ce qu'il a fait sur les données du patient. Et pour chaque journal d'accès on doit aussi marquer facture payée une fois que la facture a été payée par le patient.
 
-3.1 Contenu affiché (vue « carte »)
-
-
-Nom et prénom du membre titulaire.
-Numéro CMU masqué (format •••• •••• 1234 — seuls les 4 derniers chiffres visibles).
-Badge de statut : Actif (vert) / Expiré (rouge) / Non-inscrit (gris).
-Date de validité (et rappel visuel si expiration proche, cohérent avec l'alerte 30 jours existante).
-Code de présentation (QR ou code-barres) destiné à la vérification par l'agent d'accueil.
-
-
-3.2 Vérification côté structure
-
-
-L'agent d'accueil confirme visuellement la carte (nom, statut, validité) et, si besoin, scanne le code de présentation.
-La vérification est tolérante au réseau : elle ne dépend d'aucune API CNAM en temps réel. Le code de présentation ne fait que restituer, côté serveur MaSanté, le statut déclaré du membre — jamais un règlement.
-
-
-3.3 Palier de confiance requis
-
-
-La carte CMU numérique n'est générée que pour un compte au palier vérifié (identité confirmée par CNI ou CMU). C'est l'équivalent local de l'authentification « personne réelle » (reconnaissance faciale) exigée par le système chinois avant d'activer le certificat électronique.
-Un compte au palier de base (téléphone vérifié uniquement) peut saisir ses informations CMU mais ne peut pas présenter la carte comme justificatif tant que l'identité n'est pas confirmée.
+18) : Facture : on va aussi ajouter un bouton "Facture" qui sera uniquement représentée par une icône à la page d'accueil juste en face du nom du titulaire du compte.
+Et donc dans cette page de facture il verra les factures qu'il doit payer, il verra aussi l'historique de toutes les factures qu'il a eu à payer.
 
 
 
-4. Assurances privées (hors CMU) — filet low-tech via F2.10
-
-Pour les assurances privées (hors CMU), le mécanisme est déjà couvert par la fonctionnalité F2.10 (Documents médicaux importés) : la catégorie assurance permet au patient de photographier et stocker sa carte d'assurance privée dans son carnet. C'est le filet low-tech qui couvre tous les assureurs sans intégration — aucun connecteur spécifique n'est nécessaire, le patient conserve simplement une image consultable et présentable de sa carte.
-
-Ainsi, la couverture est complète :
-
-
-CMU → carte numérique structurée et présentable (F2.3, ce document).
-Assurances privées → carte importée en photo/document (F2.10, catégorie assurance).
 
 
 
-5. Impact technique
-
-5.1 Base de données
-
-Impact minimal : les champs CMU existent déjà sur membres_famille (cmu_numero chiffré, cmu_statut, cmu_validite). La carte numérique est une couche de présentation ; elle ne requiert aucune nouvelle table. Optionnellement, si un code de présentation à durée de vie doit être tracé, il réutilise le mécanisme de token existant plutôt qu'une table dédiée.
-
-5.2 Sécurité (cohérence avec le document Sécurité MaSanté)
-
-
-Numéro CMU chiffré AES-256 en base (déjà le cas), masqué à l'affichage, et jamais inclus dans le QR/code présenté — même principe que le matricule interne jamais exposé.
-Carte réservée au palier vérifié ; tout accès reste inscrit au journal d'audit (FT6), conforme à la loi n°2013-450.
-Rappel de vigilance : la donnée d'assurance/identité est parmi les plus sensibles (des fuites de données de santé revendues en ligne ont été documentées sur le système chinois) → exposition minimale et chiffrement systématique.
-
-
-5.3 Design (minimaliste)
-
-
-Une vue carte épurée, lisible d'un coup d'œil, avec le badge de statut comme élément visuel principal.
-Un bouton unique « Présenter ma carte » qui affiche le code en grand pour l'agent.
-Aucun encombrement : le numéro complet n'est jamais affiché, seule l'information utile à la vérification l'est.
 
 
 
-Modification de spécification isolée — à intégrer au §5.2 du CdC en remplacement de la ligne F2.3 actuelle. Aucune donnée inventée : ancré au CdC v3.1, au document Sécurité MaSanté, et aux pratiques documentées du certificat électronique d'assurance chinois.
 
-En cas d'oublie de mot de passe, voici comment le récupérer : Étape 1 — Demande de réinitialisation. Sur l'écran de connexion, un lien « Mot de passe oublié ? » mène à un écran où l'utilisateur saisit uniquement son numéro de téléphone. L'API (POST /api/auth/password/forgot) vérifie que le numéro existe, génère un OTP 6 chiffres, le hache, l'enregistre avec but = 'recuperation' et expires_at = now + 5 min, puis l'envoie par SMS. Point de sécurité important : la réponse de l'API doit être identique que le numéro existe ou non (« Si ce numéro est enregistré, un code a été envoyé »), pour empêcher un attaquant d'énumérer les comptes existants.
-Étape 2 — Vérification de l'OTP. L'utilisateur saisit le code reçu (POST /api/auth/password/verify-otp). L'API applique tes règles déjà définies : comparaison par hachage, non expiré, non utilisé, maximum 5 tentatives. Si le code est bon, l'API le marque used_at = now et renvoie un token de réinitialisation temporaire (usage unique, expire ~10 min). Ce token intermédiaire est essentiel : il prouve que l'étape OTP a été franchie sans permettre de changer le mot de passe directement dans la même requête que la saisie du code.
-Étape 3 — Nouveau mot de passe. L'utilisateur définit son nouveau mot de passe (POST /api/auth/password/reset avec le token de réinitialisation). L'API applique ta politique existante (Password::min(8)->letters()->mixedCase()->numbers()->symbols()->uncompromised()), hache en Argon2id, puis — mesure critique — révoque tous les refresh tokens actifs du compte. Ainsi, si quelqu'un avait volé une session, elle devient inutilisable dès le changement de mot de passe.
-Modification volontaire (pas d'oubli). Quand l'utilisateur est connecté et veut simplement changer son mot de passe depuis son profil, le flux est différent et plus simple : POST /api/auth/password/change exige l'ancien mot de passe + le nouveau. Pas d'OTP nécessaire ici, car la connaissance de l'ancien mot de passe suffit comme preuve. Même révocation des autres sessions à la fin.

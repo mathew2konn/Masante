@@ -1,0 +1,5 @@
+# Monorepo MaSanté (ADR-003) — apps front + paquet partagé.
+# services/api est une app Laravel/PHP (Composer) : hors workspace pnpm.
+packages:
+  - "apps/*"
+  - "packages/*"
