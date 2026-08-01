@@ -7,12 +7,19 @@
  * suivre et annuler.
  */
 import { api } from '../config/api';
+import { lireAvecCache } from '../services/dossierCache';
 import type { ModePaiement, RecuRdv, RendezVous, RendezVousPayload } from '../types/structure';
 
-/** F3.6 — Mes rendez-vous (tous les membres du compte), les plus récents d'abord. */
+/**
+ * F3.6 — Mes rendez-vous (tous les membres du compte), les plus récents d'abord. Lisible hors ligne.
+ * NB : le REÇU (obtenirRecu) n'est délibérément PAS caché — son `code` de check-in est éphémère
+ * (`code_expire_dans`) et un QR périmé présenté à l'accueil serait trompeur.
+ */
 export async function listerRendezVous(): Promise<RendezVous[]> {
-  const { data } = await api.get<{ rendez_vous: RendezVous[] }>('/v1/rendez-vous');
-  return data.rendez_vous;
+  return lireAvecCache('rendez-vous', async () => {
+    const { data } = await api.get<{ rendez_vous: RendezVous[] }>('/v1/rendez-vous');
+    return data.rendez_vous;
+  });
 }
 
 /** F3.6 — Demande un rendez-vous (créé au statut « en_attente »). */
