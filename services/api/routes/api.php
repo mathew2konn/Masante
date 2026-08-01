@@ -21,6 +21,7 @@ use App\Http\Controllers\Api\V1\FicheVitaleController;
 use App\Http\Controllers\Api\V1\MedecinController;
 use App\Http\Controllers\Api\V1\MedicamentController;
 use App\Http\Controllers\Api\V1\MembreController;
+use App\Http\Controllers\Api\V1\MfaController;
 use App\Http\Controllers\Api\V1\PasswordController;
 use App\Http\Controllers\Api\V1\PhotoMembreController;
 use App\Http\Controllers\Api\V1\QrController;
@@ -78,6 +79,9 @@ Route::middleware('throttle:api')->group(function () {
                 Route::post('/resend-otp', [AuthController::class, 'resendOtp']);
                 Route::post('/login', [AuthController::class, 'login']);
 
+                // P1 — 2e étape de connexion (vérification du second facteur, MFA prêt à activer).
+                Route::post('/mfa/verify', [AuthController::class, 'verifyMfa']);
+
                 // Phase B / B1 — Mot de passe oublié (flux OTP 3 étapes durci).
                 Route::post('/password/forgot', [PasswordController::class, 'forgot']);
                 Route::post('/password/verify-otp', [PasswordController::class, 'verifyOtp']);
@@ -90,6 +94,14 @@ Route::middleware('throttle:api')->group(function () {
 
                 // Changement volontaire par l'utilisateur connecté (ancien + nouveau, pas d'OTP).
                 Route::post('/password/change', [PasswordController::class, 'change']);
+
+                // P1 — Second facteur (TOTP), géré par l'utilisateur connecté. Prêt à activer.
+                Route::prefix('mfa')->group(function () {
+                    Route::get('/status', [MfaController::class, 'status']);
+                    Route::post('/enroll', [MfaController::class, 'enroll']);
+                    Route::post('/confirm', [MfaController::class, 'confirm']);
+                    Route::delete('/', [MfaController::class, 'destroy']);
+                });
             });
         });
 

@@ -88,11 +88,89 @@ paths:
                 password: { type: string, format: password }
       responses:
         '200':
-          description: Authentifié
+          description: >
+            Authentifié (AuthResponse) ; OU, si le compte doit présenter un second facteur
+            (MFA « prêt à activer », gate config), un défi MfaChallenge SANS token Bearer.
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - { $ref: '#/components/schemas/AuthResponse' }
+                  - { $ref: '#/components/schemas/MfaChallenge' }
+        '403': { description: Compte non vérifié }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+  /auth/mfa/verify:
+    post:
+      tags: [Auth]
+      summary: 2e étape de connexion — vérifie le second facteur et délivre le token
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [mfa_token, code]
+              properties:
+                mfa_token: { type: string, description: Jeton de défi reçu de /auth/login }
+                code: { type: string, example: '123456', description: Code TOTP à 6 chiffres }
+      responses:
+        '200':
+          description: Second facteur validé
           content:
             application/json:
               schema: { $ref: '#/components/schemas/AuthResponse' }
         '422': { $ref: '#/components/responses/ValidationFailed' }
+  /auth/mfa/status:
+    get:
+      tags: [Auth]
+      summary: État MFA du compte connecté (le front l'AFFICHE, ne le déduit pas)
+      responses:
+        '200':
+          description: État MFA
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MfaStatus' }
+        '401': { description: Non authentifié }
+  /auth/mfa/enroll:
+    post:
+      tags: [Auth]
+      summary: Démarre l'enrôlement TOTP (renvoie le secret + l'URI otpauth:// pour le QR)
+      responses:
+        '201':
+          description: Secret généré (à confirmer par un premier code)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  type: { type: string, example: totp }
+                  secret: { type: string, description: Secret base32 — affiché une seule fois }
+                  otpauth_uri: { type: string, example: 'otpauth://totp/MaSante:+2250700000000?secret=...&issuer=MaSante' }
+        '401': { description: Non authentifié }
+  /auth/mfa/confirm:
+    post:
+      tags: [Auth]
+      summary: Confirme l'enrôlement avec le premier code de l'application d'authentification
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [code]
+              properties:
+                code: { type: string, example: '123456' }
+      responses:
+        '200': { description: Second facteur activé }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+  /auth/mfa:
+    delete:
+      tags: [Auth]
+      summary: Désactive le second facteur du compte connecté
+      responses:
+        '200': { description: Second facteur désactivé }
+        '401': { description: Non authentifié }
   /auth/me:
     get:
       tags: [Auth]
@@ -128,6 +206,21 @@ components:
         token: { type: string }
         token_type: { type: string, example: Bearer }
         user: { $ref: '#/components/schemas/User' }
+    MfaChallenge:
+      type: object
+      description: Défi renvoyé par /auth/login quand un second facteur est exigé (aucun token).
+      properties:
+        mfa_required: { type: boolean, example: true }
+        mfa_token: { type: string, description: À renvoyer à /auth/mfa/verify (courte durée de vie) }
+        message: { type: string }
+    MfaStatus:
+      type: object
+      description: État MFA fourni par le backend (autorité) ; le front l'affiche seulement.
+      properties:
+        enforce: { type: boolean, description: Exigence MFA globale active (gate config) }
+        oblige_pour_ce_compte: { type: boolean, description: Le rôle du compte impose la MFA (CDC_10 §3.5) }
+        facteur_confirme: { type: boolean, description: Un second facteur est confirmé }
+        doit_configurer: { type: boolean, description: Obligé mais pas encore configuré → onboarding MFA }
   securitySchemes:
     bearerAuth:
       type: http

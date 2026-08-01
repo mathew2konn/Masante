@@ -78,6 +78,12 @@ class User extends Authenticatable
         return $this->hasMany(MembreFamille::class);
     }
 
+    /** Facteurs MFA du compte (TOTP…) — P1, CDC_10 §3.5. Enrôlés puis confirmés par l'utilisateur. */
+    public function mfaFacteurs(): HasMany
+    {
+        return $this->hasMany(MfaFacteur::class);
+    }
+
     /** Établissement de rattachement d'un compte STAFF (gestionnaire/agent). NULL pour patients/admin (4.2). */
     public function structure(): BelongsTo
     {

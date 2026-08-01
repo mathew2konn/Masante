@@ -7,10 +7,13 @@ use App\Http\Requests\LoginRequest;
 use App\Http\Requests\RegisterRequest;
 use App\Http\Requests\VerifyOtpRequest;
 use App\Models\User;
+use App\Services\MfaService;
 use App\Services\OtpService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
 /**
@@ -29,8 +32,10 @@ class AuthController extends Controller
     /** Durée de vie du token d'accès (jours) — court, révocable au logout. */
     private const TOKEN_TTL_JOURS = 1;
 
-    public function __construct(private readonly OtpService $otp)
-    {
+    public function __construct(
+        private readonly OtpService $otp,
+        private readonly MfaService $mfa,
+    ) {
     }
 
     /**
@@ -130,6 +135,36 @@ class AuthController extends Controller
             abort(403, 'Compte non vérifié. Validez d\'abord le code reçu par SMS.');
         }
 
+        // MFA « prêt à activer » (CDC_10 §3.5) : si le compte doit présenter un 2e facteur,
+        // on ne délivre PAS encore le token — on renvoie un défi à vérifier. Gate off ⇒ inchangé.
+        if ($this->mfa->estRequis($user)) {
+            return response()->json($this->defiMfa($user));
+        }
+
+        return response()->json($this->reponseToken($user));
+    }
+
+    /**
+     * Deuxième étape de connexion : vérifie le code du second facteur pour le compte mis au défi,
+     * puis délivre le token d'accès. Le jeton de défi ne survit que quelques minutes (config).
+     */
+    public function verifyMfa(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'mfa_token' => ['required', 'string'],
+            'code'      => ['required', 'string'],
+        ]);
+
+        // Lecture (sans consommer) : un code faux laisse le défi valide pour un nouvel essai
+        // (le limiteur throttle:login borne les tentatives). Le défi n'est purgé qu'au succès.
+        $userId = Cache::get($this->cleDefiMfa($data['mfa_token']));
+        abort_if($userId === null, 422, 'Session de vérification expirée. Reconnectez-vous.');
+
+        $user = User::findOrFail($userId);
+        $this->mfa->verify($user, $data['code']);
+
+        Cache::forget($this->cleDefiMfa($data['mfa_token']));
+
         return response()->json($this->reponseToken($user));
     }
 
@@ -176,6 +211,33 @@ class AuthController extends Controller
     private function userPayload(User $user): array
     {
         return [...$user->toArray(), 'roles' => $user->getRoleNames()];
+    }
+
+    /**
+     * Construit un défi MFA : jeton opaque à courte durée de vie, associé au compte en cache.
+     * Aucun token Bearer n'est délivré tant que le second facteur n'est pas vérifié.
+     *
+     * @return array<string, mixed>
+     */
+    private function defiMfa(User $user): array
+    {
+        $mfaToken = Str::random(64);
+        Cache::put(
+            $this->cleDefiMfa($mfaToken),
+            $user->id,
+            now()->addMinutes((int) config('mfa.defi_ttl_minutes')),
+        );
+
+        return [
+            'mfa_required' => true,
+            'mfa_token'    => $mfaToken,
+            'message'      => 'Vérification en deux étapes requise. Saisissez le code de votre application.',
+        ];
+    }
+
+    private function cleDefiMfa(string $mfaToken): string
+    {
+        return 'mfa-defi:'.hash('sha256', $mfaToken);
     }
 
     /** En dev uniquement : expose le code OTP pour les tests (jamais en production). */
