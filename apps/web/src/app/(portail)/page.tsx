@@ -26,6 +26,19 @@ export default async function PortailAccueil() {
         <p className="text-ink-700">Votre espace professionnel MaSanté.</p>
       </div>
 
+      <Card>
+        <h2 className="mb-1 text-lg font-semibold text-blue-900">Rendez-vous</h2>
+        <p className="mb-4 text-sm text-ink-700">
+          Validez les demandes de rendez-vous de vos services (agents et gestionnaires).
+        </p>
+        <Link
+          href="/rendez-vous"
+          className="inline-flex rounded-pill bg-primary px-5 py-2.5 text-sm font-semibold text-surface hover:bg-blue-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+        >
+          Ouvrir la file d’attente
+        </Link>
+      </Card>
+
       {!mfaActive ? (
         <Card>
           <h2 className="mb-1 text-lg font-semibold text-blue-900">Sécurisez votre compte</h2>
