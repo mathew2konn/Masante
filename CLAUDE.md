@@ -34,7 +34,8 @@ Mobile : `npx expo install` uniquement (jamais `npm install` natif). **Aucune d�
 
 ## État des modules (ordre CDC_01 §17)
 - **P0 Socle** : ✅ **VALIDÉ (G5, 2026-08-01)** — monorepo, @masante/shared, retrofit mobile (sans reanimated/MMKV, Expo Go OK), squelette web, sphères + logo bleu arrondi, slogan « Votre Santé Notre Priorité ». Testé Expo Go + navigateur.
-- **P1 Identité** : PROCHAIN (auth existante OTP/Sanctum + rôles RBAC + MFA « prêt à activer ») — à démarrer après feu vert.
+- **P1 Identité** : ✅ **VALIDÉ (G5, 2026-08-01)** — RBAC (11 rôles spatie, `patient` auto, `/me` expose `roles`) + MFA TOTP « prêt à activer » (`pragmarx/google2fa`, gate `MFA_ENFORCE`). Mobile : rôles au Carnet, écran double authentification, sphères en fond global. Web pro (Next) : login + défi/enrôlement MFA (QR) + garde par rôle (cookie httpOnly). Testé Expo Go + navigateur. Guide `GUIDE_TEST_G4_P1.md`.
+- **P2 Profil + dossier médical (lecture, offline)** : PROCHAIN (module 2 CDC_01 §17 — refonte Carnet→DMEN). Démarrage obligatoire par Phase 0 d'audit de l'existant (carnet familial déjà « implémenté et prouvé »), sans réécrire les parties validées.
 - Refontes engagées (post-P0, à leur module) : Auth→P1, Carnet→DMEN (P2/P4/P6/P8), Triage→protocoles+IA (P10).
 - Existant conservé (« implémenté et prouvé », ne pas réécrire) : auth OTP, carnet familial, carte vitale/CMU, médecin référent, triage, délégation/bris-de-glace/audit, verrou PIN, QR, alertes SOS/épidémiques.
 
