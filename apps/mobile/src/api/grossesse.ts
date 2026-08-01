@@ -5,12 +5,15 @@
  * consultations s'ajoutent une par une (append-only) — jamais de réécriture du tableau complet.
  */
 import { api } from '../config/api';
+import { lireAvecCache } from '../services/dossierCache';
 import type { ConsultationPrenatale, GrossesseVue, SuiviGrossesse } from '../types/grossesse';
 
-/** Suivi en cours + historique clôturé + calendrier des 8 contacts (renvoyé même sans grossesse). */
+/** Suivi en cours + historique clôturé + calendrier des 8 contacts (renvoyé même sans grossesse). Lisible hors ligne. */
 export async function obtenirGrossesse(membreId: number): Promise<GrossesseVue> {
-  const { data } = await api.get<GrossesseVue>(`/v1/membres/${membreId}/grossesse`);
-  return data;
+  return lireAvecCache(`grossesse:${membreId}`, async () => {
+    const { data } = await api.get<GrossesseVue>(`/v1/membres/${membreId}/grossesse`);
+    return data;
+  });
 }
 
 /** Déclare une grossesse (DDG au format AAAA-MM-JJ). Renvoie le suivi et le nombre de rappels CPN créés. */

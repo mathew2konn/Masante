@@ -3,6 +3,7 @@ import { ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar as ExpoStatusBar } from 'expo-status-bar';
 import { GradientBackground } from './GradientBackground';
+import { BanniereHorsLigne } from './BanniereHorsLigne';
 import { spacing } from '../theme/theme';
 
 /**
@@ -24,6 +25,7 @@ export function Screen({
       <ExpoStatusBar style="dark" />
       {/* `react-native-safe-area-context` applique les insets réels sur iOS ET Android. */}
       <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
+        <BanniereHorsLigne />
         {scroll ? (
           <ScrollView
             contentContainerStyle={styles.scrollContent}

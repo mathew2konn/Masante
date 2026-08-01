@@ -10,6 +10,7 @@
 import { File, Paths } from 'expo-file-system';
 import { createUploadTask, FileSystemUploadType } from 'expo-file-system/legacy';
 import { api, API_URL, getStoredToken } from '../config/api';
+import { lireAvecCache } from '../services/dossierCache';
 import type { DocumentMedical } from '../types/document';
 
 const base = (membreId: number) => `/v1/membres/${membreId}/documents`;
@@ -26,10 +27,12 @@ async function entetes(extra: Record<string, string> = {}): Promise<Record<strin
   };
 }
 
-/** Liste des documents d'un membre (les plus récents d'abord). */
+/** Liste des documents d'un membre (les plus récents d'abord). Métadonnées lisibles hors ligne (le binaire, lui, exige le réseau). */
 export async function listerDocuments(membreId: number): Promise<DocumentMedical[]> {
-  const { data } = await api.get<{ items: DocumentMedical[] }>(base(membreId));
-  return data.items;
+  return lireAvecCache(`documents:${membreId}`, async () => {
+    const { data } = await api.get<{ items: DocumentMedical[] }>(base(membreId));
+    return data.items;
+  });
 }
 
 export type FichierAImporter = { uri: string; nom: string; mimeType?: string | null };

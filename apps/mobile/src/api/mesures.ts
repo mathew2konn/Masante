@@ -6,14 +6,17 @@
  * un fait daté : on la supprime et on la ressaisit.
  */
 import { api } from '../config/api';
+import { lireAvecCache } from '../services/dossierCache';
 import type { JournalMesures, MesureCreee, TypeSaisie } from '../types/mesure';
 
-/** Journal + référentiel des seuils + dernière valeur par type (sur `jours` jours glissants). */
+/** Journal + référentiel des seuils + dernière valeur par type (sur `jours` jours glissants). Lisible hors ligne. */
 export async function obtenirJournal(membreId: number, jours = 90): Promise<JournalMesures> {
-  const { data } = await api.get<JournalMesures>(`/v1/membres/${membreId}/mesures`, {
-    params: { jours },
+  return lireAvecCache(`mesures:${membreId}:${jours}`, async () => {
+    const { data } = await api.get<JournalMesures>(`/v1/membres/${membreId}/mesures`, {
+      params: { jours },
+    });
+    return data;
   });
-  return data;
 }
 
 /** Saisie d'une mesure simple (glycémie, poids, température, pouls, saturation). */
