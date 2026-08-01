@@ -1,6 +1,6 @@
 import React from 'react';
 import { Pressable, StyleSheet, Text } from 'react-native';
-import { colors, radius, spacing, typography } from '../theme/theme';
+import { colors, radius, shadow, spacing, typography } from '../theme/theme';
 
 /**
  * SecondaryButton — bouton secondaire du Design System (§5.1).
@@ -30,6 +30,7 @@ export function SecondaryButton({
           backgroundColor: pressed ? colors.blue[50] : colors.surface,
           borderColor: disabled ? colors.disabled : colors.blue[600],
         },
+        disabled && styles.inactif,
       ]}
     >
       <Text style={[styles.txt, { color: disabled ? colors.disabled : colors.blue[600] }]}>{label}</Text>
@@ -41,10 +42,12 @@ const styles = StyleSheet.create({
   btn: {
     height: 52,
     borderRadius: radius.pill,
-    borderWidth: 1.5,
+    borderWidth: 2,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: spacing[6],
+    ...shadow.card,
   },
+  inactif: { opacity: 0.5 },
   txt: { ...typography.button },
 });

@@ -1,6 +1,6 @@
 import React from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
-import { colors, radius, spacing, typography } from '../theme/theme';
+import { colors, radius, shadow, spacing, typography } from '../theme/theme';
 
 /**
  * PrimaryButton — bouton primaire du Design System (§5.1 / §7.3).
@@ -29,13 +29,10 @@ export function PrimaryButton({
       accessibilityState={{ disabled: !!inactif, busy: !!loading }}
       style={({ pressed }) => [
         styles.btn,
-        {
-          backgroundColor: inactif
-            ? colors.disabled
-            : pressed
-              ? colors.blue[700]
-              : colors.blue[600],
-        },
+        // Fond bleu plein en toutes circonstances (lisible sur le dégradé) ; l'état inactif
+        // se lit à l'opacité, pas à un gris qui disparaît sur le fond (correction G4).
+        { backgroundColor: pressed ? colors.blue[700] : colors.blue[600] },
+        inactif && styles.inactif,
       ]}
     >
       <View style={styles.row}>
@@ -47,7 +44,8 @@ export function PrimaryButton({
 }
 
 const styles = StyleSheet.create({
-  btn: { height: 52, borderRadius: radius.pill, alignItems: 'center', justifyContent: 'center', paddingHorizontal: spacing[6] },
+  btn: { height: 52, borderRadius: radius.pill, alignItems: 'center', justifyContent: 'center', paddingHorizontal: spacing[6], ...shadow.card },
+  inactif: { opacity: 0.5 },
   row: { flexDirection: 'row', alignItems: 'center' },
   spinner: { marginRight: spacing[2] },
   txt: { ...typography.button, color: '#FFFFFF' },

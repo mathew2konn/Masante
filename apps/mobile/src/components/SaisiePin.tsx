@@ -37,8 +37,11 @@ export function SaisiePin({
               key={i}
               style={[
                 styles.pastille,
-                { borderColor: erreur ? colors.danger.solid : rempli ? colors.blue[600] : colors.line },
-                rempli && { backgroundColor: erreur ? colors.danger.solid : colors.blue[600] },
+                {
+                  // Vide = rond blanc à bordure bleue (visible sur le dégradé) ; rempli = plein bleu.
+                  backgroundColor: rempli ? (erreur ? colors.danger.solid : colors.blue[600]) : colors.surface,
+                  borderColor: erreur ? colors.danger.solid : rempli ? colors.blue[600] : colors.blue[400],
+                },
               ]}
             />
           );
