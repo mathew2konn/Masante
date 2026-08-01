@@ -1,6 +1,7 @@
 /**
  * types/auth.ts — formes des données d'authentification (Module 2 / 2A.1 côté backend).
  */
+import type { Role } from '@masante/shared';
 
 export type NiveauCompte = 'base' | 'verifie';
 
@@ -12,6 +13,8 @@ export type Utilisateur = {
   email: string | null;
   niveau_compte: NiveauCompte;
   telephone_verified_at: string | null;
+  /** Rôles RBAC fournis par le backend (P1, CDC_10 §3.6). L'app citoyenne n'a que « patient ». */
+  roles: Role[];
 };
 
 /** Réponse renvoyée après vérification OTP / connexion (délivre le token Bearer). */

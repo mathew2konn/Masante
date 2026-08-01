@@ -39,6 +39,20 @@ export const fr = {
     sos: 'SOS 185',
     mesAlertes: "Mes alertes d'urgence",
   },
+  // Libellés des rôles RBAC (clés = valeurs de l'enum Role). Fournis par le backend, AFFICHÉS ici.
+  roles: {
+    patient: 'Patient',
+    medecin: 'Médecin',
+    infirmier: 'Infirmier',
+    secretaire: 'Secrétaire',
+    pharmacien: 'Pharmacien',
+    laborantin: 'Laborantin',
+    radiologue: 'Radiologue',
+    admin_etablissement: "Admin. d'établissement",
+    super_admin: 'Super administrateur',
+    ministere: 'Ministère',
+    assurance: 'Assurance',
+  },
 };
 
 export type Traductions = typeof fr;

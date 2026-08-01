@@ -38,4 +38,17 @@ export const en: Traductions = {
     sos: 'SOS 185',
     mesAlertes: 'My emergency alerts',
   },
+  roles: {
+    patient: 'Patient',
+    medecin: 'Doctor',
+    infirmier: 'Nurse',
+    secretaire: 'Secretary',
+    pharmacien: 'Pharmacist',
+    laborantin: 'Lab technician',
+    radiologue: 'Radiologist',
+    admin_etablissement: 'Facility admin',
+    super_admin: 'Super administrator',
+    ministere: 'Ministry',
+    assurance: 'Insurer',
+  },
 };

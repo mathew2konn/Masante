@@ -7,6 +7,7 @@ import { Card } from '../../src/components/Card';
 import { PrimaryButton } from '../../src/components/PrimaryButton';
 import { SecondaryButton } from '../../src/components/SecondaryButton';
 import { useSession } from '../../src/auth/SessionContext';
+import { useT } from '../../src/i18n/useT';
 import { listerMembres } from '../../src/api/membres';
 import { messageErreur } from '../../src/utils/erreurs';
 import { MAX_MEMBRES, type Membre } from '../../src/types/membre';
@@ -19,7 +20,8 @@ import { colors, radius, spacing, typography } from '../../src/theme/theme';
  * Les sections du dossier (antécédents, vaccins…) arriveront à une étape ultérieure.
  */
 export default function CarnetTab() {
-  const { user, signOut } = useSession();
+  const { user, roles, signOut } = useSession();
+  const t = useT();
   const [membres, setMembres] = useState<Membre[]>([]);
   const [chargement, setChargement] = useState(true);
   const [erreur, setErreur] = useState<string | null>(null);
@@ -62,6 +64,9 @@ export default function CarnetTab() {
           {user?.prenom} {user?.nom}
         </Text>
         <Text style={styles.tel}>{user?.telephone}</Text>
+        {roles.length > 0 ? (
+          <Text style={styles.role}>{roles.map((r) => t.roles[r]).join(' · ')}</Text>
+        ) : null}
         <View style={[styles.statut, { backgroundColor: verifie ? colors.success.bg : colors.warning.bg }]}>
           <Text style={[styles.statutTxt, { color: verifie ? colors.success.text : colors.warning.text }]}>
             {verifie ? '✓ Compte vérifié' : '● Compte de base'}
@@ -166,6 +171,7 @@ const styles = StyleSheet.create({
   compte: { marginBottom: spacing[6] },
   nomCompte: { ...typography.h2, color: colors.blue[900] },
   tel: { ...typography.body, color: colors.ink[700], marginTop: spacing[1] },
+  role: { ...typography.caption, color: colors.blue[700], marginTop: spacing[1], fontWeight: '700' },
   statut: { alignSelf: 'flex-start', borderRadius: radius.pill, paddingHorizontal: spacing[3], paddingVertical: spacing[1], marginTop: spacing[3] },
   statutTxt: { ...typography.caption, fontWeight: '700' },
   enteteSection: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: spacing[3] },

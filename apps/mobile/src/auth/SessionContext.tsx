@@ -1,4 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import type { Role } from '@masante/shared';
 import { clearToken, getStoredToken, saveToken } from '../config/api';
 import * as authApi from '../api/auth';
 import type { Utilisateur } from '../types/auth';
@@ -13,6 +14,8 @@ import type { Utilisateur } from '../types/auth';
 type SessionValue = {
   token: string | null;
   user: Utilisateur | null;
+  roles: Role[]; // rôles RBAC fournis par le backend (jamais déduits côté front — P1)
+  hasRole: (role: Role) => boolean;
   isLoading: boolean; // chargement initial (restauration du token)
   signIn: (token: string, user: Utilisateur) => Promise<void>;
   signOut: () => Promise<void>;
@@ -76,9 +79,13 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     setUser(null);
   }, []);
 
+  // Les rôles suivent le profil : autorité backend, jamais recalculés ici (frontière CDC_01 §0.1).
+  const roles = useMemo<Role[]>(() => user?.roles ?? [], [user]);
+  const hasRole = useCallback((role: Role) => roles.includes(role), [roles]);
+
   const value = useMemo<SessionValue>(
-    () => ({ token, user, isLoading, signIn, signOut }),
-    [token, user, isLoading, signIn, signOut],
+    () => ({ token, user, roles, hasRole, isLoading, signIn, signOut }),
+    [token, user, roles, hasRole, isLoading, signIn, signOut],
   );
 
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;
