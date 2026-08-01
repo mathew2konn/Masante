@@ -6,18 +6,23 @@
  * garantie côté serveur par MembreFamillePolicy).
  */
 import { api } from '../config/api';
+import { lireAvecCache } from '../services/dossierCache';
 import type { CarteCmu, Membre, MembrePayload } from '../types/membre';
 
-/** Liste des membres du compte authentifié (les plus récents d'abord). */
+/** Liste des membres du compte authentifié (les plus récents d'abord). Lisible hors ligne (cache). */
 export async function listerMembres(): Promise<Membre[]> {
-  const { data } = await api.get<{ membres: Membre[] }>('/v1/membres');
-  return data.membres;
+  return lireAvecCache('membres', async () => {
+    const { data } = await api.get<{ membres: Membre[] }>('/v1/membres');
+    return data.membres;
+  });
 }
 
-/** Détail d'un membre (réservé au propriétaire). */
+/** Détail d'un membre (réservé au propriétaire). Lisible hors ligne (cache). */
 export async function obtenirMembre(id: number): Promise<Membre> {
-  const { data } = await api.get<{ membre: Membre }>(`/v1/membres/${id}`);
-  return data.membre;
+  return lireAvecCache(`membre:${id}`, async () => {
+    const { data } = await api.get<{ membre: Membre }>(`/v1/membres/${id}`);
+    return data.membre;
+  });
 }
 
 /** Création d'un membre. 422 si le plafond de 15 membres est atteint. */

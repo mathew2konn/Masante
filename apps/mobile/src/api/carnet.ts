@@ -7,20 +7,25 @@
  * + le scoping à la relation côté serveur.
  */
 import { api } from '../config/api';
+import { lireAvecCache } from '../services/dossierCache';
 import type { CarnetItem } from '../types/carnet';
 
 const base = (membreId: number, chemin: string) => `/v1/membres/${membreId}/${chemin}`;
 
-/** Liste des éléments d'une section (les plus récents d'abord). */
+/** Liste des éléments d'une section (les plus récents d'abord). Lisible hors ligne (cache). */
 export async function listerSection(membreId: number, chemin: string): Promise<CarnetItem[]> {
-  const { data } = await api.get<{ items: CarnetItem[] }>(base(membreId, chemin));
-  return data.items;
+  return lireAvecCache(`section:${membreId}:${chemin}`, async () => {
+    const { data } = await api.get<{ items: CarnetItem[] }>(base(membreId, chemin));
+    return data.items;
+  });
 }
 
-/** Détail d'un élément. */
+/** Détail d'un élément. Lisible hors ligne (cache). */
 export async function obtenirItem(membreId: number, chemin: string, id: number): Promise<CarnetItem> {
-  const { data } = await api.get<{ item: CarnetItem }>(`${base(membreId, chemin)}/${id}`);
-  return data.item;
+  return lireAvecCache(`item:${membreId}:${chemin}:${id}`, async () => {
+    const { data } = await api.get<{ item: CarnetItem }>(`${base(membreId, chemin)}/${id}`);
+    return data.item;
+  });
 }
 
 /** Création d'un élément. */

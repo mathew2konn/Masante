@@ -4,6 +4,7 @@
  * Réutilise le CLIENT AXIOS UNIQUE (src/config/api.ts). Endpoints sous /v1/auth.
  */
 import { api } from '../config/api';
+import { lireAvecCache } from '../services/dossierCache';
 import type {
   AuthResponse,
   ForgotResponse,
@@ -48,10 +49,16 @@ export async function login(payload: { telephone: string; password: string }): P
   return data;
 }
 
-/** Profil de l'utilisateur authentifié (token requis). */
+/**
+ * Profil de l'utilisateur authentifié (token requis). Lisible hors ligne (cache chiffré) : au
+ * redémarrage sans réseau, on rend le profil mémorisé plutôt que d'invalider la session. Un token
+ * réellement invalide renvoie un 401 (réponse serveur) → non caché, la session est bien nettoyée.
+ */
 export async function me(): Promise<Utilisateur> {
-  const { data } = await api.get<{ user: Utilisateur }>('/v1/auth/me');
-  return data.user;
+  return lireAvecCache('me', async () => {
+    const { data } = await api.get<{ user: Utilisateur }>('/v1/auth/me');
+    return data.user;
+  });
 }
 
 /** Déconnexion : révoque le token courant côté serveur. */

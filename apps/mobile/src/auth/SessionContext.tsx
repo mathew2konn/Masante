@@ -2,6 +2,7 @@ import React, { createContext, useCallback, useContext, useEffect, useMemo, useS
 import type { Role } from '@masante/shared';
 import { clearToken, getStoredToken, saveToken } from '../config/api';
 import * as authApi from '../api/auth';
+import { viderDossierCache } from '../services/dossierCache';
 import type { Utilisateur } from '../types/auth';
 
 /**
@@ -75,6 +76,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       // Même hors-ligne, on déconnecte localement.
     }
     await clearToken();
+    await viderDossierCache(); // ne pas laisser le dossier en cache après déconnexion (sécurité).
     setToken(null);
     setUser(null);
   }, []);
