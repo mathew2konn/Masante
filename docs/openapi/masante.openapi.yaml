@@ -185,6 +185,72 @@ paths:
                 properties:
                   user: { $ref: '#/components/schemas/User' }
         '401': { description: Non authentifié }
+  /portail/rendez-vous:
+    get:
+      tags: [Portail RDV]
+      summary: File d'attente des RDV du périmètre staff (paginée, filtrable par statut)
+      description: Auth Sanctum + permission `rdv.validate`. Périmètre = services gérés par le compte.
+      parameters:
+        - name: statut
+          in: query
+          schema: { type: string, enum: [en_attente, confirme, refuse, annule, honore], default: en_attente }
+      responses:
+        '200': { description: Page de RDV (paginateur Laravel) }
+        '403': { description: Permission rdv.validate absente, ou aucun service géré }
+  /portail/rendez-vous/{rdv}:
+    get:
+      tags: [Portail RDV]
+      summary: Détail d'un RDV du périmètre + médecins réservables du service
+      parameters:
+        - { name: rdv, in: path, required: true, schema: { type: integer } }
+      responses:
+        '200': { description: RDV + médecins }
+        '403': { description: Non autorisé }
+        '404': { description: Hors périmètre }
+  /portail/rendez-vous/{rdv}/confirmer:
+    patch:
+      tags: [Portail RDV]
+      summary: Confirme un RDV en attente (date définitive + médecin optionnel + message)
+      parameters:
+        - { name: rdv, in: path, required: true, schema: { type: integer } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [date_confirmee]
+              properties:
+                date_confirmee: { type: string, format: date }
+                medecin_id: { type: integer, nullable: true, description: Doit relever du service du RDV }
+                message_agent: { type: string, nullable: true, maxLength: 1000 }
+      responses:
+        '200': { description: RDV confirmé }
+        '403': { description: Non autorisé }
+        '404': { description: Hors périmètre }
+        '409': { description: RDV déjà traité }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+  /portail/rendez-vous/{rdv}/refuser:
+    patch:
+      tags: [Portail RDV]
+      summary: Refuse un RDV en attente (motif obligatoire, communiqué au patient)
+      parameters:
+        - { name: rdv, in: path, required: true, schema: { type: integer } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [message_agent]
+              properties:
+                message_agent: { type: string, maxLength: 1000 }
+      responses:
+        '200': { description: RDV refusé }
+        '403': { description: Non autorisé }
+        '404': { description: Hors périmètre }
+        '409': { description: RDV déjà traité }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
 components:
   schemas:
     User:

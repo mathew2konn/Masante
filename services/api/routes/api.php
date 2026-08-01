@@ -27,6 +27,7 @@ use App\Http\Controllers\Api\V1\PhotoMembreController;
 use App\Http\Controllers\Api\V1\QrController;
 use App\Http\Controllers\Api\V1\RecuRdvController;
 use App\Http\Controllers\Api\V1\ReferentController;
+use App\Http\Controllers\Api\V1\Portail\RendezVousController as PortailRendezVousController;
 use App\Http\Controllers\Api\V1\RendezVousController;
 use App\Http\Controllers\Api\V1\SignalementController;
 use App\Http\Controllers\Api\V1\StructureController;
@@ -103,6 +104,22 @@ Route::middleware('throttle:api')->group(function () {
                     Route::delete('/', [MfaController::class, 'destroy']);
                 });
             });
+        });
+
+        /*
+        |------------------------------------------------------------------
+        | Module 4 / 4.4 — Portail pro : validation des RDV (workflow staff).
+        |------------------------------------------------------------------
+        | API du portail Next.js. Mêmes règles/transitions que le Blade (service
+        | partagé). Garde : token Bearer + permission `rdv.validate` vérifiée DANS le
+        | contrôleur (le middleware spatie viserait le guard web/session, pas Sanctum).
+        | Le périmètre (services gérés) est appliqué côté service.
+        */
+        Route::middleware('auth:sanctum')->prefix('portail')->group(function () {
+            Route::get('rendez-vous', [PortailRendezVousController::class, 'index']);
+            Route::get('rendez-vous/{rdv}', [PortailRendezVousController::class, 'show']);
+            Route::patch('rendez-vous/{rdv}/confirmer', [PortailRendezVousController::class, 'confirmer']);
+            Route::patch('rendez-vous/{rdv}/refuser', [PortailRendezVousController::class, 'refuser']);
         });
 
         /*
