@@ -1691,3 +1691,192 @@ Réutilise `prendrePhoto`/`choisirDansGalerie` de F2.10 (compression déjà gér
 - **`tsc` OK**, **`expo-doctor` 18/18**, **aucune dépendance ajoutée**.
 - **Piège** : tuer Metro pendant la génération de `.expo/types/router.d.ts` produit un fichier **corrompu**
   (routes parasites pointant vers `src/`). Supprimer le fichier et laisser Metro finir.
+
+---
+
+# Module 5 (P5) — Paiement · Incrément P5.1 : socle + prise en charge CNAM/assurance
+
+**Décisions propriétaire (écrites) :** vrai **microservice Java Spring Boot maintenant** (ADR-013) et
+premier incrément **socle + CNAM/assurance**. Le CDC_06 impose un domaine paiement indépendant du
+cœur Laravel ; l'existant (table `paiements`/`recus_rdv`, écran reçu RDV mobile) est **conservé
+intact** — P5.1 est **additif**. Rebranchement du flux RDV (Laravel = proxy, §10.4) = incrément
+ultérieur.
+
+⚠️ **Paiement SIMULÉ** : aucune passerelle Mobile Money réelle (Orange/MTN/Wave/Moov) n'est
+accessible (FT5). On bâtit la **structure de domaine correcte** ; rien n'est débité.
+
+**Nouveau service `services/payment/`** (Spring Boot 3.3 + PostgreSQL 16 + Redis 7, hors workspace
+pnpm), build/run **Docker** (Gradle + JDK 21 embarqués, aucune dépendance à la chaîne d'outils de
+l'hôte). Ce qu'il livre (CDC_06 §14 étapes 1-2 + §8) :
+
+- **OCP** — interface `PasserellePaiement` + `AdaptateurSimule` + `RegistrePasserelles`. Ajouter un
+  opérateur = ajouter un bean ; **aucun `if canal == …`**. Canal inconnu → 400.
+- **Machine à états stricte** (§4.2) `INITIATED→PENDING→PROCESSING→SUCCESS ↘FAILED/CANCELLED`,
+  `SUCCESS→REFUNDED`, enum **source unique** répliqué de `@masante/shared`. Toute transition passe par
+  `MachineEtatsPaiement.verifier`, est horodatée et persistée (`payment_transitions`). Double
+  remboursement → **409** (`REFUNDED → REFUNDED` interdit).
+- **Idempotence** (§9.6) — en-tête `Idempotency-Key` **obligatoire** : verrou Redis + contrainte
+  d'unicité PostgreSQL. Rejeu de la même clé → **200 + même paiement** (aucun doublon) ; clé absente →
+  **400**.
+- **Audit immuable** (§9.7) — journal append-only à **hachage chaîné** (ancre GENESIS posée par
+  Flyway, verrou pessimiste sur la dernière entrée). `GET /audit/verify` recalcule toute la chaîne.
+- **Moteur de prise en charge CNAM/assurance** (§8) — **frontière** : couverture, ticket modérateur,
+  reste à charge calculés **uniquement ici** (`MoteurPriseEnCharge`, classe pure). Vecteurs imposés
+  vérifiés : consultation 20 000 @ 70 % → patient 6 000 ; hospitalisation 250 000 @ 80 % → patient
+  50 000 ; plafond → couverture bornée ; acte exclu → patient paie tout.
+- Téléphone **masqué** en base et à l'affichage (`********89`).
+
+**Gates.** **G0** audit du CDC_06 + existant (`Paiement`, `RecuRdv`, `RecuRdvService`, enums shared).
+**G1** plan + stack + téléchargements validés par écrit. **G2** OpenAPI (`/v3/api-docs`, Swagger UI) +
+collection Postman ; **prouvé en live** (pile Docker) : 12 contrôles verts (2 vecteurs CDC, plafond,
+201 simulé, rejeu 200, clé manquante 400, transitions, audit chaîné, remboursement, double-rembours.
+409, canal inconnu 400, intégrité chaîne `true`). **G3** `gradle build` (tests unitaires : moteur de
+couverture, machine à états valides/invalides, chaîne d'audit) **vert dans l'image**. **G4** à faire
+par le propriétaire : `docker compose up` puis Swagger UI http://localhost:8080/swagger-ui.html +
+Postman. **G5** en attente de G4.
+
+- **Nouveaux** : tout `services/payment/**` (build.gradle, Dockerfile, docker-compose.yml, migration
+  Flyway `V1__init.sql`, domaine `gateway`/`statemachine`/`coverage`/`model`, services, contrôleurs,
+  tests, `postman/…`, `README.md`) ; `docs/adr/README.md` (ADR-013) ; `RAPPORT.md`.
+- **Modifié** : **aucun fichier de l'existant** (mobile/web/Laravel) — incrément strictement additif.
+- **Piège** : `@Transactional` sur une méthode appelée via `this.` (auto-invocation) est ignoré par
+  l'AOP Spring → l'orchestration `initier()→executer()` passe par une **auto-référence `@Lazy`** pour
+  que la transaction s'applique et que le verrou d'idempotence soit relâché **après** le commit.
+- **Piège run** : `postgres:16-alpine` non téléchargé + reset TCP transitoire de `auth.docker.io` →
+  pré-`docker pull` puis `docker compose up -d --no-build` avec `image: masante-payment:test`.
+
+---
+
+# Module 5 (P5) — Paiement · Incrément P5.2a : Facturation (facture + PDF/QR + règlement)
+
+**Décisions propriétaire (écrites) :** on clôture P5.1 d'abord (G4 OK → **P5.1 VALIDÉ G5 2026-08-02**),
+puis **P5.2 Facturation** ; dépendances **OpenPDF + ZXing** approuvées ; périmètre = facture (calcul +
+numérotation + PDF/QR) **+ lien règlement paiement↔facture**.
+
+**G0.** Audit : les tarifs existants (`medecin.tarif_consultation`, `structure.tarif_min/max_cfa`) sont
+**« purement indicatifs, AUCUNE logique de paiement »** ; aucune table facture, aucune TVA, aucun barème
+d'actes. → Facturation construite proprement dans le microservice, additive, le portail fournissant les
+lignes. **Frontière** : TVA et tarifs **jamais codés en dur** (interdit CDC_00 §4) — le taux de TVA est
+une **donnée** portée par la ligne (défaut 0).
+
+**Livré (`services/payment/`, migration Flyway `V2`) :**
+- **Moteur de facturation** (`MoteurFacturation`, classe pure — frontière) : lignes → HT (qté×PU−remise)
+  → **TVA (taux = donnée)** → remise globale → **réutilise le `MoteurPriseEnCharge` (P5.1)** pour
+  appliquer CNAM/assurance sur le TTC → **reste à payer**. Invariant `couvert + reste = TTC`.
+- **Numérotation unique par établissement/exercice** (§7.4) : compteur verrouillé (pessimiste) →
+  `FCT-{ETAB}-{exercice}-{séquence}`. Séquence prouvée (000001, 000002, 000003…).
+- **Facture électronique** (§7.4) : **PDF** (OpenPDF) avec **QR** (ZXing) encodant numéro + montants +
+  hash d'intégrité. Signature PKI « prête à activer ».
+- **Règlement paiement↔facture** (§7.3) : `POST /payments` avec `factureId` (+ `objet=FACTURE`) impute
+  le montant et fait évoluer la facture `EMISE → PARTIELLEMENT_PAYEE → PAYEE`, dans la **même
+  transaction** que le paiement (facture introuvable → rollback, aucun débit — simulé).
+- **Enum `FactureStatut`** ajouté à `@masante/shared` (source unique) + réplique Java.
+- Endpoints : `POST /invoices`, `GET /invoices/{id}`, `GET /invoices/{id}/pdf`.
+
+**Gates.** **G2 prouvé live** : facture CNAM (TTC 20 000 / couvert 14 000 / reste 6 000), TVA 18 %
+(HT 10 000 → TVA 1 800 → TTC 11 800), règlement → **PAYEE** (montantRegle 6 000), **PDF** `%PDF-`
+4462 o (`Content-Type: application/pdf`), numérotation séquentielle, facture invalide → 400, **chaîne
+d'audit toujours intègre** (`InvoiceIssued` ×3, `InvoicePaymentApplied` ×1). **G3** : tests Gradle verts
+(`MoteurFacturationTest` : TVA, remises, remise globale, multi-lignes, prise en charge, invariant,
+invalidations). **G4** propriétaire OK (Swagger) → ✅ **P5.2a VALIDÉ G5 (2026-08-02)**.
+
+- **Nouveaux** : `V2__facturation.sql` ; domaine `billing/*` (moteur + records) ; modèles `Facture`,
+  `FactureLigne`, `FactureCompteur`, `FactureStatut` ; dépôts ; `ServiceFacturation`,
+  `ServiceFacturePdf`, `FactureController` + DTO ; test `MoteurFacturationTest`.
+- **Modifié** : `build.gradle` (OpenPDF+ZXing) ; `packages/shared/.../enums` (FactureStatut, source
+  unique) ; `Paiement`/`CommandePaiement`/`InitierPaiementRequete`/`PaiementReponse` (+`factureId`) ;
+  `ServicePaiement` (règlement facture après succès) ; `GestionErreurs` ; Postman ; README ; RAPPORT.
+- **Piège** : `RequeteCouverture` exige un montant, inconnu au moment de saisir la facture → introduction
+  d'un record `ParametresPriseEnCharge` (type/taux/plafond/exclu, sans montant), le moteur combinant
+  avec le TTC calculé. Évite un montant factice.
+- **Piège run** : recharger le conteneur `payment` avec `docker compose up -d --no-build --force-recreate
+  payment` après `docker build` (le tag pointe vers une nouvelle image) ; Flyway applique `V2` sur la
+  base existante au démarrage.
+
+---
+
+# Module 5 (P5) — Paiement · Incrément P5.2b : Avoir + versionnage + signature
+
+**Décisions propriétaire (écrites) :** avoir = **montant TTC complet** de la facture d'origine ;
+signature **ON par défaut**. Aucune dépendance nouvelle (crypto JDK). Additif : rien de l'existant réécrit.
+
+**G0.** L'existant P5.2a est propre (`ServiceFacturation.creer/enregistrerReglement`, hash SHA-256,
+PDF/QR, `FactureStatut`, `UNIQUE(numero)`). P5.2b n'ajoute que des colonnes/tables et des endpoints.
+
+**Livré (`services/payment/`, migration Flyway `V3`) :**
+- **Versionnage** (§7.5) : `factures` gagne `version_numero`, `origine_facture_id`, `remplacee_par_id` ;
+  `UNIQUE(numero)` → `UNIQUE(numero, version_numero)` ; statut **`REMPLACEE`** (ajouté à
+  `@masante/shared` + Java). **Correction = nouvelle version immuable** ; l'ancienne passe `REMPLACEE`
+  avec `remplacee_par_id`. Aucune facture modifiée en place.
+- **Avoir / note de crédit** (§7.1) : table `avoirs` + `avoir_compteurs` (numéro `AV-{ETAB}-{exercice}-{seq}`
+  sous verrou), PDF/QR dédié. Émis à chaque correction **et** annulation, montant = **TTC d'origine**.
+- **Annulation** : `POST /invoices/{id}/annuler` → `ANNULEE` + avoir.
+- **Signature** (§7.4 / CDC_10) : `ServiceSignature` **RSA-SHA256** (JDK, aucune dépendance). Clé privée
+  **en mémoire** (substitut HSM/KMS — jamais dans le code ni en base, interdit CDC_00 §4) ; clé publique
+  stockée par document → vérification même après redémarrage. Flag `SIGNATURE_ENABLED` (ON par défaut).
+  Factures et avoirs signés à l'émission. `GET /invoices/{id}/verify-signature` recalcule le hash et
+  vérifie la signature.
+- **Endpoints** : `POST /invoices/{id}/corriger`, `POST /invoices/{id}/annuler`,
+  `GET /invoices/{id}/versions`, `GET /invoices/{id}/credit-notes`, `GET /invoices/{id}/verify-signature`,
+  `GET /credit-notes/{id}`, `GET /credit-notes/{id}/pdf`. Audit : `InvoiceCorrected`, `InvoiceCancelled`,
+  `CreditNoteIssued`.
+
+**Gates.** **G2 prouvé live** : facture v1 signée (`signatureValide:true`, SHA256withRSA) ; correction →
+v2 (même numéro, version 2, TTC 25 000) + avoir `AV-…-000001` de 20 000 (TTC v1) ; v1 → `REMPLACEE`
+(+`remplaceeParId`) ; lignée listée (v1 REMPLACEE + v2 EMISE) ; avoir signé + PDF `%PDF-` ; annulation v2
+→ `ANNULEE` + avoir 25 000 ; correction d'une `REMPLACEE` → **409** ; **chaîne d'audit intègre**. **G3** :
+tests Gradle verts (`ServiceSignatureTest` : signe/vérifie, altération détectée, désactivée = pas de sceau ;
+versionnage/avoir prouvés live comme l'idempotence en P5.1). **G4** propriétaire OK (Swagger) → ✅ **P5.2b VALIDÉ G5 (2026-08-03)**.
+
+- **Nouveaux** : `V3__avoir_versionnage_signature.sql` ; `ServiceSignature`, `SceauSignature`,
+  `Avoir`, `AvoirCompteur`, leurs dépôts, `OperationFacture`, `VerificationSignature`,
+  `AvoirIntrouvableException`, `AvoirController` ; DTO `Corriger/Annuler/AvoirReponse/`
+  `VerificationSignatureReponse/OperationFactureReponse` ; `ServiceSignatureTest`.
+- **Modifié** : `Facture` (+version/lignée/signature) ; `FactureStatut` (shared + Java, +REMPLACEE) ;
+  `ServiceFacturation` (signe + corriger/annuler/versions/avoir/verify) ; `ServiceFacturePdf`
+  (+avoir) ; `FactureController` ; `FactureReponse`, `FactureRepository` ; `GestionErreurs` ;
+  `application.yml` (flag signature) ; Postman ; README ; RAPPORT.
+- **Piège** : lambda `signer(...).ifPresent(s -> facture.apposerSignature(...))` puis
+  `facture = repo.save(facture)` → « variable capturée non effectively final ». Ne pas réassigner :
+  `repo.save(facture)` renseigne l'id sur l'instance (@UuidGenerator), la référence reste finale.
+
+---
+
+# Module 5 (P5) — Paiement · Incrément P5.3a : Wallet + double écriture
+
+**Décision propriétaire (écrite) :** wallet core + double écriture **+ paiement d'une facture depuis le
+wallet**. Aucune dépendance nouvelle. Additif.
+
+**G0.** Aucun portefeuille n'existe (Laravel ni microservice) → construction propre dans `services/payment/`.
+
+**Livré (`services/payment/`, migration Flyway `V4`) :**
+- **Comptabilité en double écriture** (§6.3) : chaque opération produit **deux écritures** de somme nulle
+  (`wallet_entries`, montant signé) ; le **solde n'est jamais stocké** = `SUM(montant)` des écritures.
+  Comptes techniques `SYSTEME-CONTREPARTIE` (et wallet établissement) assurent la contrepartie des
+  crédits/débits. **Invariant prouvé : somme globale des écritures = 0.**
+- **Opérations** (§6.2) : `credit` (rechargement simulé), `debit` (refusé si insuffisant), `transfer`,
+  `freeze`/`unfreeze` (§6.4). Écritures financières **idempotentes** (verrou Redis + unicité PG,
+  `Idempotency-Key`) et **auditées** (`WalletCredited`/`WalletDebited`, chaîne P5.1).
+- **Frontière** : contrôle de suffisance/état + calcul du solde = backend seul (`ReglesWallet` pur).
+  Statut **`WalletStatut`** ajouté à `@masante/shared` (source unique).
+- **Paiement d'une facture depuis le wallet** : `POST /wallets/{id}/pay-invoice` débite le patient,
+  crédite le wallet de l'établissement et **solde la facture** (`enregistrerReglement`, EMISE→PAYEE)
+  dans **une seule transaction**.
+- Endpoints : `POST /wallets`, `GET /wallets/{id}` (+solde), `GET /wallets/{id}/entries`,
+  `credit|debit|transfer|pay-invoice|freeze|unfreeze`.
+
+**Gates.** **G2 prouvé live** : crédit 50 000 (rejeu même clé → toujours 50 000, aucun doublon), débit
+20 000 → 30 000, débit>solde → **409**, gel → débit **409**, transfert 10 000 (source 20 000 / dest
+10 000), **double écriture : solde wallet = somme écritures, total global = 0, 2 écritures/opération** ;
+paiement facture depuis wallet → facture **PAYEE**, patient −10 000, établissement crédité, total global
+resté 0 ; **audit intègre**. **G3** : tests Gradle verts (`ReglesWalletTest` : débit ok / insuffisant /
+gelé / montant invalide ; double écriture prouvée live comme l'idempotence). **G4** propriétaire **OK
+(Swagger)**. **G5 — module validé (2026-08-03).**
+
+- **Nouveaux** : `V4__wallet.sql` ; `Wallet`, `WalletOperation`, `WalletEntry`, `WalletStatut`,
+  `OwnerTypeWallet`, `TypeOperationWallet`, leurs dépôts ; `domain/wallet/` (`ReglesWallet` +
+  exceptions) ; `ServiceWallet`, `DemandeOperationWallet`, `WalletIntrouvableException` ;
+  `WalletController` + DTO ; `ReglesWalletTest`.
+- **Modifié** : `packages/shared/.../enums` (WalletStatut) ; `GestionErreurs` ; RAPPORT.
+- **Reporté P5.3b** : sécurité §6.4 (PIN/OTP/biométrie, **limites** par opération/jour/mois, gel sur
+  suspicion), cashback/bonus, **rapprochement quotidien** automatique.

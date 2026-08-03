@@ -1,0 +1,42 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: masante-payment
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5433/masante_payment}
+    username: ${DB_USER:payment}
+    password: ${DB_PASSWORD:payment}
+  jpa:
+    hibernate:
+      ddl-auto: none        # le schéma est la propriété de Flyway, jamais d'Hibernate
+    open-in-view: false
+    properties:
+      hibernate.jdbc.time_zone: UTC
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6380}
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+masante:
+  payment:
+    # TTL du verrou d'idempotence (Redis) : au-delà, seule la contrainte d'unicité PG protège.
+    idempotency-lock-seconds: 30
+    signature:
+      # Signature RSA-SHA256 des factures/avoirs (§7.4). Clé de DÉV en mémoire (substitut HSM/KMS).
+      # « Prête à activer » : ON par défaut ici ; l'adossement HSM/PKI réelle est l'étape ultérieure.
+      enabled: ${SIGNATURE_ENABLED:true}

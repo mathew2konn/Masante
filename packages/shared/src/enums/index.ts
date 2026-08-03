@@ -27,6 +27,24 @@ export const PaiementStatut = {
 } as const;
 export type PaiementStatut = (typeof PaiementStatut)[keyof typeof PaiementStatut];
 
+/** États d'une facture (CDC_06 §7). Fournis par le backend (microservice paiement), jamais déduits. */
+export const FactureStatut = {
+  EMISE: 'EMISE',
+  PARTIELLEMENT_PAYEE: 'PARTIELLEMENT_PAYEE',
+  PAYEE: 'PAYEE',
+  ANNULEE: 'ANNULEE',
+  REMPLACEE: 'REMPLACEE',
+} as const;
+export type FactureStatut = (typeof FactureStatut)[keyof typeof FactureStatut];
+
+/** États d'un portefeuille Wallet (CDC_06 §6). Fourni par le backend, jamais déduit. */
+export const WalletStatut = {
+  ACTIF: 'ACTIF',
+  GELE: 'GELE',
+  CLOTURE: 'CLOTURE',
+} as const;
+export type WalletStatut = (typeof WalletStatut)[keyof typeof WalletStatut];
+
 /** Niveaux de triage côté patient (4) — couleur + texte + icône obligatoires. */
 export const TriageNiveauPatient = {
   FAIBLE: 'FAIBLE',

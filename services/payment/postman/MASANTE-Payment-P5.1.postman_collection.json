@@ -1,0 +1,244 @@
+{
+  "info": {
+    "name": "MASANTÉ — Paiement P5.1",
+    "description": "Preuve G2 du microservice paiement (CDC_06, ADR-013). PAIEMENT SIMULÉ. Enchaîner du haut vers le bas : les variables paymentId et idemKey se remplissent automatiquement.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:8080" },
+    { "key": "idemKey", "value": "" },
+    { "key": "paymentId", "value": "" },
+    { "key": "factureId", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "Couverture — CNAM 20 000 @ 70 % (attendu patient 6 000)",
+      "event": [
+        { "listen": "test", "script": { "exec": [
+          "pm.test('200 OK', () => pm.response.to.have.status(200));",
+          "const b = pm.response.json();",
+          "pm.test('CNAM couvre 14 000', () => pm.expect(b.montantCouvert).to.eql(14000));",
+          "pm.test('Reste à charge 6 000', () => pm.expect(b.resteACharge).to.eql(6000));"
+        ], "type": "text/javascript" } }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [ { "key": "Content-Type", "value": "application/json" } ],
+        "url": { "raw": "{{baseUrl}}/api/v1/coverage/quote", "host": ["{{baseUrl}}"], "path": ["api","v1","coverage","quote"] },
+        "body": { "mode": "raw", "raw": "{\n  \"montantTotal\": 20000,\n  \"type\": \"CNAM\",\n  \"tauxCouverture\": 70,\n  \"exclu\": false\n}" }
+      }
+    },
+    {
+      "name": "Couverture — Assurance 250 000 @ 80 % (attendu patient 50 000)",
+      "event": [
+        { "listen": "test", "script": { "exec": [
+          "pm.test('200 OK', () => pm.response.to.have.status(200));",
+          "const b = pm.response.json();",
+          "pm.test('Assurance couvre 200 000', () => pm.expect(b.montantCouvert).to.eql(200000));",
+          "pm.test('Reste à charge 50 000', () => pm.expect(b.resteACharge).to.eql(50000));"
+        ], "type": "text/javascript" } }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [ { "key": "Content-Type", "value": "application/json" } ],
+        "url": { "raw": "{{baseUrl}}/api/v1/coverage/quote", "host": ["{{baseUrl}}"], "path": ["api","v1","coverage","quote"] },
+        "body": { "mode": "raw", "raw": "{\n  \"montantTotal\": 250000,\n  \"type\": \"ASSURANCE\",\n  \"tauxCouverture\": 80,\n  \"exclu\": false\n}" }
+      }
+    },
+    {
+      "name": "Paiement — initier (201, simulé)",
+      "event": [
+        { "listen": "prerequest", "script": { "exec": [
+          "pm.collectionVariables.set('idemKey', 'idem-' + Date.now() + '-' + Math.floor(Math.random()*100000));"
+        ], "type": "text/javascript" } },
+        { "listen": "test", "script": { "exec": [
+          "pm.test('201 Created', () => pm.response.to.have.status(201));",
+          "const b = pm.response.json();",
+          "pm.test('Statut SUCCESS (simulé)', () => pm.expect(b.statut).to.eql('SUCCESS'));",
+          "pm.test('Téléphone masqué', () => pm.expect(b.telephoneMasque).to.match(/^\\*+\\d{2}$/));",
+          "pm.collectionVariables.set('paymentId', b.id);"
+        ], "type": "text/javascript" } }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Idempotency-Key", "value": "{{idemKey}}" }
+        ],
+        "url": { "raw": "{{baseUrl}}/api/v1/payments", "host": ["{{baseUrl}}"], "path": ["api","v1","payments"] },
+        "body": { "mode": "raw", "raw": "{\n  \"montant\": 6000,\n  \"canal\": \"orange_money\",\n  \"objet\": \"RENDEZ_VOUS\",\n  \"telephone\": \"0700000089\",\n  \"patientRef\": \"patient-42\"\n}" }
+      }
+    },
+    {
+      "name": "Idempotence — rejeu même clé (200, aucun doublon)",
+      "event": [
+        { "listen": "test", "script": { "exec": [
+          "pm.test('200 OK (rejeu)', () => pm.response.to.have.status(200));",
+          "const b = pm.response.json();",
+          "pm.test('Même paiement renvoyé', () => pm.expect(b.id).to.eql(pm.collectionVariables.get('paymentId')));"
+        ], "type": "text/javascript" } }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Idempotency-Key", "value": "{{idemKey}}" }
+        ],
+        "url": { "raw": "{{baseUrl}}/api/v1/payments", "host": ["{{baseUrl}}"], "path": ["api","v1","payments"] },
+        "body": { "mode": "raw", "raw": "{\n  \"montant\": 6000,\n  \"canal\": \"orange_money\",\n  \"objet\": \"RENDEZ_VOUS\",\n  \"telephone\": \"0700000089\",\n  \"patientRef\": \"patient-42\"\n}" }
+      }
+    },
+    {
+      "name": "Paiement — Idempotency-Key manquant (400)",
+      "event": [
+        { "listen": "test", "script": { "exec": [
+          "pm.test('400 Bad Request', () => pm.response.to.have.status(400));"
+        ], "type": "text/javascript" } }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [ { "key": "Content-Type", "value": "application/json" } ],
+        "url": { "raw": "{{baseUrl}}/api/v1/payments", "host": ["{{baseUrl}}"], "path": ["api","v1","payments"] },
+        "body": { "mode": "raw", "raw": "{\n  \"montant\": 6000,\n  \"canal\": \"orange_money\",\n  \"objet\": \"RENDEZ_VOUS\"\n}" }
+      }
+    },
+    {
+      "name": "Paiement — consulter",
+      "event": [
+        { "listen": "test", "script": { "exec": [
+          "pm.test('200 OK', () => pm.response.to.have.status(200));"
+        ], "type": "text/javascript" } }
+      ],
+      "request": {
+        "method": "GET",
+        "url": { "raw": "{{baseUrl}}/api/v1/payments/{{paymentId}}", "host": ["{{baseUrl}}"], "path": ["api","v1","payments","{{paymentId}}"] }
+      }
+    },
+    {
+      "name": "Paiement — transitions (INITIATED→…→SUCCESS)",
+      "event": [
+        { "listen": "test", "script": { "exec": [
+          "pm.test('200 OK', () => pm.response.to.have.status(200));",
+          "const b = pm.response.json();",
+          "pm.test('Se termine en SUCCESS', () => pm.expect(b[b.length-1].statutVers).to.eql('SUCCESS'));"
+        ], "type": "text/javascript" } }
+      ],
+      "request": {
+        "method": "GET",
+        "url": { "raw": "{{baseUrl}}/api/v1/payments/{{paymentId}}/transitions", "host": ["{{baseUrl}}"], "path": ["api","v1","payments","{{paymentId}}","transitions"] }
+      }
+    },
+    {
+      "name": "Paiement — piste d'audit",
+      "event": [
+        { "listen": "test", "script": { "exec": [
+          "pm.test('200 OK', () => pm.response.to.have.status(200));",
+          "const b = pm.response.json();",
+          "pm.test('Contient PaymentInitiated', () => pm.expect(b.map(e=>e.evenement)).to.include('PaymentInitiated'));"
+        ], "type": "text/javascript" } }
+      ],
+      "request": {
+        "method": "GET",
+        "url": { "raw": "{{baseUrl}}/api/v1/payments/{{paymentId}}/audit", "host": ["{{baseUrl}}"], "path": ["api","v1","payments","{{paymentId}}","audit"] }
+      }
+    },
+    {
+      "name": "Paiement — rembourser (SUCCESS→REFUNDED)",
+      "event": [
+        { "listen": "test", "script": { "exec": [
+          "pm.test('200 OK', () => pm.response.to.have.status(200));",
+          "pm.test('Statut REFUNDED', () => pm.expect(pm.response.json().statut).to.eql('REFUNDED'));"
+        ], "type": "text/javascript" } }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [ { "key": "Content-Type", "value": "application/json" } ],
+        "url": { "raw": "{{baseUrl}}/api/v1/payments/{{paymentId}}/refund", "host": ["{{baseUrl}}"], "path": ["api","v1","payments","{{paymentId}}","refund"] },
+        "body": { "mode": "raw", "raw": "{\n  \"motif\": \"Test de remboursement\"\n}" }
+      }
+    },
+    {
+      "name": "Audit — vérifier l'intégrité de la chaîne",
+      "event": [
+        { "listen": "test", "script": { "exec": [
+          "pm.test('200 OK', () => pm.response.to.have.status(200));",
+          "pm.test('Chaîne intègre', () => pm.expect(pm.response.json().integre).to.be.true);"
+        ], "type": "text/javascript" } }
+      ],
+      "request": {
+        "method": "GET",
+        "url": { "raw": "{{baseUrl}}/api/v1/audit/verify", "host": ["{{baseUrl}}"], "path": ["api","v1","audit","verify"] }
+      }
+    },
+    {
+      "name": "Facture — émettre (consultation 20 000, CNAM 70 % → reste 6 000)",
+      "event": [
+        { "listen": "test", "script": { "exec": [
+          "pm.test('201 Created', () => pm.response.to.have.status(201));",
+          "const b = pm.response.json();",
+          "pm.test('TTC 20 000', () => pm.expect(b.montantTtc).to.eql(20000));",
+          "pm.test('Reste à payer 6 000', () => pm.expect(b.resteAPayer).to.eql(6000));",
+          "pm.test('Numéro attribué', () => pm.expect(b.numero).to.match(/^FCT-/));",
+          "pm.collectionVariables.set('factureId', b.id);"
+        ], "type": "text/javascript" } }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [ { "key": "Content-Type", "value": "application/json" } ],
+        "url": { "raw": "{{baseUrl}}/api/v1/invoices", "host": ["{{baseUrl}}"], "path": ["api","v1","invoices"] },
+        "body": { "mode": "raw", "raw": "{\n  \"etablissementRef\": \"CHU-COCODY\",\n  \"patientRef\": \"patient-42\",\n  \"lignes\": [\n    { \"libelle\": \"Consultation\", \"quantite\": 1, \"prixUnitaire\": 20000, \"remise\": 0, \"tauxTva\": 0 }\n  ],\n  \"priseEnCharge\": { \"type\": \"CNAM\", \"tauxCouverture\": 70, \"exclu\": false }\n}" }
+      }
+    },
+    {
+      "name": "Facture — consulter",
+      "event": [
+        { "listen": "test", "script": { "exec": [
+          "pm.test('200 OK', () => pm.response.to.have.status(200));",
+          "pm.test('Statut EMISE', () => pm.expect(pm.response.json().statut).to.eql('EMISE'));"
+        ], "type": "text/javascript" } }
+      ],
+      "request": {
+        "method": "GET",
+        "url": { "raw": "{{baseUrl}}/api/v1/invoices/{{factureId}}", "host": ["{{baseUrl}}"], "path": ["api","v1","invoices","{{factureId}}"] }
+      }
+    },
+    {
+      "name": "Facture — régler par paiement (montant = reste 6 000)",
+      "event": [
+        { "listen": "prerequest", "script": { "exec": [
+          "pm.collectionVariables.set('idemKey', 'fact-' + Date.now());"
+        ], "type": "text/javascript" } },
+        { "listen": "test", "script": { "exec": [
+          "pm.test('201 Created', () => pm.response.to.have.status(201));",
+          "const b = pm.response.json();",
+          "pm.test('Paiement SUCCESS', () => pm.expect(b.statut).to.eql('SUCCESS'));",
+          "pm.test('Lié à la facture', () => pm.expect(b.factureId).to.eql(pm.collectionVariables.get('factureId')));"
+        ], "type": "text/javascript" } }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Idempotency-Key", "value": "{{idemKey}}" }
+        ],
+        "url": { "raw": "{{baseUrl}}/api/v1/payments", "host": ["{{baseUrl}}"], "path": ["api","v1","payments"] },
+        "body": { "mode": "raw", "raw": "{\n  \"montant\": 6000,\n  \"canal\": \"wave\",\n  \"objet\": \"FACTURE\",\n  \"telephone\": \"0700000042\",\n  \"patientRef\": \"patient-42\",\n  \"factureId\": \"{{factureId}}\"\n}" }
+      }
+    },
+    {
+      "name": "Facture — vérifier qu'elle est PAYEE",
+      "event": [
+        { "listen": "test", "script": { "exec": [
+          "pm.test('200 OK', () => pm.response.to.have.status(200));",
+          "const b = pm.response.json();",
+          "pm.test('Statut PAYEE', () => pm.expect(b.statut).to.eql('PAYEE'));",
+          "pm.test('Montant réglé 6 000', () => pm.expect(b.montantRegle).to.eql(6000));"
+        ], "type": "text/javascript" } }
+      ],
+      "request": {
+        "method": "GET",
+        "url": { "raw": "{{baseUrl}}/api/v1/invoices/{{factureId}}", "host": ["{{baseUrl}}"], "path": ["api","v1","invoices","{{factureId}}"] }
+      }
+    }
+  ]
+}
