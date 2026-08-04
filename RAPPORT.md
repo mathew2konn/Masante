@@ -1934,3 +1934,65 @@ plafond illimité). **G4** propriétaire **OK (Swagger)** → ✅ **P5.3b-1 VALI
   DTO d'opérations (+pin/otp, `toString` masqué) ; `WalletOperationReponse` (+`signee`).
 - **Reporté** : P5.3b-2 fraude + gel sur suspicion ; P5.3b-3 cashback/bonus ; P5.3b-4 rapprochement
   quotidien automatique.
+
+---
+
+# Module 5 (P5) — Paiement · Incrément P5.3b-2 : Détection de fraude + gel sur suspicion
+
+**Décisions propriétaire (revue G1 écrite, 2026-08-04) :** architecture validée ; **corrections imposées
+avant code** — **3 paliers** (pas un gel binaire ; contexte santé : une urgence médicale = paiements
+rapprochés légitimes), **REQUIRES_NEW** pour gel/alerte/audit, **verrou pessimiste** englobant
+évaluation+débit, anti-fuite du 409, motifs **JSONB** + snapshot des paramètres, auto-dégel **TTL**.
+
+**Frontière.** Scoring + décision + gel = **backend seul**, par **règles déterministes** (pas d'IA qui
+décide seule — CDC_00 §4). Seuils/poids = **données**. La détection **par IA** (géoloc, multi-comptes)
+reste le futur `fraud-detection-service` (CDC_05) — **dette V1 assumée**.
+
+**Contradiction technique résolue (le point délicat).** #1 (REQUIRES_NEW pour que le gel survive au
+`throw`) et #2 (verrou pessimiste tenant la ligne wallet pendant l'évaluation) se **contredisent** : un
+`REQUIRES_NEW` réécrivant la ligne verrouillée = **interblocage**. → **évaluation DANS la tx verrouillée**
+de l'op (concurrence sérialisée, vélocité non contournable) ; sur GEL, **lever l'exception** (l'op
+rollback, le verrou se relâche) puis **gel + alerte + audit dans une tx propre APRÈS** (catch hors tx,
+`executerAvecFraude`). Même patron « écrire-après-throw » que le compteur PIN de 3b-1.
+
+**Livré (migration `V6`) :**
+- `ReglesDetectionFraude` **pur** : score = somme des poids des motifs déclenchés (`VELOCITE_ELEVEE`,
+  `MONTANT_CUMULE_ANORMAL`, `ECHECS_PIN_REPETES`) → palier `NORMAL`/`ALERTE`/`CHALLENGE`/`GEL`.
+- `ServiceDetectionFraude` : signaux **dérivés** (nb d'opérations sortantes/`compteSortantesDepuis`,
+  cumul débité/`debitsDepuis`, échecs PIN/comptage d'audit `WalletPinEchec`) ; `evaluer` (readonly),
+  `enregistrerAlerte` (ALERTE/CHALLENGE, même tx), `traiterSuspicion` (**REQUIRES_NEW** : gèle avec TTL,
+  crée l'alerte, audit `FraudSuspected`+`WalletFrozen`, **idempotent** — pas d'alerte OUVERTE empilée).
+- Câblage `ServiceWallet` : évaluation sous verrou après `verifierDebit` ; ALERTE → passe ; CHALLENGE →
+  `securite.exigerOtp` si pas déjà exigé par le montant, puis passe ; GEL → `FraudSuspecteeException`.
+- **Auto-dégel** : `wallets.gel_jusqu_a` (TTL, défaut 24 h) ; `verrouiller` auto-dégèle si expiré (audit
+  `WalletUnfrozenAuto`). Gel manuel (admin) reste indéfini.
+- **Anti-fuite** : `FraudSuspecteeException` → **409 générique**, `ChallengeRequisException` → **401
+  générique** ; score/motifs uniquement en audit + `fraud_alertes`.
+- **Alertes** : table `fraud_alertes` (score, `palier`, `motifs` JSONB, `parametres` JSONB **snapshot**,
+  `montant_tente`, statut OUVERTE/REVUE) ; endpoints `GET /fraud-alerts`, `/fraud-alerts/wallet/{id}`,
+  `POST /fraud-alerts/{id}/review` (revue ≠ dégel). **Index perf** : `wallet_operations(source,created_at)`,
+  `audit_entries(ref_id,evenement,created_at)`.
+- **Cumul** = opérations **abouties** seulement (une op bloquée/échouée ne crée aucune écriture).
+
+**Gates.** **G2 prouvé live** : ALERTE (op3 passe + alerte) ; GEL (op4 **409 générique** + wallet GELE +
+alertes GEL & ALERTE OUVERTE, op **non débitée**) ; CHALLENGE (401 sans OTP, OTP délivré, 201 avec OTP) ;
+**auto-dégel** TTL expiré → op réactive (`WalletUnfrozenAuto`) ; revue OUVERTE→REVUE (ne dégèle pas) ;
+somme globale des écritures **= 0** ; **audit intègre**. **Deux bugs corrigés au live** : (a) le garde
+d'idempotence de `traiterSuspicion` skippait sur *toute* alerte OUVERTE → l'ALERTE de l'op3 empêchait le
+GEL de l'op4 (corrigé : garde sur **wallet déjà GELE**) ; (b) l'auto-dégel, placé dans la tx de l'op, était
+annulé quand l'op re-déclenchait un GEL (rollback) → **sorti en tx propre committée AVANT** l'op verrouillée
+(`self.autoDegelSiExpire`). **G3** : `ReglesDetectionFraudeTest` (paliers, bornes strictes, motifs).
+**G4** propriétaire **OK (Swagger)** → ✅ **P5.3b-2 VALIDÉ G5 (2026-08-04)**. Aucune dépendance nouvelle.
+
+- **Nouveaux** : `V6__wallet_fraude.sql` ; domaine `fraud/` (`MotifFraude`, `PalierFraude`, `SignauxFraude`,
+  `ParametresFraude`, `ResultatFraude`, `ReglesDetectionFraude`, `FraudSuspecteeException`) ;
+  `ChallengeRequisException`, `StatutAlerteFraude`, `FraudAlerte` (+ dépôt) ; `ServiceDetectionFraude` ;
+  `FraudController` + DTO (`FraudAlerteReponse` JSONB brut, `RevueAlerteRequete`) ; `ReglesDetectionFraudeTest`.
+- **Modifié** : `application.yml` (seuils fraude = données) ; `Wallet` (+`gel_jusqu_a`, `gelerJusqua`,
+  `gelExpire`) ; `WalletOperationRepository` (+`compteSortantesDepuis`) ; `EntreeAuditRepository`
+  (+`compteEvenementDepuis`) ; `ServiceWallet` (éval sous verrou, `executerAvecFraude`, `autoDegelSiExpire`) ;
+  `ServiceSecuriteWallet` (`exigerOtp`, `otpExigeParMontant`, `genererOtp` délivre toujours un code) ;
+  `DemandeOperationWallet` (+otp/otpDejaVerifie, `toString` masqué) ; `GestionErreurs` (409/401 génériques).
+
+- **Reporté** : P5.3b-3 cashback/bonus ; P5.3b-4 rapprochement quotidien ; fraude **IA** → CDC_05
+  (`fraud-detection-service`) ; **multi-comptes** (N wallets → même bénéficiaire/device/IP) = dette CDC_05.

@@ -2,6 +2,7 @@ package ci.masante.payment.service;
 
 import ci.masante.payment.domain.model.WalletLimites;
 import ci.masante.payment.domain.model.WalletPin;
+import ci.masante.payment.domain.wallet.ChallengeRequisException;
 import ci.masante.payment.domain.wallet.OtpInvalideException;
 import ci.masante.payment.domain.wallet.OtpRequisException;
 import ci.masante.payment.domain.wallet.PinInvalideException;
@@ -165,13 +166,14 @@ public class ServiceSecuriteWallet {
      * (paiement SIMULÉ, FT5 — SMS « prêt à activer ») ; en base/Redis seul son haché est conservé.
      */
     public ResultatOtp genererOtp(UUID walletId, long montant) {
-        if (!ReglesSecuriteWallet.otpRequis(montant, otpSeuil)) {
-            return new ResultatOtp(false, null, null);
-        }
+        // Un code est TOUJOURS délivré : le montant peut ne pas l'exiger, mais le palier CHALLENGE de
+        // la détection de fraude en réclame un quel que soit le montant. `requis` reste indicatif.
+        boolean requis = ReglesSecuriteWallet.otpRequis(montant, otpSeuil);
         String code = String.format("%06d", ALEA.nextInt(1_000_000));
         redis.opsForValue().set(PREFIXE_OTP + walletId, encodeur.encode(code), Duration.ofSeconds(otpTtlSeconds));
-        audit.enregistrer("WalletOtpGenere", "wallet", walletId.toString(), Map.of("ttl_s", otpTtlSeconds));
-        return new ResultatOtp(true, code, Instant.now().plusSeconds(otpTtlSeconds));
+        audit.enregistrer("WalletOtpGenere", "wallet", walletId.toString(),
+                Map.of("ttl_s", otpTtlSeconds, "requisParMontant", requis));
+        return new ResultatOtp(requis, code, Instant.now().plusSeconds(otpTtlSeconds));
     }
 
     private void verifierOtpSiRequis(UUID walletId, long montant, String otp) {
@@ -187,6 +189,26 @@ public class ServiceSecuriteWallet {
         }
         if (!encodeur.matches(otp, hash)) {
             throw new OtpInvalideException("OTP incorrect.");
+        }
+        redis.delete(PREFIXE_OTP + walletId); // usage unique
+    }
+
+    /** true si le montant à lui seul impose déjà l'OTP (donc déjà vérifié par {@code autoriserOperation}). */
+    public boolean otpExigeParMontant(long montant) {
+        return ReglesSecuriteWallet.otpRequis(montant, otpSeuil);
+    }
+
+    /**
+     * Exige un OTP valide <b>indépendamment du montant</b> (palier CHALLENGE de la détection de
+     * fraude). Message générique via {@link ChallengeRequisException} : aucun détail de risque ne fuit.
+     */
+    public void exigerOtp(UUID walletId, String otp) {
+        if (otp == null || otp.isBlank()) {
+            throw new ChallengeRequisException();
+        }
+        String hash = redis.opsForValue().get(PREFIXE_OTP + walletId);
+        if (hash == null || !encodeur.matches(otp, hash)) {
+            throw new ChallengeRequisException();
         }
         redis.delete(PREFIXE_OTP + walletId); // usage unique
     }

@@ -2,8 +2,10 @@ package ci.masante.payment.web;
 
 import ci.masante.payment.domain.billing.FacturationInvalideException;
 import ci.masante.payment.domain.coverage.CouvertureInvalideException;
+import ci.masante.payment.domain.fraud.FraudSuspecteeException;
 import ci.masante.payment.domain.gateway.CanalNonSupporteException;
 import ci.masante.payment.domain.statemachine.TransitionInvalideException;
+import ci.masante.payment.domain.wallet.ChallengeRequisException;
 import ci.masante.payment.domain.wallet.LimiteDepasseeException;
 import ci.masante.payment.domain.wallet.OperationWalletInvalideException;
 import ci.masante.payment.domain.wallet.OtpInvalideException;
@@ -12,6 +14,7 @@ import ci.masante.payment.domain.wallet.PinInvalideException;
 import ci.masante.payment.domain.wallet.PinVerrouilleException;
 import ci.masante.payment.domain.wallet.SoldeInsuffisantException;
 import ci.masante.payment.domain.wallet.WalletGeleException;
+import ci.masante.payment.service.AlerteFraudeIntrouvableException;
 import ci.masante.payment.service.AvoirIntrouvableException;
 import ci.masante.payment.service.ConflitIdempotenceException;
 import ci.masante.payment.service.FactureIntrouvableException;
@@ -47,7 +50,8 @@ public class GestionErreurs {
 
     /** Paiement, facture, avoir ou portefeuille introuvable → 404. */
     @ExceptionHandler({PaiementIntrouvableException.class, FactureIntrouvableException.class,
-            AvoirIntrouvableException.class, WalletIntrouvableException.class})
+            AvoirIntrouvableException.class, WalletIntrouvableException.class,
+            AlerteFraudeIntrouvableException.class})
     public ProblemDetail introuvable(RuntimeException ex) {
         return probleme(HttpStatus.NOT_FOUND, ex.getMessage());
     }
@@ -81,6 +85,18 @@ public class GestionErreurs {
     @ExceptionHandler(LimiteDepasseeException.class)
     public ProblemDetail limiteDepassee(LimiteDepasseeException ex) {
         return probleme(HttpStatus.UNPROCESSABLE_ENTITY, ex.getMessage());
+    }
+
+    /** Suspicion de fraude : opération bloquée et wallet gelé (§6.4) → 409. Message générique. */
+    @ExceptionHandler(FraudSuspecteeException.class)
+    public ProblemDetail fraudeSuspectee(FraudSuspecteeException ex) {
+        return probleme(HttpStatus.CONFLICT, ex.getMessage());
+    }
+
+    /** Vérification renforcée (OTP) requise avant de poursuivre (§6.4) → 401. Message générique. */
+    @ExceptionHandler(ChallengeRequisException.class)
+    public ProblemDetail challengeRequis(ChallengeRequisException ex) {
+        return probleme(HttpStatus.UNAUTHORIZED, ex.getMessage());
     }
 
     /** En-tête obligatoire manquant (Idempotency-Key) → 400. */

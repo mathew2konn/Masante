@@ -53,3 +53,24 @@ masante:
         operation: ${WALLET_LIMITE_OPERATION:500000} # plafond par opération
         jour: ${WALLET_LIMITE_JOUR:1000000}          # plafond cumulé / jour
         mois: ${WALLET_LIMITE_MOIS:5000000}          # plafond cumulé / mois
+      # Détection de fraude par règles (P5.3b-2, §6.4). Seuils/poids = DONNÉES. Trois paliers :
+      # alerte (l'op passe) < challenge (re-auth OTP) < gel (bloque + gèle). Défauts prudents
+      # (contexte santé : ne pas bloquer un paiement d'hospitalisation légitime) ; surchargeables.
+      fraude:
+        velocite:
+          fenetre-secondes: ${WALLET_FRAUDE_VELOCITE_FENETRE:60}
+          max-operations: ${WALLET_FRAUDE_VELOCITE_MAX:10}
+        montant:
+          fenetre-secondes: ${WALLET_FRAUDE_CUMUL_FENETRE:3600}
+          max-cumule: ${WALLET_FRAUDE_CUMUL_MAX:5000000}
+        pin:
+          fenetre-secondes: ${WALLET_FRAUDE_PIN_FENETRE:3600}
+          echecs-recents-max: ${WALLET_FRAUDE_PIN_MAX:5}
+        poids:
+          velocite: ${WALLET_FRAUDE_POIDS_VELOCITE:50}
+          cumul: ${WALLET_FRAUDE_POIDS_CUMUL:30}
+          pin: ${WALLET_FRAUDE_POIDS_PIN:30}
+        seuil-alerte: ${WALLET_FRAUDE_SEUIL_ALERTE:30}
+        seuil-challenge: ${WALLET_FRAUDE_SEUIL_CHALLENGE:50}
+        seuil-gel: ${WALLET_FRAUDE_SEUIL_GEL:80}
+        gel-ttl-heures: ${WALLET_FRAUDE_GEL_TTL_H:24}

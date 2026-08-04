@@ -1,5 +1,7 @@
 package ci.masante.payment.service;
 
+import ci.masante.payment.domain.fraud.FraudSuspecteeException;
+import ci.masante.payment.domain.fraud.ResultatFraude;
 import ci.masante.payment.domain.model.Facture;
 import ci.masante.payment.domain.model.OwnerTypeWallet;
 import ci.masante.payment.domain.model.TypeOperationWallet;
@@ -16,6 +18,7 @@ import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -41,13 +44,14 @@ public class ServiceWallet {
     private final ServiceFacturation facturation;
     private final ServiceSecuriteWallet securite;
     private final ServiceSignature signature;
+    private final ServiceDetectionFraude detection;
     private final ServiceWallet self;
 
     public ServiceWallet(WalletRepository wallets, WalletOperationRepository operations,
                          WalletEntryRepository entries, ServiceIdempotence idempotence,
                          ServiceAudit audit, ServiceFacturation facturation,
                          ServiceSecuriteWallet securite, ServiceSignature signature,
-                         @Lazy ServiceWallet self) {
+                         ServiceDetectionFraude detection, @Lazy ServiceWallet self) {
         this.wallets = wallets;
         this.operations = operations;
         this.entries = entries;
@@ -56,6 +60,7 @@ public class ServiceWallet {
         this.facturation = facturation;
         this.securite = securite;
         this.signature = signature;
+        this.detection = detection;
         this.self = self;
     }
 
@@ -98,7 +103,7 @@ public class ServiceWallet {
 
     public WalletOperation crediter(UUID walletId, long montant, String ref, String libelle, String cle) {
         return soumettre(new DemandeOperationWallet(
-                TypeOperationWallet.CREDIT, null, walletId, montant, ref, libelle, null, cle));
+                TypeOperationWallet.CREDIT, null, walletId, montant, ref, libelle, null, cle, null, false));
     }
 
     public WalletOperation debiter(UUID walletId, long montant, String ref, String libelle, String cle,
@@ -107,9 +112,10 @@ public class ServiceWallet {
         if (rejeu.isPresent()) {
             return rejeu.get(); // rejeu idempotent : déjà autorisé, ne pas redemander le PIN
         }
+        self.autoDegelSiExpire(walletId);
         securite.autoriserOperation(walletId, montant, pin, otp);
-        return soumettre(new DemandeOperationWallet(
-                TypeOperationWallet.DEBIT, walletId, null, montant, ref, libelle, null, cle));
+        return executerAvecFraude(new DemandeOperationWallet(TypeOperationWallet.DEBIT, walletId, null,
+                montant, ref, libelle, null, cle, otp, securite.otpExigeParMontant(montant)));
     }
 
     public WalletOperation transferer(UUID sourceId, UUID destId, long montant, String libelle, String cle,
@@ -118,9 +124,10 @@ public class ServiceWallet {
         if (rejeu.isPresent()) {
             return rejeu.get();
         }
+        self.autoDegelSiExpire(sourceId);
         securite.autoriserOperation(sourceId, montant, pin, otp);
-        return soumettre(new DemandeOperationWallet(
-                TypeOperationWallet.TRANSFERT, sourceId, destId, montant, null, libelle, null, cle));
+        return executerAvecFraude(new DemandeOperationWallet(TypeOperationWallet.TRANSFERT, sourceId,
+                destId, montant, null, libelle, null, cle, otp, securite.otpExigeParMontant(montant)));
     }
 
     public WalletOperation payerFacture(UUID walletId, UUID factureId, long montant, String cle,
@@ -129,10 +136,26 @@ public class ServiceWallet {
         if (rejeu.isPresent()) {
             return rejeu.get();
         }
+        self.autoDegelSiExpire(walletId);
         long effectif = montant > 0 ? montant : duFacture(factureId);
         securite.autoriserOperation(walletId, effectif, pin, otp);
-        return soumettre(new DemandeOperationWallet(
-                TypeOperationWallet.PAIEMENT_FACTURE, walletId, null, montant, null, null, factureId, cle));
+        return executerAvecFraude(new DemandeOperationWallet(TypeOperationWallet.PAIEMENT_FACTURE,
+                walletId, null, montant, null, null, factureId, cle, otp,
+                securite.otpExigeParMontant(effectif)));
+    }
+
+    /**
+     * Enveloppe l'exécution : sur palier GEL, la transaction de l'opération a été annulée (aucune
+     * trace) ; on gèle + alerte + audit dans une transaction PROPRE, hors verrou (pas d'interblocage),
+     * puis on relève l'exception (409 générique).
+     */
+    private WalletOperation executerAvecFraude(DemandeOperationWallet d) {
+        try {
+            return soumettre(d);
+        } catch (FraudSuspecteeException e) {
+            detection.traiterSuspicion(e.walletId(), e.resultat(), e.montantTente());
+            throw e;
+        }
     }
 
     /** Dû restant d'une facture, pour dimensionner le contrôle de sécurité (montant 0 = solder tout). */
@@ -184,6 +207,7 @@ public class ServiceWallet {
     private WalletOperation debiterInterne(DemandeOperationWallet d) {
         Wallet source = verrouiller(d.sourceWalletId());
         ReglesWallet.verifierDebit(source.getStatut(), solde(source.getId()), d.montant());
+        appliquerDetectionFraude(source.getId(), d.montant(), d);
         Wallet systeme = compteSysteme(source.getDevise());
         WalletOperation op = enregistrer(d.idempotencyKey(), TypeOperationWallet.DEBIT, d.montant(),
                 source.getId(), systeme.getId(), d.reference(), d.libelle(), null);
@@ -199,6 +223,7 @@ public class ServiceWallet {
         Wallet dest = trouver(d.destWalletId());
         memeDevise(source, dest);
         ReglesWallet.verifierDebit(source.getStatut(), solde(source.getId()), d.montant());
+        appliquerDetectionFraude(source.getId(), d.montant(), d);
         WalletOperation op = enregistrer(d.idempotencyKey(), TypeOperationWallet.TRANSFERT, d.montant(),
                 source.getId(), dest.getId(), null, d.libelle(), null);
         auditer("WalletDebited", source.getId(), d.montant());
@@ -217,6 +242,7 @@ public class ServiceWallet {
         }
         Wallet etab = compteEtablissement(facture.getEtablissementRef(), source.getDevise());
         ReglesWallet.verifierDebit(source.getStatut(), solde(source.getId()), montant);
+        appliquerDetectionFraude(source.getId(), montant, d);
 
         WalletOperation op = enregistrer(d.idempotencyKey(), TypeOperationWallet.PAIEMENT_FACTURE, montant,
                 source.getId(), etab.getId(), facture.getNumero(), "Paiement facture", facture.getId());
@@ -263,7 +289,48 @@ public class ServiceWallet {
     }
 
     private Wallet verrouiller(UUID id) {
-        return wallets.findByIdVerrouille(id).orElseThrow(() -> new WalletIntrouvableException(id.toString()));
+        return wallets.findByIdVerrouille(id)
+                .orElseThrow(() -> new WalletIntrouvableException(id.toString()));
+    }
+
+    /**
+     * Gel de fraude à TTL expiré → auto-dégel (§6.4 : gel « temporaire », pas de blocage éternel).
+     * Exécuté dans une transaction PROPRE, committée AVANT l'opération verrouillée : ainsi le dégel
+     * survit même si l'opération qui suit rollback (ex. re-déclenchement d'un GEL). Hors verrou → pas
+     * d'interblocage. Idempotent (sans effet si le wallet n'est pas un gel expiré).
+     */
+    @Transactional
+    public void autoDegelSiExpire(UUID walletId) {
+        wallets.findById(walletId).ifPresent(w -> {
+            if (w.gelExpire(Instant.now())) {
+                w.setStatut(WalletStatut.ACTIF); // efface aussi gel_jusqu_a
+                wallets.save(w);
+                audit.enregistrer("WalletUnfrozenAuto", "wallet", w.getId().toString(),
+                        Map.of("cause", "TTL_EXPIRE"));
+            }
+        });
+    }
+
+    /**
+     * Détection de fraude (§6.4), évaluée SOUS le verrou du wallet (concurrence sérialisée) :
+     * <ul><li>ALERTE : on enregistre l'alerte, l'opération passe ;</li>
+     * <li>CHALLENGE : re-auth OTP (si pas déjà exigée par le montant), puis l'opération passe ;</li>
+     * <li>GEL : on lève {@link FraudSuspecteeException} → l'opération est annulée et le gel + l'alerte
+     * sont posés hors transaction par {@code executerAvecFraude}.</li></ul>
+     */
+    private void appliquerDetectionFraude(UUID walletId, long montant, DemandeOperationWallet d) {
+        ResultatFraude rf = detection.evaluer(walletId, montant);
+        switch (rf.palier()) {
+            case NORMAL -> { /* rien */ }
+            case ALERTE -> detection.enregistrerAlerte(walletId, rf, montant);
+            case CHALLENGE -> {
+                if (!d.otpDejaVerifie()) {
+                    securite.exigerOtp(walletId, d.otp());
+                }
+                detection.enregistrerAlerte(walletId, rf, montant);
+            }
+            case GEL -> throw new FraudSuspecteeException(walletId, montant, rf);
+        }
     }
 
     private void memeDevise(Wallet a, Wallet b) {

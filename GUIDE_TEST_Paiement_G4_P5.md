@@ -293,6 +293,48 @@ Sur un wallet avec PIN et solde ≥ 150 000 :
 
 ---
 
+# Partie F — Détection de fraude + gel sur suspicion (P5.3b-2, §6.4)
+
+Détection par **règles** (la détection par IA reste au futur service CDC_05). **3 paliers** progressifs
+(pas un gel binaire) : **ALERTE** (l'op passe) < **CHALLENGE** (re-auth OTP) < **GEL** (bloque + gèle).
+Les seuils sont des **données** : l'instance de test tourne avec des seuils abaissés (via variables
+d'environnement) pour rendre les paliers visibles — **vélocité ≥ 3 op / 2 min**, **cumul > 50 000 / h**.
+
+## 42. Palier GEL (vélocité + cumul) → blocage + gel
+Wallet patient avec PIN `1234`, crédité 300 000. Faire **4** débits rapides de **20 000**
+(`Idempotency-Key` différent à chaque fois), tous avec `{ "montant": 20000, "pin": "1234" }` :
+- débits **1-2** → **201** (normal) ; débit **3** → **201** (palier ALERTE : l'op passe, une alerte est créée) ;
+- débit **4** → **409** « Opération refusée pour raison de sécurité » (**message générique**, ni score ni motif).
+
+Vérifier : `GET /wallets/{id}` → **`"statut": "GELE"`** ; le solde n'a **pas** bougé pour le débit 4
+(240 000) ; `GET /api/v1/fraud-alerts/wallet/{id}` montre une alerte **GEL** et une **ALERTE**, statut
+`OUVERTE`, avec `motifs` et le `parametres` (snapshot rejouable).
+
+## 43. Palier CHALLENGE (vélocité seule) → re-auth OTP
+Nouveau wallet, PIN `1234`, crédité 100 000. Faire **3** débits de **5 000** (→ 201), puis un **4ᵉ** de
+5 000 :
+1. sans OTP → **401** « Vérification renforcée requise » (générique) ;
+2. `POST /wallets/{id}/otp` `{ "montant": 5000 }` → délivre un **`code`** (le challenge exige un OTP même
+   sous le seuil de montant) ;
+3. `/debit` `{ "montant": 5000, "pin": "1234", "otp": "<code>" }` → **201** (l'opération passe).
+
+## 44. Auto-dégel (gel temporaire à TTL)
+Le gel de fraude porte un TTL (défaut 24 h). À l'expiration, la **première opération** ré-active
+automatiquement le portefeuille (`WalletUnfrozenAuto` dans l'audit) : le gel n'est jamais éternel, même
+sans intervention humaine. *(En test, le TTL peut être forcé côté base pour observer l'auto-dégel sans
+attendre.)*
+
+## 45. Revue d'alerte (≠ dégel)
+`GET /api/v1/fraud-alerts` (alertes OUVERTES) → copier un `id`. `POST /fraud-alerts/{id}/review`
+`{ "revuePar": "agent-1" }` → l'alerte passe **REVUE**. La revue **ne dégèle pas** : le dégel manuel
+reste `POST /wallets/{id}/unfreeze`.
+
+## 46. Intégrité après fraude
+`GET /api/v1/audit/verify` → `"integre": true` ; la somme de **toutes** les écritures reste **0**
+(un GEL bloque l'opération : aucune écriture n'est créée).
+
+---
+
 ## (Option) Tout tester d'un coup avec Postman
 Importer `services/payment/postman/MASANTE-Payment-P5.1.postman_collection.json` dans Postman, puis
 **Run collection** → toutes les requêtes (paiement **et** facturation) s'exécutent avec leurs
@@ -318,5 +360,14 @@ vérifications automatiques (tout doit être vert).
 - [ ] 40 OTP requis > seuil : sans OTP **401**, avec OTP valide **201** ; sous le seuil `requis:false` OK
 - [ ] 41 Audit **intègre**, opérations **signées**, somme des écritures **= 0** OK
 
-Si tout est coché → répondez-moi **« P5.3b-1 OK »** : j'inscris le **G5** de P5.3b-1 et j'enchaîne
-P5.3b-2 (détection de fraude + gel sur suspicion). Si un point coince, dites-moi le numéro et ce que vous voyez.
+**P5.3b-1 Sécurité du Wallet (déjà validé G5)** — 28b, 31, 37-41.
+
+**P5.3b-2 Détection de fraude + gel sur suspicion** :
+- [ ] 42 Palier **GEL** : débit 4 → **409 générique** + wallet **GELE** + alertes GEL & ALERTE, op non débitée OK
+- [ ] 43 Palier **CHALLENGE** : sans OTP **401**, OTP délivré, avec OTP **201** OK
+- [ ] 44 **Auto-dégel** à TTL expiré → op ré-active le wallet (`WalletUnfrozenAuto`) OK
+- [ ] 45 Revue d'alerte → **REVUE** (ne dégèle pas) OK
+- [ ] 46 Audit **intègre**, somme des écritures **= 0** OK
+
+Si tout est coché → répondez-moi **« P5.3b-2 OK »** : j'inscris le **G5** de P5.3b-2 et j'enchaîne
+P5.3b-3 (cashback/bonus). Si un point coince, dites-moi le numéro et ce que vous voyez.

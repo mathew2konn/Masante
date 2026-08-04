@@ -41,6 +41,10 @@ public class Wallet {
     @Column(name = "statut", nullable = false)
     private WalletStatut statut;
 
+    /** Expiration d'un gel temporaire (TTL) posé par la détection de fraude ; null = pas de TTL. */
+    @Column(name = "gel_jusqu_a")
+    private Instant gelJusquA;
+
     @Version
     @Column(name = "version", nullable = false)
     private long version;
@@ -85,6 +89,24 @@ public class Wallet {
 
     public void setStatut(WalletStatut statut) {
         this.statut = statut;
+        if (statut == WalletStatut.ACTIF) {
+            this.gelJusquA = null; // un dégel (manuel/auto) lève aussi le TTL
+        }
+    }
+
+    public Instant getGelJusquA() {
+        return gelJusquA;
+    }
+
+    /** Gel temporaire (fraude, §6.4) : GELE jusqu'à {@code jusqua} (auto-dégel au-delà). */
+    public void gelerJusqua(Instant jusqua) {
+        this.statut = WalletStatut.GELE;
+        this.gelJusquA = jusqua;
+    }
+
+    /** true si le wallet est GELE avec un TTL déjà expiré (candidat à l'auto-dégel). */
+    public boolean gelExpire(Instant maintenant) {
+        return statut == WalletStatut.GELE && gelJusquA != null && maintenant.isAfter(gelJusquA);
     }
 
     public Instant getCreatedAt() {
