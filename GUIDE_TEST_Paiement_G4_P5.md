@@ -335,6 +335,52 @@ reste `POST /wallets/{id}/unfreeze`.
 
 ---
 
+# Partie G — Cashback (campagnes) + Bonus (P5.3b-3, §6.1/§6.2)
+
+Cashback par **campagnes** (taux en points de base, plafonds, budget = **données**). Le **crédit** du
+cashback est **gaté OFF** par défaut (prêt à activer §11) → en dry-run, le montant est **calculé mais non
+crédité**. Le **bonus** est actif. L'**acteur** des actes de création monétaire vient de l'en-tête
+**`X-Acteur-Id`** (posé par la passerelle) — jamais du corps ; **absent → 401**.
+
+> ⚠️ Le `montant` d'un cashback en **dry-run** n'est **pas** un gain acquis : ne pas l'afficher comme tel.
+> Pour observer le crédit réel, l'instance de test est lancée avec `WALLET_CASHBACK_CREDIT_ENABLED=true`.
+
+## 47. Campagne + acteur obligatoire
+`POST /api/v1/cashback-campaigns` **sans** en-tête `X-Acteur-Id` → **400** (en-tête obligatoire).
+Avec `X-Acteur-Id: admin-1` et un corps (code, `typeOperationSource: "DEBIT"`, `tauxBps: 500`,
+plafonds 0, dates larges) → **201**. Recréer une **2ᵉ campagne active** sur le même type → **409**
+(une seule active par type).
+
+## 48. Cashback dry-run (crédit OFF) — si l'instance est en mode gaté
+Créer un wallet, PIN, créditer, faire un **débit 10 000** (= op source) → copier son `id`.
+`POST /api/v1/wallets/{id}/cashback` `{ "operationSourceId": "…" }` →
+`{ "accorde": false, "montant": 500, "raison": "crédit désactivé (prêt à activer §11)" }`. `GET .../rewards`
+→ `totalCashbackNet: 0` (rien crédité).
+
+## 49. Cashback crédité (crédit ON) + rejeu
+Même flux → `{ "accorde": true, "montant": 500 }` ; `GET .../rewards` → `totalCashbackNet: 500`.
+Rejouer sur la **même** op source → `"raison": "déjà accordé"`, rewards **inchangé** (pas de double).
+
+## 50. Plafonds & budget
+Campagne avec `plafondParOperation: 300` et `budgetTotal: 1000` : un débit de 10 000 (5 % = 500) donne
+un cashback **plafonné à 300**. Après trois octrois (900), le 4ᵉ → `{ "accorde": false, "raison":
+"budget de campagne épuisé" }`. (Plafonds **par wallet** et **par wallet/jour** de même ; le jour est
+keyé sur la **date de l'op source**.)
+
+## 51. Clawback (réversibilité)
+`POST /api/v1/wallets/{id}/cashback/reverse` (en-tête `X-Acteur-Id`) `{ operationSourceId,
+remboursementId, montantRembourse, montantSource, soldeOperationSource }`. Remboursement **partiel**
+→ clawback **proportionnel** ; le remboursement qui **solde** l'op source reprend le **reliquat exact**
+(Σ clawbacks = cashback d'origine). `rewards` → cashback net revient à 0. Un remboursement à `montant=0`
+ou un 2ᵉ appel du **même** `remboursementId` ne reprend rien (idempotent).
+
+## 52. Bonus (actif, création monétaire tracée)
+`POST /api/v1/wallets/{id}/bonus` (en-tête `X-Acteur-Id`, `Idempotency-Key`) `{ "montant": 2000,
+"motif": "…" }` → **201** ; `rewards` → `totalBonus: 2000`. Sans en-tête → **401**. L'audit enregistre
+l'**acteur**.
+
+---
+
 ## (Option) Tout tester d'un coup avec Postman
 Importer `services/payment/postman/MASANTE-Payment-P5.1.postman_collection.json` dans Postman, puis
 **Run collection** → toutes les requêtes (paiement **et** facturation) s'exécutent avec leurs
@@ -351,23 +397,17 @@ vérifications automatiques (tout doit être vert).
 
 **P5.3a Wallet + double écriture (déjà validé G5)** — 28-36 (avec le PIN du test 28b).
 
-**P5.3b-1 Sécurité du Wallet** :
-- [ ] 28b PIN défini (**204**) OK
-- [ ] 31 Débit bon PIN → **201**, `"signee": true` OK
-- [ ] 37 Débit **sans PIN → 401** OK
-- [ ] 38 **3 mauvais PIN → verrou (423)**, puis bon PIN → 423 OK
-- [ ] 39 Plafond opération → débit au-dessus **422** OK
-- [ ] 40 OTP requis > seuil : sans OTP **401**, avec OTP valide **201** ; sous le seuil `requis:false` OK
-- [ ] 41 Audit **intègre**, opérations **signées**, somme des écritures **= 0** OK
-
 **P5.3b-1 Sécurité du Wallet (déjà validé G5)** — 28b, 31, 37-41.
 
-**P5.3b-2 Détection de fraude + gel sur suspicion** :
-- [ ] 42 Palier **GEL** : débit 4 → **409 générique** + wallet **GELE** + alertes GEL & ALERTE, op non débitée OK
-- [ ] 43 Palier **CHALLENGE** : sans OTP **401**, OTP délivré, avec OTP **201** OK
-- [ ] 44 **Auto-dégel** à TTL expiré → op ré-active le wallet (`WalletUnfrozenAuto`) OK
-- [ ] 45 Revue d'alerte → **REVUE** (ne dégèle pas) OK
-- [ ] 46 Audit **intègre**, somme des écritures **= 0** OK
+**P5.3b-2 Détection de fraude + gel sur suspicion (déjà validé G5)** — 42-46.
 
-Si tout est coché → répondez-moi **« P5.3b-2 OK »** : j'inscris le **G5** de P5.3b-2 et j'enchaîne
-P5.3b-3 (cashback/bonus). Si un point coince, dites-moi le numéro et ce que vous voyez.
+**P5.3b-3 Cashback (campagnes) + Bonus** :
+- [ ] 47 Campagne : sans acteur **400**, avec acteur **201**, 2ᵉ active même type **409** OK
+- [ ] 48 Cashback **dry-run** (crédit OFF) : `accorde:false`, montant calculé, rien crédité OK
+- [ ] 49 Cashback **crédité** (crédit ON) = taux×base ; rejeu = « déjà accordé », pas de double OK
+- [ ] 50 **Plafond** opération (cap) + **budget** épuisé → refus OK
+- [ ] 51 **Clawback** proportionnel + reliquat exact ; idempotent par `remboursementId` OK
+- [ ] 52 **Bonus** avec acteur **201** / sans acteur **401** ; audit trace l'acteur OK
+
+Si tout est coché → répondez-moi **« P5.3b-3 OK »** : j'inscris le **G5** de P5.3b-3 et j'enchaîne
+P5.3b-4 (rapprochement quotidien). Si un point coince, dites-moi le numéro et ce que vous voyez.

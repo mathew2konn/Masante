@@ -74,3 +74,7 @@ masante:
         seuil-challenge: ${WALLET_FRAUDE_SEUIL_CHALLENGE:50}
         seuil-gel: ${WALLET_FRAUDE_SEUIL_GEL:80}
         gel-ttl-heures: ${WALLET_FRAUDE_GEL_TTL_H:24}
+      # Cashback (P5.3b-3). Le CRÉDIT est GATÉ OFF par défaut (prêt à activer §11 : le chemin de
+      # remboursement wallet doit appeler le clawback en même tx avant d'activer). OFF = dry-run.
+      cashback:
+        credit-enabled: ${WALLET_CASHBACK_CREDIT_ENABLED:false}

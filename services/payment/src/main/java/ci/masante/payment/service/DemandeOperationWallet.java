@@ -19,13 +19,23 @@ public record DemandeOperationWallet(
         UUID factureId,
         String idempotencyKey,
         String otp,
-        boolean otpDejaVerifie
+        boolean otpDejaVerifie,
+        String campagneCode,
+        UUID operationSourceId
 ) {
+    /** Construit une demande d'opération « simple » (sans OTP ni rattachement cashback). */
+    public static DemandeOperationWallet simple(TypeOperationWallet type, UUID sourceWalletId,
+            UUID destWalletId, long montant, String reference, String libelle, UUID factureId, String cle) {
+        return new DemandeOperationWallet(type, sourceWalletId, destWalletId, montant, reference,
+                libelle, factureId, cle, null, false, null, null);
+    }
+
     @Override
     public String toString() {
         return "DemandeOperationWallet[type=" + type + ", sourceWalletId=" + sourceWalletId
                 + ", destWalletId=" + destWalletId + ", montant=" + montant + ", reference=" + reference
                 + ", libelle=" + libelle + ", factureId=" + factureId + ", idempotencyKey="
-                + idempotencyKey + ", otp=***, otpDejaVerifie=" + otpDejaVerifie + "]";
+                + idempotencyKey + ", otp=***, otpDejaVerifie=" + otpDejaVerifie
+                + ", campagneCode=" + campagneCode + ", operationSourceId=" + operationSourceId + "]";
     }
 }

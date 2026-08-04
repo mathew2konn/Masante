@@ -5,5 +5,9 @@ public enum TypeOperationWallet {
     CREDIT,
     DEBIT,
     TRANSFERT,
-    PAIEMENT_FACTURE
+    PAIEMENT_FACTURE,
+    CASHBACK,
+    BONUS,
+    /** Reprise (clawback) d'un cashback quand l'opération source est remboursée (§6.2, réversibilité). */
+    CASHBACK_ANNULATION
 }

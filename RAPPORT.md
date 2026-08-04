@@ -1996,3 +1996,56 @@ annulé quand l'op re-déclenchait un GEL (rollback) → **sorti en tx propre co
 
 - **Reporté** : P5.3b-3 cashback/bonus ; P5.3b-4 rapprochement quotidien ; fraude **IA** → CDC_05
   (`fraud-detection-service`) ; **multi-comptes** (N wallets → même bénéficiaire/device/IP) = dette CDC_05.
+
+---
+
+# Module 5 (P5) — Paiement · Incrément P5.3b-3 : Cashback (campagnes) + Bonus
+
+**Décisions propriétaire (2 revues G1 écrites, 2026-08-04).** Cashback par **campagnes** (taux+période+
+plafonds+budget) ; **pas d'ajustement** (cashback+bonus seulement). Revue 2 = 6 failles corrigées
+**avant code** (voir [[cashback-reward-principes]] en mémoire) : rattachement campagne, **réversibilité**
+(fuite payer→cashback→annuler), **anti-siphon** (plafonds par wallet + par jour), **acteur** de la
+création monétaire, **résolution serveur** de la campagne, invariant solde. Revue 3 = 3 correctifs :
+clé idempotence clawback **par remboursement**, en-tête acteur **non usurpable**, **arrondi** du clawback.
+
+**Scope (Option A) :** bonus + moteur cashback complets livrés ; le **CRÉDIT** du cashback est **gaté OFF**
+(`cashback.credit-enabled=false`) tant que le chemin de remboursement wallet (§11) qui déclenche le
+clawback en même tx n'existe pas. OFF = **dry-run** (montant calculé, non crédité). Rien d'exploitable actif.
+
+**Frontière.** Calcul (taux×base, plafonds) + résolution de campagne + décision = **backend seul**.
+Taux (**bps entiers**, zéro flottant), période, plafonds, budget = **données** (campagnes). Le front
+n'envoie que `operationSourceId` — il ne choisit ni la campagne ni la base.
+
+**Livré (migration `V7`) :**
+- `cashback_campagnes` (`type_operation_source`, `taux_bps`, `plafond_par_operation/_par_wallet/
+  _par_wallet_par_jour` [0=illimité], `budget_total` [null=illimité], dates, `actif`, `cree_par`).
+  **Index unique partiel** `UNIQUE(type_operation_source) WHERE actif` → **au plus une campagne active
+  par type** (ambiguïté impossible ; conséquence : bascule = désactiver→créer).
+- `wallet_operations` += `campagne_code` + `operation_source_id` (indexés). Types `CASHBACK`, `BONUS`,
+  `CASHBACK_ANNULATION` ; contreparties `SYSTEME-CASHBACK`/`SYSTEME-BONUS` (double écriture).
+- `ReglesCashback` pur : `calculer` (base×bps/10000 plancher, plafond, **rejette base<0**) ;
+  `calculerClawback` (proportionnel, **Σ ≤ cashback d'origine**, le remboursement soldant reprend le
+  **reliquat exact**).
+- `ServiceRecompense` : campagnes (CRUD, acteur tracé) ; **bonus** actif (acteur obligatoire, audité) ;
+  **cashback** gaté (résolution serveur par type d'op source, verrou pessimiste si budget/plafonds,
+  contrôles budget/wallet/**jour keyé sur la date UTC de l'op source**, idempotence dérivée
+  `cashback:{sourceId}`, dry-run si OFF) ; **clawback** (idempotence `cashback-annul:{remboursementId}`).
+- Endpoints : `POST/GET /cashback-campaigns`, `/deactivate` ; `POST /wallets/{id}/cashback`,
+  `/cashback/reverse` (acteur en-tête), `/bonus` (acteur en-tête + Idempotency-Key) ; `GET /rewards`
+  (sous-soldes dérivés : cashback net, bonus).
+- **Acteur** via en-tête `X-Acteur-Id` **posé par la passerelle** (jamais le corps ; absent → rejet 401) ;
+  liage JWT « prêt à activer ».
+- **Correctif invariant (#4)** : `debitsDepuis` & `compteSortantesDepuis` restreints aux types sortants
+  **utilisateur** → un clawback (négatif) ne pollue ni les limites ni la fraude. Wallet en dette : ne
+  peut pas dépenser (verifierDebit), un crédit ultérieur éponge d'abord (naturel via SUM).
+
+**Gates.** **G3** : `ReglesCashbackTest` (calcul, plancher, plafond, base<0, clawback proportionnel/
+reliquat/plafonné) + `CashbackFlagDefautTest` (défaut OFF). **G2 à prouver live** : campagnes+résolution+
+dry-run OFF ; flag ON via env → crédit=taux×base, plafonds op/wallet/jour, budget épuisé→refus, clawback
+proportionnel, **concurrence** (2 octrois parallèles fin de budget → total ≤ budget), non-pollution
+fraude/limites, sous-soldes, somme=0, audit avec acteur. **Aucune dépendance nouvelle.**
+
+**Dette** (`services/payment/DETTE_TECHNIQUE.md`) : activation crédit cashback = §11 (remboursement wallet
++ auto-clawback en même tx) ; #6 verrou inconditionnel ; #9 pas de CHECK sur `type`.
+
+- **Reporté** : P5.3b-4 rapprochement quotidien automatique.

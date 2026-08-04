@@ -102,8 +102,31 @@ public class ServiceWallet {
     // --- opérations financières (idempotentes) ------------------------------------------------
 
     public WalletOperation crediter(UUID walletId, long montant, String ref, String libelle, String cle) {
-        return soumettre(new DemandeOperationWallet(
-                TypeOperationWallet.CREDIT, null, walletId, montant, ref, libelle, null, cle, null, false));
+        return soumettre(DemandeOperationWallet.simple(
+                TypeOperationWallet.CREDIT, null, walletId, montant, ref, libelle, null, cle));
+    }
+
+    /** Crédit de BONUS (acte admin). Contrepartie dédiée SYSTEME-BONUS. Idempotent + audité. */
+    public WalletOperation crediterBonus(UUID walletId, long montant, String motif, String cle) {
+        return soumettre(DemandeOperationWallet.simple(
+                TypeOperationWallet.BONUS, null, walletId, montant, null, motif, null, cle));
+    }
+
+    /** Crédit de CASHBACK rattaché à sa campagne et à son op source. Contrepartie SYSTEME-CASHBACK. */
+    public WalletOperation crediterCashback(UUID walletId, long montant, String campagneCode,
+                                            UUID operationSourceId, String cle) {
+        return soumettre(new DemandeOperationWallet(TypeOperationWallet.CASHBACK, null, walletId, montant,
+                campagneCode, "Cashback " + campagneCode, null, cle, null, false, campagneCode,
+                operationSourceId));
+    }
+
+    /** Reprise (clawback) d'un cashback : débit du wallet vers SYSTEME-CASHBACK. Peut rendre le solde
+     *  négatif (dette assumée — pas de contrôle d'overdraft sur une reprise système). */
+    public WalletOperation reprendreCashback(UUID walletId, long montant, String campagneCode,
+                                             UUID operationSourceId, String cle) {
+        return soumettre(new DemandeOperationWallet(TypeOperationWallet.CASHBACK_ANNULATION, walletId, null,
+                montant, campagneCode, "Reprise cashback " + campagneCode, null, cle, null, false,
+                campagneCode, operationSourceId));
     }
 
     public WalletOperation debiter(UUID walletId, long montant, String ref, String libelle, String cle,
@@ -115,7 +138,7 @@ public class ServiceWallet {
         self.autoDegelSiExpire(walletId);
         securite.autoriserOperation(walletId, montant, pin, otp);
         return executerAvecFraude(new DemandeOperationWallet(TypeOperationWallet.DEBIT, walletId, null,
-                montant, ref, libelle, null, cle, otp, securite.otpExigeParMontant(montant)));
+                montant, ref, libelle, null, cle, otp, securite.otpExigeParMontant(montant), null, null));
     }
 
     public WalletOperation transferer(UUID sourceId, UUID destId, long montant, String libelle, String cle,
@@ -127,7 +150,8 @@ public class ServiceWallet {
         self.autoDegelSiExpire(sourceId);
         securite.autoriserOperation(sourceId, montant, pin, otp);
         return executerAvecFraude(new DemandeOperationWallet(TypeOperationWallet.TRANSFERT, sourceId,
-                destId, montant, null, libelle, null, cle, otp, securite.otpExigeParMontant(montant)));
+                destId, montant, null, libelle, null, cle, otp, securite.otpExigeParMontant(montant),
+                null, null));
     }
 
     public WalletOperation payerFacture(UUID walletId, UUID factureId, long montant, String cle,
@@ -141,7 +165,7 @@ public class ServiceWallet {
         securite.autoriserOperation(walletId, effectif, pin, otp);
         return executerAvecFraude(new DemandeOperationWallet(TypeOperationWallet.PAIEMENT_FACTURE,
                 walletId, null, montant, null, null, factureId, cle, otp,
-                securite.otpExigeParMontant(effectif)));
+                securite.otpExigeParMontant(effectif), null, null));
     }
 
     /**
@@ -191,6 +215,9 @@ public class ServiceWallet {
             case DEBIT -> debiterInterne(d);
             case TRANSFERT -> transfererInterne(d);
             case PAIEMENT_FACTURE -> payerFactureInterne(d);
+            case BONUS -> crediterRecompenseInterne(d, "SYSTEME-BONUS", "WalletBonus");
+            case CASHBACK -> crediterRecompenseInterne(d, "SYSTEME-CASHBACK", "WalletCashback");
+            case CASHBACK_ANNULATION -> reprendreCashbackInterne(d);
         };
     }
 
@@ -199,8 +226,33 @@ public class ServiceWallet {
         ReglesWallet.verifierMontant(d.montant());
         Wallet systeme = compteSysteme(dest.getDevise());
         WalletOperation op = enregistrer(d.idempotencyKey(), TypeOperationWallet.CREDIT, d.montant(),
-                systeme.getId(), dest.getId(), d.reference(), d.libelle(), null);
+                systeme.getId(), dest.getId(), d.reference(), d.libelle(), null, null, null);
         auditer("WalletCredited", dest.getId(), d.montant());
+        return op;
+    }
+
+    /** Crédit de récompense (BONUS/CASHBACK) depuis un compte système dédié (double écriture). */
+    private WalletOperation crediterRecompenseInterne(DemandeOperationWallet d, String refSysteme,
+                                                      String evenement) {
+        Wallet dest = trouver(d.destWalletId());
+        ReglesWallet.verifierMontant(d.montant());
+        Wallet systeme = compteSystemeNomme(refSysteme, dest.getDevise());
+        WalletOperation op = enregistrer(d.idempotencyKey(), d.type(), d.montant(),
+                systeme.getId(), dest.getId(), d.reference(), d.libelle(), null,
+                d.campagneCode(), d.operationSourceId());
+        auditer(evenement, dest.getId(), d.montant());
+        return op;
+    }
+
+    /** Reprise (clawback) : débit du wallet vers SYSTEME-CASHBACK, SANS contrôle d'overdraft
+     *  (solde peut devenir négatif = dette). Aucun PIN/limite/fraude (acte système). */
+    private WalletOperation reprendreCashbackInterne(DemandeOperationWallet d) {
+        Wallet source = verrouiller(d.sourceWalletId());
+        Wallet systeme = compteSystemeNomme("SYSTEME-CASHBACK", source.getDevise());
+        WalletOperation op = enregistrer(d.idempotencyKey(), TypeOperationWallet.CASHBACK_ANNULATION,
+                d.montant(), source.getId(), systeme.getId(), d.reference(), d.libelle(), null,
+                d.campagneCode(), d.operationSourceId());
+        auditer("WalletCashbackReversed", source.getId(), d.montant());
         return op;
     }
 
@@ -210,7 +262,7 @@ public class ServiceWallet {
         appliquerDetectionFraude(source.getId(), d.montant(), d);
         Wallet systeme = compteSysteme(source.getDevise());
         WalletOperation op = enregistrer(d.idempotencyKey(), TypeOperationWallet.DEBIT, d.montant(),
-                source.getId(), systeme.getId(), d.reference(), d.libelle(), null);
+                source.getId(), systeme.getId(), d.reference(), d.libelle(), null, null, null);
         auditer("WalletDebited", source.getId(), d.montant());
         return op;
     }
@@ -225,7 +277,7 @@ public class ServiceWallet {
         ReglesWallet.verifierDebit(source.getStatut(), solde(source.getId()), d.montant());
         appliquerDetectionFraude(source.getId(), d.montant(), d);
         WalletOperation op = enregistrer(d.idempotencyKey(), TypeOperationWallet.TRANSFERT, d.montant(),
-                source.getId(), dest.getId(), null, d.libelle(), null);
+                source.getId(), dest.getId(), null, d.libelle(), null, null, null);
         auditer("WalletDebited", source.getId(), d.montant());
         auditer("WalletCredited", dest.getId(), d.montant());
         return op;
@@ -245,7 +297,8 @@ public class ServiceWallet {
         appliquerDetectionFraude(source.getId(), montant, d);
 
         WalletOperation op = enregistrer(d.idempotencyKey(), TypeOperationWallet.PAIEMENT_FACTURE, montant,
-                source.getId(), etab.getId(), facture.getNumero(), "Paiement facture", facture.getId());
+                source.getId(), etab.getId(), facture.getNumero(), "Paiement facture", facture.getId(),
+                null, null);
         facturation.enregistrerReglement(facture.getId(), montant); // met à jour EMISE→…→PAYEE
         auditer("WalletDebited", source.getId(), montant);
         return op;
@@ -253,9 +306,12 @@ public class ServiceWallet {
 
     /** Crée l'opération + ses DEUX écritures (source −montant, dest +montant → somme 0), puis la signe. */
     private WalletOperation enregistrer(String cle, TypeOperationWallet type, long montant,
-                                        UUID sourceId, UUID destId, String ref, String libelle, UUID factureId) {
-        WalletOperation op = operations.save(new WalletOperation(
-                cle, type, montant, sourceId, destId, ref, libelle, factureId));
+                                        UUID sourceId, UUID destId, String ref, String libelle,
+                                        UUID factureId, String campagneCode, UUID operationSourceId) {
+        WalletOperation nouvelle = new WalletOperation(cle, type, montant, sourceId, destId, ref, libelle,
+                factureId);
+        nouvelle.rattacher(campagneCode, operationSourceId); // posé avant l'insert (colonnes non updatable)
+        WalletOperation op = operations.save(nouvelle);
         entries.save(new WalletEntry(op.getId(), sourceId, -montant));
         entries.save(new WalletEntry(op.getId(), destId, montant));
         signer(op);
@@ -341,8 +397,26 @@ public class ServiceWallet {
 
     /** Compte technique de contrepartie (assure la double écriture des crédits/débits externes). */
     private Wallet compteSysteme(String devise) {
-        return wallets.findByOwnerRefAndOwnerTypeAndDevise(CONTREPARTIE, OwnerTypeWallet.SYSTEME, devise)
-                .orElseGet(() -> wallets.save(new Wallet(CONTREPARTIE, OwnerTypeWallet.SYSTEME, devise)));
+        return compteSystemeNomme(CONTREPARTIE, devise);
+    }
+
+    /** Compte système nommé (SYSTEME-CONTREPARTIE, SYSTEME-CASHBACK, SYSTEME-BONUS…), créé au besoin. */
+    private Wallet compteSystemeNomme(String ref, String devise) {
+        return wallets.findByOwnerRefAndOwnerTypeAndDevise(ref, OwnerTypeWallet.SYSTEME, devise)
+                .orElseGet(() -> wallets.save(new Wallet(ref, OwnerTypeWallet.SYSTEME, devise)));
+    }
+
+    // --- sous-soldes de récompense (dérivés, §6.1) --------------------------------------------
+
+    @Transactional(readOnly = true)
+    public long totalCashbackNet(UUID walletId) {
+        return operations.sommeRecueParType(walletId, TypeOperationWallet.CASHBACK)
+                - operations.sommeClawbackDe(walletId);
+    }
+
+    @Transactional(readOnly = true)
+    public long totalBonus(UUID walletId) {
+        return operations.sommeRecueParType(walletId, TypeOperationWallet.BONUS);
     }
 
     private Wallet compteEtablissement(String etablissementRef, String devise) {

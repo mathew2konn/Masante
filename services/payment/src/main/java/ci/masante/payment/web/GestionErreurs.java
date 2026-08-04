@@ -4,6 +4,9 @@ import ci.masante.payment.domain.billing.FacturationInvalideException;
 import ci.masante.payment.domain.coverage.CouvertureInvalideException;
 import ci.masante.payment.domain.fraud.FraudSuspecteeException;
 import ci.masante.payment.domain.gateway.CanalNonSupporteException;
+import ci.masante.payment.domain.reward.CampagneInvalideException;
+import ci.masante.payment.domain.reward.CashbackInvalideException;
+import ci.masante.payment.domain.reward.PlafondRecompenseException;
 import ci.masante.payment.domain.statemachine.TransitionInvalideException;
 import ci.masante.payment.domain.wallet.ChallengeRequisException;
 import ci.masante.payment.domain.wallet.LimiteDepasseeException;
@@ -14,6 +17,7 @@ import ci.masante.payment.domain.wallet.PinInvalideException;
 import ci.masante.payment.domain.wallet.PinVerrouilleException;
 import ci.masante.payment.domain.wallet.SoldeInsuffisantException;
 import ci.masante.payment.domain.wallet.WalletGeleException;
+import ci.masante.payment.service.ActeurRequisException;
 import ci.masante.payment.service.AlerteFraudeIntrouvableException;
 import ci.masante.payment.service.AvoirIntrouvableException;
 import ci.masante.payment.service.ConflitIdempotenceException;
@@ -56,11 +60,40 @@ public class GestionErreurs {
         return probleme(HttpStatus.NOT_FOUND, ex.getMessage());
     }
 
-    /** Canal non supporté, entrée de couverture/facturation/wallet invalide → 400. */
+    /** Canal non supporté, entrée de couverture/facturation/wallet/cashback invalide → 400. */
     @ExceptionHandler({CanalNonSupporteException.class, CouvertureInvalideException.class,
-            FacturationInvalideException.class, OperationWalletInvalideException.class})
+            FacturationInvalideException.class, OperationWalletInvalideException.class,
+            CashbackInvalideException.class})
     public ProblemDetail requeteInvalide(RuntimeException ex) {
         return probleme(HttpStatus.BAD_REQUEST, ex.getMessage());
+    }
+
+    /** Campagne inexistante/inactive/hors période → 409. */
+    @ExceptionHandler(CampagneInvalideException.class)
+    public ProblemDetail campagne(CampagneInvalideException ex) {
+        return probleme(HttpStatus.CONFLICT, ex.getMessage());
+    }
+
+    /** Plafond de cashback (budget/wallet/jour) atteint → 422. */
+    @ExceptionHandler(PlafondRecompenseException.class)
+    public ProblemDetail plafondRecompense(PlafondRecompenseException ex) {
+        return probleme(HttpStatus.UNPROCESSABLE_ENTITY, ex.getMessage());
+    }
+
+    /** Acte de création monétaire sans acteur identifié → 401. */
+    @ExceptionHandler(ActeurRequisException.class)
+    public ProblemDetail acteurRequis(ActeurRequisException ex) {
+        return probleme(HttpStatus.UNAUTHORIZED, ex.getMessage());
+    }
+
+    /**
+     * Violation de contrainte de données (ex. unicité : une campagne active existe déjà pour ce type
+     * d'opération source) → 409. Un conflit prévisible ne doit pas remonter en 500.
+     */
+    @ExceptionHandler(org.springframework.dao.DataIntegrityViolationException.class)
+    public ProblemDetail conflitDonnees(org.springframework.dao.DataIntegrityViolationException ex) {
+        return probleme(HttpStatus.CONFLICT,
+                "Conflit de données : contrainte violée (ex. campagne active déjà existante pour ce type).");
     }
 
     /** Solde insuffisant ou portefeuille gelé → 409. */

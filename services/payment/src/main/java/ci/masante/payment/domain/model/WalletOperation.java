@@ -54,6 +54,14 @@ public class WalletOperation {
     @Column(name = "signature")
     private String signature;
 
+    /** Code de campagne (cashback) — null hors cashback. */
+    @Column(name = "campagne_code", updatable = false)
+    private String campagneCode;
+
+    /** Opération source (cashback/clawback : l'op qui a généré le cashback) — null sinon. */
+    @Column(name = "operation_source_id", updatable = false)
+    private UUID operationSourceId;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
@@ -117,6 +125,20 @@ public class WalletOperation {
     /** Appose la signature d'opération après enregistrement (§6.4). */
     public void apposerSignature(String signature) {
         this.signature = signature;
+    }
+
+    public String getCampagneCode() {
+        return campagneCode;
+    }
+
+    public UUID getOperationSourceId() {
+        return operationSourceId;
+    }
+
+    /** Rattache l'opération à une campagne et à son opération source (cashback/clawback). */
+    public void rattacher(String campagneCode, UUID operationSourceId) {
+        this.campagneCode = campagneCode;
+        this.operationSourceId = operationSourceId;
     }
 
     public Instant getCreatedAt() {
