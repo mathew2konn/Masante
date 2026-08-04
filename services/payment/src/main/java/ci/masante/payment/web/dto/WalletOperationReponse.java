@@ -16,10 +16,12 @@ public record WalletOperationReponse(
         String reference,
         String libelle,
         UUID factureId,
+        boolean signee,
         Instant createdAt
 ) {
     public static WalletOperationReponse de(WalletOperation o) {
         return new WalletOperationReponse(o.getId(), o.getType(), o.getMontant(), o.getSourceWalletId(),
-                o.getDestWalletId(), o.getReference(), o.getLibelle(), o.getFactureId(), o.getCreatedAt());
+                o.getDestWalletId(), o.getReference(), o.getLibelle(), o.getFactureId(),
+                o.getSignature() != null, o.getCreatedAt());
     }
 }

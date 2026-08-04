@@ -1880,3 +1880,57 @@ gelé / montant invalide ; double écriture prouvée live comme l'idempotence). 
 - **Modifié** : `packages/shared/.../enums` (WalletStatut) ; `GestionErreurs` ; RAPPORT.
 - **Reporté P5.3b** : sécurité §6.4 (PIN/OTP/biométrie, **limites** par opération/jour/mois, gel sur
   suspicion), cashback/bonus, **rapprochement quotidien** automatique.
+
+---
+
+# Module 5 (P5) — Paiement · Incrément P5.3b-1 : Sécurité transactionnelle du Wallet
+
+**Décisions propriétaire (écrites, AskUserQuestion 2026-08-04) :** P5.3b découpé en 4 sous-incréments,
+**sécurité d'abord** ; hachage PIN via **BCrypt (`spring-security-crypto` seul — dépendance approuvée**,
+pas `starter-security` qui verrouillerait l'auto-config) ; **biométrie côté device** (mobile patient),
+« prête à activer » — le service ne gère que PIN/OTP/signature.
+
+**G0.** Audit : `ReglesWallet` ne contenait que `verifierMontant`/`verifierDebit` ; `V4` sans PIN,
+limites ni compteurs. Rien de sensible n'existait → construction additive.
+
+**Frontière (réponse « aucune » au front).** PIN, OTP, **limites op/jour/mois** et signature sont
+vérifiés **backend seul**. Le front transmet le secret, ne décide jamais.
+
+**Livré (`services/payment/`, migration Flyway `V5`) :**
+- **PIN wallet** (§6.4) : haché **BCrypt** (le clair n'est **jamais** stocké — interdit CDC_00 §4) ;
+  définition/changement (`POST /wallets/{id}/pin`, ancien PIN exigé au changement) ; format 4–6 chiffres
+  (`ReglesSecuriteWallet`). **Verrou temporaire** après `pin.max-essais` (défaut 3) pendant
+  `pin.verrou-minutes` (défaut 15). **Piège corrigé** : le comptage des échecs est écrit par une
+  transaction **propre `REQUIRES_NEW` qui retourne AVANT le `throw`** — sinon l'exception annulait
+  l'incrément et le verrou ne s'accumulait jamais (bug vu au 1ᵉʳ test live : bon PIN après 3 échecs
+  passait au lieu d'être 423).
+- **OTP** (§6.4) : exigé au-delà de `otp.seuil` (défaut 100 000 FCFA) ; code à **usage unique** en
+  **Redis** (TTL, haché) ; `POST /wallets/{id}/otp`. **Simulé (FT5)** : le code est renvoyé (SMS
+  « prêt à activer »).
+- **Limites de montant** (§6.4) : par **opération/jour/mois** = **données** (`wallet_limites`,
+  surchargent les défauts de config ; `GET`/`PUT /wallets/{id}/limits`). Consommations jour/mois
+  **dérivées du grand livre** (`WalletEntryRepository.debitsDepuis`) — aucun compteur stocké.
+- **Signature d'opération** (§6.4) : chaque `wallet_operation` est signée (RSA-SHA256, réutilise
+  `ServiceSignature` P5.2b) — colonne `signature`, « prête à activer ».
+- **Câblage** : `debit`/`transfer`/`pay-invoice` passent par `ServiceSecuriteWallet.autoriserOperation`
+  (PIN → limites → OTP) **avant** l'exécution ; le **rejeu idempotent ne redemande pas le PIN** (déjà
+  autorisé). Crédit inchangé (entrant). PIN/OTP jamais loggés (`toString` masqué sur les DTO).
+
+**Gates.** **G2 prouvé live** (curl) : débit sans PIN → **401** ; PIN posé → **204** ; crédit 200 000
+sans PIN → **201** ; débit 6 000 bon PIN → **201, `signee:true`**, solde 194 000 ; mauvais PIN → **401** ;
+**rejeu** (même clé, sans PIN) → **201 sans double débit** (solde inchangé) ; plafond opération 5 000 →
+débit 6 000 → **422** ; **3 mauvais PIN → verrou, bon PIN ensuite → 423** ; OTP requis >100 000 sans OTP
+→ **401**, OTP<seuil `requis:false`, débit 150 000 avec OTP valide → **201** ; **somme globale des
+écritures = 0** (double écriture) ; nouvelles opérations **toutes signées** ; **audit intègre**.
+**G3** : tests Gradle verts (`ReglesSecuriteWalletTest` : format PIN, limites op/jour/mois, seuil OTP,
+plafond illimité). **G4** propriétaire **OK (Swagger)** → ✅ **P5.3b-1 VALIDÉ G5 (2026-08-04)**.
+
+- **Nouveaux** : `V5__wallet_securite.sql` ; `WalletPin`, `WalletLimites` (+ dépôts) ;
+  `ReglesSecuriteWallet` + exceptions (`Pin*`/`Otp*`/`LimiteDepassee`) ; `ServiceSecuriteWallet` ;
+  DTO `DefinirPin`/`GenererOtp`/`Otp`/`Limites` ; `ReglesSecuriteWalletTest`.
+- **Modifié** : `build.gradle` (spring-security-crypto) ; `application.yml` (défauts sécurité, données) ;
+  `WalletOperation` (+signature) ; `WalletEntryRepository` (+`debitsDepuis`) ; `ServiceWallet` (câblage
+  sécurité + signature) ; `WalletController` (+PIN/OTP/limites) ; `GestionErreurs` (401/423/422) ;
+  DTO d'opérations (+pin/otp, `toString` masqué) ; `WalletOperationReponse` (+`signee`).
+- **Reporté** : P5.3b-2 fraude + gel sur suspicion ; P5.3b-3 cashback/bonus ; P5.3b-4 rapprochement
+  quotidien automatique.

@@ -41,6 +41,11 @@ dependencies {
     implementation 'com.google.zxing:core:3.5.1'
     implementation 'com.google.zxing:javase:3.5.1'
 
+    // Sécurité Wallet (P5.3b-1) : hachage BCrypt du PIN. Module crypto SEUL (pas
+    // spring-boot-starter-security, qui verrouillerait tous les endpoints via l'auto-config).
+    // Approuvé par le propriétaire (§2.6).
+    implementation 'org.springframework.security:spring-security-crypto:6.3.4'
+
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }

@@ -50,6 +50,10 @@ public class WalletOperation {
     @Column(name = "facture_id", updatable = false)
     private UUID factureId;
 
+    /** Signature d'opération (§6.4) — « prête à activer » (RSA-SHA256). null si signature désactivée. */
+    @Column(name = "signature")
+    private String signature;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
@@ -104,6 +108,15 @@ public class WalletOperation {
 
     public UUID getFactureId() {
         return factureId;
+    }
+
+    public String getSignature() {
+        return signature;
+    }
+
+    /** Appose la signature d'opération après enregistrement (§6.4). */
+    public void apposerSignature(String signature) {
+        this.signature = signature;
     }
 
     public Instant getCreatedAt() {

@@ -39,11 +39,14 @@ public class ServiceWallet {
     private final ServiceIdempotence idempotence;
     private final ServiceAudit audit;
     private final ServiceFacturation facturation;
+    private final ServiceSecuriteWallet securite;
+    private final ServiceSignature signature;
     private final ServiceWallet self;
 
     public ServiceWallet(WalletRepository wallets, WalletOperationRepository operations,
                          WalletEntryRepository entries, ServiceIdempotence idempotence,
                          ServiceAudit audit, ServiceFacturation facturation,
+                         ServiceSecuriteWallet securite, ServiceSignature signature,
                          @Lazy ServiceWallet self) {
         this.wallets = wallets;
         this.operations = operations;
@@ -51,6 +54,8 @@ public class ServiceWallet {
         this.idempotence = idempotence;
         this.audit = audit;
         this.facturation = facturation;
+        this.securite = securite;
+        this.signature = signature;
         this.self = self;
     }
 
@@ -96,19 +101,44 @@ public class ServiceWallet {
                 TypeOperationWallet.CREDIT, null, walletId, montant, ref, libelle, null, cle));
     }
 
-    public WalletOperation debiter(UUID walletId, long montant, String ref, String libelle, String cle) {
+    public WalletOperation debiter(UUID walletId, long montant, String ref, String libelle, String cle,
+                                   String pin, String otp) {
+        var rejeu = operations.findByIdempotencyKey(cle);
+        if (rejeu.isPresent()) {
+            return rejeu.get(); // rejeu idempotent : déjà autorisé, ne pas redemander le PIN
+        }
+        securite.autoriserOperation(walletId, montant, pin, otp);
         return soumettre(new DemandeOperationWallet(
                 TypeOperationWallet.DEBIT, walletId, null, montant, ref, libelle, null, cle));
     }
 
-    public WalletOperation transferer(UUID sourceId, UUID destId, long montant, String libelle, String cle) {
+    public WalletOperation transferer(UUID sourceId, UUID destId, long montant, String libelle, String cle,
+                                      String pin, String otp) {
+        var rejeu = operations.findByIdempotencyKey(cle);
+        if (rejeu.isPresent()) {
+            return rejeu.get();
+        }
+        securite.autoriserOperation(sourceId, montant, pin, otp);
         return soumettre(new DemandeOperationWallet(
                 TypeOperationWallet.TRANSFERT, sourceId, destId, montant, null, libelle, null, cle));
     }
 
-    public WalletOperation payerFacture(UUID walletId, UUID factureId, long montant, String cle) {
+    public WalletOperation payerFacture(UUID walletId, UUID factureId, long montant, String cle,
+                                        String pin, String otp) {
+        var rejeu = operations.findByIdempotencyKey(cle);
+        if (rejeu.isPresent()) {
+            return rejeu.get();
+        }
+        long effectif = montant > 0 ? montant : duFacture(factureId);
+        securite.autoriserOperation(walletId, effectif, pin, otp);
         return soumettre(new DemandeOperationWallet(
                 TypeOperationWallet.PAIEMENT_FACTURE, walletId, null, montant, null, null, factureId, cle));
+    }
+
+    /** Dû restant d'une facture, pour dimensionner le contrôle de sécurité (montant 0 = solder tout). */
+    private long duFacture(UUID factureId) {
+        Facture f = facturation.trouver(factureId);
+        return Math.max(f.getResteAPayer() - f.getMontantRegle(), 0);
     }
 
     private WalletOperation soumettre(DemandeOperationWallet d) {
@@ -195,14 +225,28 @@ public class ServiceWallet {
         return op;
     }
 
-    /** Crée l'opération + ses DEUX écritures (source −montant, dest +montant → somme 0). */
+    /** Crée l'opération + ses DEUX écritures (source −montant, dest +montant → somme 0), puis la signe. */
     private WalletOperation enregistrer(String cle, TypeOperationWallet type, long montant,
                                         UUID sourceId, UUID destId, String ref, String libelle, UUID factureId) {
         WalletOperation op = operations.save(new WalletOperation(
                 cle, type, montant, sourceId, destId, ref, libelle, factureId));
         entries.save(new WalletEntry(op.getId(), sourceId, -montant));
         entries.save(new WalletEntry(op.getId(), destId, montant));
+        signer(op);
         return op;
+    }
+
+    /** Signature d'opération (§6.4) « prête à activer ». Sans effet si la signature est désactivée. */
+    private void signer(WalletOperation op) {
+        if (!signature.estActif()) {
+            return;
+        }
+        String empreinte = op.getId() + "|" + op.getType() + "|" + op.getMontant() + "|"
+                + op.getSourceWalletId() + "|" + op.getDestWalletId() + "|" + op.getIdempotencyKey();
+        signature.signer(empreinte).ifPresent(sceau -> {
+            op.apposerSignature(sceau.signature());
+            operations.save(op);
+        });
     }
 
     private Wallet changerStatut(UUID id, WalletStatut statut, String evenement) {

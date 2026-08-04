@@ -40,3 +40,16 @@ masante:
       # Signature RSA-SHA256 des factures/avoirs (§7.4). Clé de DÉV en mémoire (substitut HSM/KMS).
       # « Prête à activer » : ON par défaut ici ; l'adossement HSM/PKI réelle est l'étape ultérieure.
       enabled: ${SIGNATURE_ENABLED:true}
+    # Sécurité Wallet (P5.3b-1, CDC_06 §6.4). TOUTES ces valeurs sont des DONNÉES (jamais codées) :
+    # les plafonds/seuils par défaut sont surchargeables par portefeuille (table wallet_limites).
+    wallet:
+      pin:
+        max-essais: ${WALLET_PIN_MAX_ESSAIS:3}       # verrou temporaire au-delà
+        verrou-minutes: ${WALLET_PIN_VERROU_MINUTES:15}
+      otp:
+        seuil: ${WALLET_OTP_SEUIL:100000}            # OTP exigé au-delà de ce montant (FCFA)
+        ttl-seconds: ${WALLET_OTP_TTL:300}
+      limites:
+        operation: ${WALLET_LIMITE_OPERATION:500000} # plafond par opération
+        jour: ${WALLET_LIMITE_JOUR:1000000}          # plafond cumulé / jour
+        mois: ${WALLET_LIMITE_MOIS:5000000}          # plafond cumulé / mois

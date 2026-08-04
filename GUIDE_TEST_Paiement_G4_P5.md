@@ -204,12 +204,19 @@ Groupe **Factures** dans Swagger.
 Groupe **Wallet** dans Swagger. Les opérations (crédit/débit/transfert/pay-invoice) demandent un
 en-tête **`Idempotency-Key`** (mettez une valeur différente à chaque nouvelle opération).
 
+> ⚠️ **Depuis P5.3b-1**, toute opération **sortante** (débit, transfert, pay-invoice) exige le **PIN**
+> du portefeuille (§6.4). Le crédit (entrant) n'en demande pas. Définissez d'abord le PIN (test 28b).
+
 ## 28. Créer un portefeuille patient
 **`POST /api/v1/wallets`** — corps :
 ```json
 { "ownerRef": "patient-99", "ownerType": "PATIENT", "devise": "XOF" }
 ```
 ✅ Attendu : **201**, `"statut": "ACTIF"`, `"solde": 0`. 👉 Copiez le `"id"` (= walletId).
+
+## 28b. Définir le PIN du portefeuille
+**`POST /api/v1/wallets/{walletId}/pin`** — corps `{ "pin": "1234" }`.
+✅ Attendu : **204**. (Pour le changer plus tard : `{ "pin": "5678", "ancienPin": "1234" }`.)
 
 ## 29. Créditer 50 000 (rechargement simulé)
 **`POST /api/v1/wallets/{walletId}/credit`**, `Idempotency-Key` = `cr-1`, corps `{ "montant": 50000, "libelle": "Recharge" }`.
@@ -221,33 +228,68 @@ Rejouer le test 29 **avec la même clé `cr-1`** → puis `GET`.
 ✅ Attendu : `"solde": 50000` (toujours, **aucun doublon**).
 
 ## 31. Débiter 20 000
-**`POST /api/v1/wallets/{walletId}/debit`**, `Idempotency-Key` = `db-1`, corps `{ "montant": 20000 }`.
-✅ Attendu : après `GET`, `"solde": 30000`.
+**`POST /api/v1/wallets/{walletId}/debit`**, `Idempotency-Key` = `db-1`, corps `{ "montant": 20000, "pin": "1234" }`.
+✅ Attendu : après `GET`, `"solde": 30000` ; l'opération renvoyée porte **`"signee": true`**.
 
 ## 32. Débit supérieur au solde
-`/debit`, `Idempotency-Key` = `db-2`, corps `{ "montant": 99999 }`.
+`/debit`, `Idempotency-Key` = `db-2`, corps `{ "montant": 99999, "pin": "1234" }`.
 ✅ Attendu : **409** (« Solde insuffisant »).
 
 ## 33. Geler puis tenter un débit
-**`POST /api/v1/wallets/{walletId}/freeze`** → puis `/debit` (`Idempotency-Key` = `db-3`, `{ "montant": 1000 }`).
+**`POST /api/v1/wallets/{walletId}/freeze`** → puis `/debit` (`Idempotency-Key` = `db-3`, `{ "montant": 1000, "pin": "1234" }`).
 ✅ Attendu : débit **409** (« le portefeuille est GELE »). Puis **`/unfreeze`** pour réactiver.
 
 ## 34. Transférer vers un établissement
 Créer un wallet établissement (`POST /wallets`, `{ "ownerRef": "CLINIQUE-X", "ownerType": "ETABLISSEMENT" }`) → copier son id.
 **`POST /api/v1/wallets/transfer`**, `Idempotency-Key` = `tr-1`, corps :
 ```json
-{ "sourceWalletId": "{walletId}", "destWalletId": "{idEtab}", "montant": 10000 }
+{ "sourceWalletId": "{walletId}", "destWalletId": "{idEtab}", "montant": 10000, "pin": "1234" }
 ```
-✅ Attendu : après `GET`, source `"solde": 20000`, destinataire `"solde": 10000`.
+✅ Attendu : après `GET`, source `"solde": 20000`, destinataire `"solde": 10000`. (Le PIN est celui du **wallet source**.)
 
 ## 35. Payer une facture depuis le wallet
 Émettre une facture (Partie B, `etablissementRef` = `CLINIQUE-X`, une ligne 10 000, sans prise en charge) → copier son id.
-**`POST /api/v1/wallets/{walletId}/pay-invoice`**, `Idempotency-Key` = `pay-1`, corps `{ "factureId": "{idFacture}", "montant": 0 }` (0 = tout le dû).
+**`POST /api/v1/wallets/{walletId}/pay-invoice`**, `Idempotency-Key` = `pay-1`, corps `{ "factureId": "{idFacture}", "montant": 0, "pin": "1234" }` (0 = tout le dû).
 ✅ Attendu : **201**, opération `PAIEMENT_FACTURE` de 10 000 ; la **facture passe PAYEE** (`GET /invoices/{id}`) ; le solde patient baisse de 10 000.
 
 ## 36. Voir le grand livre
 **`GET /api/v1/wallets/{walletId}/entries`**.
 ✅ Attendu : la liste des écritures (montants **signés** : + crédits, − débits).
+
+---
+
+# Partie E — Sécurité du Wallet (P5.3b-1, §6.4)
+
+Rappel : PIN, OTP, limites et signature sont vérifiés **backend seul** (frontière). Utilisez un
+**nouveau** portefeuille patient pour ne pas être gêné par un verrou d'un test précédent.
+
+## 37. Débit sans PIN refusé
+Créer un wallet patient (test 28), **NE PAS** définir de PIN, le créditer 50 000 (test 29), puis
+`/debit` `{ "montant": 1000 }` (sans `pin`).
+✅ Attendu : **401** (« Aucun PIN défini »/« PIN requis »). Puis définissez le PIN (test 28b).
+
+## 38. Verrou après 3 mauvais PIN
+Sur un wallet **avec** PIN `1234` et du solde : faire **3** débits `{ "montant": 1000, "pin": "0000" }`
+(clés `bad-1`, `bad-2`, `bad-3`).
+✅ Attendu : les 2 premiers **401** ; le **3ᵉ → 423** (verrouillé). Ensuite un débit **bon PIN** `1234`
+→ **423** (toujours verrouillé ~15 min). *(Prenez un nouveau wallet pour la suite.)*
+
+## 39. Limite par opération
+Sur un wallet avec PIN et solde : **`PUT /api/v1/wallets/{id}/limits`** corps `{ "plafondOperation": 5000 }`
+(puis `GET .../limits` pour vérifier). Débiter `{ "montant": 6000, "pin": "1234" }`.
+✅ Attendu : **422** (« Limite par opération dépassée »). Un débit de 5 000 passe (**201**).
+
+## 40. OTP au-delà du seuil (100 000)
+Sur un wallet avec PIN et solde ≥ 150 000 :
+1. `/debit` `{ "montant": 150000, "pin": "1234" }` (sans OTP) → **401** (« OTP requis »).
+2. **`POST /api/v1/wallets/{id}/otp`** `{ "montant": 150000 }` → **200**, `"requis": true`, un `"code"`
+   à 6 chiffres (mode **simulé** : le code est renvoyé — SMS « prêt à activer »).
+3. `/debit` `{ "montant": 150000, "pin": "1234", "otp": "<code>" }` → **201**.
+   *(Sous le seuil, `POST /otp` `{ "montant": 50000 }` renvoie `"requis": false` — aucun OTP.)*
+
+## 41. Intégrité (rappel double écriture + audit)
+`GET /api/v1/audit/verify` → `"integre": true`. Les opérations créées ci-dessus portent toutes
+`"signee": true`, et la somme de **toutes** les écritures reste **0** (double écriture, §6.3).
 
 ---
 
@@ -263,16 +305,18 @@ vérifications automatiques (tout doit être vert).
 
 **P5.2a Facturation (déjà validé G5)** — 13-18.
 
-**P5.2b Avoir + versionnage + signature** :
-- [ ] 19 Facture v1 émise et **signée** OK
-- [ ] 20 Signature vérifiée (`signatureValide: true`) OK
-- [ ] 21 Correction → v2 (même numéro) + avoir de 20 000 OK
-- [ ] 22 v1 devient REMPLACEE (remplaceeParId) OK
-- [ ] 23 Deux versions listées (v1 REMPLACEE, v2 EMISE) OK
-- [ ] 24 Avoir consulté + PDF téléchargé OK
-- [ ] 25 Annulation v2 → ANNULEE + avoir 25 000 OK
-- [ ] 26 Corriger une REMPLACEE → 409 OK
-- [ ] 27 Chaîne d'audit intègre OK
+**P5.2b Avoir + versionnage + signature (déjà validé G5)** — 19-27.
 
-Si tout est coché → répondez-moi **« P5.2b OK »** : j'inscris le **G5** de P5.2b et je prépare l'incrément
-suivant (Wallet, cartes, ou reversements). Si un point coince, dites-moi le numéro et ce que vous voyez.
+**P5.3a Wallet + double écriture (déjà validé G5)** — 28-36 (avec le PIN du test 28b).
+
+**P5.3b-1 Sécurité du Wallet** :
+- [ ] 28b PIN défini (**204**) OK
+- [ ] 31 Débit bon PIN → **201**, `"signee": true` OK
+- [ ] 37 Débit **sans PIN → 401** OK
+- [ ] 38 **3 mauvais PIN → verrou (423)**, puis bon PIN → 423 OK
+- [ ] 39 Plafond opération → débit au-dessus **422** OK
+- [ ] 40 OTP requis > seuil : sans OTP **401**, avec OTP valide **201** ; sous le seuil `requis:false` OK
+- [ ] 41 Audit **intègre**, opérations **signées**, somme des écritures **= 0** OK
+
+Si tout est coché → répondez-moi **« P5.3b-1 OK »** : j'inscris le **G5** de P5.3b-1 et j'enchaîne
+P5.3b-2 (détection de fraude + gel sur suspicion). Si un point coince, dites-moi le numéro et ce que vous voyez.
