@@ -381,6 +381,51 @@ l'**acteur**.
 
 ---
 
+# Partie H — Contrôle d'intégrité financière interne (P5.3b-4, §6.3)
+
+> **Vocabulaire (important en soutenance)** : ce n'est **pas** un « rapprochement ». Un rapprochement
+> confronte **deux sources indépendantes** (relevé opérateur ↔ base). La passerelle réelle et les
+> reversements (§11) n'existant pas encore, il n'y a qu'**une** source : cet **auditeur d'intégrité
+> interne** vérifie la cohérence de la base **avec elle-même**. Le vrai rapprochement 2 sources = **S11.x**
+> (point d'extension documenté, `docs/adr/ADR-014`). Le contrôle est en **lecture seule** et fait de la
+> **détection SEULE** : il ne corrige **jamais** un écart (§11).
+
+Trois contrôles : **double écriture wallet** (§6.3), **facture ↔ règlement** (§7.3), **cashback**
+(§6.1/§6.2). Il opère sur un **snapshot** figé à un arrêté `T` (fin de journée UTC).
+
+## 53. Jeu SAIN → vert
+`POST /api/v1/integrity-checks/run` (sans paramètre = aujourd'hui). Sur les données légitimes créées
+plus haut (paiements, factures, wallet, cashback), le run doit ressortir **`statut: "OK"`, `nbEcarts: 0`**.
+Un vert **sur données saines** ne prouve pas grand-chose seul (il pourrait être vert parce que vide) —
+d'où l'injection d'anomalies au test 54.
+
+## 54. Anomalies injectées → chacune détectée
+L'instance de test est lancée avec `INTEGRITE_DEV_SEED=true`.
+`POST /api/v1/integrity-checks/dev/seed-anomalies` → **200**, `injecte: 6` (6 anomalies volontaires).
+Puis `POST /api/v1/integrity-checks/run` → **`statut: "ECARTS"`**, **`nbEcarts: 7`**.
+`GET /api/v1/integrity-checks/{runId}` liste les 7 écarts, un par type :
+- `OPERATION_DESEQUILIBREE` **et** `GRAND_LIVRE_NON_NUL` (l'opération déséquilibrée casse aussi le total)
+- `SOLDE_NEGATIF_NON_AUTORISE` (un PATIENT à solde négatif ; un compte SYSTEME négatif, lui, est **toléré**)
+- `FACTURE_STATUT_INCOHERENT` (facture PAYEE mais reste dû non soldé)
+- `ENCAISSEMENT_NON_REPERCUTE` (paiement passerelle SUCCESS non imputé à la facture)
+- `CASHBACK_BUDGET_DEPASSE` (cashback consommé > budget de campagne)
+- `CLAWBACK_SUPERIEUR_ORIGINE` (reprise > cashback d'origine)
+
+Chaque écart porte `severite`, `reference` (l'entité fautive), `montantAttendu`/`montantConstate` et un
+`details` rejouable. **Aucune donnée financière n'est modifiée** (détection seule).
+
+## 55. Idempotence + endpoint de dév masqué en prod
+Relancer `POST /run` pour la **même** journée → le verdict est **remplacé**, pas dupliqué :
+`GET /api/v1/integrity-checks` ne montre qu'**un** run par journée. Sur une instance **sans**
+`INTEGRITE_DEV_SEED` (production), `POST .../dev/seed-anomalies` → **404** (l'endpoint de dév n'existe pas).
+
+## 56. Automatique quotidien
+Le contrôle tourne **automatiquement** chaque jour (batch planifié `@Scheduled`, horaire = donnée
+`INTEGRITE_PLANIF_CRON`, contrôle la **veille**). L'exécution manuelle ci-dessus sert la preuve ; en
+exploitation, le run quotidien alimente les mêmes tables et alerte en cas d'écart.
+
+---
+
 ## (Option) Tout tester d'un coup avec Postman
 Importer `services/payment/postman/MASANTE-Payment-P5.1.postman_collection.json` dans Postman, puis
 **Run collection** → toutes les requêtes (paiement **et** facturation) s'exécutent avec leurs
@@ -409,5 +454,11 @@ vérifications automatiques (tout doit être vert).
 - [ ] 51 **Clawback** proportionnel + reliquat exact ; idempotent par `remboursementId` OK
 - [ ] 52 **Bonus** avec acteur **201** / sans acteur **401** ; audit trace l'acteur OK
 
-Si tout est coché → répondez-moi **« P5.3b-3 OK »** : j'inscris le **G5** de P5.3b-3 et j'enchaîne
-P5.3b-4 (rapprochement quotidien). Si un point coince, dites-moi le numéro et ce que vous voyez.
+**P5.3b-4 Contrôle d'intégrité financière interne** :
+- [ ] 53 Jeu **sain** → `statut: OK`, `nbEcarts: 0`
+- [ ] 54 **6 anomalies injectées** → `statut: ECARTS`, **7 écarts** (un par type, détail listé) OK
+- [ ] 55 **Idempotence** (1 run/journée au rejeu) + endpoint dév **404** sans `INTEGRITE_DEV_SEED`
+- [ ] 56 Batch **automatique quotidien** (`@Scheduled`, horaire = donnée) présent
+
+Si tout est coché → répondez-moi **« Contrôle intégrité OK »** : j'inscris le **G5** de P5.3b-4.
+Si un point coince, dites-moi le numéro et ce que vous voyez.

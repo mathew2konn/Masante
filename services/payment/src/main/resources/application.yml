@@ -78,3 +78,11 @@ masante:
       # remboursement wallet doit appeler le clawback en même tx avant d'activer). OFF = dry-run.
       cashback:
         credit-enabled: ${WALLET_CASHBACK_CREDIT_ENABLED:false}
+    # Contrôle d'intégrité financière interne (P5.3b-4, CDC_06 §6.3). Lecture seule ; détection seule.
+    # Ce n'est PAS un rapprochement à deux sources (S11.x / ADR-014). Horaire = DONNÉE.
+    integrite:
+      planification:
+        enabled: ${INTEGRITE_PLANIF_ENABLED:true}
+        cron: ${INTEGRITE_PLANIF_CRON:0 30 1 * * *}   # tous les jours 01:30 UTC (contrôle la veille)
+      # Endpoint d'injection d'anomalies : DÉV UNIQUEMENT. OFF en production (l'endpoint répond 404).
+      dev-seed-enabled: ${INTEGRITE_DEV_SEED:false}

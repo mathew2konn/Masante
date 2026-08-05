@@ -20,6 +20,7 @@ import ci.masante.payment.domain.wallet.WalletGeleException;
 import ci.masante.payment.service.ActeurRequisException;
 import ci.masante.payment.service.AlerteFraudeIntrouvableException;
 import ci.masante.payment.service.AvoirIntrouvableException;
+import ci.masante.payment.service.ControleIntrouvableException;
 import ci.masante.payment.service.ConflitIdempotenceException;
 import ci.masante.payment.service.FactureIntrouvableException;
 import ci.masante.payment.service.PaiementIntrouvableException;
@@ -55,7 +56,7 @@ public class GestionErreurs {
     /** Paiement, facture, avoir ou portefeuille introuvable → 404. */
     @ExceptionHandler({PaiementIntrouvableException.class, FactureIntrouvableException.class,
             AvoirIntrouvableException.class, WalletIntrouvableException.class,
-            AlerteFraudeIntrouvableException.class})
+            AlerteFraudeIntrouvableException.class, ControleIntrouvableException.class})
     public ProblemDetail introuvable(RuntimeException ex) {
         return probleme(HttpStatus.NOT_FOUND, ex.getMessage());
     }

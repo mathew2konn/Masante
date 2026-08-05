@@ -2048,4 +2048,59 @@ fraude/limites, sous-soldes, somme=0, audit avec acteur. **Aucune dépendance no
 **Dette** (`services/payment/DETTE_TECHNIQUE.md`) : activation crédit cashback = §11 (remboursement wallet
 + auto-clawback en même tx) ; #6 verrou inconditionnel ; #9 pas de CHECK sur `type`.
 
-- **Reporté** : P5.3b-4 rapprochement quotidien automatique.
+---
+
+# Module 5 (P5) — Paiement · Incrément P5.3b-4 : Contrôle d'intégrité financière interne
+
+**Recadrage propriétaire (revue G1 écrite, 2026-08-05).** Le CDC §6.3/§11 dit « rapprochement quotidien
+automatique ». Mais un **rapprochement** confronte **deux sources indépendantes** ; sans passerelle
+opérateur réelle (SIMULÉE) ni reversements (§11), il n'existe qu'**une** source (notre base). Ce qu'on
+livre est donc un **auditeur d'intégrité INTERNE** (cohérence de la base avec elle-même) — nommé
+honnêtement, pas « rapprochement » (voir [[controle-integrite-vs-rapprochement]] en mémoire). Le vrai
+rapprochement 2 sources = **S11.x** : **aucun code opérateur écrit** (pas de branche contre un format
+non vu = passif), seulement un **point d'extension documenté** (`docs/adr/ADR-014`).
+
+**Frontière.** Tout le jugement = **règles pures** `ReglesControle` (backend seul) ; le rapport est une
+**donnée**. **Lecture seule** sur les données financières ; **détection SEULE** — jamais de correction
+(§11 : « écarts signalés, jamais corrigés »). **Snapshot** figé à un arrêté `T` (cut-off = fin de journée
+UTC ; n'examine que `created_at < T`) → pas de faux positifs pendant l'écriture concurrente.
+
+**Livré (migration `V8`) :**
+- `controle_runs` (journée UTC **UNIQUE** → idempotent, arrêté T, statut OK/ECARTS, compteurs, durée) +
+  `controle_ecarts` (type, sévérité, référence, montant attendu/constaté, `details` **JSONB** rejouable ;
+  **aucune colonne « corrigé »** — le contrôle ne corrige jamais). FK `ON DELETE CASCADE`.
+- `ReglesControle` pur (3 familles, 7 types d'écart) : **C1 double écriture** (op = 2 écritures Σ=0 ;
+  Σ global = 0 ; solde ≥ 0 **sauf motif énuméré** `OwnerTypeWallet.SYSTEME` — comptes de contrepartie) ;
+  **C2 facture↔règlement** (statut ↔ montant réglé **par rapport au reste à payer**, pas au TTC : une
+  facture couverte est PAYEE dès le reste soldé ; + cross-grand-livre **directionnel** Σ paiements
+  passerelle SUCCESS ≤ montant réglé — un règlement wallet ne crée pas de ligne `payments`) ;
+  **C3 cashback** (consommé net ≤ budget ; Σ clawback ≤ origine).
+- `RequetesControle` : agrégats **SQL natif** bornés `created_at < :avant`, `::bigint` sur les `sum()`
+  (Postgres promeut en `numeric` sinon). `ServiceControleIntegrite` : orchestrateur read-only, purge
+  idempotente par journée, persiste run+écarts, **audite** le run (chaîne de hachage existante).
+- Déclenchement **automatique** : `@Scheduled` quotidien (horaire = **donnée** `INTEGRITE_PLANIF_CRON`,
+  contrôle la veille) **+** endpoint manuel `POST /api/v1/integrity-checks/run?date=` (preuve).
+  `GET /integrity-checks` (liste) + `GET /{runId}` (détail). Enums taxonomie **backend-only** (promotion
+  `@masante/shared` quand l'écran admin les consommera — ADR-014).
+- **Seedeur d'anomalies** (`POST .../dev/seed-anomalies`, **gaté OFF** `INTEGRITE_DEV_SEED`, **404** sinon) :
+  injecte 6 anomalies isolées → **prouve que chaque contrôle détecte** (un run vert sur données saines ne
+  prouve rien s'il peut être vert parce que vide).
+
+**Monnaie / arrondi.** Montants **entiers XOF** (déjà `long`/`BIGINT` — pas de sous-unité ; pas de
+migration). La double écriture porte la **même** valeur arrondie sur ses 2 jambes → **Σ=0 exact** par
+construction (le seul arrondi, cashback `bps/10000`, est planché et identique des deux côtés).
+
+**Gates.** **G3** : `ReglesControleTest` (chaque contrôle détecte son anomalie + reste vert sur sain ;
+SYSTEME négatif toléré vs PATIENT écart ; PAYEE couverte OK vs sous-réglée écart) ; build image Gradle
+vert (`gradle clean build` exit 0). **G2 live prouvé** (curl) : Flyway V8 appliqué ; run sur données
+existantes = **OK, 0 écart** (vrai vert, données P5.1→P5.3b-3) ; après **6 anomalies injectées** =
+**ECARTS, 7 écarts** (les 7 types, montants attendus/constatés exacts) ; **idempotent** (rejeu → 1 run/
+journée, pas de doublon) ; détection seule. **Aucune dépendance nouvelle.**
+
+**Dette / reporté (ADR-014).** Rapprochement **2 sources** (relevé opérateur ↔ base ↔ reversements) =
+**S11.x** : format pivot settlement, point d'insertion « sources d'un run », taxonomie écarts future
+(`MONTANT_DIVERGENT`/`MANQUANT_COTE_OPERATEUR`/`MANQUANT_COTE_PLATEFORME`/`DOUBLON`/`DECALAGE_DATE`).
+Classé **« conçu, point d'extension documenté »**, PAS « prêt à activer ». Intégrité de la **chaîne
+d'audit** = contrôle **sécurité** distinct (hors périmètre financier, frontière de test).
+
+- **Reporté ensuite** : rapprochement 2 sources §11 (S11.x), cartes §5, reversements §11, fraude IA CDC_05.
