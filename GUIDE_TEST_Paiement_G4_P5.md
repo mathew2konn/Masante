@@ -556,3 +556,73 @@ vérifications automatiques (tout doit être vert).
 
 Si tout est coché → répondez-moi **« Cartes OK »** : j'inscris le **G5** de P5.4a.
 Si un point coince, dites-moi le numéro et ce que vous voyez.
+
+---
+
+# Partie J — Reversements aux établissements (P5.5a, §11)
+
+> **Décaissement SIMULÉ / différé (FT5)** : P5.5a **calcule** les sommes dues et fige un **relevé
+> immuable** ; il ne verse **rien**. L'exécution (grand livre en partie double, destination de paiement
+> chiffrée, quatre-yeux) = **P5.5b**. Le vrai rapprochement « factures ↔ reversements » = **P5.5c**
+> (S11.x). **Frontière** : tout le calcul (sommes dues, commission, report, net) est **backend seul**
+> (`ReglesReversement`) ; le portail établissement (web) sera en lecture seule.
+
+Concepts clés à vérifier : l'**assiette** repose sur `factures.soldee_a` (date de solde **immuable**,
+jamais `updated_at`) ; le **double paiement** est bloqué par l'index I1 (une facture sur ≤1 relevé
+vivant), **pas** par la fenêtre de dates → une pièce en retard est **rattrapée** au relevé suivant ; un
+**net négatif** (remboursements > encaissements) ne décaisse rien et **reporte** la dette ; le **taux de
+commission** est une donnée (aucun 0 % implicite : sans config, le calcul **échoue**).
+
+## 68. Taux de commission — garde ADMIN_FINANCE
+`POST /api/v1/settlements/commission-config` avec en-têtes `X-Acteur-Id: agent` et
+`X-Acteur-Role: AGENT`, corps `{"tauxBps":250,"motif":"x"}` → **403** (rôle insuffisant, message
+générique). Rejouer avec `X-Acteur-Role: ADMIN_FINANCE` → **201** (taux plateforme par défaut ouvert,
+audité nominativement). `GET .../commission-config` → le taux ouvert.
+
+## 69. Calcul d'un relevé → sommes dues correctes
+Prérequis : deux factures **PAYEE** de `ETB-LIVE` (100 000 et 50 000) réglées (leur `soldee_a` est posée
+automatiquement au passage à PAYEE). `POST /api/v1/settlements/run` (en-tête `X-Acteur-Id: agent.calcul`)
+corps `{"etablissementRef":"ETB-LIVE","periodeDebut":"2026-01-01T00:00:00Z","periodeFin":"2027-01-01T00:00:00Z"}`
+→ **201**, `statut: CALCULE`, **brut 150 000**, **commission 3 750** (2,50 %), **net 146 250**,
+`soldeReporte 0`, `tentative 1`, numéro `REV-ETBLIVE-2026-000001`.
+`GET /api/v1/settlements/{id}` → **2 lignes de type FACTURE** (Σ lignes = en-tête).
+
+## 70. Idempotence de période
+Rejouer le **même** `run` (même période) → **409** (un relevé actif couvre déjà la période). Aucun
+doublon.
+
+## 71. Chaînage du report + rattrapage automatique
+Établissement `ETB-SEQ`, une facture 100 000. `run` P1 `[2026-01-01, 2026-09-01)` → relevé **A**
+(`relevePrecedentId: null`, net 97 500). Ajouter une facture 50 000. `run` P2 `[2026-09-01, 2027-09-01)`
+→ relevé **B** avec **`relevePrecedentId = A.id`**, net **48 750** — l'assiette de P2 **n'a pas repris**
+la 1ʳᵉ facture (déjà imputée sur A, I1), preuve que c'est l'imputation, pas la fenêtre, qui protège.
+
+## 72. Règle d'annulation (dépendance de report respectée)
+Sur la chaîne A→B ci-dessus : `POST /api/v1/settlements/{A}/cancel` (motif obligatoire) → **409**
+(A a un successeur vivant B). `POST .../{B}/cancel` → **200**. Puis `POST .../{A}/cancel` → **200**.
+L'annulation **libère les pièces** (recalcul `tentative+1` possible sur la même période).
+
+## 73. Net négatif → report, aucun décaissement *(logique)*
+Prouvé au niveau règle pure (G3, `ReglesReversementTest`) et par les CHECK base
+(`V10_verification_invariants.sql`) : remboursements > encaissements → `net = 0`,
+`soldeReporte < 0` (repris comme `report_anterieur` au relevé suivant). En live, un remboursement carte
+REUSSI de l'établissement (Partie I) entre dans l'assiette par sa date `cree_le`.
+
+## 74. Invariants base (script de recette)
+`psql -v ON_ERROR_STOP=1 -f src/test/resources/db/verification/V10_verification_invariants.sql` →
+**tout PASS**, `ROLLBACK` (aucune donnée laissée) : `soldee_a` immuable, I1 (facture sur ≤1 relevé
+actif), période verrouillée/libérée par annulation, ≤1 successeur vivant, équation d'en-tête, cut-off,
+cohérence de ligne, un seul taux ouvert, réconciliation en-tête/lignes vide.
+
+---
+
+## Récapitulatif des cases — Partie J
+- [ ] 68 Taux commission : `AGENT`→**403**, `ADMIN_FINANCE`→**201** (audité)
+- [ ] 69 `run` → brut 150 000 / commission 3 750 / net 146 250 ; 2 lignes FACTURE
+- [ ] 70 `run` identique même période → **409**
+- [ ] 71 Chaînage report : B.`relevePrecedentId = A.id` ; assiette P2 sans la facture déjà imputée
+- [ ] 72 Annulation : A (successeur vivant)→**409** ; B→**200** ; puis A→**200**
+- [ ] 73 Net négatif → net 0 + `soldeReporte < 0` (G3 + CHECK base)
+- [ ] 74 `V10_verification_invariants.sql` → tout **PASS** / ROLLBACK
+
+Si tout est coché → **« Reversements OK »** : j'inscris le **G5** de P5.5a.
