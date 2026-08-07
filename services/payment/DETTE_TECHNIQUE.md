@@ -30,3 +30,32 @@ pourquoi c'est acceptable maintenant, condition de levée.
 - **Index unique partiel** `UNIQUE(type_operation_source) WHERE actif` : interdit deux campagnes actives
   sur le même type → **impossible de préparer la campagne suivante pendant que l'actuelle tourne**
   (procédure de bascule : désactiver puis créer, avec un court trou sans campagne). Assumé.
+
+## P5.4a — Cartes bancaires (§5)
+
+- **Mandats récurrents (§5.4) non implémentés.** Le vault conserve `network_transaction_id` (NTID) et
+  `psp_customer_id` — tout le nécessaire aux paiements initiés marchand (MIT) récurrents — mais **aucun
+  débit récurrent** n'existe. *Pourquoi acceptable* : le vault est le socle ; le moteur d'abonnement/mandat
+  est un incrément distinct. *Levée* : §5.4, s'appuyer sur les cartes enrôlées + NTID pour rejouer un débit
+  MIT. Classé « conçu », pas « prêt à activer ».
+
+- **Tout est SIMULÉ (FT5).** Deux adaptateurs `sim_tokenise` / `sim_redirige` déterministes ; secret HMAC
+  de webhook = constante de **dév** (`dev-hmac-<psp>`). *Levée* : par PSP réel = nouvel adaptateur +
+  secret réel (config/HSM) + `parserEvenement` normalisant le **vrai** format de webhook. Aucune de ces
+  branches n'a été testée contre un PSP réel → **ne pas** la déclarer « prête à activer ».
+
+- **Expiration d'autorisation = job dormant.** La capture étant **synchrone** (auto-capture après
+  autorisation), aucune transaction ne stationne en `AUTORISEE` ; le job `expirerAutorisationsEchues` ne
+  trouve donc jamais rien. *Pourquoi acceptable* : structurellement correct, prêt pour la **capture
+  différée** future. *Levée* : à l'introduction de la capture différée (autoriser maintenant / capturer
+  plus tard), poser `autorisation_expire_le` à l'autorisation.
+
+- **Concurrence & dédup prouvées en G2, pas en G3.** Le verrou pessimiste (2×finalize → 1 capture), la
+  déduplication webhook `UNIQUE(psp, evenement_id)` et l'idempotence Redis+PG **ne peuvent pas** être
+  prouvés par les tests unitaires (le build tourne sans base). Ils le sont par les vecteurs G2 live
+  (Partie I du guide). *Levée* : introduire des tests d'intégration Testcontainers (dépendance nouvelle →
+  accord propriétaire requis, §2.6).
+
+- **`StatutCarte` / `ActionClient` backend-only.** À **promouvoir dans `@masante/shared`** le jour où un
+  écran web/mobile carte les consomme (aujourd'hui aucun consommateur → coût de rattrapage faible). Même
+  logique qu'ADR-014.

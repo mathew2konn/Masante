@@ -86,3 +86,12 @@ masante:
         cron: ${INTEGRITE_PLANIF_CRON:0 30 1 * * *}   # tous les jours 01:30 UTC (contrôle la veille)
       # Endpoint d'injection d'anomalies : DÉV UNIQUEMENT. OFF en production (l'endpoint répond 404).
       dev-seed-enabled: ${INTEGRITE_DEV_SEED:false}
+    # Jobs planifiés du domaine carte (P5.4a, CDC_06 §5/§6.3, ADR-015). Horaires/activation = DONNÉES.
+    cartes:
+      # Durée de vie du nonce anti-rejeu des webhooks (> fenêtre de fraîcheur 5 min).
+      webhook-nonce-minutes: ${CARTE_WEBHOOK_NONCE_MINUTES:15}
+      planification:
+        enabled: ${CARTE_PLANIF_ENABLED:true}
+        expiration-defi-ms: ${CARTE_EXPIRATION_DEFI_MS:60000}                       # défis/redirections échus → EXPIREE (~1 min)
+        expiration-autorisation-cron: ${CARTE_EXPIRATION_AUTORISATION_CRON:0 15 1 * * *}  # 01:15 UTC
+        reconciliation-cron: ${CARTE_RECONCILIATION_CRON:0 45 1 * * *}              # 01:45 UTC (réconcilie la veille)

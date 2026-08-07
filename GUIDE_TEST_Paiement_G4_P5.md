@@ -426,6 +426,87 @@ exploitation, le run quotidien alimente les mêmes tables et alerte en cas d'éc
 
 ---
 
+# Partie I — Cartes bancaires (P5.4a, §5)
+
+> **Paiement SIMULÉ (FT5)** : deux PSP simulés déterministes, `sim_tokenise` (frictionless / défi 3DS)
+> et `sim_redirige` (redirection + webhook). **Frontière PCI** : aucun PAN/CVV n'entre jamais ; le service
+> ne voit que des **tokens** et des métadonnées non sensibles. Le sous-état interne `StatutCarte` n'est
+> **jamais** exposé — le front ne reçoit que `PaiementStatut` (générique) + une `ActionClient`
+> (`AUCUNE / DEFI_3DS / REDIRECTION / REFUSEE`). Détails : `docs/adr/ADR-015`.
+
+Base : `B=http://localhost:8080/api/v1`. En-têtes : `X-Utilisateur-Id` (identité posée par la passerelle),
+`Idempotency-Key` (obligatoire sur toute écriture). Tous les montants sont en **XOF entiers**.
+
+## 57. Frictionless → SUCCESS (+ enrôlement au vault)
+`POST $B/card-payments` avec `X-Utilisateur-Id: user-1`, `Idempotency-Key: k-fric-1`, corps
+`{"psp":"sim_tokenise","referenceClient":"tok_test_frictionless","montant":6000,"objet":"RENDEZ_VOUS","enregistrerCarte":true}`
+→ **201**, `statut: "SUCCESS"`, `action: "AUCUNE"`. Puis `GET $B/cards` (`X-Utilisateur-Id: user-1`) →
+**1 carte** `VISA 4242` `parDefaut:true` — **sans** token ni empreinte (frontière PCI).
+
+## 58. Rejeu idempotent
+Rejouer **exactement** le POST du test 57 (même `Idempotency-Key: k-fric-1`) → **200**, `rejoue: true`,
+même paiement. La passerelle n'est pas ré-appelée.
+
+## 59. Défi 3DS (tokenisé) + finalisation vérité serveur
+`POST $B/card-payments` (`referenceClient:"tok_test_challenge"`, `Idempotency-Key: k-chal-1`) → **201**,
+`statut: "PENDING"`, `action: "DEFI_3DS"`, `challengeRef` présent. Puis
+`POST $B/card-payments/{paiementId}/finalize` → **200**, `statut: "SUCCESS"` (le serveur lit le statut
+**autoritatif** du PSP ; le client ne déclare jamais le résultat 3DS).
+
+## 60. Refus
+`POST $B/card-payments` (`referenceClient:"tok_test_refus"`) → `statut: "FAILED"`, `action: "REFUSEE"`,
+`codeRefus` générique. Aucun `StatutCarte` interne n'apparaît.
+
+## 61. Remboursements (partiel, cumul > capturé, total)
+Sur le paiement du test 57 (`{paiementId}`, capturé 6000) :
+- `POST .../refund` `{"montant":2000,"devise":"XOF"}` (`Idempotency-Key: k-rf-1`) → **200**, reste `SUCCESS`.
+- `POST .../refund` `{"montant":5000}` (cumul 7000 > 6000) → **422** « Remboursement cumulé supérieur au capturé ».
+- `POST .../refund` `{"montant":4000}` (cumul 6000 = total) → **200**, `statut: "REFUNDED"`.
+
+Le contrôle du cumul est **backend** (frontière) ; le remboursement va **toujours** vers la carte d'origine.
+
+## 62. Filtre anti-PAN (§9) — PCI en bord d'entrée
+`POST $B/card-payments` avec un **PAN** en clair dans un champ, ex.
+`{"psp":"sim_tokenise","referenceClient":"4111111111111111","montant":6000,"objet":"RENDEZ_VOUS"}`
+→ **422** « Donnée de carte en clair détectée… ». Contrôle : `docker logs payment-payment-1 | grep 4111111111111111`
+→ **aucune occurrence** (le corps d'un paiement carte n'est **jamais** journalisé, interdit #7).
+
+## 63. Redirigé + webhook SIGNÉ (source de vérité §7.3)
+`POST $B/card-payments` (`psp:"sim_redirige"`, `referenceClient:"red_test_succes"`) → **201**, `PENDING`,
+`action: "REDIRECTION"`, `urlRedirection` (la `refPasserelle` est le segment après `/pay/`). Construire le
+corps du webhook `{"evenementId":"evt-1","type":"payment.updated","refPasserelle":"<REF>","issue":"AUTORISE","horodatage":"<ISO-8601 UTC now>","marque":"MASTERCARD","last4":"4444"}`,
+signer avec `openssl dgst -sha256 -hmac "dev-hmac-sim_redirige" -hex corps.json`, puis
+`POST $B/card-webhooks/sim_redirige` (corps brut, en-têtes `X-Signature: <hex>`, `X-Timestamp: <ISO>`) →
+**200**. `GET $B/card-payments/{paiementId}` → `statut: "SUCCESS"`.
+
+## 64. Webhook : rejeu, signature altérée, horodatage périmé (anti-fuite)
+- **Rejeu** du même webhook (même `evenementId`) → **200** idempotent (pas de double capture).
+- **Signature altérée** (`X-Signature: deadbeef…`) → **401** « Webhook rejeté. » (message générique).
+- **Horodatage périmé** (`horodatage` = `now − 10 min`, pourtant bien signé) → **401** (fenêtre de fraîcheur
+  ±5 min ; l'horodatage est **dans le corps signé**, donc infalsifiable).
+
+Les trois rejets renvoient le **même** 401 générique : on ne révèle jamais lequel des contrôles a échoué.
+
+## 65. Concurrence : 2× finalize → 1 seule capture
+Créer un défi (test 59), puis lancer **deux** `POST .../finalize` **en parallèle**. Les deux répondent
+**200**, mais le paiement n'est capturé **qu'une fois** : `montant_capture` = montant (pas le double), une
+seule transition vers `SUCCESS` (verrou pessimiste `FOR UPDATE`).
+
+## 66. Expiration par job planifié
+Créer `referenceClient:"tok_test_expire"` (TTL de défi déjà dépassé) → `PENDING` / `DEFI_3DS`. **Sans**
+finaliser, attendre ~60 s : le job d'expiration (`@Scheduled`, ~1 min) bascule le paiement en
+`statut: "CANCELLED"` (sous-état `EXPIREE`).
+
+## 67. Réconciliation à DEUX sources (≠ auditeur interne P5.3b-4)
+`POST $B/card-reconciliations/run?date=<aujourd'hui>` → un rapport **par PSP** avec `nbEcarts: 0` sur les
+données saines (registre local ⇄ vérité PSP). **Preuve de détection** : basculer en base une transaction
+capturée en `REFUSEE` (`UPDATE carte_transactions SET statut_carte='REFUSEE' WHERE ref_passerelle LIKE 'SIMRD-SUCCES-%'`),
+relancer le run → **`nbEcarts: 1`** avec le détail (`statutLocal:REFUSEE`/`ECHOUEE` vs `issuePsp:AUTORISE`/`REUSSIE`,
+`montantLocal` ≠ `montantPsp`). Idempotent (un rapport par `date,psp` au rejeu). **Détection seule** : aucune
+donnée n'est corrigée. (Remettre la valeur à `CAPTUREE` pour laisser les données propres.)
+
+---
+
 ## (Option) Tout tester d'un coup avec Postman
 Importer `services/payment/postman/MASANTE-Payment-P5.1.postman_collection.json` dans Postman, puis
 **Run collection** → toutes les requêtes (paiement **et** facturation) s'exécutent avec leurs
@@ -460,5 +541,18 @@ vérifications automatiques (tout doit être vert).
 - [ ] 55 **Idempotence** (1 run/journée au rejeu) + endpoint dév **404** sans `INTEGRITE_DEV_SEED`
 - [ ] 56 Batch **automatique quotidien** (`@Scheduled`, horaire = donnée) présent
 
-Si tout est coché → répondez-moi **« Contrôle intégrité OK »** : j'inscris le **G5** de P5.3b-4.
+**P5.4a Cartes bancaires (§5)** :
+- [ ] 57 Frictionless → **SUCCESS** + carte enrôlée au vault (sans token/empreinte)
+- [ ] 58 Rejeu même `Idempotency-Key` → **200** `rejoue:true`
+- [ ] 59 Défi 3DS → `PENDING`/`DEFI_3DS`, `finalize` → **SUCCESS** (vérité serveur)
+- [ ] 60 Refus → `FAILED`/`REFUSEE` (aucun `StatutCarte` exposé)
+- [ ] 61 Remboursements : partiel **200** → cumul>capturé **422** → total **REFUNDED**
+- [ ] 62 **Filtre anti-PAN** : PAN→**422** + `grep` logs = **0 occurrence**
+- [ ] 63 Redirigé + **webhook signé HMAC** → **200** → **SUCCESS**
+- [ ] 64 Webhook : rejeu→**200** ; altéré→**401** ; périmé→**401** (générique)
+- [ ] 65 **Concurrence** 2×finalize → **1 seule capture**
+- [ ] 66 **Expiration** par job (~1 min) → `CANCELLED`
+- [ ] 67 **Réconciliation 2 sources** : sain→0 ; anomalie→1 écart ; idempotent
+
+Si tout est coché → répondez-moi **« Cartes OK »** : j'inscris le **G5** de P5.4a.
 Si un point coince, dites-moi le numéro et ce que vous voyez.

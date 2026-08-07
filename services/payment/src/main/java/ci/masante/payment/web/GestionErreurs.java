@@ -1,6 +1,8 @@
 package ci.masante.payment.web;
 
 import ci.masante.payment.domain.billing.FacturationInvalideException;
+import ci.masante.payment.domain.carte.PasserelleInconnue;
+import ci.masante.payment.domain.carte.TransitionCarteIllegale;
 import ci.masante.payment.domain.coverage.CouvertureInvalideException;
 import ci.masante.payment.domain.fraud.FraudSuspecteeException;
 import ci.masante.payment.domain.gateway.CanalNonSupporteException;
@@ -20,11 +22,15 @@ import ci.masante.payment.domain.wallet.WalletGeleException;
 import ci.masante.payment.service.ActeurRequisException;
 import ci.masante.payment.service.AlerteFraudeIntrouvableException;
 import ci.masante.payment.service.AvoirIntrouvableException;
+import ci.masante.payment.service.CarteIntrouvableException;
+import ci.masante.payment.service.CarteTransactionIntrouvableException;
 import ci.masante.payment.service.ControleIntrouvableException;
 import ci.masante.payment.service.ConflitIdempotenceException;
 import ci.masante.payment.service.FactureIntrouvableException;
+import ci.masante.payment.service.OperationCarteInvalideException;
 import ci.masante.payment.service.PaiementIntrouvableException;
 import ci.masante.payment.service.WalletIntrouvableException;
+import ci.masante.payment.service.WebhookInvalideException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.web.bind.MissingRequestHeaderException;
@@ -41,8 +47,8 @@ import java.util.stream.Collectors;
 @RestControllerAdvice
 public class GestionErreurs {
 
-    /** Transition d'état interdite ou remboursement d'un paiement non abouti → 409. */
-    @ExceptionHandler({TransitionInvalideException.class, IllegalStateException.class})
+    /** Transition d'état (générique ou carte) interdite, ou remboursement d'un paiement non abouti → 409. */
+    @ExceptionHandler({TransitionInvalideException.class, TransitionCarteIllegale.class, IllegalStateException.class})
     public ProblemDetail conflit(RuntimeException ex) {
         return probleme(HttpStatus.CONFLICT, ex.getMessage());
     }
@@ -53,20 +59,27 @@ public class GestionErreurs {
         return probleme(HttpStatus.CONFLICT, ex.getMessage());
     }
 
-    /** Paiement, facture, avoir ou portefeuille introuvable → 404. */
+    /** Paiement, facture, avoir, portefeuille, transaction ou carte introuvable → 404. */
     @ExceptionHandler({PaiementIntrouvableException.class, FactureIntrouvableException.class,
             AvoirIntrouvableException.class, WalletIntrouvableException.class,
-            AlerteFraudeIntrouvableException.class, ControleIntrouvableException.class})
+            AlerteFraudeIntrouvableException.class, ControleIntrouvableException.class,
+            CarteTransactionIntrouvableException.class, CarteIntrouvableException.class})
     public ProblemDetail introuvable(RuntimeException ex) {
         return probleme(HttpStatus.NOT_FOUND, ex.getMessage());
     }
 
-    /** Canal non supporté, entrée de couverture/facturation/wallet/cashback invalide → 400. */
-    @ExceptionHandler({CanalNonSupporteException.class, CouvertureInvalideException.class,
-            FacturationInvalideException.class, OperationWalletInvalideException.class,
-            CashbackInvalideException.class})
+    /** Canal/PSP non supporté, entrée de couverture/facturation/wallet/cashback invalide → 400. */
+    @ExceptionHandler({CanalNonSupporteException.class, PasserelleInconnue.class,
+            CouvertureInvalideException.class, FacturationInvalideException.class,
+            OperationWalletInvalideException.class, CashbackInvalideException.class})
     public ProblemDetail requeteInvalide(RuntimeException ex) {
         return probleme(HttpStatus.BAD_REQUEST, ex.getMessage());
+    }
+
+    /** Opération carte invalide dans l'état courant (remboursement &gt; capturé, devise, capture) → 422. */
+    @ExceptionHandler(OperationCarteInvalideException.class)
+    public ProblemDetail operationCarteInvalide(OperationCarteInvalideException ex) {
+        return probleme(HttpStatus.UNPROCESSABLE_ENTITY, ex.getMessage());
     }
 
     /** Campagne inexistante/inactive/hors période → 409. */
@@ -84,6 +97,12 @@ public class GestionErreurs {
     /** Acte de création monétaire sans acteur identifié → 401. */
     @ExceptionHandler(ActeurRequisException.class)
     public ProblemDetail acteurRequis(ActeurRequisException ex) {
+        return probleme(HttpStatus.UNAUTHORIZED, ex.getMessage());
+    }
+
+    /** Webhook carte rejeté (signature/fraîcheur/parse) → 401. Message GÉNÉRIQUE (anti-fuite §7.3). */
+    @ExceptionHandler(WebhookInvalideException.class)
+    public ProblemDetail webhookInvalide(WebhookInvalideException ex) {
         return probleme(HttpStatus.UNAUTHORIZED, ex.getMessage());
     }
 

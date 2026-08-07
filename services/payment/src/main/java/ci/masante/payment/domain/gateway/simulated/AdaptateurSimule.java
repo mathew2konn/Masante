@@ -22,9 +22,15 @@ import java.util.Set;
 @Component
 public class AdaptateurSimule implements PasserellePaiement {
 
-    /** Canaux couverts par la simulation tant qu'aucun adaptateur réel n'est branché. */
+    /**
+     * Canaux couverts par la simulation tant qu'aucun adaptateur réel n'est branché.
+     * <p>Le canal {@code carte} a été RETIRÉ (P5.4a) : les paiements par carte sont orchestrés par
+     * {@code ServiceCarte} via {@code RegistrePasserellesCarte} (3DS2 / autorisation / capture / webhook),
+     * et non par ce dispatch générique. Une demande générique {@code canal=carte} est donc volontairement
+     * rejetée (aucune passerelle générique ne la supporte).</p>
+     */
     private static final Set<String> CANAUX = Set.of(
-            "orange_money", "mtn_momo", "wave", "moov_money", "carte", "wallet", "especes"
+            "orange_money", "mtn_momo", "wave", "moov_money", "wallet", "especes"
     );
 
     private final SecureRandom random = new SecureRandom();
