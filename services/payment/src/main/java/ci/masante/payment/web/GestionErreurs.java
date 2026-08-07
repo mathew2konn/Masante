@@ -8,6 +8,7 @@ import ci.masante.payment.domain.fraud.FraudSuspecteeException;
 import ci.masante.payment.domain.gateway.CanalNonSupporteException;
 import ci.masante.payment.domain.reward.CampagneInvalideException;
 import ci.masante.payment.domain.reward.CashbackInvalideException;
+import ci.masante.payment.domain.reversement.ReversementInvalideException;
 import ci.masante.payment.domain.reward.PlafondRecompenseException;
 import ci.masante.payment.domain.statemachine.TransitionInvalideException;
 import ci.masante.payment.domain.wallet.ChallengeRequisException;
@@ -29,6 +30,8 @@ import ci.masante.payment.service.ConflitIdempotenceException;
 import ci.masante.payment.service.FactureIntrouvableException;
 import ci.masante.payment.service.OperationCarteInvalideException;
 import ci.masante.payment.service.PaiementIntrouvableException;
+import ci.masante.payment.service.ReversementIntrouvableException;
+import ci.masante.payment.service.RoleInsuffisantException;
 import ci.masante.payment.service.WalletIntrouvableException;
 import ci.masante.payment.service.WebhookInvalideException;
 import org.springframework.http.HttpStatus;
@@ -63,9 +66,22 @@ public class GestionErreurs {
     @ExceptionHandler({PaiementIntrouvableException.class, FactureIntrouvableException.class,
             AvoirIntrouvableException.class, WalletIntrouvableException.class,
             AlerteFraudeIntrouvableException.class, ControleIntrouvableException.class,
-            CarteTransactionIntrouvableException.class, CarteIntrouvableException.class})
+            CarteTransactionIntrouvableException.class, CarteIntrouvableException.class,
+            ReversementIntrouvableException.class})
     public ProblemDetail introuvable(RuntimeException ex) {
         return probleme(HttpStatus.NOT_FOUND, ex.getMessage());
+    }
+
+    /** Entrée de calcul de reversement invalide (taux hors bornes, report positif, montant négatif) → 422. */
+    @ExceptionHandler(ReversementInvalideException.class)
+    public ProblemDetail reversementInvalide(ReversementInvalideException ex) {
+        return probleme(HttpStatus.UNPROCESSABLE_ENTITY, ex.getMessage());
+    }
+
+    /** Rôle insuffisant pour une action sensible (taux de commission) → 403. Message générique. */
+    @ExceptionHandler(RoleInsuffisantException.class)
+    public ProblemDetail roleInsuffisant(RoleInsuffisantException ex) {
+        return probleme(HttpStatus.FORBIDDEN, ex.getMessage());
     }
 
     /** Canal/PSP non supporté, entrée de couverture/facturation/wallet/cashback invalide → 400. */
@@ -156,6 +172,12 @@ public class GestionErreurs {
     @ExceptionHandler(MissingRequestHeaderException.class)
     public ProblemDetail enteteManquant(MissingRequestHeaderException ex) {
         return probleme(HttpStatus.BAD_REQUEST, "En-tête obligatoire manquant : " + ex.getHeaderName());
+    }
+
+    /** Argument invalide (fenêtre de période, motif manquant, taux hors bornes) → 400. */
+    @ExceptionHandler(IllegalArgumentException.class)
+    public ProblemDetail argumentInvalide(IllegalArgumentException ex) {
+        return probleme(HttpStatus.BAD_REQUEST, ex.getMessage());
     }
 
     /** Validation de la requête (Bean Validation) → 400 avec le détail des champs. */

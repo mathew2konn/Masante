@@ -46,6 +46,11 @@ public class CarteRemboursement {
     @Column(name = "motif", updatable = false)
     private String motif;
 
+    // Établissement figé à la création (dénormalisé §11) : évite le rattachement à 3 sauts sur des
+    // données mutables. Assiette reversement = statut REUSSI ∧ cree_le ∈ fenêtre ∧ non déjà imputé.
+    @Column(name = "etablissement_ref", updatable = false)
+    private String etablissementRef;
+
     @CreationTimestamp
     @Column(name = "cree_le", nullable = false, updatable = false)
     private Instant creeLe;
@@ -58,7 +63,8 @@ public class CarteRemboursement {
     }
 
     public CarteRemboursement(UUID carteTransactionId, String psp, String refPasserelleRemboursement,
-                              long montant, String devise, String statut, String motif) {
+                              long montant, String devise, String statut, String motif,
+                              String etablissementRef) {
         this.carteTransactionId = carteTransactionId;
         this.psp = psp;
         this.refPasserelleRemboursement = refPasserelleRemboursement;
@@ -66,6 +72,7 @@ public class CarteRemboursement {
         this.devise = devise;
         this.statut = statut;
         this.motif = motif;
+        this.etablissementRef = etablissementRef;
     }
 
     public void setStatut(String statut) {

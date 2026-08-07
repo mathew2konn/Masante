@@ -300,7 +300,7 @@ public class ServiceCarte {
             throw new OperationCarteInvalideException("Remboursement refusé par la passerelle");
         }
         remboursements.save(new CarteRemboursement(tx.getId(), tx.getPsp(), res.referenceOperateur(),
-                demande.valeur(), devise.code(), "REUSSI", motif));
+                demande.valeur(), devise.code(), "REUSSI", motif, paiement.getEtablissementRef()));
         tx.setMontantRembourse(cumule.valeur());
 
         boolean total = cumule.valeur() == capture.valeur();

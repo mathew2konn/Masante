@@ -110,6 +110,11 @@ public class Facture {
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
 
+    // Assiette temporelle des reversements (§11) : posée UNE fois au passage à PAYEE par le trigger
+    // `factures_soldee_a` (V10), immuable. Géré par la base → lecture seule côté JPA.
+    @Column(name = "soldee_a", insertable = false, updatable = false)
+    private Instant soldeeA;
+
     protected Facture() {
     }
 
@@ -260,5 +265,10 @@ public class Facture {
 
     public Instant getUpdatedAt() {
         return updatedAt;
+    }
+
+    /** Instant de solde (passage à PAYEE), immuable. Null tant que la facture n'est pas PAYEE. */
+    public Instant getSoldeeA() {
+        return soldeeA;
     }
 }
