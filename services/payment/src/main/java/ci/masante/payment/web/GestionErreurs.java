@@ -30,6 +30,7 @@ import ci.masante.payment.service.ConflitIdempotenceException;
 import ci.masante.payment.service.FactureIntrouvableException;
 import ci.masante.payment.service.OperationCarteInvalideException;
 import ci.masante.payment.service.PaiementIntrouvableException;
+import ci.masante.payment.service.PrincipalInvalideException;
 import ci.masante.payment.service.ReversementIntrouvableException;
 import ci.masante.payment.service.RoleInsuffisantException;
 import ci.masante.payment.service.WalletIntrouvableException;
@@ -78,10 +79,22 @@ public class GestionErreurs {
         return probleme(HttpStatus.UNPROCESSABLE_ENTITY, ex.getMessage());
     }
 
-    /** Rôle insuffisant pour une action sensible (taux de commission) → 403. Message générique. */
+    /** Rôle insuffisant pour une action sensible (taux de commission, destination) → 403. Générique. */
     @ExceptionHandler(RoleInsuffisantException.class)
     public ProblemDetail roleInsuffisant(RoleInsuffisantException ex) {
         return probleme(HttpStatus.FORBIDDEN, ex.getMessage());
+    }
+
+    /** Principal signé invalide (signature/fraîcheur/rejeu/liaison requête) → 401. Générique (anti-fuite). */
+    @ExceptionHandler(PrincipalInvalideException.class)
+    public ProblemDetail principalInvalide(PrincipalInvalideException ex) {
+        return probleme(HttpStatus.UNAUTHORIZED, ex.getMessage());
+    }
+
+    /** Destination de reversement au format invalide (MSISDN/IBAN) → 422. */
+    @ExceptionHandler(ci.masante.payment.domain.reversement.DestinationInvalideException.class)
+    public ProblemDetail destinationInvalide(ci.masante.payment.domain.reversement.DestinationInvalideException ex) {
+        return probleme(HttpStatus.UNPROCESSABLE_ENTITY, ex.getMessage());
     }
 
     /** Canal/PSP non supporté, entrée de couverture/facturation/wallet/cashback invalide → 400. */

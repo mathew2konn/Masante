@@ -41,6 +41,11 @@ services:
       DB_PASSWORD: payment
       REDIS_HOST: redis
       REDIS_PORT: 6379
+      # Secrets de DÉV « prêts à activer » (P5.5b-1). En prod : KMS + masante.payment.securite.exiger-cles=true
+      # (démarrage refusé si absents). Valeurs connues ici pour permettre G2/G4 (frappe du principal signé).
+      MASANTE_PAYMENT_DEST_KEY: MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=
+      MASANTE_PAYMENT_DEST_PEPPER: YWJjZGVmMDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODk=
+      MASANTE_PAYMENT_PRINCIPAL_SECRET: cHJpbmNpcGFsLWRldi1zZWNyZXQtMDEyMzQ1Njc4OSEh
     ports:
       - "8080:8080"
 

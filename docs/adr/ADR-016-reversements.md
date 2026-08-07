@@ -1,7 +1,7 @@
 # ADR-016 — Reversements aux établissements (P5.5a) : assiette immuable, report chaîné, invariance hybride, calcul backend
 
-- **Statut** : **Accepté** (P5.5a livré, prouvé G3 ; G2 live à confirmer). Décaissement **SIMULÉ / différé** (P5.5b) — aucun virement réel.
-- **Date** : 2026-08-07
+- **Statut** : **Accepté** (P5.5a **VALIDÉ G5** ; P5.5b-1 livré : destinations chiffrées + quatre-yeux + constatation). Décaissement **SIMULÉ / différé** (P5.5b-2) — aucun virement réel.
+- **Date** : 2026-08-07 (P5.5a) · 2026-08-07 (P5.5b-1)
 - **Corpus** : CDC_06 §11 (Settlement : sommes dues par établissement, périodicité configurable, retenue de commission, relevés, exécution et traçabilité ; rapprochement quotidien opérateurs ↔ MASANTÉ ↔ factures ↔ reversements). §7 (facturation), §6.3 (journal immuable), §9.7 (audit chaîné), §12 (batch). CDC_01/02 §0.1 (frontière : calcul backend seul). CDC_10 (sécurité > tout).
 - **Lié à** : [[ADR-013]] (microservice paiement), [[ADR-014]] (contrôle interne vs rapprochement 2 sources : S11.x), P5.2a (factures), P5.4a (remboursements carte).
 
@@ -37,9 +37,34 @@ Taux historisé (`reversement_commission_config`, bps entiers, `etablissement_re
 
 Le relevé porte `hash_integrite` (empreinte de ligne, calculée en Java, pour vérification/QR). L'inaltérabilité de **série** (disparition d'un relevé entier) est couverte par le **journal global chaîné `audit_entries`** (§9.7 : `previous_hash → hash`, séquence monotone, ancre GENESIS) où chaque acte (`SettlementCalculated/Approved/Cancelled`, `SettlementCommissionRateSet`) est consigné. Les deux ensemble satisfont l'exigence d'inaltérabilité (loi 2013-450) sans dupliquer de chaîne par établissement.
 
-### 7. Hors périmètre P5.5a (→ P5.5b / V11), classé honnêtement
+### 7. Décaissement, grand livre, destination, quatre-yeux — P5.5b (V11)
 
-Grand livre en partie double (écritures **au décaissement**, plan de comptes incluant la trésorerie), destination de paiement chiffrée + empreinte figées à l'approbation, quatre-yeux, adaptateur de décaissement OCP simulé. Non posés en V10 : **on ne pose pas un grand livre incomplet, on ne le pose pas du tout**. Le vrai rapprochement « factures ↔ reversements » = **P5.5c** (extension de `TypeControle`/`TypeEcart`, cf. ADR-014) ; le bras externe « opérateurs ↔ MASANTÉ » reste différé (aucun relevé opérateur réel).
+Découpé en deux sous-incréments après revue :
+
+**P5.5b-1 (livré, V11)** — registre de destinations **chiffré** (AES-256-GCM : nonce stocké, **AAD** liant
+`etablissement_ref`+`id`, `cle_version`), **empreinte HMAC poivrée** versionnée (comparaison sans
+déchiffrement, non brute-forçable — un SHA-256 nu sur un espace MSISDN ~10⁸ serait un oracle) ; **quatre-yeux**
+(approbateur ≠ calculateur [CHECK] **et** ≠ créateur de la destination [Java] ; **anti-substitution** : la
+destination active doit être identique à celle figée au calcul, `destination_empreinte_calcul`) ; **écriture
+de CONSTATATION** en partie double (grand livre **en-tête + lignes**, Σdébit=Σcrédit **par contributions
+signées** — aucun `abs()` ; `ck_rev_equation` garantit l'équilibre côté SGBD). **Contre-passation** =
+écriture `EXTOURNE` inverse (append-only, jamais d'UPDATE) ; état **`REJETE`** distinct d'`ANNULE`.
+**Autorisation** : les actes sensibles exigent un **principal signé vérifié en service** (`X-Principal` +
+HMAC lié à méthode+chemin, anti-rejeu par nonce à usage unique) — corrige la faille « rôle déclaré par le
+client » (P5.3b-1) : plus d'`X-Acteur-Role`. Convention de signe **relâchée** (V11 supprime `ck_rev_signes`) :
+`report`/`solde` libres de signe → le **report positif** (dû sous seuil de versement) devient représentable
+pour b-2 ; l'équilibre reste garanti par `ck_rev_equation`.
+
+**P5.5b-2 (à venir)** — versement effectif : adaptateur OCP `PasserelleReversement` **simulé** (FT5),
+écriture de **DÉCAISSEMENT** (compte `FRAIS_PASSERELLE`), machine `EN_COURS/EXECUTE/ECHOUE`, idempotence
+anti-double-versement, contrôle « destination révoquée depuis le figeage ».
+
+Le vrai rapprochement « factures ↔ reversements » = **P5.5c** (extension de `TypeControle`/`TypeEcart`, cf.
+ADR-014) ; le bras externe « opérateurs ↔ MASANTÉ » reste différé (aucun relevé opérateur réel).
+
+**Décisions assumées** : une **seule destination active** par établissement (pas de split banque+MoMo) ;
+`etablissement_ref` **référence molle** (établissements hors base paiement, ADR-013) → réconciliation des
+orphelins en G2 ; clés/secret « prêts à activer » (KMS), prod refuse de démarrer sans eux.
 
 ## Conséquences
 

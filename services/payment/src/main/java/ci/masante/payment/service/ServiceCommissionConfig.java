@@ -2,6 +2,7 @@ package ci.masante.payment.service;
 
 import ci.masante.payment.domain.model.CommissionConfig;
 import ci.masante.payment.repository.CommissionConfigRepository;
+import jakarta.persistence.EntityManager;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -21,12 +22,17 @@ import java.util.Optional;
 @Service
 public class ServiceCommissionConfig {
 
+    /** classid dédié à la config commission (distinct des destinations : pas de contention croisée). */
+    private static final int CLASSID_COMMISSION = 5512;
+
     private final CommissionConfigRepository depot;
     private final ServiceAudit audit;
+    private final EntityManager em;
 
-    public ServiceCommissionConfig(CommissionConfigRepository depot, ServiceAudit audit) {
+    public ServiceCommissionConfig(CommissionConfigRepository depot, ServiceAudit audit, EntityManager em) {
         this.depot = depot;
         this.audit = audit;
+        this.em = em;
     }
 
     /**
@@ -52,6 +58,12 @@ public class ServiceCommissionConfig {
         if (tauxBps < 0 || tauxBps > 10000) {
             throw new IllegalArgumentException("Taux de commission hors bornes [0,10000] : " + tauxBps);
         }
+        // Verrou consultatif : sérialise « clôturer l'actuel → ouvrir le nouveau » (corrige le TOCTOU
+        // d'une vérification purement Java sous READ COMMITTED). L'index unique partiel reste le garant.
+        em.createNativeQuery("SELECT pg_advisory_xact_lock(:classid, :objid)")
+                .setParameter("classid", CLASSID_COMMISSION)
+                .setParameter("objid", (etablissementRef == null ? "*" : etablissementRef).hashCode())
+                .getSingleResult();
         Instant maintenant = Instant.now();
         Optional<CommissionConfig> ouvertActuel = etablissementRef == null
                 ? depot.findByEtablissementRefIsNullAndValideAuIsNull()
@@ -61,7 +73,9 @@ public class ServiceCommissionConfig {
         if (ouvertActuel.isPresent()) {
             CommissionConfig ancien = ouvertActuel.get();
             ancien.cloturer(maintenant);
-            depot.save(ancien);
+            // saveAndFlush : force l'UPDATE de clôture AVANT l'INSERT (Hibernate ordonne sinon les INSERT
+            // avant les UPDATE → deux taux ouverts simultanés → violation de uq_cfg_un_seul_taux_ouvert).
+            depot.saveAndFlush(ancien);
             remplaceId = ancien.getId();
         }
 

@@ -98,3 +98,37 @@ pourquoi c'est acceptable maintenant, condition de levée.
   d'assiette), l'unicité de période active et l'unicité de successeur vivant se prouvent en **live**
   (script `V10_verification_invariants.sql` + vecteurs Postman), pas par les tests unitaires purs (build
   sans base). *Levée* : tests d'intégration Testcontainers (dépendance nouvelle → accord propriétaire).
+
+## P5.5b-1 — Reversements : destinations chiffrées, quatre-yeux, constatation
+
+- **Chiffrement/poivre/secret principal « prêts à activer », clés de DÉV en mémoire.** `MASANTE_PAYMENT_DEST_KEY`
+  (AES-256), `MASANTE_PAYMENT_DEST_PEPPER` (HMAC empreinte), `MASANTE_PAYMENT_PRINCIPAL_SECRET` (principal
+  signé). En profil **durci** (`masante.payment.securite.exiger-cles=true`, prod), leur absence **empêche
+  le démarrage**. En dév, matériel éphémère généré + `log.warn`. *Levée* : adosser à un KMS/HSM et activer
+  le profil durci en prod. `cle_version`/`empreinte_version` posées → rotation possible sans migration.
+
+- **Principal signé HMAC (pas encore JWT Keycloak).** L'identité + les rôles des actes sensibles viennent
+  d'un principal **signé et vérifié en service** (anti « rôle déclaré par le client », P5.3b-1), lié à la
+  requête (méthode+chemin) et anti-rejeu (nonce à usage unique Redis). *Levée* : remplacer par un JWT
+  Keycloak RS256 quand l'IAM national est branché. **Les endpoints X-Acteur-Id existants** (bonus, cashback,
+  run/cancel reversement) restent sur l'en-tête posé par la passerelle : dette d'unification vers le principal
+  signé, non refactorée maintenant (périmètre maîtrisé).
+
+- **REVOKE/GRANT sans effet sous le rôle propriétaire.** L'append-only des tables `reversement_destination`
+  / `reversement_ecriture` / `reversement_grand_livre_ligne` repose en dév sur l'absence de mutateur Java ;
+  les REVOKE (V11 §5) ne mordent qu'en prod sous un rôle applicatif ≠ propriétaire. *Levée* : rôle applicatif
+  à moindre privilège + décommenter les REVOKE ; **à vérifier réellement en G2**.
+
+- **Équilibre du grand livre garanti en Java, pas par trigger.** `ReglesEcritureReversement` garantit
+  Σdébit=Σcrédit par construction (contributions signées) ; le **balayage global** (`V11_verification`) et la
+  **balance de vérification** (Σ A_REVERSER = Σ net approuvé) le prouvent en G2. Pas de contrainte SGBD
+  inter-lignes (choix hybride ciblé). *Levée* : ajouter un contrôle d'intégrité périodique (S11.x) sur le
+  grand livre reversement.
+
+- **Une seule destination active par établissement.** Pas de split banque + Mobile Money simultané. Décision
+  assumée (ADR-016). *Levée* : autoriser une active par (établissement, type) + choix à l'approbation.
+
+- **Décaissement toujours absent (→ P5.5b-2).** La constatation reconnaît la dette ; le versement effectif
+  (adaptateur OCP `PasserelleReversement` simulé, écriture de DÉCAISSEMENT, machine `EN_COURS/EXECUTE/ECHOUE`,
+  idempotence anti-double-versement, frais `FRAIS_PASSERELLE`, contrôle « destination révoquée depuis le
+  figeage ») est P5.5b-2. `FRAIS_PASSERELLE` est un compte **réservé**, non alimenté en b-1.

@@ -626,3 +626,80 @@ cohérence de ligne, un seul taux ouvert, réconciliation en-tête/lignes vide.
 - [ ] 74 `V10_verification_invariants.sql` → tout **PASS** / ROLLBACK
 
 Si tout est coché → **« Reversements OK »** : j'inscris le **G5** de P5.5a.
+
+---
+
+# Partie K — Reversements : destinations, quatre-yeux, constatation (P5.5b-1, §11)
+
+> **Décaissement toujours SIMULÉ / différé (P5.5b-2)** : b-1 **reconnaît la dette** (écriture de
+> constatation) mais **ne verse rien**. Nouveautés : registre de **destinations chiffrées** (AES-GCM,
+> jamais de MSISDN/IBAN en clair ni en log), **approbation à quatre-yeux** (approbateur ≠ calculateur **et**
+> ≠ créateur de la destination), **anti-substitution** de destination, grand livre en **partie double**
+> (constatation), **contre-passation** (extourne), état **REJETE**.
+
+> **Authentification des actes sensibles** : `destinations`, `approve`, `reject`, `commission-config`
+> exigent un **principal signé** (fini le rôle déclaré en clair). Deux en-têtes : `X-Principal` =
+> base64(JSON `{sub,roles,iat,exp,method,path,nonce}`) et `X-Principal-Sig` = base64(HMAC-SHA256 du
+> **texte** X-Principal, secret partagé passerelle↔service). En dév, le secret est fixé dans
+> `docker-compose.yml` (`MASANTE_PAYMENT_PRINCIPAL_SECRET`). Frappe d'un principal (Python) :
+> ```python
+> import base64,hmac,hashlib,json,time,uuid
+> S=base64.b64decode("cHJpbmNpcGFsLWRldi1zZWNyZXQtMDEyMzQ1Njc4OSEh")
+> def mint(sub,roles,method,path):
+>     p={"sub":sub,"roles":roles,"iat":int(time.time()),"exp":int(time.time())+120,
+>        "method":method,"path":path,"nonce":str(uuid.uuid4())}
+>     xp=base64.b64encode(json.dumps(p).encode()).decode()
+>     sig=base64.b64encode(hmac.new(S,xp.encode(),hashlib.sha256).digest()).decode()
+>     return xp,sig   # -> en-têtes X-Principal / X-Principal-Sig
+> ```
+> Le `path` signé doit être **exactement** l'URI appelée (ex. `/api/v1/settlements/{id}/approve`).
+
+## 75. Destination : garde de rôle + création chiffrée
+`POST /api/v1/settlements/destinations` `{ "etablissementRef":"ETB-B1","type":"MOBILE_MONEY",
+"reference":"07 09 01 02 03","motif":"compte Orange" }`. Avec un principal **sans** `ADMIN_FINANCE` →
+**403**. Avec `ADMIN_FINANCE` → **201** ; la réponse porte `libelle` (« Orange Money » + 8 hex d'empreinte)
+et `empreinte`, **jamais** `ref_chiffree`. Format validé (MSISDN CI 01/05/07 ; IBAN CI mod-97) → sinon **422**.
+
+## 76. Anti-rejeu du principal
+Rejouer le **même** couple `X-Principal`/`X-Principal-Sig` (même `nonce`) → **401** (usage unique, Redis).
+La fraîcheur (`exp`, ±5 min) et la liaison `method`+`path` sont également contrôlées : réutiliser une
+signature d'`approve` d'un relevé sur un autre → **401**.
+
+## 77. Quatre-yeux à l'approbation
+Émettre un relevé : `POST /settlements/run` (`X-Acteur-Id: agent.calcul`). L'approuver **avec le même
+sub** `agent.calcul` → **409** (l'approbateur ne peut être le calculateur). Avec `sub` = créateur de la
+destination → **409**. Avec `dir.finance` (≠ calculateur, ≠ créateur) → **200**.
+
+## 78. Constatation comptable équilibrée
+Après approbation, `GET /settlements/{id}/ledger` → une écriture **CONSTATATION**, 3 jambes :
+DÉBIT `TRESORERIE` = brut ; CRÉDIT `COMMISSION` + `A_REVERSER` (+ `REMBOURSEMENT`/`CREANCE_ETABLISSEMENT`
+selon le cas). **Σdébit = Σcrédit**. Une **2ᵉ** approbation du même relevé est impossible (une seule
+constatation par relevé).
+
+## 79. Anti-substitution de destination
+Émettre un relevé (fige l'empreinte de la destination **au calcul**). Ouvrir **une nouvelle** destination
+(change l'active). Approuver le relevé → **409** « destination changée depuis le calcul » → recalcul requis.
+
+## 80. Rejet + annulation avec extourne
+`POST /settlements/{id}/reject` (principal ADMIN_FINANCE, motif) sur un relevé CALCULE → **REJETE**,
+pièces libérées. Annuler un relevé **APPROUVE** (`POST /settlements/{id}/cancel`, `X-Acteur-Id`) →
+**ANNULE** + une écriture **EXTOURNE** (inverse de la constatation) apparaît au `ledger` (append-only,
+aucune ligne effacée).
+
+## 81. Invariants base (script de recette)
+`psql -f src/test/resources/db/verification/V11_verification_invariants.sql` → **tout PASS** / ROLLBACK :
+signe libre report/solde, quatre-yeux (CHECK), destination active unique, constatation unique, règle
+EXTOURNE, **balayage global Σdébit=Σcrédit**, **balance A_REVERSER = Σ net approuvé**.
+
+---
+
+## Récapitulatif des cases — Partie K
+- [ ] 75 Destination : role non-ADMIN→**403** ; ADMIN_FINANCE→**201** ; `ref_chiffree` jamais exposée ; format invalide→**422**
+- [ ] 76 Rejeu du principal (nonce/liaison requête)→**401**
+- [ ] 77 Quatre-yeux : approbateur = calculateur→**409** ; = créateur destination→**409** ; distinct→**200**
+- [ ] 78 Constatation : 3 jambes, Σdébit=Σcrédit ; 2ᵉ approbation→**409**
+- [ ] 79 Anti-substitution : destination changée depuis le calcul→**409**
+- [ ] 80 Reject→REJETE ; annulation d'un approuvé→ANNULE + écriture EXTOURNE
+- [ ] 81 `V11_verification_invariants.sql`→tout **PASS** (dont balance A_REVERSER)
+
+Si tout est coché → **« Reversements b-1 OK »** : j'inscris le **G5** de P5.5b-1.

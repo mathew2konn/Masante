@@ -87,6 +87,20 @@ public class ReversementReleve {
     @Column(name = "hash_integrite", nullable = false, updatable = false)
     private String hashIntegrite;
 
+    // Anti-substitution de destination : empreinte de la destination active AU CALCUL (terme gauche du
+    // contrôle ; figée à la création) vs figée à l'approbation.
+    @Column(name = "destination_empreinte_calcul", updatable = false)
+    private String destinationEmpreinteCalcul;
+
+    @Column(name = "destination_id")
+    private UUID destinationId;
+
+    @Column(name = "destination_empreinte")
+    private String destinationEmpreinte;
+
+    @Column(name = "destination_figee_a")
+    private Instant destinationFigeeA;
+
     @Column(name = "calcule_par", nullable = false, updatable = false)
     private String calculePar;
 
@@ -152,11 +166,28 @@ public class ReversementReleve {
         this.statut = ReversementStatut.CALCULE;
     }
 
-    /** Approbation (CALCULE → APPROUVE). Quatre-yeux + destination = P5.5b. */
-    public void approuver(String approuvePar, Instant approuveA) {
+    /** Empreinte de la destination active au calcul (posée avant le premier persist). */
+    public void poserEmpreinteCalcul(String empreinteCalcul) {
+        this.destinationEmpreinteCalcul = empreinteCalcul;
+    }
+
+    /** Approbation (CALCULE → APPROUVE) : fige la destination (quatre-yeux vérifié en amont). */
+    public void approuver(String approuvePar, Instant approuveA, UUID destinationId,
+                          String destinationEmpreinte, Instant destinationFigeeA) {
         this.statut = ReversementStatut.APPROUVE;
         this.approuvePar = approuvePar;
         this.approuveA = approuveA;
+        this.destinationId = destinationId;
+        this.destinationEmpreinte = destinationEmpreinte;
+        this.destinationFigeeA = destinationFigeeA;
+    }
+
+    /** Rejet par l'approbateur (CALCULE → REJETE). Réutilise les colonnes d'annulation ; statut distinct. */
+    public void rejeter(String rejetePar, Instant rejeteA, String motif) {
+        this.statut = ReversementStatut.REJETE;
+        this.annulePar = rejetePar;
+        this.annuleA = rejeteA;
+        this.motifAnnulation = motif;
     }
 
     /** Annulation (depuis CALCULE ou APPROUVE tant que rien n'est exécuté). */
@@ -245,6 +276,22 @@ public class ReversementReleve {
 
     public String getHashIntegrite() {
         return hashIntegrite;
+    }
+
+    public String getDestinationEmpreinteCalcul() {
+        return destinationEmpreinteCalcul;
+    }
+
+    public UUID getDestinationId() {
+        return destinationId;
+    }
+
+    public String getDestinationEmpreinte() {
+        return destinationEmpreinte;
+    }
+
+    public Instant getDestinationFigeeA() {
+        return destinationFigeeA;
     }
 
     public String getCalculePar() {
