@@ -1,7 +1,7 @@
 # ADR-016 — Reversements aux établissements (P5.5a) : assiette immuable, report chaîné, invariance hybride, calcul backend
 
-- **Statut** : **Accepté** (P5.5a **VALIDÉ G5** ; P5.5b-1 livré : destinations chiffrées + quatre-yeux + constatation). Décaissement **SIMULÉ / différé** (P5.5b-2) — aucun virement réel.
-- **Date** : 2026-08-07 (P5.5a) · 2026-08-07 (P5.5b-1)
+- **Statut** : **Accepté** (P5.5a **VALIDÉ G5** ; P5.5b-1 livré : destinations chiffrées + quatre-yeux + constatation ; P5.5b-2 livré : décaissement SIMULÉ + écriture DÉCAISSEMENT + machine EN_COURS/EXECUTE/ECHOUE). Décaissement **SIMULÉ** (FT5) — aucun virement réel ; rapprochement 2 sources = S11.x/P5.5c.
+- **Date** : 2026-08-07 (P5.5a) · 2026-08-07 (P5.5b-1) · 2026-08-08 (P5.5b-2)
 - **Corpus** : CDC_06 §11 (Settlement : sommes dues par établissement, périodicité configurable, retenue de commission, relevés, exécution et traçabilité ; rapprochement quotidien opérateurs ↔ MASANTÉ ↔ factures ↔ reversements). §7 (facturation), §6.3 (journal immuable), §9.7 (audit chaîné), §12 (batch). CDC_01/02 §0.1 (frontière : calcul backend seul). CDC_10 (sécurité > tout).
 - **Lié à** : [[ADR-013]] (microservice paiement), [[ADR-014]] (contrôle interne vs rapprochement 2 sources : S11.x), P5.2a (factures), P5.4a (remboursements carte).
 
@@ -55,9 +55,24 @@ client » (P5.3b-1) : plus d'`X-Acteur-Role`. Convention de signe **relâchée**
 `report`/`solde` libres de signe → le **report positif** (dû sous seuil de versement) devient représentable
 pour b-2 ; l'équilibre reste garanti par `ck_rev_equation`.
 
-**P5.5b-2 (à venir)** — versement effectif : adaptateur OCP `PasserelleReversement` **simulé** (FT5),
-écriture de **DÉCAISSEMENT** (compte `FRAIS_PASSERELLE`), machine `EN_COURS/EXECUTE/ECHOUE`, idempotence
-anti-double-versement, contrôle « destination révoquée depuis le figeage ».
+**P5.5b-2 (livré, V12)** — versement effectif d'un relevé approuvé, **SIMULÉ** (FT5, aucun virement réel).
+Adaptateur OCP `PasserelleReversement` (dispatch par `TypeDestination` via `RegistrePasserellesReversement`,
+**zéro `if type==`** ; le résultat est décidé par la passerelle, **jamais par l'appelant** — miroir du 3DS
+P5.4a). Machine `APPROUVE|ECHOUE → EN_COURS → EXECUTE|ECHOUE` sur le relevé ; **écriture de DÉCAISSEMENT**
+en partie double postée **uniquement au succès** (contributions signées : `A_REVERSER` +net au débit,
+`FRAIS_PASSERELLE` +frais au débit, `TRESORERIE` −(net+frais) au crédit ; Σ=0). **La plateforme porte les
+frais** (l'établissement reçoit le `net` intégral) ; `frais` = **donnée** rapportée par la passerelle,
+jamais codée (config simulée `frais-simules-bps`, défaut 0). **Anti-double-versement en profondeur** :
+(1) verrou d'idempotence Redis + `Idempotency-Key`, (2) verrou pessimiste sur la ligne relevé + garde
+d'état, (3) unicités SGBD (`uq_ecr_decaissement_par_releve`, `uq_decaissement_reussi_par_releve`,
+`uq_decaissement_en_cours_par_releve`, `uq_decaissement_idempotency`). **Contrôle « destination révoquée
+depuis le figeage »** : la destination active doit être identique (id + empreinte) à celle figée à
+l'approbation, sinon refus → re-approbation. Le **déchiffrement** de la destination n'existe que dans ce
+chemin de versement (promesse b-1 tenue). **Séparation des tâches** : le décaisseur ≠ l'approbateur
+(six-yeux avec le calculateur). `ECHOUE` rejouable (nouvelle clé ; rien n'est parti) ou annulable (extourne
+de la constatation) ; `EXECUTE` terminal. **Registre local `reversement_decaissement`** = bras LOCAL du
+futur rapprochement 2 sources (S11.x) : la réf destination en clair n'y figure jamais, seule la réf
+passerelle. Autorisation : principal signé `ADMIN_FINANCE` (comme les autres actes sensibles).
 
 Le vrai rapprochement « factures ↔ reversements » = **P5.5c** (extension de `TypeControle`/`TypeEcart`, cf.
 ADR-014) ; le bras externe « opérateurs ↔ MASANTÉ » reste différé (aucun relevé opérateur réel).

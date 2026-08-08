@@ -1,7 +1,9 @@
 package ci.masante.payment.repository;
 
 import ci.masante.payment.domain.model.ReversementReleve;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -9,11 +11,21 @@ import ci.masante.payment.domain.model.ReversementStatut;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 public interface ReversementReleveRepository extends JpaRepository<ReversementReleve, UUID> {
 
     List<ReversementReleve> findByEtablissementRefOrderByCalculeAAsc(String etablissementRef);
+
+    /**
+     * Relevé verrouillé en écriture : sérialise le décaissement (P5.5b-2). Deux appels concurrents à
+     * {@code verser} sur le même relevé ne peuvent pas produire deux versements — le second attend puis
+     * voit l'état déjà transité.
+     */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select r from ReversementReleve r where r.id = :id")
+    Optional<ReversementReleve> findByIdVerrouille(@Param("id") UUID id);
 
     /** Nombre de tentatives déjà enregistrées (tous statuts) pour cette période → tentative suivante. */
     long countByEtablissementRefAndPeriodeDebutAndPeriodeFin(String etab, Instant debut, Instant fin);

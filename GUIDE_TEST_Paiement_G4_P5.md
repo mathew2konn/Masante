@@ -703,3 +703,77 @@ EXTOURNE, **balayage global Σdébit=Σcrédit**, **balance A_REVERSER = Σ net 
 - [ ] 81 `V11_verification_invariants.sql`→tout **PASS** (dont balance A_REVERSER)
 
 Si tout est coché → **« Reversements b-1 OK »** : j'inscris le **G5** de P5.5b-1.
+
+---
+
+# Partie L — Reversements : décaissement (P5.5b-2, §11)
+
+> **Le versement est effectif mais SIMULÉ (FT5)** : aucun virement réel. b-2 exécute un relevé
+> **APPROUVE** → machine `EN_COURS → EXECUTE | ECHOUE`, poste l'écriture de **DÉCAISSEMENT** (partie
+> double, la plateforme porte les frais), et tient un **registre local** `reversement_decaissement`
+> (bras local du futur rapprochement 2 sources S11.x — la réf de destination en clair n'y figure jamais).
+>
+> **Passerelle OCP** (`AdaptateurReversementSimule`, dispatch par type — aucun `if type==`), **déterministe** :
+> un compte destination se terminant par **`99`** → **ÉCHOUE** ; tout autre → **EXÉCUTÉ**. Le résultat est
+> décidé par la passerelle, **jamais** par l'appelant.
+>
+> **Authentification** : `disburse` est un acte **sensible** → **principal signé `ADMIN_FINANCE`** (même
+> frappe qu'en Partie K) **+ en-tête `Idempotency-Key`**. Séparation des tâches : le décaisseur **≠**
+> l'approbateur.
+
+**Prérequis** : un établissement avec des factures **PAYEE** (assiette non nulle), un taux de commission,
+une destination active, un relevé **calculé puis approuvé** (Parties J/K).
+
+## 82. Décaissement nominal → EXECUTE + écriture équilibrée
+Sur un relevé **APPROUVE** (destination MSISDN ne finissant pas par `99`), `POST
+/api/v1/settlements/{id}/disburse` (principal `ADMIN_FINANCE` **≠ approbateur**, `Idempotency-Key: K1`)
+→ **200**, `statut = EXECUTE`. `GET /settlements/{id}/ledger` → une écriture **DECAISSEMENT** : DÉBIT
+`A_REVERSER` = net, CRÉDIT `TRESORERIE` = net (frais 0 → **2 jambes** ; **Σdébit = Σcrédit**). Avec des
+frais simulés >0 (`frais-simules-bps`) → **3 jambes** dont DÉBIT `FRAIS_PASSERELLE`, CRÉDIT `TRESORERIE`
+= net+frais.
+
+## 83. Séparation des tâches + garde de rôle
+Décaisser avec le **sub = approbateur** → **409** (le décaisseur ne peut pas être l'approbateur). Décaisser
+avec un principal **sans** `ADMIN_FINANCE` → **403**.
+
+## 84. Anti-double-versement : garde d'état + idempotence
+Re-décaisser un relevé déjà **EXECUTE** (nouvelle clé) → **409** (état non re-versable). Rejouer la **même**
+`Idempotency-Key K1` → **200** renvoyant le **même** résultat (aucun 2ᵉ versement, aucune 2ᵉ écriture).
+
+## 85. Anti-double-versement : concurrence
+Lancer **deux** `disburse` simultanés (clés distinctes) sur un relevé APPROUVE → **un 200 EXECUTE** et
+**un 409**. `GET /settlements/{id}/disbursements` → **une seule** tentative `EXECUTE` ; `ledger` → **une
+seule** écriture `DECAISSEMENT` (verrou pessimiste + index partiels).
+
+## 86. Échec passerelle → ECHOUE, rejouable, aucune écriture
+Destination MSISDN finissant par **`99`**, `disburse` → **200**, `statut = ECHOUE` ; `ledger` **sans**
+écriture `DECAISSEMENT` (rien n'est parti). Le relevé est **rejouable** (nouvelle clé) ou **annulable**.
+
+## 87. Annulation depuis ECHOUE → ANNULE + extourne
+`POST /settlements/{id}/cancel` (`X-Acteur-Id`, motif) sur un relevé **ECHOUE** → **ANNULE** ; le `ledger`
+montre une écriture **EXTOURNE** de la constatation (append-only). `EXECUTE`, lui, n'est **pas** annulable.
+
+## 88. Destination révoquée depuis le figeage → refus
+Sur un relevé **APPROUVE**, ouvrir **une nouvelle** destination (clôture l'active figée). `disburse` →
+**409** « destination a changé depuis l'approbation » → re-approbation requise. Anti-fuite : aucun MSISDN/IBAN
+en clair dans les logs (`docker logs payment-payment-1 | grep <msisdn>` → **0**).
+
+## 89. Invariants base (script de recette)
+`psql -f src/test/resources/db/verification/V12_verification_invariants.sql` → **tout PASS** / ROLLBACK :
+garde-fous du registre (statut/montant/devise), **anti-double-versement** (≤1 EXECUTE, ≤1 EN_COURS,
+`idempotency_key` unique), **une seule écriture DÉCAISSEMENT par relevé**, équilibre par écriture (2 et
+3 jambes), **balance Σ décaissé = Σ net des relevés EXECUTE**.
+
+---
+
+## Récapitulatif des cases — Partie L
+- [ ] 82 Décaissement nominal→**EXECUTE** ; écriture DÉCAISSEMENT équilibrée (2 jambes ; 3 si frais)
+- [ ] 83 Décaisseur = approbateur→**409** ; rôle non-ADMIN_FINANCE→**403**
+- [ ] 84 Re-versement d'un EXECUTE→**409** ; rejeu même Idempotency-Key→**200** (pas de 2ᵉ versement)
+- [ ] 85 Concurrence : un **200 EXECUTE** / un **409** ; 1 seule tentative EXECUTE, 1 seule écriture
+- [ ] 86 Compte en `99`→**ECHOUE**, aucune écriture DÉCAISSEMENT
+- [ ] 87 Annulation depuis ECHOUE→**ANNULE** + **EXTOURNE** ; EXECUTE non annulable
+- [ ] 88 Destination changée après figeage→**409** ; aucun compte en clair dans les logs
+- [ ] 89 `V12_verification_invariants.sql`→tout **PASS** (dont balance décaissé = net EXECUTE)
+
+Si tout est coché → **« Reversements b-2 OK »** : j'inscris le **G5** de P5.5b-2.

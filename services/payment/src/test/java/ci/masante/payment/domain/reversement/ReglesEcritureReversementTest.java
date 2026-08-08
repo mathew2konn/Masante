@@ -93,4 +93,66 @@ class ReglesEcritureReversementTest {
         assertThatThrownBy(() -> ReglesEcritureReversement.constatation(-1, 0, 0, 0, 0, 0))
                 .isInstanceOf(ReversementInvalideException.class);
     }
+
+    // --- P5.5b-2 : écriture de DÉCAISSEMENT -------------------------------------------------
+
+    @Test
+    @DisplayName("Décaissement sans frais : 2 jambes (A_REVERSER débit / TRESORERIE crédit), Σ=0")
+    void decaissementSansFrais() {
+        List<JambeCalculee> j = ReglesEcritureReversement.decaissement(97_500, 0);
+        assertThat(j).hasSize(2);
+        assertThat(debit(j)).isEqualTo(97_500).isEqualTo(credit(j));
+        assertThat(j).anySatisfy(x -> {
+            assertThat(x.compte().name()).isEqualTo("A_REVERSER");
+            assertThat(x.sens()).isEqualTo(SensEcriture.DEBIT);
+        });
+        assertThat(j).anySatisfy(x -> {
+            assertThat(x.compte().name()).isEqualTo("TRESORERIE");
+            assertThat(x.sens()).isEqualTo(SensEcriture.CREDIT);
+        });
+        assertThat(j).noneSatisfy(x -> assertThat(x.compte().name()).isEqualTo("FRAIS_PASSERELLE"));
+    }
+
+    @Test
+    @DisplayName("Décaissement avec frais : 3 jambes (FRAIS_PASSERELLE au débit), la plateforme porte les frais")
+    void decaissementAvecFrais() {
+        // net 97500, frais 500 : trésorerie sort 98000 ; l'établissement reçoit bien 97500.
+        List<JambeCalculee> j = ReglesEcritureReversement.decaissement(97_500, 500);
+        assertThat(j).hasSize(3);
+        assertThat(debit(j)).isEqualTo(98_000).isEqualTo(credit(j));
+        assertThat(j).anySatisfy(x -> {
+            assertThat(x.compte().name()).isEqualTo("FRAIS_PASSERELLE");
+            assertThat(x.sens()).isEqualTo(SensEcriture.DEBIT);
+            assertThat(x.montant()).isEqualTo(500);
+        });
+        assertThat(j).anySatisfy(x -> {
+            assertThat(x.compte().name()).isEqualTo("TRESORERIE");
+            assertThat(x.sens()).isEqualTo(SensEcriture.CREDIT);
+            assertThat(x.montant()).isEqualTo(98_000);
+        });
+    }
+
+    @Test
+    @DisplayName("Propriété décaissement : Σdébit = Σcrédit pour tout net>0, frais≥0")
+    void decaissementEquilibreAleatoire() {
+        Random rnd = new Random(7);
+        for (int i = 0; i < 5000; i++) {
+            long net = 1 + rnd.nextInt(2_000_000);
+            long frais = rnd.nextInt(50_000);
+            List<JambeCalculee> j = ReglesEcritureReversement.decaissement(net, frais);
+            assertThat(debit(j)).as("net=%d frais=%d", net, frais).isEqualTo(credit(j));
+            assertThat(j.size()).isBetween(2, 3);
+        }
+    }
+
+    @Test
+    @DisplayName("Décaissement invalide : net ≤ 0 ou frais < 0 rejetés")
+    void decaissementInvalide() {
+        assertThatThrownBy(() -> ReglesEcritureReversement.decaissement(0, 0))
+                .isInstanceOf(ReversementInvalideException.class);
+        assertThatThrownBy(() -> ReglesEcritureReversement.decaissement(-1, 0))
+                .isInstanceOf(ReversementInvalideException.class);
+        assertThatThrownBy(() -> ReglesEcritureReversement.decaissement(1_000, -1))
+                .isInstanceOf(ReversementInvalideException.class);
+    }
 }

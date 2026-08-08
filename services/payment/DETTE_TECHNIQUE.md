@@ -132,3 +132,37 @@ pourquoi c'est acceptable maintenant, condition de levée.
   (adaptateur OCP `PasserelleReversement` simulé, écriture de DÉCAISSEMENT, machine `EN_COURS/EXECUTE/ECHOUE`,
   idempotence anti-double-versement, frais `FRAIS_PASSERELLE`, contrôle « destination révoquée depuis le
   figeage ») est P5.5b-2. `FRAIS_PASSERELLE` est un compte **réservé**, non alimenté en b-1.
+
+## P5.5b-2 — Reversements : décaissement (SIMULÉ)
+
+- **Tout le versement est SIMULÉ (FT5).** Un seul adaptateur `AdaptateurReversementSimule` (déterministe :
+  compte destination se terminant par `99` → ÉCHOUE, sinon EXÉCUTÉ) couvre `MOBILE_MONEY` et
+  `VIREMENT_BANCAIRE`. Il ne verse RIEN. *Levée* : par opérateur réel = nouvel adaptateur (déclaré via
+  `supporte(type)`, choisi en priorité par `RegistrePasserellesReversement` — OCP, aucun `if type==`) +
+  secret/API réels + normalisation du vrai format d'accusé. **Aucune** de ces branches n'a été testée contre
+  un opérateur réel → **ne pas** déclarer « prête à activer ».
+
+- **Cycle SYNCHRONE ; l'ambigu réel « le virement est-il parti ? » non couvert.** Le versement pose
+  `EN_COURS` puis applique l'issue terminale de la passerelle dans la même transaction (sim synchrone).
+  `PasserelleReversement.statut(refPasserelle)` existe (vérité passerelle) mais **aucun endpoint de reprise
+  d'un `EN_COURS` bloqué** n'est branché (dormant, comme le job d'expiration carte de P5.4a). *Levée* : à
+  l'introduction d'un versement asynchrone (accusé différé/webhook opérateur), committer `EN_COURS` puis
+  résoudre via `statut()`/webhook ; ajouter la reprise et un TTL de réconciliation.
+
+- **Rapprochement 2 sources = S11.x / P5.5c, PAS livré ici.** Le registre `reversement_decaissement` est le
+  **bras LOCAL** (une source) ; la confrontation registre local ⇄ vérité opérateur (2 sources, comme
+  `carte_reconciliation` de P5.4a) reste à faire. Classé « bras local conçu », pas « rapprochement prêt ».
+
+- **Frais passerelle = donnée simulée à 0 par défaut.** `masante.payment.reversement.frais-simules-bps`
+  (défaut `0`) → écriture de DÉCAISSEMENT à 2 jambes ; une valeur >0 exerce la 3ᵉ jambe `FRAIS_PASSERELLE`
+  (charge plateforme). La **plateforme porte les frais** (l'établissement reçoit le net intégral) — décision
+  ADR-016 §7. *Levée* : brancher le frais réel rapporté par l'opérateur.
+
+- **`DecaissementStatut` backend-only.** À promouvoir dans `@masante/shared` le jour où un écran le consomme
+  (aucun consommateur aujourd'hui). Même logique qu'ADR-014/015.
+
+- **Concurrence & idempotence prouvées en G2, pas en G3.** Le verrou pessimiste (2×disburse → 1 EXECUTE, 1
+  écriture), les index partiels (`uq_decaissement_reussi/en_cours`, `uq_ecr_decaissement_par_releve`,
+  `uq_decaissement_idempotency`) et le verrou Redis se prouvent en **live** (`V12_verification_invariants.sql`
+  + vecteurs, Partie L du guide), pas par les tests unitaires purs (build sans base). *Levée* : tests
+  d'intégration Testcontainers (dépendance nouvelle → accord propriétaire, §2.6).

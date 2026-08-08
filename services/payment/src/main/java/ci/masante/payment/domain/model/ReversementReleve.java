@@ -190,7 +190,22 @@ public class ReversementReleve {
         this.motifAnnulation = motif;
     }
 
-    /** Annulation (depuis CALCULE ou APPROUVE tant que rien n'est exécuté). */
+    /** Engage le versement (APPROUVE ou ECHOUE → EN_COURS). Garde d'état vérifiée au service. */
+    public void demarrerVersement() {
+        this.statut = ReversementStatut.EN_COURS;
+    }
+
+    /** Versement confirmé par la passerelle (EN_COURS → EXECUTE). Terminal. */
+    public void marquerVerse() {
+        this.statut = ReversementStatut.EXECUTE;
+    }
+
+    /** Versement refusé par la passerelle (EN_COURS → ECHOUE). Rejouable ; rien n'est parti. */
+    public void marquerVersementEchoue() {
+        this.statut = ReversementStatut.ECHOUE;
+    }
+
+    /** Annulation (depuis CALCULE, APPROUVE ou ECHOUE tant que rien n'est exécuté). */
     public void annuler(String annulePar, Instant annuleA, String motif) {
         this.statut = ReversementStatut.ANNULE;
         this.annulePar = annulePar;

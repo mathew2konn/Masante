@@ -1,6 +1,7 @@
 package ci.masante.payment.service;
 
 import ci.masante.payment.domain.model.CommissionConfig;
+import ci.masante.payment.domain.model.DecaissementReversement;
 import ci.masante.payment.domain.model.DestinationReversement;
 import ci.masante.payment.domain.model.EcritureReversement;
 import ci.masante.payment.domain.model.LigneGrandLivre;
@@ -17,13 +18,20 @@ import ci.masante.payment.domain.reversement.ReglesEcritureReversement;
 import ci.masante.payment.domain.reversement.RemboursementImputable;
 import ci.masante.payment.domain.reversement.ReglesReversement;
 import ci.masante.payment.domain.reversement.ResultatReversement;
+import ci.masante.payment.domain.reversement.ReversementInvalideException;
+import ci.masante.payment.domain.reversement.versement.DemandeDecaissement;
+import ci.masante.payment.domain.reversement.versement.PasserelleReversement;
+import ci.masante.payment.domain.reversement.versement.RegistrePasserellesReversement;
+import ci.masante.payment.domain.reversement.versement.ResultatDecaissement;
 import ci.masante.payment.repository.CarteRemboursementRepository;
+import ci.masante.payment.repository.DecaissementReversementRepository;
 import ci.masante.payment.repository.EcritureReversementRepository;
 import ci.masante.payment.repository.FactureRepository;
 import ci.masante.payment.repository.LigneGrandLivreRepository;
 import ci.masante.payment.repository.LigneReversementRepository;
 import ci.masante.payment.repository.ReversementCompteurRepository;
 import ci.masante.payment.repository.ReversementReleveRepository;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -63,6 +71,11 @@ public class ServiceReversement {
     private final ServiceDestinationReversement destinations;
     private final EcritureReversementRepository ecritures;
     private final LigneGrandLivreRepository lignesGL;
+    private final DecaissementReversementRepository decaissements;
+    private final RegistrePasserellesReversement passerelles;
+    private final ServiceChiffrementDestination chiffrement;
+    private final ServiceIdempotence idempotence;
+    private final ServiceReversement self;
     private final ServiceAudit audit;
 
     private static final ZoneId ABIDJAN = ZoneId.of("Africa/Abidjan");
@@ -73,7 +86,10 @@ public class ServiceReversement {
                               ServiceCommissionConfig commissionConfig,
                               ServiceDestinationReversement destinations,
                               EcritureReversementRepository ecritures, LigneGrandLivreRepository lignesGL,
-                              ServiceAudit audit) {
+                              DecaissementReversementRepository decaissements,
+                              RegistrePasserellesReversement passerelles,
+                              ServiceChiffrementDestination chiffrement, ServiceIdempotence idempotence,
+                              @Lazy ServiceReversement self, ServiceAudit audit) {
         this.releves = releves;
         this.lignes = lignes;
         this.compteurs = compteurs;
@@ -83,6 +99,13 @@ public class ServiceReversement {
         this.destinations = destinations;
         this.ecritures = ecritures;
         this.lignesGL = lignesGL;
+        this.decaissements = decaissements;
+        this.passerelles = passerelles;
+        this.chiffrement = chiffrement;
+        this.idempotence = idempotence;
+        // Auto-référence via proxy : self.executerVersement(...) déclenche la transaction (un appel
+        // this.executerVersement(...) court-circuiterait l'AOP transactionnelle).
+        this.self = self;
         this.audit = audit;
     }
 
@@ -225,15 +248,123 @@ public class ServiceReversement {
     }
 
     /**
-     * Annulation (depuis CALCULE ou APPROUVE, rien d'exécuté). Interdite si le relevé a un successeur
-     * vivant : seul le DERNIER maillon de la chaîne est annulable (le report en dépend — ADR-016 §2).
-     * Désactive les lignes → libère les pièces pour un recalcul (tentative+1).
+     * Versement effectif d'un relevé approuvé (CDC_06 §11, P5.5b-2). Décaissement <b>SIMULÉ</b> (FT5) :
+     * aucun virement réel. Anti-double-versement en profondeur : (1) verrou d'idempotence Redis
+     * {@code Idempotency-Key}, (2) verrou pessimiste sur la ligne relevé + garde d'état, (3) unicité SGBD
+     * (une écriture DÉCAISSEMENT et un décaissement EXECUTE par relevé). L'écriture de DÉCAISSEMENT n'est
+     * postée qu'au succès (ECHOUE = rien n'est parti, rejouable avec une nouvelle clé).
+     */
+    public ReversementReleve verser(UUID id, String decaisseur, String cleIdempotence) {
+        if (cleIdempotence == null || cleIdempotence.isBlank()) {
+            throw new IllegalArgumentException("Idempotency-Key obligatoire pour un versement.");
+        }
+        // 1re barrière : verrou Redis. Si déjà détenu, un traitement de la même clé est en cours ou
+        // vient de committer → on renvoie son résultat, sinon conflit.
+        if (!idempotence.acquerir("rev:disb:" + cleIdempotence)) {
+            return decaissements.findByIdempotencyKey(cleIdempotence)
+                    .map(d -> trouver(d.getReleveId()))
+                    .orElseThrow(() -> new ConflitIdempotenceException(cleIdempotence));
+        }
+        try {
+            return self.executerVersement(id, decaisseur, cleIdempotence);
+        } finally {
+            idempotence.liberer("rev:disb:" + cleIdempotence);
+        }
+    }
+
+    /** Cœur transactionnel du versement (proxifié pour l'AOP ; verrou Redis relâché après le commit). */
+    @Transactional
+    public ReversementReleve executerVersement(UUID id, String decaisseur, String cleIdempotence) {
+        // Rejeu idempotent : la même clé a déjà produit une tentative → on ne re-verse pas.
+        Optional<DecaissementReversement> dejaVu = decaissements.findByIdempotencyKey(cleIdempotence);
+        if (dejaVu.isPresent()) {
+            return trouver(dejaVu.get().getReleveId());
+        }
+
+        // Verrou pessimiste : sérialise les versements concurrents du même relevé.
+        ReversementReleve releve = releves.findByIdVerrouille(id)
+                .orElseThrow(() -> new ReversementIntrouvableException(id.toString()));
+        if (releve.getStatut() != ReversementStatut.APPROUVE && releve.getStatut() != ReversementStatut.ECHOUE) {
+            throw new IllegalStateException(
+                    "Seul un relevé APPROUVE (ou ECHOUE, à rejouer) peut être versé (état : " + releve.getStatut() + ").");
+        }
+        long net = releve.getMontantNetAReverser();
+        if (net <= 0) {
+            throw new ReversementInvalideException("Relevé à net nul : rien à verser.");
+        }
+        // Séparation des tâches : le décaisseur ne peut pas être l'approbateur (six-yeux avec le calcul).
+        if (decaisseur.equals(releve.getApprouvePar())) {
+            throw new IllegalStateException("Séparation des tâches : le décaisseur ne peut pas être l'approbateur.");
+        }
+
+        // Contrôle « destination révoquée/changée depuis le figeage » : la destination active doit être
+        // EXACTEMENT celle figée à l'approbation (id + empreinte).
+        DestinationReversement dest = destinations.active(releve.getEtablissementRef())
+                .orElseThrow(() -> new IllegalStateException(
+                        "Aucune destination active : la destination figée a été révoquée. Re-approuver le relevé."));
+        if (!dest.getId().equals(releve.getDestinationId())
+                || !dest.getEmpreinte().equals(releve.getDestinationEmpreinte())) {
+            throw new IllegalStateException(
+                    "La destination a changé depuis l'approbation (révocation/substitution) : re-approuver le relevé.");
+        }
+
+        // Déchiffrement de la destination : SEUL chemin de déchiffrement du service (promesse b-1).
+        // L'échec du tag GCM/AAD (blob altéré/transplanté) fait échouer ici = refus (intégrité).
+        String destinationClair = chiffrement.dechiffrer(dest.getRefChiffree(), dest.getNonce(),
+                dest.getCleVersion(), releve.getEtablissementRef(), dest.getId());
+
+        // Engagement : EN_COURS + tentative EN_COURS au registre (bras local du rapprochement S11.x).
+        releve.demarrerVersement();
+        releves.save(releve);
+        DecaissementReversement tentative = decaissements.save(new DecaissementReversement(
+                releve.getId(), dest.getId(), net, releve.getDevise(), cleIdempotence, decaisseur));
+
+        // Passerelle (OCP par type ; la vérité vient d'elle, jamais de l'appelant). referenceInterne =
+        // clé d'idempotence → un vrai PSP dédupliquerait aussi cette tentative précise.
+        PasserelleReversement passerelle = passerelles.pour(dest.getType());
+        ResultatDecaissement res = passerelle.verser(new DemandeDecaissement(cleIdempotence, dest.getType(),
+                destinationClair, net, releve.getDevise(), "Reversement " + releve.getNumero()));
+
+        if (res.estExecute()) {
+            tentative.marquerExecute(res.referencePasserelle(), res.frais());
+            decaissements.save(tentative);
+            releve.marquerVerse();
+            releves.save(releve);
+            // Écriture de DÉCAISSEMENT (partie double ; plateforme porte les frais). Une seule par relevé
+            // (uq_ecr_decaissement_par_releve = dernier rempart anti-double).
+            List<JambeCalculee> jambes = ReglesEcritureReversement.decaissement(net, res.frais());
+            posterEcriture(releve.getId(), TypeEcriture.DECAISSEMENT, jambes, null, decaisseur);
+            audit.enregistrer("SettlementDisbursed", "settlement", releve.getId().toString(),
+                    Map.of("numero", releve.getNumero(), "decaisseur", decaisseur,
+                            "net", net, "frais", res.frais(), "refPasserelle", res.referencePasserelle(),
+                            "destination", dest.getId().toString()));
+        } else {
+            // Échec : rien n'est parti → aucune écriture. ECHOUE rejouable (nouvelle clé).
+            tentative.marquerEchoue(res.referencePasserelle(), res.motif());
+            decaissements.save(tentative);
+            releve.marquerVersementEchoue();
+            releves.save(releve);
+            audit.enregistrer("SettlementDisbursementFailed", "settlement", releve.getId().toString(),
+                    Map.of("numero", releve.getNumero(), "decaisseur", decaisseur,
+                            "motif", res.motif() == null ? "" : res.motif(),
+                            "refPasserelle", res.referencePasserelle() == null ? "" : res.referencePasserelle()));
+        }
+        return releve;
+    }
+
+    /**
+     * Annulation (depuis CALCULE, APPROUVE ou ECHOUE, rien d'exécuté). Interdite si le relevé a un
+     * successeur vivant : seul le DERNIER maillon de la chaîne est annulable (le report en dépend —
+     * ADR-016 §2). Désactive les lignes → libère les pièces pour un recalcul (tentative+1). Si la dette
+     * avait été constatée (APPROUVE/ECHOUE), la contre-passe (append-only).
      */
     @Transactional
     public ReversementReleve annuler(UUID id, String motif, String acteur) {
         ReversementReleve releve = trouver(id);
-        if (releve.getStatut() != ReversementStatut.CALCULE && releve.getStatut() != ReversementStatut.APPROUVE) {
-            throw new IllegalStateException("Annulation impossible dans l'état " + releve.getStatut() + ".");
+        ReversementStatut statut = releve.getStatut();
+        if (statut != ReversementStatut.CALCULE && statut != ReversementStatut.APPROUVE
+                && statut != ReversementStatut.ECHOUE) {
+            throw new IllegalStateException("Annulation impossible dans l'état " + statut + ".");
         }
         if (motif == null || motif.isBlank()) {
             throw new IllegalArgumentException("Motif d'annulation obligatoire.");
@@ -242,16 +373,16 @@ public class ServiceReversement {
             throw new IllegalStateException(
                     "Relevé avec successeur actif : annuler d'abord le dernier relevé de la chaîne.");
         }
-        boolean etaitApprouve = releve.getStatut() == ReversementStatut.APPROUVE;
+        // La constatation a été postée à l'approbation → présente aussi si le versement a ÉCHOUÉ.
+        boolean constatationPostee = statut == ReversementStatut.APPROUVE || statut == ReversementStatut.ECHOUE;
         releve.annuler(acteur, Instant.now(), motif);
         releves.save(releve);
         libererPieces(releve.getId());
-        // Si la dette avait été constatée (relevé APPROUVE), la contre-passer (append-only : jamais d'UPDATE).
-        if (etaitApprouve) {
+        if (constatationPostee) {
             extournerConstatation(releve.getId(), acteur);
         }
         audit.enregistrer("SettlementCancelled", "settlement", releve.getId().toString(),
-                Map.of("numero", releve.getNumero(), "motif", motif, "acteur", acteur, "extourne", etaitApprouve));
+                Map.of("numero", releve.getNumero(), "motif", motif, "acteur", acteur, "extourne", constatationPostee));
         return releve;
     }
 
@@ -306,6 +437,11 @@ public class ServiceReversement {
     @Transactional(readOnly = true)
     public List<LigneGrandLivre> jambesDe(UUID ecritureId) {
         return lignesGL.findByEcritureIdOrderBySequenceAsc(ecritureId);
+    }
+
+    @Transactional(readOnly = true)
+    public List<DecaissementReversement> decaissementsDe(UUID releveId) {
+        return decaissements.findByReleveIdOrderByCreeLeDesc(releveId);
     }
 
     @Transactional(readOnly = true)

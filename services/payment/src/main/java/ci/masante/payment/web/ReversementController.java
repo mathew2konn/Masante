@@ -11,6 +11,7 @@ import ci.masante.payment.service.ServiceReversement;
 import ci.masante.payment.web.dto.AnnulerReversementRequete;
 import ci.masante.payment.web.dto.CalculerReversementRequete;
 import ci.masante.payment.web.dto.CommissionConfigReponse;
+import ci.masante.payment.web.dto.DecaissementReponse;
 import ci.masante.payment.web.dto.DestinationReponse;
 import ci.masante.payment.web.dto.EcritureReponse;
 import ci.masante.payment.web.dto.LigneGrandLivreReponse;
@@ -115,6 +116,12 @@ public class ReversementController {
                 .toList();
     }
 
+    @GetMapping("/settlements/{id}/disbursements")
+    @Operation(summary = "Tentatives de décaissement d'un relevé (réf destination en clair jamais exposée)")
+    public List<DecaissementReponse> decaissements(@PathVariable UUID id) {
+        return reversement.decaissementsDe(id).stream().map(DecaissementReponse::de).toList();
+    }
+
     // --- actes sensibles : principal signé + ADMIN_FINANCE ------------------------------------
 
     @PostMapping("/settlements/{id}/approve")
@@ -126,6 +133,18 @@ public class ReversementController {
             HttpServletRequest requete) {
         PrincipalAuthentifie p = adminFinance(xPrincipal, xSig, requete);
         return ReversementReleveReponse.de(reversement.approuver(id, p.sub()));
+    }
+
+    @PostMapping("/settlements/{id}/disburse")
+    @Operation(summary = "Verser un relevé approuvé (principal signé ADMIN_FINANCE ≠ approbateur ; SIMULÉ, idempotent)")
+    public ReversementReleveReponse verser(
+            @PathVariable UUID id,
+            @RequestHeader("X-Principal") String xPrincipal,
+            @RequestHeader("X-Principal-Sig") String xSig,
+            @RequestHeader("Idempotency-Key") @NotBlank String cleIdempotence,
+            HttpServletRequest requete) {
+        PrincipalAuthentifie p = adminFinance(xPrincipal, xSig, requete);
+        return ReversementReleveReponse.de(reversement.verser(id, p.sub(), cleIdempotence));
     }
 
     @PostMapping("/settlements/{id}/reject")

@@ -71,6 +71,50 @@ public final class ReglesEcritureReversement {
         return jambes;
     }
 
+    /**
+     * Écriture de DÉCAISSEMENT (P5.5b-2) — modèle à CONTRIBUTIONS SIGNÉES (même axe : {@code +}=débit,
+     * {@code −}=crédit). La constatation avait CRÉDITÉ {@code A_REVERSER} de {@code net} ; le décaissement
+     * l'éteint. <b>La plateforme porte les frais</b> (l'établissement reçoit le {@code net} intégral) :
+     * <pre>
+     *   A_REVERSER        : +net            (débit — éteint la dette)
+     *   FRAIS_PASSERELLE  : +frais          (débit — charge plateforme ; jambe omise si 0)
+     *   TRESORERIE        : −(net + frais)  (crédit — sortie de caisse)
+     * </pre>
+     * Σ signée = {@code net + frais − (net + frais)} = 0 pour tout {@code frais ≥ 0}. Frais = DONNÉE
+     * rapportée par la passerelle (jamais codée). 2 jambes si {@code frais = 0}, 3 sinon.
+     */
+    public static List<JambeCalculee> decaissement(long net, long frais) {
+        if (net <= 0) {
+            throw new ReversementInvalideException("Décaissement d'un net ≤ 0 : rien à verser.");
+        }
+        if (frais < 0) {
+            throw new ReversementInvalideException("Frais de passerelle négatifs interdits.");
+        }
+
+        record Contribution(CompteReversement compte, long signe) {
+        }
+        List<Contribution> contributions = List.of(
+                new Contribution(CompteReversement.A_REVERSER, net),
+                new Contribution(CompteReversement.FRAIS_PASSERELLE, frais),
+                new Contribution(CompteReversement.TRESORERIE, -(net + frais)));
+
+        long somme = contributions.stream().mapToLong(Contribution::signe).sum();
+        if (somme != 0) {
+            throw new ReversementInvalideException("Écriture de décaissement déséquilibrée (Σ=" + somme + ").");
+        }
+
+        List<JambeCalculee> jambes = new ArrayList<>();
+        int seq = 1;
+        for (Contribution c : contributions) {
+            if (c.signe() == 0) {
+                continue;
+            }
+            SensEcriture sens = c.signe() > 0 ? SensEcriture.DEBIT : SensEcriture.CREDIT;
+            jambes.add(new JambeCalculee(seq++, c.compte(), sens, Math.abs(c.signe()), "Décaissement " + c.compte()));
+        }
+        return jambes;
+    }
+
     /** Contre-passation : mêmes comptes/montants, sens inversé, re-séquencé. */
     public static List<JambeCalculee> extourne(List<JambeCalculee> origine) {
         List<JambeCalculee> jambes = new ArrayList<>();
