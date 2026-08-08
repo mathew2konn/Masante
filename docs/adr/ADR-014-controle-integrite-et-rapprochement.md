@@ -41,6 +41,17 @@ Aucun code opérateur n'est écrit maintenant. On **fige le contrat**, pas l'imp
 
 Ce volet S11 est classé **« conçu, point d'extension documenté »** — **PAS « prêt à activer »**. Aucune branche opérateur n'existe ni n'a été testée. La rigueur perçue vient de la franchise de la classification, pas du nombre de cases cochées.
 
+### 4. Suite (P5.5c, livré 2026-08-08) — le bras « factures ↔ reversements » réalisé
+
+Le bras **interne à deux sources** « factures ↔ reversements » est livré en P5.5c (V13, ADR-016 §7).
+**Révision d'implémentation** : plutôt qu'étendre `TypeControle`/`TypeEcart` de l'auditeur INTERNE (option
+envisagée ici), le propriétaire a tranché à G1 pour un **service séparé** (`ServiceRapprochementReversement`,
+table `reversement_reconciliations`, style `carte_reconciliation` de P5.4a). Motif : garder l'auditeur
+P5.3b-4 honnêtement « interne » et donner au vrai rapprochement 2 sources sa propre maison — un enum dédié
+`TypeEcartRapprochement` (`PIECE_NON_REVERSEE`/`REVERSEMENT_SANS_PIECE`/`MONTANT_REVERSE_DIVERGENT`, mapping
+sur la taxonomie du §2). Le **bras externe** « opérateurs ↔ MASANTÉ » reste, lui, différé (aucun relevé
+opérateur réel — FT5).
+
 ## Conséquences
 
 - **+** Le §6.3 (« rapprochement quotidien automatique, alerte en cas d'écart ») est **livré en entier** côté cohérence interne, avec un contrôle qui **détecte vraiment** (fixtures d'anomalies), sans écrire une ligne contre une API non vue.

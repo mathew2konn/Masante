@@ -1,7 +1,7 @@
 # ADR-016 — Reversements aux établissements (P5.5a) : assiette immuable, report chaîné, invariance hybride, calcul backend
 
-- **Statut** : **Accepté** (P5.5a **VALIDÉ G5** ; P5.5b-1 livré : destinations chiffrées + quatre-yeux + constatation ; P5.5b-2 livré : décaissement SIMULÉ + écriture DÉCAISSEMENT + machine EN_COURS/EXECUTE/ECHOUE). Décaissement **SIMULÉ** (FT5) — aucun virement réel ; rapprochement 2 sources = S11.x/P5.5c.
-- **Date** : 2026-08-07 (P5.5a) · 2026-08-07 (P5.5b-1) · 2026-08-08 (P5.5b-2)
+- **Statut** : **Accepté** (P5.5a **VALIDÉ G5** ; P5.5b-1 livré ; P5.5b-2 livré : décaissement SIMULÉ ; **P5.5c livré : rapprochement 2 sources factures↔reversements**). Décaissement **SIMULÉ** (FT5) — aucun virement réel ; bras externe opérateurs↔MASANTÉ toujours différé.
+- **Date** : 2026-08-07 (P5.5a) · 2026-08-07 (P5.5b-1) · 2026-08-08 (P5.5b-2) · 2026-08-08 (P5.5c)
 - **Corpus** : CDC_06 §11 (Settlement : sommes dues par établissement, périodicité configurable, retenue de commission, relevés, exécution et traçabilité ; rapprochement quotidien opérateurs ↔ MASANTÉ ↔ factures ↔ reversements). §7 (facturation), §6.3 (journal immuable), §9.7 (audit chaîné), §12 (batch). CDC_01/02 §0.1 (frontière : calcul backend seul). CDC_10 (sécurité > tout).
 - **Lié à** : [[ADR-013]] (microservice paiement), [[ADR-014]] (contrôle interne vs rapprochement 2 sources : S11.x), P5.2a (factures), P5.4a (remboursements carte).
 
@@ -74,8 +74,21 @@ de la constatation) ; `EXECUTE` terminal. **Registre local `reversement_decaisse
 futur rapprochement 2 sources (S11.x) : la réf destination en clair n'y figure jamais, seule la réf
 passerelle. Autorisation : principal signé `ADMIN_FINANCE` (comme les autres actes sensibles).
 
-Le vrai rapprochement « factures ↔ reversements » = **P5.5c** (extension de `TypeControle`/`TypeEcart`, cf.
-ADR-014) ; le bras externe « opérateurs ↔ MASANTÉ » reste différé (aucun relevé opérateur réel).
+**P5.5c (livré, V13)** — rapprochement à **DEUX sources** « factures ↔ reversements ». **Service séparé**
+(décision propriétaire à G1 : garder l'auditeur INTERNE P5.3b-4 honnêtement « interne », donner au vrai
+rapprochement sa propre maison — table `reversement_reconciliations`, style `carte_reconciliation` P5.4a).
+Confronte la **facturation** (source A : factures `PAYEE` imputables + remboursements carte `REUSSI`) aux
+**reversements** (source B : lignes de relevé actives), deux sous-systèmes maintenus INDÉPENDAMMENT. Trois
+écarts (`TypeEcartRapprochement`, mapping ADR-014) : `PIECE_NON_REVERSEE` (A→B, complétude ; **délai de
+grâce = donnée**, défaut 2 j, pour ne pas signaler une pièce dont le relevé périodique n'a pas encore
+tourné), `REVERSEMENT_SANS_PIECE` (B→A, ligne orpheline/incohérente/établissement divergent),
+`MONTANT_REVERSE_DIVERGENT` (montant imputé ≠ montant courant). **`DOUBLON` non re-vérifié** : garanti
+structurellement par I1 (`uq_ligne_facture_imputee_une_fois`) — on n'ajoute pas un contrôle toujours vert.
+**Détection seule** (jamais de correction, §11) ; snapshot au cut-off T ; idempotent par
+`UNIQUE(date_rapport)` ; `@Scheduled` quotidien + endpoint manuel ; **frontière** : tout le jugement dans
+`ReglesRapprochement` (pur, prouvé G3) ; seedeur d'anomalies dév prouvant les 3 détections. **Aucune
+dépendance nouvelle.** Le bras externe « opérateurs ↔ MASANTÉ » reste différé (aucun relevé opérateur réel,
+FT5) ; le bras « décaissement local ⇄ vérité passerelle » reste différé (SIMULÉ, comme carte).
 
 **Décisions assumées** : une **seule destination active** par établissement (pas de split banque+MoMo) ;
 `etablissement_ref` **référence molle** (établissements hors base paiement, ADR-013) → réconciliation des
@@ -85,5 +98,6 @@ orphelins en G2 ; clés/secret « prêts à activer » (KMS), prod refuse de dé
 
 - **+** §11 livré côté **calcul/relevé/report/traçabilité**, avec frontière respectée (tout le jugement dans `ReglesReversement`, prouvé G3 pur) et double paiement structurellement impossible (I1), rattrapage automatique.
 - **+** Cohérence d'architecture préservée (Java-first + garde-fous déclaratifs), testabilité G3 intacte.
-- **−** Décaissement, grand livre, destination, quatre-yeux, rapprochement 2 sources restent à faire (P5.5b/c). Assumé et tracé (`DETTE_TECHNIQUE.md`, DT-REV-01/02).
+- **+** P5.5c : le rapprochement 2 sources « factures ↔ reversements » du §11 est **livré et prouvé qu'il détecte** (seedeur), sans une ligne écrite contre une API opérateur non vue.
+- **−** Le bras **externe** (« opérateurs ↔ MASANTÉ ») et le bras **décaissement local ⇄ passerelle** restent différés (FT5, aucune vérité externe réelle). Assumé et tracé.
 - **Dette / promotion** : enums `ReversementStatut`/`TypeLigneReversement` backend-only, promus dans `@masante/shared` quand un client web les consommera.

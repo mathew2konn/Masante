@@ -166,3 +166,29 @@ pourquoi c'est acceptable maintenant, condition de levée.
   `uq_decaissement_idempotency`) et le verrou Redis se prouvent en **live** (`V12_verification_invariants.sql`
   + vecteurs, Partie L du guide), pas par les tests unitaires purs (build sans base). *Levée* : tests
   d'intégration Testcontainers (dépendance nouvelle → accord propriétaire, §2.6).
+
+## P5.5c — Rapprochement 2 sources « factures ↔ reversements »
+
+- **Bras EXTERNE « opérateurs ↔ MASANTÉ » toujours différé (FT5).** P5.5c livre la confrontation des deux
+  sources INTERNES (facturation ⇄ reversements). La confrontation à une **vérité opérateur** (relevé de
+  settlement Wave/Orange/MTN) reste hors périmètre : aucun relevé réel n'existe (passerelle SIMULÉE). Le
+  format pivot est figé dans ADR-014 §2. *Levée* : accès sandbox opérateur → adaptateur d'import normalisant
+  le relevé vers le pivot, puis nouveaux `TypeEcartRapprochement` (MANQUANT_COTE_OPERATEUR, DECALAGE_DATE).
+  Classé « conçu », **pas « prêt à activer »** : aucune branche opérateur testée.
+
+- **Bras « décaissement local ⇄ vérité passerelle » différé.** Le registre `reversement_decaissement`
+  (P5.5b-2) est le bras LOCAL ; sa confrontation à la passerelle (comme `carte_reconciliation`) n'est pas
+  faite (versement SIMULÉ). *Levée* : au versement réel, réconcilier le registre ⇄ accusés opérateur.
+
+- **`DOUBLON` non re-vérifié — garanti par I1.** Une facture/remboursement imputé deux fois sur des relevés
+  actifs est **structurellement impossible** (index partiels `uq_ligne_facture_imputee_une_fois` /
+  `uq_ligne_remboursement_impute_une_fois`). On n'ajoute pas un contrôle qui serait toujours vert (même
+  logique que « un run vert sur du vide ne prouve rien »). *Levée* : aucune tant que I1 tient.
+
+- **`TypeEcartRapprochement` backend-only.** À promouvoir dans `@masante/shared` quand un écran
+  d'administration le consommera (aucun consommateur aujourd'hui). Même logique qu'ADR-014/015.
+
+- **Détection prouvée en G3 (règles pures) ; balayage 2 sources & idempotence en G2.** `ReglesRapprochement`
+  est testé unitairement (chaque écart + sain). Le balayage SQL des deux sources, l'idempotence
+  (`UNIQUE(date_rapport)`) et le seedeur d'anomalies se prouvent **live** (Partie M du guide), pas au build
+  (sans base). *Levée* : tests d'intégration Testcontainers (dépendance nouvelle → accord propriétaire).

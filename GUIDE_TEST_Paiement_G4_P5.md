@@ -777,3 +777,51 @@ garde-fous du registre (statut/montant/devise), **anti-double-versement** (≤1 
 - [ ] 89 `V12_verification_invariants.sql`→tout **PASS** (dont balance décaissé = net EXECUTE)
 
 Si tout est coché → **« Reversements b-2 OK »** : j'inscris le **G5** de P5.5b-2.
+
+---
+
+# Partie M — Reversements : rapprochement 2 sources « factures ↔ reversements » (P5.5c, §11)
+
+**Ce qu'on vérifie.** Un VRAI rapprochement à deux sources (contrairement à l'auditeur d'intégrité INTERNE
+de P5.3b-4) : il confronte la **facturation** (factures `PAYEE` imputables + remboursements carte `REUSSI`)
+aux **reversements** (lignes de relevé actives), deux sous-systèmes distincts. **Détection seule**, jamais
+de correction (§11). Trois écarts : `PIECE_NON_REVERSEE` (dû jamais reversé, après un **délai de grâce** de
+2 jours = donnée), `REVERSEMENT_SANS_PIECE` (ligne orpheline/incohérente), `MONTANT_REVERSE_DIVERGENT`
+(montant imputé ≠ montant courant). Le bras « opérateurs ↔ MASANTÉ » et « décaissement ⇄ passerelle »
+restent différés (FT5). **Aucun mouvement d'argent** → endpoints en lecture seule (pas de principal signé).
+
+> **Pré-requis pour la démo** : activer le seedeur d'anomalies (DÉV). Dans `docker-compose.yml`, ajouter à
+> l'environnement du service `payment` : `REVERSEMENT_RAPPROCHEMENT_DEV_SEED: "true"`, puis
+> `docker compose up -d --no-build --force-recreate payment`. Sans ce flag, l'endpoint `/dev/seed-anomalies`
+> répond **404** (comportement de production). Base : `http://localhost:8080/api/v1/settlement-reconciliations`.
+
+## 90. Run sur base saine → OK
+`POST /run` (défaut = aujourd'hui, UTC). Sur une base sans incohérence : `statut = OK`, `nbEcarts = 0`,
+`ecarts = []`. Le rapport porte `cutOffT`, `graceJours = 2`, `graceCutOff` (= T − 2 j). Un run vert sur du
+vide ne prouvant rien, on injecte ensuite des anomalies.
+
+## 91. Injection d'anomalies (DÉV) → 3 fixtures
+`POST /dev/seed-anomalies` → `injecte: 3` : **B1** facture PAYEE réglée soldée il y a 30 j jamais reversée,
+**B2** ligne de relevé active pointant une facture inexistante (orpheline), **B3** facture réglée 10000
+imputée 7000 par une ligne active. (Écriture directe en base, contournant les services.)
+
+## 92. Détection → 3 écarts, un par type
+`POST /run` → `statut = ECARTS`, `nbEcarts = 3`, `nbPiecesExaminees = 1`, `nbLignesExaminees = 2`. Le tableau
+`ecarts` contient exactement :
+- `PIECE_NON_REVERSEE` (MAJEUR), réf `ANOMALIE-B1-…`, montantAttendu 6000, `details.dateeA < seuilGrace` ;
+- `REVERSEMENT_SANS_PIECE` (CRITIQUE), réf `ANOMALIE-B2-…`, `details.pieceStatut = null` ;
+- `MONTANT_REVERSE_DIVERGENT` (CRITIQUE), réf `ANOMALIE-B3-…`, attendu 10000 / constaté 7000.
+
+## 93. Délai de grâce + idempotence
+Le délai de grâce protège les pièces récentes : une facture soldée **hier** (dans les 2 j) n'est PAS
+signalée `PIECE_NON_REVERSEE` (le relevé périodique n'a pas forcément tourné). Rejouer `POST /run` sur la
+même journée renvoie le **même** rapport (même `id`, mêmes 3 écarts) — idempotent par `UNIQUE(date_rapport)`.
+`GET /` liste les rapports récents ; `GET /?date=YYYY-MM-DD` consulte une journée.
+
+## Récapitulatif des cases — Partie M
+- [ ] 90 Run sur base saine → **OK**, 0 écart (rapport porte cutOffT / graceJours=2 / graceCutOff)
+- [ ] 91 `POST /dev/seed-anomalies` → **3** fixtures injectées (404 si le flag DÉV est OFF)
+- [ ] 92 Run après seed → **3 écarts**, un de chaque type, sévérités et montants attendus
+- [ ] 93 Grâce : pièce < 2 j non signalée ; rejeu du run → **identique** (idempotent par date)
+
+Si tout est coché → **« Reversements c OK »** : j'inscris le **G5** de P5.5c.
