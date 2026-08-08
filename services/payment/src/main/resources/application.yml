@@ -95,3 +95,16 @@ masante:
         expiration-defi-ms: ${CARTE_EXPIRATION_DEFI_MS:60000}                       # défis/redirections échus → EXPIREE (~1 min)
         expiration-autorisation-cron: ${CARTE_EXPIRATION_AUTORISATION_CRON:0 15 1 * * *}  # 01:15 UTC
         reconciliation-cron: ${CARTE_RECONCILIATION_CRON:0 45 1 * * *}              # 01:45 UTC (réconcilie la veille)
+    # Reversements aux établissements (P5.5, CDC_06 §11). Décaissement SIMULÉ (FT5).
+    reversement:
+      # Rapprochement à DEUX sources « factures ↔ reversements » (P5.5c, ADR-014/ADR-016). VRAI
+      # rapprochement (facturation ⇄ reversements), pas l'auditeur interne. Détection seule.
+      rapprochement:
+        # Délai de grâce (jours) : une facture soldée depuis moins longtemps n'est pas encore signalée
+        # « non reversée » (le relevé périodique n'a pas forcément tourné). DONNÉE, jamais codée.
+        delai-grace-jours: ${REVERSEMENT_RAPPROCHEMENT_GRACE_JOURS:2}
+        planification:
+          enabled: ${REVERSEMENT_RAPPROCHEMENT_PLANIF_ENABLED:true}
+          cron: ${REVERSEMENT_RAPPROCHEMENT_CRON:0 0 2 * * *}   # tous les jours 02:00 UTC (rapproche la veille)
+        # Endpoint d'injection d'anomalies : DÉV UNIQUEMENT. OFF en production (l'endpoint répond 404).
+        dev-seed-enabled: ${REVERSEMENT_RAPPROCHEMENT_DEV_SEED:false}
