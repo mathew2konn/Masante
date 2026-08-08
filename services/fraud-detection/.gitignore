@@ -1,0 +1,11 @@
+# Artefacts générés (modèle entraîné, runs MLflow, caches). Ne pas committer.
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+mlruns/
+models/
+.venv/
+venv/
+.env

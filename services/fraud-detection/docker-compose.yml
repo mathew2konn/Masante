@@ -1,0 +1,25 @@
+# Pile de dev — fraud-detection-service (CDC_05). `docker compose up --build`.
+# Swagger : http://localhost:8090/docs — Santé : http://localhost:8090/ready
+# Service SANS ÉTAT (scoring pur) : ni Postgres ni Redis. L'extraction depuis la base payment
+# réelle est un adaptateur différé (cf. plan G1 / dette).
+services:
+  fraud-detection:
+    build: .
+    image: masante-fraud-detection:test
+    ports:
+      - "8090:8090"
+    environment:
+      FRAUD_MODELE_PATH: models/modele_fraude.json
+      FRAUD_MLFLOW_TRACKING_URI: file:./mlruns
+
+  # Démo de la DÉGRADATION GRACIEUSE (§1.7) : même image, chemin de modèle inexistant
+  # => le service répond en règles seules. Lancer explicitement :
+  #   docker compose up fraud-degrade
+  fraud-degrade:
+    build: .
+    image: masante-fraud-detection:test
+    profiles: ["degrade"]
+    ports:
+      - "8091:8090"
+    environment:
+      FRAUD_MODELE_PATH: models/inexistant.json

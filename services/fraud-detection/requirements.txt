@@ -1,0 +1,17 @@
+# fraud-detection-service — stack imposée CDC_05 §2 (approuvée en bloc au G1, 2026-08-08).
+# Versions bornées pour la reproductibilité (§8). Aucune dépendance hors cette liste sans accord écrit (§2.6).
+fastapi>=0.111,<0.116
+uvicorn[standard]>=0.30,<0.35
+pydantic>=2.7,<3
+pydantic-settings>=2.3,<3
+xgboost>=2.0,<3
+shap>=0.45,<0.47
+scikit-learn>=1.4,<1.6
+pandas>=2.2,<3
+numpy>=1.26,<2.2
+mlflow>=2.13,<3
+# Qualité (G3)
+pytest>=8.2,<9
+httpx>=0.27,<0.29
+ruff>=0.5,<0.9
+mypy>=1.10,<2
