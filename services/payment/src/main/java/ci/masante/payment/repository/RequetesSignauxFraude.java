@@ -8,6 +8,7 @@ import org.springframework.data.repository.Repository;
 import org.springframework.data.repository.query.Param;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -128,6 +129,20 @@ public interface RequetesSignauxFraude extends Repository<Facture, UUID> {
             """, nativeQuery = true)
     long nbOpsWallet(@Param("patient") String patient,
                      @Param("depuis") Instant depuis, @Param("t") Instant t);
+
+    /**
+     * Numéros des factures créées dans la fenêtre [depuis, T] (sélection du lot à évaluer par le routage
+     * de fraude B1). Bornée par {@code :limite} pour ne jamais balayer toute la base d'un coup.
+     */
+    @Query(value = """
+            select f.numero
+            from factures f
+            where f.created_at >= :depuis and f.created_at <= :t
+            order by f.created_at desc
+            limit :limite
+            """, nativeQuery = true)
+    List<String> numerosFacturesEntre(@Param("depuis") Instant depuis, @Param("t") Instant t,
+                                      @Param("limite") int limite);
 
     /** Instant de confirmation du règlement de la facture (paiement SUCCESS le plus ancien). Vide si non réglée. */
     @Query(value = """

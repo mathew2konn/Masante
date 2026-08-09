@@ -35,12 +35,17 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    extra_hosts:
+      # Permet au paiement d'atteindre le fraud-detection-service (pile séparée, port publié 8090).
+      - "host.docker.internal:host-gateway"
     environment:
       DB_URL: jdbc:postgresql://postgres:5432/masante_payment
       DB_USER: payment
       DB_PASSWORD: payment
       REDIS_HOST: redis
       REDIS_PORT: 6379
+      # B1 — routage d'alerte : le paiement appelle le fraud-detection-service pour scorer (ADR-020).
+      MASANTE_PAYMENT_FRAUDE_BASE_URL: http://host.docker.internal:8090
       # Secrets de DÉV « prêts à activer » (P5.5b-1). En prod : KMS + masante.payment.securite.exiger-cles=true
       # (démarrage refusé si absents). Valeurs connues ici pour permettre G2/G4 (frappe du principal signé).
       MASANTE_PAYMENT_DEST_KEY: MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=

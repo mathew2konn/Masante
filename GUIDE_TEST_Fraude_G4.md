@@ -88,6 +88,32 @@ Côté paiement, l'endpoint lui-même se teste (Swagger `http://localhost:8080/s
 fraude ») mais exige les en-têtes `X-Principal`/`X-Principal-Sig` : en pratique on le prouve **via** les
 routes fraude ci-dessus, qui signent pour vous.
 
+## 8. Routage d'alerte vers l'admin plateforme (incrément B1, ADR-020)
+Le **paiement orchestre** : il sélectionne les factures d'une journée, demande un score au
+fraud-detection-service, **persiste les alertes ≥ SUSPECT** et **émet une notification** (Outbox P5.4c)
+vers le contrôleur plateforme `ADMIN_FINANCE` — jamais la structure signalée. **Détection seule** : aucun
+gel. Tout se passe **côté paiement** (Swagger `http://localhost:8080/swagger-ui.html`, tags « Alertes
+fraude » et « Notifications »), endpoints gardés par **principal signé + ADMIN_FINANCE**.
+
+Prérequis : les deux piles tournent (`services/payment` **et** `services/fraud-detection`).
+
+1. **Scan** (`POST /api/v1/fraud-alertes/scan?journee=AAAA-MM-JJ`) → résumé
+   `{nbEvaluees, nbSuspectes, nbNouvelles, nbNotifiees}`. Sur les données de démonstration, la facture au
+   montant d'acte aberrant + horaire nocturne + vélocité franchit le seuil → **1 alerte**.
+2. **Lister** (`GET /api/v1/fraud-alertes`) → l'alerte (facture, niveau, score, `notifiee=true`,
+   snapshots règles/facteurs/signaux), statut `OUVERTE`.
+3. **Notification émise** (`GET /api/v1/notifications`, en-tête `X-Utilisateur-Id: CTRL-FRAUDE-PLATEFORME`)
+   → une ligne `FRAUDE_SUSPECTEE`, statut `EN_ATTENTE`.
+4. **Relayer** (`POST /api/v1/notifications/relayer`) puis relister → statut `ENVOYEE` (canal simulé).
+5. **Rejeu idempotent** : relancer le scan → `nbNouvelles=0`, `nbNotifiees=0`, toujours 1 alerte (pas de
+   doublon, pas de nouvelle notification).
+6. **Revue** (`POST /api/v1/fraud-alertes/{id}/revue`) → statut `REVUE` (trace ; aucune action automatique).
+7. **Dégradation honnête** : arrêter la fraude (`docker compose stop fraud-detection`) puis relancer le
+   scan → **502** (`fraud-detection-service injoignable`), **aucune alerte inventée**.
+
+Les endpoints `/fraud-alertes` exigent les en-têtes `X-Principal`/`X-Principal-Sig` (principal signé
+ADMIN_FINANCE) — en pratique on les teste avec un outil qui signe (cf. incrément A).
+
 ## Arrêter
 ```bash
 docker compose --profile degrade down

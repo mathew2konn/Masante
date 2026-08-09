@@ -7,5 +7,7 @@ package ci.masante.payment.domain.notification;
  */
 public enum TypeNotification {
     PRELEVEMENT_IMMINENT,
-    PRELEVEMENT_ECHOUE
+    PRELEVEMENT_ECHOUE,
+    // B1 (approfondissement fraude) : alerte de fraude IA routée vers le contrôleur plateforme ADMIN_FINANCE.
+    FRAUDE_SUSPECTEE
 }

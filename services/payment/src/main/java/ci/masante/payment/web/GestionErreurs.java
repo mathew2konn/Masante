@@ -29,6 +29,7 @@ import ci.masante.payment.service.CarteTransactionIntrouvableException;
 import ci.masante.payment.service.ControleIntrouvableException;
 import ci.masante.payment.service.ConflitIdempotenceException;
 import ci.masante.payment.service.FactureIntrouvableException;
+import ci.masante.payment.service.FraudeInjoignableException;
 import ci.masante.payment.service.MandatIntrouvableException;
 import ci.masante.payment.service.OperationCarteInvalideException;
 import ci.masante.payment.service.OperationMandatInvalideException;
@@ -87,6 +88,12 @@ public class GestionErreurs {
     @ExceptionHandler(RoleInsuffisantException.class)
     public ProblemDetail roleInsuffisant(RoleInsuffisantException ex) {
         return probleme(HttpStatus.FORBIDDEN, ex.getMessage());
+    }
+
+    /** fraud-detection-service injoignable/illisible lors d'un routage d'alerte → 502. Aucune alerte inventée. */
+    @ExceptionHandler(FraudeInjoignableException.class)
+    public ProblemDetail fraudeInjoignable(FraudeInjoignableException ex) {
+        return probleme(HttpStatus.BAD_GATEWAY, ex.getMessage());
     }
 
     /** Principal signé invalide (signature/fraîcheur/rejeu/liaison requête) → 401. Générique (anti-fuite). */

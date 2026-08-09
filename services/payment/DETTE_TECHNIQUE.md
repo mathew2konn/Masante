@@ -221,3 +221,31 @@ pourquoi c'est acceptable maintenant, condition de levée.
 - **Cycle synchrone.** Le débit MIT pose l'issue terminale dans la même transaction (sim synchrone). Un accusé
   différé/asynchrone (webhook opérateur) n'est pas géré. *Levée* : à l'introduction d'un MIT asynchrone,
   committer `EN_COURS` puis résoudre via statut/webhook (comme prévu pour la carte P5.4a).
+
+## Approfondissement fraude — B1 (routage d'alerte, ADR-020)
+
+- **Livraison de notification SIMULÉE (FT5).** L'alerte `FRAUDE_SUSPECTEE` est écrite dans l'Outbox
+  (`notifications_outbox`) et « livrée » par l'adaptateur simulé (`SMS_SIM`). *Levée* : canal réel
+  (SMS/e-mail/push) via un fournisseur (secret/dépendance → accord §2.6).
+
+- **Patient non repris dans l'alerte IA.** Le vecteur de signaux (`SignalFacturation`) ne porte pas
+  d'identité patient (confidentialité, cohérent CDC_05) → `ia_fraude_alertes.patient_ref` reste NULL.
+  *Levée* : le récupérer depuis la facture au moment de la revue (jointure `facture_ref`), ou l'ajouter au
+  contexte d'alerte si le besoin métier le justifie.
+
+- **Scan synchrone, sans file.** `POST /fraud-alertes/scan` extrait→score→persiste dans le fil de la
+  requête ; un gros volume bloquerait. *Levée* : file/traitement asynchrone si le volume l'exige.
+
+- **Écran d'administration = B2 (à suivre).** B1 livre le backend (routage + notif + endpoints gardés). Le
+  portail Next (RBAC P1) consommant `/fraud-alertes` et les enums promus dans `@masante/shared` sont
+  l'incrément **B2**. `NiveauFraudeIa`/`StatutAlerteFraudeIa` restent backend-only d'ici là.
+
+- **En prod : compte de service au lieu du secret partagé.** Le paiement appelle la fraude en clair (réseau
+  interne) ; les endpoints `/fraud-alertes` sont gardés par principal signé (secret DEV partagé). *Levée* :
+  jeton de compte de service (Keycloak) + éventuel audit d'accès.
+
+- **PIÈGE transport (résolu) — HTTP/2 h2c.** Le client JDK `java.net.http.HttpClient` (et le `RestClient`
+  Spring qui s'appuie dessus) tente par défaut une négociation **HTTP/2 (h2c)** qu'uvicorn (serveur de la
+  fraude, HTTP/1.1) ne gère pas → **le corps de la requête POST est perdu** pendant l'upgrade et FastAPI
+  répond `422 body required`. Correctif : **forcer `HttpClient.Version.HTTP_1_1`**. Symptôme trompeur
+  (« I/O error … header parser received no bytes » / « body field required »).
