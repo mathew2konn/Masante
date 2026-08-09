@@ -62,6 +62,32 @@ et l'incohérence dure reste TRES_SUSPECT. Prouve que le service ne tombe pas si
 - Aucune réponse ne « décide » : pas de gel, pas de blocage. C'est un outil d'aide, revue humaine requise.
 - Les `limites` rappellent toujours : modèle **synthétique de démonstration, non validé cliniquement**.
 
+## 7. Extraction réelle depuis le paiement (incrément A, ADR-019)
+Le service peut désormais **extraire les signaux d'une facture** directement du service paiement (au lieu
+qu'on les fournisse), via l'endpoint read-only `/fraud-signals` gardé par **principal signé + ADMIN_FINANCE**.
+
+Prérequis : la pile **paiement** tourne (`services/payment` : `docker compose up -d`), et la pile fraude a
+`FRAUD_PAYMENT_BASE_URL` + `FRAUD_PRINCIPAL_SECRET` (déjà câblés dans `docker-compose.yml`).
+```bash
+cd services/fraud-detection && docker compose up -d --build fraud-detection
+```
+
+- **Score par référence** (`POST /api/v1/fraud/score-ref`) — extrait FCT-… du paiement puis score :
+```json
+{"reference":"FCT-TEST","as_of":"2026-08-09T12:00:00Z"}
+```
+Attendu : un `ResultatFraude` (mêmes champs qu'au §2) calculé sur les **signaux réels** de la facture.
+
+- **Scan par références** (`POST /api/v1/fraud/scan-refs`) : `{"references":["FCT-TEST","FCT-A"]}` → résumé + un résultat par facture.
+
+- **Dégradation HONNÊTE** (on n'invente pas ce qu'on ne peut pas lire) :
+  - référence inconnue → **404** ;
+  - paiement arrêté (`docker compose stop payment` côté paiement) → **502** (`SourceIndisponible`), **jamais** un score inventé.
+
+Côté paiement, l'endpoint lui-même se teste (Swagger `http://localhost:8080/swagger-ui.html`, tag « Signaux
+fraude ») mais exige les en-têtes `X-Principal`/`X-Principal-Sig` : en pratique on le prouve **via** les
+routes fraude ci-dessus, qui signent pour vous.
+
 ## Arrêter
 ```bash
 docker compose --profile degrade down

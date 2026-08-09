@@ -12,11 +12,15 @@ maintenant, condition de levée. Voir ADR-017.
   performance réelle. *Levée* : pipeline §7.2 (anonymisation → validation médecin → entraînement) avec un
   vrai jeu, puis promotion du modèle dans le registre (candidat → validé → actif).
 
-- **Extraction depuis la base payment réelle = adaptateur DIFFÉRÉ.** Le service reçoit aujourd'hui les
-  signaux dans le corps de la requête (contrat de features = forme des signaux internes). Le branchement
-  qui lit factures/wallet/reversements/cartes dans la base payment (Java) n'est pas fait — coupler
-  aveuglément au schéma d'un autre service est ce qu'on évite (cf. ADR-014). *Levée* : adaptateur
-  d'extraction (lecture seule / événements) normalisant vers le vecteur de features.
+- **Extraction depuis la base payment réelle — LEVÉE (2026-08-09, incrément A, ADR-019).** Le service
+  paiement (propriétaire de son schéma) expose un **endpoint read-only** `GET /api/v1/fraud-signals/{ref}`
+  (+ `/lot`) qui projette les agrégats en SQL ; la fraude le **consomme en HTTP** sous **principal signé
+  (P5.5b-1) + ADMIN_FINANCE** et **normalise** camelCase→snake_case (frontière anti-corruption, ADR-014 :
+  la fraude ne lit jamais la base paiement). Nouvelles routes `POST /score-ref` & `/scan-refs`. Additif pur
+  (POST-signaux et modèle inchangés). Dégradation honnête : source injoignable → 502, jamais un score
+  inventé. Aucune dépendance nouvelle (`httpx` promu test→runtime ; signature en stdlib). *Reste différé* :
+  le **routage/notification** de l'alerte extraite vers `ADMIN_FINANCE` = incrément B (cf. entrée « écran ni
+  routage »). En prod : secret partagé → compte de service Keycloak ; audit d'accès à envisager.
 
 - **Multi-comptes (N wallets → même bénéficiaire/device/IP) non couvert.** Dette explicitement renvoyée
   ici depuis P5.3b-2. Les signaux device/IP ne sont pas disponibles dans le domaine paiement actuel.

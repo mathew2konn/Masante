@@ -16,6 +16,17 @@ class Parametres(BaseSettings):
     modele_path: str = "models/modele_fraude.json"
     mlflow_tracking_uri: str = "file:./mlruns"
 
+    # --- Extraction réelle (incrément A) : source des signaux = service paiement ---
+    # Le service paiement expose les signaux (projection read-only de SON schéma) ; on ne lit JAMAIS
+    # sa base directement (ADR-014/ADR-019). Endpoint sensible → principal signé (P5.5b-1) + ADMIN_FINANCE.
+    # Secret HMAC (base64) partagé, fourni par l'ENVIRONNEMENT (jamais en dur, CDC_00 §4). Vide =>
+    # extraction désactivée : /score-ref & /scan-refs répondent 502 honnête (le POST-signaux reste OK).
+    payment_base_url: str = "http://payment:8080"
+    principal_secret: str = ""
+    principal_sub: str = "fraud-detection-service"
+    principal_role: str = "ADMIN_FINANCE"
+    http_timeout_s: float = 5.0
+
     # --- Seuils de règles (DONNÉES) ---
     seuil_multiple_acte: float = 3.0          # montant d'acte > 3× la référence = aberrant
     seuil_factures_30j: int = 50              # vélocité de facturation établissement

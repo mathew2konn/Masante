@@ -10,8 +10,10 @@ scikit-learn>=1.4,<1.6
 pandas>=2.2,<3
 numpy>=1.26,<2.2
 mlflow>=2.13,<3
+# Extraction réelle (incrément A) : client HTTP vers le service paiement. Déjà présent (TestClient) ;
+# promu en dépendance RUNTIME — aucun paquet nouveau (§2.6).
+httpx>=0.27,<0.29
 # Qualité (G3)
 pytest>=8.2,<9
-httpx>=0.27,<0.29
 ruff>=0.5,<0.9
 mypy>=1.10,<2

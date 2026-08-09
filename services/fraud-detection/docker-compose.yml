@@ -1,16 +1,24 @@
 # Pile de dev — fraud-detection-service (CDC_05). `docker compose up --build`.
 # Swagger : http://localhost:8090/docs — Santé : http://localhost:8090/ready
-# Service SANS ÉTAT (scoring pur) : ni Postgres ni Redis. L'extraction depuis la base payment
-# réelle est un adaptateur différé (cf. plan G1 / dette).
+# Le scoring reste SANS ÉTAT (ni Postgres ni Redis ici). L'EXTRACTION réelle (incrément A, ADR-019)
+# consomme l'endpoint read-only /fraud-signals du service paiement (démarré via sa propre pile) :
+# on l'atteint par host.docker.internal:8080 et on s'authentifie par principal signé (secret DEV partagé).
 services:
   fraud-detection:
     build: .
     image: masante-fraud-detection:test
     ports:
       - "8090:8090"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     environment:
       FRAUD_MODELE_PATH: models/modele_fraude.json
       FRAUD_MLFLOW_TRACKING_URI: file:./mlruns
+      # Extraction réelle : source = service paiement (pile payment, port publié 8080).
+      FRAUD_PAYMENT_BASE_URL: http://host.docker.internal:8080
+      # Secret HMAC DEV partagé avec le paiement (identique à MASANTE_PAYMENT_PRINCIPAL_SECRET).
+      # DEV uniquement ; en prod = compte de service Keycloak. Vide => extraction désactivée (502 honnête).
+      FRAUD_PRINCIPAL_SECRET: cHJpbmNpcGFsLWRldi1zZWNyZXQtMDEyMzQ1Njc4OSEh
 
   # Démo de la DÉGRADATION GRACIEUSE (§1.7) : même image, chemin de modèle inexistant
   # => le service répond en règles seules. Lancer explicitement :

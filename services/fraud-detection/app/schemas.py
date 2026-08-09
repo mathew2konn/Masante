@@ -6,6 +6,8 @@ c'est justement une incohérence de fraude que le moteur doit pouvoir recevoir e
 """
 from __future__ import annotations
 
+from datetime import datetime
+
 from pydantic import BaseModel, Field
 
 
@@ -79,6 +81,21 @@ class ResultatFraude(BaseModel):
 
 class RequeteScan(BaseModel):
     signaux: list[SignalFacturation]
+
+
+class RequeteScoreRef(BaseModel):
+    """Score par RÉFÉRENCE : les signaux sont extraits en temps réel du service paiement (incrément A)."""
+
+    reference: str = Field(..., description="Référence de facture à extraire puis scorer")
+    as_of: datetime | None = Field(
+        None, description="Cut-off T optionnel (ISO-8601) pour la reproductibilité ; défaut = maintenant")
+
+
+class RequeteScanRefs(BaseModel):
+    """Scan par LOT de références : extraction au même cut-off puis scoring (§6.9)."""
+
+    references: list[str] = Field(..., min_length=1, description="Références de factures à extraire+scorer")
+    as_of: datetime | None = Field(None, description="Cut-off T optionnel commun au lot")
 
 
 class ResumeScan(BaseModel):
