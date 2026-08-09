@@ -11,6 +11,7 @@ import ci.masante.payment.domain.carte.Montant;
 import ci.masante.payment.domain.carte.PasserelleCarte;
 import ci.masante.payment.domain.carte.RegistrePasserellesCarte;
 import ci.masante.payment.domain.carte.ResultatCapture;
+import ci.masante.payment.domain.carte.ResultatDebitRecurrent;
 import ci.masante.payment.domain.carte.ResultatInitiation;
 import ci.masante.payment.domain.carte.StatutCarte;
 import ci.masante.payment.domain.carte.StatutPasserelle;
@@ -454,6 +455,67 @@ public class ServiceCarte {
     }
 
     // ---------------------------------------------------------------------------------------------
+    // Débit récurrent MIT (mandats §5.4)
+    // ---------------------------------------------------------------------------------------------
+
+    /**
+     * Débite une carte enrôlée en MIT (Merchant-Initiated, §5.4) : PAIEMENT SIMULÉ (FT5), sans porteur ni
+     * 3DS. Crée un {@link Paiement} + une {@link CarteTransaction} et, si la passerelle autorise, capture
+     * immédiatement (auto-capture, comme le frictionless). Idempotent par {@code idempotency_key} du
+     * paiement : un rejeu de la même clé (même mandat/même séquence) renvoie l'état déjà produit sans
+     * réappeler la passerelle. L'appelant (ServiceMandat) fournit une clé déterministe par échéance.
+     *
+     * <p><b>Frontière</b> : le résultat est décidé par la passerelle ({@link PasserelleCarte#debiterRecurrent})
+     * — jamais par l'appelant (§1.2). La machine carte partagée n'est pas modifiée (chemin frictionless réutilisé).</p>
+     */
+    @Transactional
+    public ResultatDebitMandat debiterMandat(Carte carte, long montant, String codeDevise, ci.masante.payment.domain.model.ObjetPaiement objet,
+                                             String etablissementRef, String patientRef, String referenceMandat,
+                                             String cleIdempotence) {
+        var deja = paiements.findByIdempotencyKey(cleIdempotence);
+        if (deja.isPresent()) {
+            CarteTransaction txDeja = carteTransactions.findByPaiementId(deja.get().getId()).orElse(null);
+            return new ResultatDebitMandat(deja.get().getId(), txDeja == null ? null : txDeja.getId(),
+                    deja.get().getStatut(), deja.get().getStatut() == PaiementStatut.SUCCESS,
+                    txDeja == null ? null : txDeja.getCodeRefus(), true);
+        }
+
+        PasserelleCarte psp = passerelles.pour(carte.getPsp());
+        Devise devise = Devise.depuisCode(codeDevise);
+        Paiement paiement = paiements.save(new Paiement(cleIdempotence, referenceMandat, montant, codeDevise,
+                "carte", objet, null, etablissementRef, patientRef));
+        auditer("MandateDebitInitiated", paiement,
+                Map.of("psp", carte.getPsp(), "montant", montant, "mandat", nz(referenceMandat)));
+
+        ResultatDebitRecurrent r = psp.debiterRecurrent(
+                carte.getToken(), carte.getNetworkTransactionId(), Montant.de(montant, devise), referenceMandat);
+
+        CarteTransaction tx = new CarteTransaction(paiement.getId(), carte.getPsp(), psp.modalite(),
+                r.refPasserelle(), StatutCarte.CREEE, montant, codeDevise);
+        tx.setCarteId(carte.getId());
+        paiement.setProviderRef(r.refPasserelle());
+        carteTransactions.save(tx);
+
+        if (r.reussi()) {
+            // MIT : pas d'authentification porteur ; on avance la machine puis auto-capture.
+            appliquer(paiement, tx, AUTHENTIFICATION_REUSSIE, "MIT : sans interaction porteur");
+            appliquer(paiement, tx, AUTORISATION_OK, "Autorisation MIT accordée");
+            tx.setMontantCapture(montant);
+            appliquer(paiement, tx, CAPTURE_OK, "Fonds capturés (MIT)");
+            paiement.setConfirmedAt(Instant.now());
+            paiements.save(paiement);
+            auditer("MandateDebitCaptured", paiement, Map.of("montant", montant, "psp", carte.getPsp()));
+        } else {
+            tx.setCodeRefus(r.codeRefus());
+            appliquer(paiement, tx, REFUS, "Refus MIT récurrent");
+            auditer("MandateDebitRefused", paiement,
+                    Map.of("psp", carte.getPsp(), "codeRefus", nz(r.codeRefus())));
+        }
+        return new ResultatDebitMandat(paiement.getId(), tx.getId(), paiement.getStatut(),
+                r.reussi(), r.codeRefus(), false);
+    }
+
+    // ---------------------------------------------------------------------------------------------
     // Consultation + vault
     // ---------------------------------------------------------------------------------------------
 
@@ -561,8 +623,11 @@ public class ServiceCarte {
         String empreinte = tx.getPsp() + ":" + marque + ":" + last4 + ":" + expMois + "/" + expAnnee;
         Carte carte = cartes.findByUtilisateurRefAndEmpreinteAndSupprimeLeIsNull(cmd.utilisateurRef(), empreinte)
                 .orElseGet(() -> {
-                    // token : en production, la réf. de tokenisation réutilisable renvoyée par le PSP.
-                    Carte nouvelle = new Carte(cmd.utilisateurRef(), tx.getPsp(), null, cmd.referenceClient(),
+                    // token de vault RÉUTILISABLE et UNIQUE par carte (en prod : renvoyé par le PSP). La
+                    // référence client est une réf. de SESSION à usage unique — la réutiliser comme token
+                    // violerait UNIQUE(psp, token) dès la 2e carte (vault mono-carte). Token = valeur propre.
+                    String tokenVault = "tokv_" + UUID.randomUUID();
+                    Carte nouvelle = new Carte(cmd.utilisateurRef(), tx.getPsp(), null, tokenVault,
                             empreinte, marque, last4, expMois, expAnnee, ntid);
                     boolean premiere = cartes
                             .findByUtilisateurRefAndSupprimeLeIsNullOrderByCreeLeDesc(cmd.utilisateurRef())

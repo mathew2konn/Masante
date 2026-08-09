@@ -7,6 +7,7 @@ import ci.masante.payment.domain.carte.ModaliteCarte;
 import ci.masante.payment.domain.carte.Montant;
 import ci.masante.payment.domain.carte.PasserelleCarte;
 import ci.masante.payment.domain.carte.ResultatCapture;
+import ci.masante.payment.domain.carte.ResultatDebitRecurrent;
 import ci.masante.payment.domain.carte.ResultatInitiation;
 import ci.masante.payment.domain.carte.StatutPasserelle;
 import ci.masante.payment.domain.gateway.ResultatRemboursement;
@@ -93,6 +94,16 @@ public class AdaptateurCarteSimuleTokenise implements PasserelleCarte {
     @Override
     public ResultatCapture capturer(String refPasserelle, Montant montant) {
         return ResultatCapture.ok(); // une autorisation valide se capture en simulation
+    }
+
+    @Override
+    public ResultatDebitRecurrent debiterRecurrent(String token, String networkTransactionId, Montant montant,
+                                                    String referenceMandat) {
+        // DÉTERMINISTE : un montant se terminant par 99 (unité mineure) simule un refus (fonds insuffisants).
+        if (montant.valeur() % 100 == 99) {
+            return ResultatDebitRecurrent.refuse("SIMMIT-REFUS-" + rand(), "insufficient_funds");
+        }
+        return ResultatDebitRecurrent.reussi("SIMMIT-OK-" + rand());
     }
 
     @Override

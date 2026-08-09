@@ -825,3 +825,84 @@ même journée renvoie le **même** rapport (même `id`, mêmes 3 écarts) — i
 - [ ] 93 Grâce : pièce < 2 j non signalée ; rejeu du run → **identique** (idempotent par date)
 
 Si tout est coché → **« Reversements c OK »** : j'inscris le **G5** de P5.5c.
+
+---
+
+# Partie N — Mandats de paiement récurrents (P5.4b, §5.4)
+
+Paiements récurrents (abonnements, suivi, assurances) par **débit MIT** sur une carte enrôlée au vault.
+**PAIEMENT SIMULÉ (FT5)**. Le montant, la périodicité et les échéances sont calculés **backend** (§0.1).
+En-têtes : `X-Utilisateur-Id` (propriétaire), `Idempotency-Key` (création), `X-Acteur-Id` (cycle de vie).
+Swagger : http://localhost:8080/swagger-ui.html (tag **Mandats**).
+
+## 94. Enrôler une carte puis créer un mandat
+- `POST /api/v1/card-payments` (`sim_tokenise` / `tok_test_frictionless` / `enregistrerCarte:true`) → **SUCCESS**,
+  puis `GET /api/v1/cards` → récupérer `carteId`.
+- `POST /api/v1/mandats` (`carteId`, `montant:5000`, `periodicite:MENSUEL`, `dateDebut:aujourd'hui`,
+  `preavisJours:3`) → **201**, `statut=ACTIF`, une échéance **#1 PLANIFIEE** à la date de début.
+
+## 95. Préavis (notifications avant prélèvement — livraison différée)
+- `POST /api/v1/mandats/poser-preavis?date=<aujourd'hui>` → **1** ; l'échéance #1 passe `PLANIFIEE→PREAVIS`
+  (`preavis_le` posé). L'**envoi réel** (SMS/push) est différé (aucun canal — dette assumée).
+
+## 96. Exécution → débit MIT + avance de l'échéancier
+- `POST /api/v1/mandats/executer-echeances?date=<aujourd'hui>` → `{total:1, executees:1, …}`.
+- `GET /api/v1/mandats/{id}` : #1 **EXECUTEE** (`paiementId` renseigné = vrai paiement carte SUCCESS),
+  #2 **PLANIFIEE** au mois suivant, `sequenceCourante=2`, `prochaineEcheance` avancée.
+
+## 97. Anti double-prélèvement (idempotence)
+- Rejouer `executer-echeances?date=<aujourd'hui>` → `{total:0}` : #1 déjà EXECUTEE, #2 pas due. Aucun
+  second débit. (Garde-fous : verrou Redis + verrou pessimiste + clé `mandat:<id>:<seq>` + `UNIQUE(mandat,seq)`.)
+
+## 98. Refus de la passerelle
+- Créer un mandat `montant:9999` (se termine par 99 → la passerelle simulée refuse), exécuter → échéance #1
+  **ECHOUEE** (`code_refus=insufficient_funds`), #2 planifiée : un refus **n'interrompt pas** l'abonnement.
+
+## 99. Annulation à tout moment (§5.4)
+- `POST /api/v1/mandats/{id}/cancel` → `statut=ANNULE`. Exécuter à une date où #2 serait due → échéance
+  **SAUTEE** : plus aucun prélèvement. (Idem `suspend` → les prélèvements s'arrêtent ; `resume` reprend.)
+
+## 100. Idempotence de création
+- Rejouer `POST /mandats` avec le **même `Idempotency-Key`** → **même `id`**, aucun doublon de mandat.
+
+## Récapitulatif des cases — Partie N
+- [ ] 94 Carte enrôlée + mandat créé **ACTIF** avec échéance #1 **PLANIFIEE**
+- [ ] 95 Préavis posé (#1 → **PREAVIS**) ; livraison réelle différée (dette)
+- [ ] 96 Exécution → #1 **EXECUTEE** (paiement réel) + #2 planifiée, échéancier avancé
+- [ ] 97 Rejeu → **0** exécutée (pas de double prélèvement)
+- [ ] 98 Montant `…99` → #1 **ECHOUEE**, abonnement continue
+- [ ] 99 `cancel` → **ANNULE**, échéance suivante **SAUTEE**
+- [ ] 100 Même `Idempotency-Key` → **même mandat**
+
+Si tout est coché → **« Mandats OK »** : j'inscris le **G5** de P5.4b.
+
+---
+
+## Notifications avant prélèvement (P5.4c, Outbox — livraison SIMULÉE) — tag **Notifications**
+
+Le préavis (case 95) écrit aussi une **notification** dans l'outbox (même transaction). Un **relais** la
+« livre » via un adaptateur **simulé** (aucun SMS/push réel). En-tête `X-Utilisateur-Id` = destinataire.
+
+## 101. Préavis → notification EN_ATTENTE
+- Après `poser-preavis`, `GET /api/v1/notifications` (header `X-Utilisateur-Id`) → une ligne
+  **`PRELEVEMENT_IMMINENT`** au statut **EN_ATTENTE** (contenu : montant, date d'échéance, libellé).
+
+## 102. Relais → livraison simulée → ENVOYEE
+- `POST /api/v1/notifications/relayer` → `{livrees: N}` ; la notification passe **ENVOYEE**
+  (`canalLivraison=SMS_SIM`). Aucun message réel n'est envoyé (SIMULÉ, FT5).
+
+## 103. Idempotence du relais
+- Rejouer `relayer` → `{livrees: 0}` : une ligne déjà ENVOYEE n'est jamais re-livrée
+  (verrou pessimiste + garde d'état).
+
+## 104. Échec de livraison (destinataire injoignable)
+- Créer un mandat pour un utilisateur dont l'id se termine par **`FAIL`**, poser le préavis, relayer →
+  la notification passe **ECHOUEE** avec un motif. (L'adaptateur simulé échoue de façon déterministe.)
+
+## Récapitulatif des cases — Notifications
+- [ ] 101 Préavis → notification **EN_ATTENTE**
+- [ ] 102 Relais → **ENVOYEE** (`SMS_SIM`)
+- [ ] 103 Rejeu du relais → **0** (idempotent)
+- [ ] 104 Destinataire `…FAIL` → **ECHOUEE** + motif
+
+Si tout est coché → **« Mandats + Notifications OK »** : j'inscris le **G5** de P5.4b/P5.4c.

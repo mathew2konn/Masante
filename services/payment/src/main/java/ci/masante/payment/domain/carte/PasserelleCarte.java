@@ -30,6 +30,14 @@ public interface PasserelleCarte {
     /** Capture les fonds d'une autorisation valide. */
     ResultatCapture capturer(String refPasserelle, Montant montant);
 
+    /**
+     * Débit récurrent MIT (Merchant-Initiated Transaction, CDC_06 §5.4) : initié marchand, porteur absent,
+     * SANS défi 3DS — s'appuie sur le token du vault + le {@code networkTransactionId} de la 1re transaction.
+     * Le RÉSULTAT est décidé par la passerelle, jamais par l'appelant (§1.2). OCP : dispatch par {@link #psp()}.
+     */
+    ResultatDebitRecurrent debiterRecurrent(String token, String networkTransactionId, Montant montant,
+                                            String referenceMandat);
+
     /** Rembourse (total ou partiel) vers la carte d'origine (interdit #10 : jamais un autre instrument). */
     ResultatRemboursement rembourser(String refPasserelle, Montant montant, String motif);
 

@@ -3,6 +3,7 @@ package ci.masante.payment.web;
 import ci.masante.payment.domain.billing.FacturationInvalideException;
 import ci.masante.payment.domain.carte.PasserelleInconnue;
 import ci.masante.payment.domain.carte.TransitionCarteIllegale;
+import ci.masante.payment.domain.mandat.TransitionMandatIllegale;
 import ci.masante.payment.domain.coverage.CouvertureInvalideException;
 import ci.masante.payment.domain.fraud.FraudSuspecteeException;
 import ci.masante.payment.domain.gateway.CanalNonSupporteException;
@@ -28,7 +29,9 @@ import ci.masante.payment.service.CarteTransactionIntrouvableException;
 import ci.masante.payment.service.ControleIntrouvableException;
 import ci.masante.payment.service.ConflitIdempotenceException;
 import ci.masante.payment.service.FactureIntrouvableException;
+import ci.masante.payment.service.MandatIntrouvableException;
 import ci.masante.payment.service.OperationCarteInvalideException;
+import ci.masante.payment.service.OperationMandatInvalideException;
 import ci.masante.payment.service.PaiementIntrouvableException;
 import ci.masante.payment.service.PrincipalInvalideException;
 import ci.masante.payment.service.ReversementIntrouvableException;
@@ -52,7 +55,8 @@ import java.util.stream.Collectors;
 public class GestionErreurs {
 
     /** Transition d'état (générique ou carte) interdite, ou remboursement d'un paiement non abouti → 409. */
-    @ExceptionHandler({TransitionInvalideException.class, TransitionCarteIllegale.class, IllegalStateException.class})
+    @ExceptionHandler({TransitionInvalideException.class, TransitionCarteIllegale.class,
+            TransitionMandatIllegale.class, IllegalStateException.class})
     public ProblemDetail conflit(RuntimeException ex) {
         return probleme(HttpStatus.CONFLICT, ex.getMessage());
     }
@@ -68,7 +72,7 @@ public class GestionErreurs {
             AvoirIntrouvableException.class, WalletIntrouvableException.class,
             AlerteFraudeIntrouvableException.class, ControleIntrouvableException.class,
             CarteTransactionIntrouvableException.class, CarteIntrouvableException.class,
-            ReversementIntrouvableException.class})
+            ReversementIntrouvableException.class, MandatIntrouvableException.class})
     public ProblemDetail introuvable(RuntimeException ex) {
         return probleme(HttpStatus.NOT_FOUND, ex.getMessage());
     }
@@ -106,8 +110,8 @@ public class GestionErreurs {
     }
 
     /** Opération carte invalide dans l'état courant (remboursement &gt; capturé, devise, capture) → 422. */
-    @ExceptionHandler(OperationCarteInvalideException.class)
-    public ProblemDetail operationCarteInvalide(OperationCarteInvalideException ex) {
+    @ExceptionHandler({OperationCarteInvalideException.class, OperationMandatInvalideException.class})
+    public ProblemDetail operationCarteInvalide(RuntimeException ex) {
         return probleme(HttpStatus.UNPROCESSABLE_ENTITY, ex.getMessage());
     }
 

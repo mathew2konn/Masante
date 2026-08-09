@@ -33,11 +33,8 @@ pourquoi c'est acceptable maintenant, condition de levée.
 
 ## P5.4a — Cartes bancaires (§5)
 
-- **Mandats récurrents (§5.4) non implémentés.** Le vault conserve `network_transaction_id` (NTID) et
-  `psp_customer_id` — tout le nécessaire aux paiements initiés marchand (MIT) récurrents — mais **aucun
-  débit récurrent** n'existe. *Pourquoi acceptable* : le vault est le socle ; le moteur d'abonnement/mandat
-  est un incrément distinct. *Levée* : §5.4, s'appuyer sur les cartes enrôlées + NTID pour rejouer un débit
-  MIT. Classé « conçu », pas « prêt à activer ».
+- **Mandats récurrents (§5.4) — LEVÉ (P5.4b, 2026-08-09, V14).** Le débit MIT s'appuie sur les cartes
+  enrôlées + NTID (ADR-018). Voir la section P5.4b ci-dessous pour les dettes résiduelles (simulation, préavis).
 
 - **Tout est SIMULÉ (FT5).** Deux adaptateurs `sim_tokenise` / `sim_redirige` déterministes ; secret HMAC
   de webhook = constante de **dév** (`dev-hmac-<psp>`). *Levée* : par PSP réel = nouvel adaptateur +
@@ -192,3 +189,35 @@ pourquoi c'est acceptable maintenant, condition de levée.
   est testé unitairement (chaque écart + sain). Le balayage SQL des deux sources, l'idempotence
   (`UNIQUE(date_rapport)`) et le seedeur d'anomalies se prouvent **live** (Partie M du guide), pas au build
   (sans base). *Levée* : tests d'intégration Testcontainers (dépendance nouvelle → accord propriétaire).
+
+## P5.4b — Mandats de paiement récurrents (§5.4)
+
+- **Débit MIT SIMULÉ (FT5).** `debiterRecurrent` sur les deux adaptateurs simulés (montant en `…99` → refus) ;
+  ne verse RIEN. *Levée* : par PSP réel = implémenter `debiterRecurrent` avec l'API MIT réelle (token + NTID)
+  + secret/creds réels. **Aucune** branche testée contre un PSP réel → **pas « prête à activer »** (ADR-018).
+
+- **Notifications avant prélèvement : canal Outbox livré (P5.4c), LIVRAISON SIMULÉE.** Le préavis pose
+  une ligne `notifications_outbox` (Outbox, committée avec le préavis) ; un relais la livre via le port OCP
+  `EnvoiNotification`. **Seul un adaptateur SIMULÉ existe** (déterministe, destinataire `…FAIL` → échec) :
+  aucun SMS/push/email réel n'est envoyé. *Levée* : adaptateur réel (fournisseur SMS/push + secret/API →
+  accord §2.6), jamais testé ici → **pas « prêt à activer »**. La **relance/dunning** après échec reste due.
+
+- **Pas de relance / dunning après refus.** Une échéance `ECHOUEE` n'est pas rejouée ; la planification avance
+  simplement à la période suivante (l'abonnement continue). *Levée* : politique de relance (retenter J+n,
+  suspendre après N échecs, notifier).
+
+- **Endpoints d'exploitation non gardés par rôle.** `/mandats/executer-echeances` et `/mandats/poser-preavis`
+  déclenchent les jobs manuellement (preuve G2, exploitation) sans garde d'autorisation. *Levée* : réserver à
+  `ADMIN`/tâche interne (principal signé ou garde de rôle), comme les actes sensibles reversement.
+
+- **`MandatStatut` / `Periodicite` / `StatutEcheance` backend-only.** À promouvoir dans `@masante/shared` quand
+  un écran (mobile « mes abonnements » / admin) les consommera. Même logique qu'ADR-014/015/016/017.
+
+- **Concurrence & idempotence prouvées en G2, pas en G3.** Les 4 garde-fous anti double-prélèvement (verrou
+  Redis, verrou pessimiste, clé `mandat:<id>:<seq>`, `UNIQUE(mandat_id, numero_sequence)`) se prouvent **live**
+  (Partie N du guide), pas au build (tests unitaires purs sans base). *Levée* : Testcontainers (dép nouvelle →
+  accord propriétaire, §2.6).
+
+- **Cycle synchrone.** Le débit MIT pose l'issue terminale dans la même transaction (sim synchrone). Un accusé
+  différé/asynchrone (webhook opérateur) n'est pas géré. *Levée* : à l'introduction d'un MIT asynchrone,
+  committer `EN_COURS` puis résoudre via statut/webhook (comme prévu pour la carte P5.4a).

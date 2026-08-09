@@ -14,5 +14,6 @@ public enum ObjetPaiement {
     ASSURANCE,
     CNAM,
     FACTURE,
+    ABONNEMENT,
     AUTRE
 }
