@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { getMe, getMfaStatus } from '@/lib/session';
+import { controleurCourant } from '@/lib/fraude';
 import { Card } from '@/components/ui/Card';
 
 /**
@@ -18,6 +19,7 @@ export default async function PortailAccueil() {
   if (mfa?.doit_configurer) redirect('/securite/mfa');
 
   const mfaActive = mfa?.facteur_confirme === true;
+  const controleur = await controleurCourant();
 
   return (
     <div className="space-y-6">
@@ -38,6 +40,22 @@ export default async function PortailAccueil() {
           Ouvrir la file d’attente
         </Link>
       </Card>
+
+      {controleur ? (
+        <Card>
+          <h2 className="mb-1 text-lg font-semibold text-blue-900">Alertes de fraude</h2>
+          <p className="mb-4 text-sm text-ink-700">
+            Signalements de conformité de la plateforme (détection seule). Consultez et marquez les
+            alertes revues.
+          </p>
+          <Link
+            href="/fraude-alertes"
+            className="inline-flex rounded-pill bg-primary px-5 py-2.5 text-sm font-semibold text-surface hover:bg-blue-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+          >
+            Ouvrir les alertes
+          </Link>
+        </Card>
+      ) : null}
 
       {!mfaActive ? (
         <Card>

@@ -84,3 +84,27 @@ export const Role = {
   ASSURANCE: 'assurance',
 } as const;
 export type Role = (typeof Role)[keyof typeof Role];
+
+/**
+ * Niveau d'une alerte de fraude IA (CDC_05, routage B — ADR-020). Valeurs = celles produites
+ * par le fraud-detection-service et persistées par le paiement (`ia_fraude_alertes.niveau`).
+ * Seuls SUSPECT/TRES_SUSPECT donnent lieu à une alerte routée ; NORMAL n'est jamais persisté.
+ * Le NIVEAU est calculé backend (règles + ML) — jamais déduit par le front (frontière CDC_02).
+ */
+export const NiveauFraudeIa = {
+  NORMAL: 'NORMAL',
+  SUSPECT: 'SUSPECT',
+  TRES_SUSPECT: 'TRES_SUSPECT',
+} as const;
+export type NiveauFraudeIa = (typeof NiveauFraudeIa)[keyof typeof NiveauFraudeIa];
+
+/**
+ * Statut de traitement d'une alerte de fraude IA par le contrôleur plateforme (CDC_05, ADR-020).
+ * OUVERTE à la création ; REVUE après revue humaine (trace, aucune action automatique — détection
+ * seule, ADR-017). La transition est opérée par le backend paiement, jamais par le front.
+ */
+export const StatutAlerteFraudeIa = {
+  OUVERTE: 'OUVERTE',
+  REVUE: 'REVUE',
+} as const;
+export type StatutAlerteFraudeIa = (typeof StatutAlerteFraudeIa)[keyof typeof StatutAlerteFraudeIa];

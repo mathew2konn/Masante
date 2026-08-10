@@ -114,6 +114,32 @@ Prérequis : les deux piles tournent (`services/payment` **et** `services/fraud-
 Les endpoints `/fraud-alertes` exigent les en-têtes `X-Principal`/`X-Principal-Sig` (principal signé
 ADMIN_FINANCE) — en pratique on les teste avec un outil qui signe (cf. incrément A).
 
+## 9. Écran admin des alertes — portail Next (incrément B2, ADR-020 §B2)
+L'écran du **contrôleur plateforme** (portail web) qui consulte et traite les alertes. Next ne parle pas
+au paiement en Bearer : il **mint un principal signé** `ADMIN_FINANCE` côté serveur après avoir vérifié le
+rôle. **Détection seule** : la seule action est « marquer revue » (aucun gel).
+
+Prérequis : les 3 piles tournent — `services/payment` (8080), `services/fraud-detection` (8090) et le
+portail web. Config web dans `apps/web/.env` (copier depuis `.env.example`) : `PAYMENT_URL=http://localhost:8080`
+et `MASANTE_PAYMENT_PRINCIPAL_SECRET` = la MÊME valeur que côté paiement. Compte contrôleur dév :
+```bash
+# (une fois) créer le compte super_admin de démonstration
+cd services/api && XDEBUG_MODE=off php artisan db:seed --class=ControleurPlateformeSeeder --force
+cd ../../apps/web && pnpm dev          # http://localhost:3000
+```
+
+1. **Connexion** : `http://localhost:3000` → téléphone `0709090909` / mot de passe `Controle@2026!`.
+2. **Accueil** : une carte **« Alertes de fraude »** apparaît (visible uniquement pour `super_admin`/`ministere`).
+3. **Liste** (`/fraude-alertes`) : les alertes avec **badge de niveau** + score ; onglets de filtre
+   (Toutes / À traiter / Revue) ; bouton **« Lancer un scan »** (déclenche le routage côté paiement).
+4. **Détail** (`/fraude-alertes/{id}`) : établissement, **règles déclenchées**, **facteurs SHAP**,
+   **signaux évalués**, état de notification ; bouton **« Marquer comme revue »** si l'alerte est OUVERTE.
+5. **Contrôle négatif** : se connecter avec un compte **non** contrôleur (ex. un agent) → la carte d'accueil
+   disparaît et `/fraude-alertes` affiche **« Accès restreint »**.
+
+À vérifier (G4) : Chrome + Firefox, desktop **et** mobile (largeur réduite) ; aucune donnée de décision
+calculée par le front (niveau/score/règles viennent du paiement) ; aucune action de gel proposée.
+
 ## Arrêter
 ```bash
 docker compose --profile degrade down
