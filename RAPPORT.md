@@ -185,8 +185,9 @@ moteur générique** du carnet (pas d'écran sur-mesure) avec un plafond d'items
   principal) est conservé.
 - **Un seul numéro par contact** (2026-07-03) : migration `..._000002_drop_telephone_secondaire_from_contacts_urgence`
   (réversible) + retrait du `$fillable` et de la règle. Un contact = nom + lien + **un** téléphone.
-- **Contrôleur** `ContactUrgenceController` : `regles()` = nom, `lien_parente` **`Rule::in(LIENS_PARENTE)`** (15 valeurs :
-  papa, maman, epouse, epoux, frere, soeur, cousin, cousine, tante, oncle, tuteur, grand_mere, grand_pere, ami, autre),
+- **Contrôleur** `ContactUrgenceController` : `regles()` = nom, `lien_parente` **`Rule::in(LIENS_PARENTE)`** (16 valeurs :
+  papa, maman, epouse, epoux, frere, soeur, cousin, cousine, tante, oncle, tuteur, tutrice, grand_mere, grand_pere,
+  ami, autre — `tutrice` ajouté le 2026-08-11),
   téléphone CI. **`est_principal` n'est plus accepté du client.** `store()` surchargé : plafond
   **`MAX_CONTACTS=2`** (3e → 422 `contact`), **unicité du `telephone`** entre les 2 (→ 422 `telephone`), rôle attribué
   par ordre (1er → `est_principal=true`). `update()` surchargé : interdit de reprendre le téléphone de l'autre contact.

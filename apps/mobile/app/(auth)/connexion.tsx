@@ -38,8 +38,8 @@ export default function ConnexionScreen() {
     <Screen>
       <View style={styles.entete}>
         <Logo size={84} />
-        <Text style={styles.titre}>MaSante</Text>
-        <Text style={styles.sous}>Connexion à votre carnet de santé</Text>
+        <Text style={styles.titre}>MaSanté</Text>
+        <Text style={styles.sous}>Connexion à votre page de santé</Text>
       </View>
 
       <TextField

@@ -60,8 +60,14 @@ const NOTE_AUTEUR: Record<string, string> = {
 };
 
 /**
- * Lien de parenté d'un contact d'urgence (F2.11) — miroir exact de ContactUrgenceController::LIENS_PARENTE.
- * Exporté : les contacts d'urgence ont leur écran dédié (ContactsUrgenceEcran), hors moteur générique.
+ * Lien de parenté d'un contact d'urgence (F2.11) — les CLÉS sont le miroir exact de
+ * ContactUrgenceController::LIENS_PARENTE ; les VALEURS sont le libellé affiché.
+ *
+ * La clé part en base et transite par l'API : elle reste ASCII, minuscule, `_` en
+ * séparateur. Tout l'habillage (accents, parenthèses, tirets) appartient au libellé.
+ * Exporté : les contacts d'urgence ont leur écran dédié (ContactsUrgenceEcran), hors
+ * moteur générique — il construit ses options à partir de cet objet, donc une entrée
+ * ajoutée ici apparaît automatiquement dans le menu déroulant.
  */
 export const LIEN_PARENTE: Record<string, string> = {
   papa: 'Papa',
@@ -75,6 +81,7 @@ export const LIEN_PARENTE: Record<string, string> = {
   tante: 'Tante',
   oncle: 'Oncle',
   tuteur: 'Tuteur',
+  tutrice: 'Tutrice',
   grand_mere: 'Grand-mère',
   grand_pere: 'Grand-père',
   ami: 'Ami(e)',

@@ -24,10 +24,18 @@ class ContactUrgenceController extends CarnetSectionController
     /** Plafond de contacts d'urgence par membre (principal + secondaire). */
     public const MAX_CONTACTS = 2;
 
-    /** Liens de parenté autorisés (miroir exact du select frontend). */
+    /**
+     * Liens de parenté autorisés — miroir exact des CLÉS de `LIEN_PARENTE`
+     * (`apps/mobile/src/carnet/registre.ts`).
+     *
+     * Ce sont des identifiants stockés en base, pas des libellés : ASCII, minuscules,
+     * `_` comme séparateur. Le texte affiché (« Grand-mère », « Ami(e) »… ) vit côté
+     * front, dans le registre. Accentuer ou espacer une clé ici la désaligne du front
+     * et fait rejeter des valeurs que l'app envoie déjà.
+     */
     public const LIENS_PARENTE = [
         'papa', 'maman', 'epouse', 'epoux', 'frere', 'soeur', 'cousin', 'cousine',
-        'tante', 'oncle', 'tuteur', 'grand_mere', 'grand_pere', 'ami', 'autre',
+        'tante', 'oncle', 'tuteur', 'tutrice', 'grand_mere', 'grand_pere', 'ami', 'autre',
     ];
 
     protected function relation(): string
