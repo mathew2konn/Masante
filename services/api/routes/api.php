@@ -17,11 +17,13 @@ use App\Http\Controllers\Api\V1\Carnet\VaccinationController;
 use App\Http\Controllers\Api\V1\CarteCmuController;
 use App\Http\Controllers\Api\V1\DelegationController;
 use App\Http\Controllers\Api\V1\DonSangController;
+use App\Http\Controllers\Api\V1\DossierTitulaireController;
 use App\Http\Controllers\Api\V1\FicheVitaleController;
 use App\Http\Controllers\Api\V1\MedecinController;
 use App\Http\Controllers\Api\V1\MedicamentController;
 use App\Http\Controllers\Api\V1\MembreController;
 use App\Http\Controllers\Api\V1\MfaController;
+use App\Http\Controllers\Api\V1\NisController;
 use App\Http\Controllers\Api\V1\PasswordController;
 use App\Http\Controllers\Api\V1\PhotoMembreController;
 use App\Http\Controllers\Api\V1\QrController;
@@ -66,6 +68,22 @@ Route::middleware('throttle:api')->group(function () {
     | Endpoints publics pour l'instant (auth téléphone+OTP non encore branchée).
     */
     Route::prefix('v1')->group(function () {
+        /*
+        |------------------------------------------------------------------
+        | P6.1 — Identifiant National de Santé : vérification (CDC_09 §3.4).
+        |------------------------------------------------------------------
+        | Public à dessein : le CDC_09 §3.4 impose un retour immédiat à la saisie,
+        | y compris avant connexion (un agent qui saisit le NIS d'un patient).
+        |
+        | ANTI-ÉNUMÉRATION : l'endpoint ne consulte JAMAIS la base. Il valide le
+        | format et la clé, jamais l'existence — sinon il devient un oracle
+        | permettant de balayer la population (CDC_10 §5). Limiteur resserré
+        | (30/min/IP) en plus du limiteur « api » global.
+        */
+        Route::middleware('throttle:30,1')
+            ->get('nis/{nis}/verifier', [NisController::class, 'verifier'])
+            ->where('nis', '[A-Za-z0-9]{1,32}');
+
         /*
         |------------------------------------------------------------------
         | Module 2 / 2A.1 — Authentification téléphone + OTP + Sanctum.
@@ -130,6 +148,12 @@ Route::middleware('throttle:api')->group(function () {
         | (anti-IDOR, §4.3 Sécurité) est assurée par MembreFamillePolicy.
         */
         Route::middleware('auth:sanctum')->group(function () {
+            // P6.1 — Dossier de santé du titulaire (ADR-021 §2.1, variante (c)).
+            // DÉCLARÉ AVANT l'apiResource : sinon `/membres/titulaire` serait capté par
+            // `/membres/{membre}` et le model binding échouerait en 404.
+            Route::get('membres/titulaire', [DossierTitulaireController::class, 'show']);
+            Route::post('membres/titulaire', [DossierTitulaireController::class, 'store']);
+
             Route::apiResource('membres', MembreController::class)->parameters(['membres' => 'membre']);
 
             /*
@@ -142,6 +166,11 @@ Route::middleware('throttle:api')->group(function () {
             */
             Route::post('membres/{membre}/qr', [QrController::class, 'generer']);
             Route::get('membres/{membre}/acces', [MembreController::class, 'acces']);
+
+            // P6.1 — Lecture du NIS d'un dossier (CDC_09 §3.5). Contrairement au
+            // `matricule_ivs` interne, le NIS est destiné à être communiqué. L'isolation
+            // reste assurée par MembreFamillePolicy::view (anti-IDOR, inchangée).
+            Route::get('membres/{membre}/nis', [NisController::class, 'afficher']);
 
             // B3 — Délégation d'accès (voie 3) : le titulaire invite un délégué sur un membre ;
             // le délégué accepte/refuse ; révocable. Le droit se limite à la génération de QR.

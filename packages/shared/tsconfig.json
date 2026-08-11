@@ -4,6 +4,10 @@
     "module": "ESNext",
     "declaration": true,
     "noEmit": true,
+    // Autorise `import './calcul.ts'` dans les tests exécutés par le runner natif de Node
+    // (ESM strict exige l'extension). Sans effet sur les apps : `noEmit` est actif et seuls
+    // les fichiers de test utilisent cette forme.
+    "allowImportingTsExtensions": true,
     "jsx": "preserve"
   },
   "include": ["src"]

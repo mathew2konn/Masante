@@ -45,7 +45,10 @@ class StoreMembreRequest extends FormRequest
     public function withValidator(Validator $validator): void
     {
         $validator->after(function (Validator $validator) {
-            if ($this->user()->membresFamille()->count() >= self::MAX_MEMBRES) {
+            // P6.1 (ADR-021 §2.1) — le dossier du TITULAIRE est hors quota : ce n'est pas un
+            // « membre ajouté », c'est le dossier de santé du propriétaire du compte. Sans cette
+            // exclusion, activer le NIS retirerait un emplacement à chaque compte existant.
+            if ($this->user()->membresFamille()->where('est_titulaire', false)->count() >= self::MAX_MEMBRES) {
                 $validator->errors()->add(
                     'membre',
                     'Limite atteinte : un compte ne peut pas dépasser '.self::MAX_MEMBRES.' membres.',

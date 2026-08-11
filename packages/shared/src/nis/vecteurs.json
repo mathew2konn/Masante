@@ -1,0 +1,145 @@
+{
+  "_avertissement": "FICHIER GENERE — source unique des vecteurs de test du NIS. Consomme par la suite TS (@masante/shared) ET la suite PHP (services/api). Toute divergence entre les deux implementations casse le build. Ne pas editer a la main.",
+  "algorithme": {
+    "nom": "MASANTE-NIS-MOD97",
+    "reference": "ISO 7064 MOD 97-10 (meme famille que IBAN)",
+    "format": "PPP + AA + CCCCCCCC + KK  (15 caracteres)",
+    "segments": {
+      "PPP": "Prefixe pays alphabetique (CIS = Cote d Ivoire Sante)",
+      "AA": "Annee sur 2 chiffres",
+      "CCCCCCCC": "Compteur national sur 8 chiffres",
+      "KK": "Cle de controle sur 2 chiffres"
+    },
+    "calcul": [
+      "Convertir chaque lettre du prefixe en nombre : A=10, B=11, ... Z=35",
+      "Concatener prefixe converti + AA + CCCCCCCC",
+      "Interpreter comme un entier decimal",
+      "cle = 98 - (entier mod 97), formatee sur 2 chiffres"
+    ],
+    "domaine_cle": "02 a 98 inclus (00, 01 et 99 sont impossibles)",
+    "proprietes_prouvees": {
+      "erreur_un_chiffre": "100% detectee (450 000 cas testes)",
+      "transposition_voisine": "100% detectee (50 127 cas testes)",
+      "erreur_sur_cle": "100% detectee (90 000 cas testes)",
+      "discrimination_pays": "un meme couple annee+compteur produit une cle differente par prefixe pays"
+    }
+  },
+  "valides": [
+    {
+      "nis": "CIS241200012535",
+      "prefixe": "CIS",
+      "annee": "24",
+      "compteur": "12000125",
+      "cle": "35",
+      "note": "Exemple ADR-001 corrige (la cle 47 du document n etait pas calculee)"
+    },
+    {
+      "nis": "CIS240000000195",
+      "prefixe": "CIS",
+      "annee": "24",
+      "compteur": "00000001",
+      "cle": "95",
+      "note": "Premier NIS de l annee 2024"
+    },
+    {
+      "nis": "CIS250000000114",
+      "prefixe": "CIS",
+      "annee": "25",
+      "compteur": "00000001",
+      "cle": "14",
+      "note": "Premier NIS de l annee 2025"
+    },
+    {
+      "nis": "CIS260000004286",
+      "prefixe": "CIS",
+      "annee": "26",
+      "compteur": "00000042",
+      "cle": "86",
+      "note": "Compteur bas"
+    },
+    {
+      "nis": "CIS269999999948",
+      "prefixe": "CIS",
+      "annee": "26",
+      "compteur": "99999999",
+      "cle": "48",
+      "note": "Compteur maximal de l annee"
+    },
+    {
+      "nis": "CIS305000000006",
+      "prefixe": "CIS",
+      "annee": "30",
+      "compteur": "50000000",
+      "cle": "06",
+      "note": "Compteur median"
+    },
+    {
+      "nis": "SNS241200012504",
+      "prefixe": "SNS",
+      "annee": "24",
+      "compteur": "12000125",
+      "cle": "04",
+      "note": "Multi-pays : memes chiffres que CI, cle differente"
+    },
+    {
+      "nis": "BJS260000753169",
+      "prefixe": "BJS",
+      "annee": "26",
+      "compteur": "00007531",
+      "cle": "69",
+      "note": "Multi-pays Benin"
+    }
+  ],
+  "invalides": [
+    {
+      "nis": "CIS241200012547",
+      "motif": "CLE_INVALIDE",
+      "note": "Exemple non calcule du document ADR-001 : la cle correcte est 35"
+    },
+    {
+      "nis": "CIS241200012500",
+      "motif": "CLE_INVALIDE",
+      "note": "Cle 00 impossible : le domaine des cles est 02..98"
+    },
+    {
+      "nis": "CIS242100012535",
+      "motif": "CLE_INVALIDE",
+      "note": "Transposition de deux chiffres voisins du compteur"
+    },
+    {
+      "nis": "CIS241290012535",
+      "motif": "CLE_INVALIDE",
+      "note": "Un seul chiffre modifie"
+    },
+    {
+      "nis": "CIS2412000125",
+      "motif": "LONGUEUR_INVALIDE",
+      "note": "13 caracteres au lieu de 15"
+    },
+    {
+      "nis": "CIS24120001253512",
+      "motif": "LONGUEUR_INVALIDE",
+      "note": "17 caracteres au lieu de 15"
+    },
+    {
+      "nis": "C1S241200012535",
+      "motif": "FORMAT_INVALIDE",
+      "note": "Chiffre dans le prefixe alphabetique"
+    },
+    {
+      "nis": "CIS24120001253A",
+      "motif": "FORMAT_INVALIDE",
+      "note": "Lettre dans la partie numerique"
+    },
+    {
+      "nis": "CIS-2412-000125",
+      "motif": "FORMAT_INVALIDE",
+      "note": "Separateurs non autorises"
+    },
+    {
+      "nis": "",
+      "motif": "LONGUEUR_INVALIDE",
+      "note": "Chaine vide"
+    }
+  ]
+}

@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Facades\Schema;
 
 /**
  * Membre de la famille rattaché à un compte (CdC §5.2 / §8.1, F2.1).
@@ -41,6 +42,12 @@ class MembreFamille extends Model
     protected $hidden = [
         'matricule_ivs',
         'user_id',
+        // P6.1 — colonne générée servant uniquement à l'unicité déclarative du dossier
+        // titulaire (index UNIQUE). Détail de persistance : jamais exposé.
+        // NB : `nis` n'est PAS caché — contrairement au matricule interne, l'Identifiant
+        // National de Santé est fait pour être communiqué (CDC_09 §3.5 : consultations,
+        // ordonnances, assurances, CNAM, urgences).
+        'titulaire_du_compte',
         // F2.3 — le numéro CMU complet ne quitte JAMAIS le serveur (chiffré au repos ET caché) :
         // seul `cmu_numero_masque` (accessor) est exposé. §5.2 Sécurité (exposition minimale).
         'cmu_numero',
@@ -58,12 +65,49 @@ class MembreFamille extends Model
         return $this->photo_url !== null;
     }
 
+    /**
+     * P6.1 — Maintient `titulaire_du_compte`, support de l'unicité « un seul dossier titulaire
+     * par compte » sur MySQL (ADR-021 §2.2).
+     *
+     * Pourquoi ici plutôt qu'en colonne générée : MySQL refuse une colonne générée STORED
+     * dérivée de `user_id`, qui porte ON DELETE CASCADE (erreur 1215). La valeur est donc
+     * posée applicativement — mais la contrainte CHECK en base interdit qu'elle diverge de
+     * `est_titulaire` / `user_id`, et l'index UNIQUE interdit le second titulaire. Le moteur
+     * reste juge : ce hook est une commodité, pas la garantie.
+     *
+     * Sur SQLite (tests), l'index unique partiel suffit et la colonne n'existe pas.
+     */
+    /** Mémoïsé : `hasColumn` interroge le schéma, on ne le fait pas à chaque sauvegarde. */
+    private static ?bool $colonneTitulaireDisponible = null;
+
+    protected static function booted(): void
+    {
+        static::saving(function (self $membre): void {
+            self::$colonneTitulaireDisponible ??= Schema::hasColumn(
+                $membre->getTable(),
+                'titulaire_du_compte'
+            );
+
+            if (self::$colonneTitulaireDisponible !== true) {
+                return;
+            }
+
+            $membre->setAttribute(
+                'titulaire_du_compte',
+                $membre->est_titulaire ? $membre->user_id : null
+            );
+        });
+    }
+
     protected function casts(): array
     {
         return [
-            'date_naissance' => 'date',
-            'cmu_validite'   => 'date',
-            'cmu_numero'     => 'encrypted',
+            'date_naissance'  => 'date',
+            'cmu_validite'    => 'date',
+            'cmu_numero'      => 'encrypted',
+            // P6.1 — NIS (CDC_09 §3).
+            'nis_attribue_le' => 'datetime',
+            'est_titulaire'   => 'boolean',
         ];
     }
 

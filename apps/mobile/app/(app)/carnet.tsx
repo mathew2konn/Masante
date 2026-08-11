@@ -9,6 +9,7 @@ import { SecondaryButton } from '../../src/components/SecondaryButton';
 import { useSession } from '../../src/auth/SessionContext';
 import { useT } from '../../src/i18n/useT';
 import { listerMembres } from '../../src/api/membres';
+import { etatDossierTitulaire } from '../../src/api/titulaire';
 import { messageErreur } from '../../src/utils/erreurs';
 import { MAX_MEMBRES, type Membre } from '../../src/types/membre';
 import { calculerAge } from '../../src/utils/dates';
@@ -26,6 +27,9 @@ export default function CarnetTab() {
   const [chargement, setChargement] = useState(true);
   const [erreur, setErreur] = useState<string | null>(null);
   const [deconnexion, setDeconnexion] = useState(false);
+  // P6.1 — l'existence du dossier de santé du titulaire est une réponse du BACKEND
+  // (ADR-021 §2.1) ; on ne la déduit jamais de la liste des membres. `null` = pas encore su.
+  const [dossierTitulaireExiste, setDossierTitulaireExiste] = useState<boolean | null>(null);
 
   useFocusEffect(
     useCallback(() => {
@@ -33,8 +37,11 @@ export default function CarnetTab() {
       (async () => {
         setErreur(null);
         try {
-          const liste = await listerMembres();
-          if (actif) setMembres(liste);
+          const [liste, etat] = await Promise.all([listerMembres(), etatDossierTitulaire()]);
+          if (actif) {
+            setMembres(liste);
+            setDossierTitulaireExiste(etat.existe);
+          }
         } catch (e) {
           if (actif) setErreur(messageErreur(e));
         } finally {
@@ -53,7 +60,16 @@ export default function CarnetTab() {
   };
 
   const verifie = user?.niveau_compte === 'verifie';
-  const plafondAtteint = membres.length >= MAX_MEMBRES;
+
+  // P6.1 — le dossier du titulaire est HORS QUOTA (ADR-021 §2.1) : il n'entre ni dans le
+  // compteur, ni dans la limite. Il est présenté à part, c'est le dossier du propriétaire.
+  const dossierPersonnel = membres.find((m) => m.est_titulaire) ?? null;
+  const membresFamille = membres.filter((m) => !m.est_titulaire);
+  const plafondAtteint = membresFamille.length >= MAX_MEMBRES;
+
+  // Complétion requise : le backend dit « pas de dossier ». Tant que ce n'est pas fait, on
+  // n'affiche ni la famille ni l'ajout — le carnet n'a pas encore de titulaire à rattacher.
+  const completionRequise = !chargement && dossierTitulaireExiste === false;
 
   return (
     <Screen>
@@ -74,41 +90,72 @@ export default function CarnetTab() {
         </View>
       </Card>
 
-      <View style={styles.enteteSection}>
-        <Text style={styles.section}>Membres de la famille</Text>
-        <Text style={styles.compteur}>
-          {membres.length}/{MAX_MEMBRES}
-        </Text>
-      </View>
-
       {chargement ? (
         <ActivityIndicator color={colors.blue[600]} style={styles.loader} />
       ) : erreur ? (
         <Text style={styles.erreur}>{erreur}</Text>
-      ) : membres.length === 0 ? (
-        <Card style={styles.vide}>
-          <Ionicons name="people-outline" size={32} color={colors.blue[400]} />
-          <Text style={styles.videTxt}>Aucun membre pour l'instant.</Text>
-          <Text style={styles.videSous}>Ajoutez vos proches pour gérer leur carnet de santé.</Text>
+      ) : completionRequise ? (
+        /* P6.1 — porte d'entrée : sans dossier titulaire, pas de carnet (ADR-021 §2.1). */
+        <Card style={styles.completion}>
+          <Ionicons name="shield-checkmark-outline" size={32} color={colors.blue[500]} />
+          <Text style={styles.completionTitre}>Créez votre dossier de santé</Text>
+          <Text style={styles.completionTxt}>
+            Il vous manque deux informations pour ouvrir votre carnet et recevoir votre numéro
+            national de santé.
+          </Text>
+          <PrimaryButton
+            label="Compléter mon profil"
+            onPress={() => router.push('/(app)/profil-titulaire')}
+          />
         </Card>
       ) : (
-        <View style={styles.liste}>
-          {membres.map((m) => (
-            <MembreItem key={m.id} membre={m} />
-          ))}
-        </View>
-      )}
+        <>
+          {dossierPersonnel ? (
+            <>
+              <View style={styles.enteteSection}>
+                <Text style={styles.section}>Mon dossier de santé</Text>
+              </View>
+              <View style={styles.liste}>
+                <MembreItem membre={dossierPersonnel} />
+              </View>
+            </>
+          ) : null}
 
-      <View style={styles.ajout}>
-        <PrimaryButton
-          label="Ajouter un membre"
-          onPress={() => router.push('/(app)/membres/nouveau')}
-          disabled={plafondAtteint}
-        />
-        {plafondAtteint ? (
-          <Text style={styles.plafond}>Limite de {MAX_MEMBRES} membres atteinte.</Text>
-        ) : null}
-      </View>
+          <View style={styles.enteteSection}>
+            <Text style={styles.section}>Membres de la famille</Text>
+            <Text style={styles.compteur}>
+              {membresFamille.length}/{MAX_MEMBRES}
+            </Text>
+          </View>
+
+          {membresFamille.length === 0 ? (
+            <Card style={styles.vide}>
+              <Ionicons name="people-outline" size={32} color={colors.blue[400]} />
+              <Text style={styles.videTxt}>Aucun membre pour l'instant.</Text>
+              <Text style={styles.videSous}>
+                Ajoutez vos proches pour gérer leur carnet de santé.
+              </Text>
+            </Card>
+          ) : (
+            <View style={styles.liste}>
+              {membresFamille.map((m) => (
+                <MembreItem key={m.id} membre={m} />
+              ))}
+            </View>
+          )}
+
+          <View style={styles.ajout}>
+            <PrimaryButton
+              label="Ajouter un membre"
+              onPress={() => router.push('/(app)/membres/nouveau')}
+              disabled={plafondAtteint}
+            />
+            {plafondAtteint ? (
+              <Text style={styles.plafond}>Limite de {MAX_MEMBRES} membres atteinte.</Text>
+            ) : null}
+          </View>
+        </>
+      )}
 
       <View style={styles.deconnexion}>
         <SecondaryButton label="Partages reçus" onPress={() => router.push('/(app)/partages')} />
@@ -184,6 +231,15 @@ const styles = StyleSheet.create({
   compteur: { ...typography.bodyStrong, color: colors.ink[500] },
   loader: { marginTop: spacing[5], marginBottom: spacing[5] },
   erreur: { ...typography.bodyStrong, color: colors.danger.text, marginBottom: spacing[5] },
+  // P6.1 — carte de complétion du profil titulaire.
+  completion: { alignItems: 'center', gap: spacing[2], marginBottom: spacing[5] },
+  completionTitre: { ...typography.bodyStrong, color: colors.ink[900], marginTop: spacing[2] },
+  completionTxt: {
+    ...typography.caption,
+    color: colors.ink[500],
+    textAlign: 'center',
+    marginBottom: spacing[2],
+  },
   vide: { alignItems: 'center', marginBottom: spacing[5] },
   videTxt: { ...typography.bodyStrong, color: colors.ink[700], marginTop: spacing[3] },
   videSous: { ...typography.caption, color: colors.ink[500], textAlign: 'center', marginTop: spacing[1] },

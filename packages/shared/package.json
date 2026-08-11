@@ -12,12 +12,15 @@
     "./tokens/palette.json": "./src/tokens/palette.json",
     "./enums": "./src/enums/index.ts",
     "./schemas": "./src/schemas/index.ts",
+    "./nis": "./src/nis/index.ts",
+    "./nis/vecteurs.json": "./src/nis/vecteurs.json",
     "./i18n": "./src/i18n/index.ts",
     "./tailwind-preset": "./tailwind-preset.cjs"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "lint": "eslint src --max-warnings=0"
+    "lint": "eslint src --max-warnings=0",
+    "test": "node --test \"src/**/*.test.ts\""
   },
   "peerDependencies": {
     "zod": "^3.23.0 || ^4.0.0"

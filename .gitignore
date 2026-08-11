@@ -50,3 +50,4 @@ claude-skills-main/
 
 # Préférences locales Claude Code (personnelles)
 .claude/settings.local.json
+.claude/scheduled_tasks.lock

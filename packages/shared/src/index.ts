@@ -6,4 +6,5 @@
 export * as tokens from './tokens';
 export * from './enums';
 export * from './schemas';
+export * from './nis';
 export * as i18n from './i18n';

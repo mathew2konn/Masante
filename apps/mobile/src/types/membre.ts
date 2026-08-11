@@ -25,8 +25,34 @@ export type Membre = {
   cmu_numero_masque: string | null; // F2.3 — •••• •••• 1234 (le numéro complet ne quitte pas le serveur)
   cmu_statut: CmuStatut | null;
   cmu_validite: string | null;
+  /**
+   * P6.1 — Identifiant National de Santé (CDC_09 §3). Contrairement au `matricule_ivs`
+   * interne (jamais exposé), le NIS est FAIT pour être communiqué : consultations,
+   * ordonnances, assurances, CNAM, urgences. `null` tant qu'il n'a pas été attribué.
+   */
+  nis: string | null;
+  pays_code: string | null;
+  /** Dossier de santé du titulaire du compte (un seul par compte, hors quota). */
+  est_titulaire: boolean;
   created_at?: string;
   updated_at?: string;
+};
+
+/**
+ * Champs de la complétion du profil santé du titulaire (P6.1, ADR-021 §2.1).
+ * `nom` et `prenom` ne sont PAS envoyés : le serveur les reprend du compte, pour éviter
+ * qu'un dossier de santé porte une identité différente de celle du compte.
+ */
+export type DossierTitulairePayload = {
+  date_naissance: string; // AAAA-MM-JJ
+  sexe: Sexe;
+  groupe_sanguin?: GroupeSanguin | null;
+};
+
+/** Réponse de `GET /membres/titulaire` — c'est le BACKEND qui dit si le dossier existe. */
+export type EtatDossierTitulaire = {
+  existe: boolean;
+  membre: Membre | null;
 };
 
 /** Carte CMU numérique (F2.3) — réponse de `GET /membres/{id}/carte-cmu`. */

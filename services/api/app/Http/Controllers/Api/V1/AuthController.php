@@ -210,7 +210,13 @@ class AuthController extends Controller
      */
     private function userPayload(User $user): array
     {
-        return [...$user->toArray(), 'roles' => $user->getRoleNames()];
+        return [
+            ...$user->toArray(),
+            'roles' => $user->getRoleNames(),
+            // P6.1 (ADR-021 §2.1) — le BACKEND dit si le dossier de santé du titulaire existe ;
+            // le mobile ne le déduit jamais de la liste des membres (règle de frontière).
+            'a_dossier_titulaire' => $user->membresFamille()->where('est_titulaire', true)->exists(),
+        ];
     }
 
     /**
