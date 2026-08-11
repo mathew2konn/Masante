@@ -10,8 +10,10 @@ import { useSession } from '../../src/auth/SessionContext';
 import { useT } from '../../src/i18n/useT';
 import { listerMembres } from '../../src/api/membres';
 import { etatDossierTitulaire } from '../../src/api/titulaire';
+import { listerCarnetsPartages } from '../../src/api/delegations';
 import { messageErreur } from '../../src/utils/erreurs';
 import { MAX_MEMBRES, type Membre } from '../../src/types/membre';
+import type { CarnetPartage } from '../../src/types/delegation';
 import { calculerAge } from '../../src/utils/dates';
 import { colors, radius, spacing, typography } from '../../src/theme/theme';
 
@@ -30,6 +32,9 @@ export default function CarnetTab() {
   // P6.1 — l'existence du dossier de santé du titulaire est une réponse du BACKEND
   // (ADR-021 §2.1) ; on ne la déduit jamais de la liste des membres. `null` = pas encore su.
   const [dossierTitulaireExiste, setDossierTitulaireExiste] = useState<boolean | null>(null);
+  // Carnet familial partagé (A) — carnets qu'un proche m'a délégués. Liste SÉPARÉE de `membres` :
+  // ils ne m'appartiennent pas, ils ne comptent pas dans mon quota, et je ne peux pas les modifier.
+  const [partages, setPartages] = useState<CarnetPartage[]>([]);
 
   useFocusEffect(
     useCallback(() => {
@@ -37,10 +42,15 @@ export default function CarnetTab() {
       (async () => {
         setErreur(null);
         try {
-          const [liste, etat] = await Promise.all([listerMembres(), etatDossierTitulaire()]);
+          const [liste, etat, recus] = await Promise.all([
+            listerMembres(),
+            etatDossierTitulaire(),
+            listerCarnetsPartages(),
+          ]);
           if (actif) {
             setMembres(liste);
             setDossierTitulaireExiste(etat.existe);
+            setPartages(recus);
           }
         } catch (e) {
           if (actif) setErreur(messageErreur(e));
@@ -153,7 +163,32 @@ export default function CarnetTab() {
             {plafondAtteint ? (
               <Text style={styles.plafond}>Limite de {MAX_MEMBRES} membres atteinte.</Text>
             ) : null}
+            <View style={styles.sep} />
+            <SecondaryButton
+              label="Partager mes carnets"
+              onPress={() => router.push('/(app)/partager-carnets')}
+            />
           </View>
+
+          {/* Carnet familial partagé (A) — section distincte : ces carnets ne m'appartiennent
+              pas. On indique toujours QUI les a partagés, jamais d'ambiguïté sur l'origine. */}
+          {partages.length > 0 ? (
+            <>
+              <View style={styles.enteteSection}>
+                <Text style={styles.section}>Carnets partagés avec moi</Text>
+                <Text style={styles.compteur}>{partages.length}</Text>
+              </View>
+              <View style={styles.liste}>
+                {partages.map((p) => (
+                  <MembreItem
+                    key={`partage-${p.delegation_id}`}
+                    membre={p.membre}
+                    origine={`Partagé par ${p.partage_par.prenom ?? ''} ${p.partage_par.nom ?? ''}`.trim()}
+                  />
+                ))}
+              </View>
+            </>
+          ) : null}
         </>
       )}
 
@@ -188,8 +223,12 @@ export default function CarnetTab() {
   );
 }
 
-/** Carte cliquable d'un membre dans la liste. */
-function MembreItem({ membre }: { membre: Membre }) {
+/**
+ * Carte cliquable d'un membre dans la liste.
+ * `origine` (facultatif) : d'où vient ce carnet quand il ne m'appartient pas — le propriétaire
+ * tient à ce qu'on sache toujours qui a partagé quoi.
+ */
+function MembreItem({ membre, origine }: { membre: Membre; origine?: string }) {
   const age = calculerAge(membre.date_naissance);
   const initiales = `${membre.prenom?.[0] ?? ''}${membre.nom?.[0] ?? ''}`.toUpperCase();
 
@@ -197,10 +236,12 @@ function MembreItem({ membre }: { membre: Membre }) {
     <Pressable
       onPress={() => router.push({ pathname: '/(app)/membres/[id]', params: { id: membre.id } })}
       accessibilityRole="button"
-      accessibilityLabel={`${membre.prenom} ${membre.nom}`}
+      accessibilityLabel={
+        origine ? `${membre.prenom} ${membre.nom}, ${origine}` : `${membre.prenom} ${membre.nom}`
+      }
     >
       <Card style={styles.item}>
-        <View style={styles.avatar}>
+        <View style={[styles.avatar, origine ? styles.avatarPartage : null]}>
           <Text style={styles.avatarTxt}>{initiales}</Text>
         </View>
         <View style={styles.itemTexte}>
@@ -211,6 +252,7 @@ function MembreItem({ membre }: { membre: Membre }) {
             {age !== null ? `${age} ans` : '—'} · {membre.sexe === 'M' ? 'Masculin' : 'Féminin'}
             {membre.groupe_sanguin ? ` · ${membre.groupe_sanguin}` : ''}
           </Text>
+          {origine ? <Text style={styles.itemOrigine}>{origine}</Text> : null}
         </View>
         <Ionicons name="chevron-forward" size={20} color={colors.ink[500]} />
       </Card>
@@ -254,10 +296,14 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginRight: spacing[3],
   },
+  // Carnet partagé : pastille d'une autre teinte, pour distinguer d'un coup d'œil ce qui
+  // m'appartient de ce qu'on m'a confié.
+  avatarPartage: { backgroundColor: colors.blue[50] },
   avatarTxt: { ...typography.bodyStrong, color: colors.blue[700] },
   itemTexte: { flex: 1 },
   itemNom: { ...typography.bodyStrong, color: colors.blue[900] },
   itemSous: { ...typography.caption, color: colors.ink[700], marginTop: 2 },
+  itemOrigine: { ...typography.caption, color: colors.blue[700], marginTop: 2 },
   ajout: { marginBottom: spacing[6] },
   plafond: { ...typography.caption, color: colors.ink[500], textAlign: 'center', marginTop: spacing[2] },
   deconnexion: {},

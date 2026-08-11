@@ -28,6 +28,9 @@ return Application::configure(basePath: dirname(__DIR__))
             'role_or_permission' => \Spatie\Permission\Middleware\RoleOrPermissionMiddleware::class,
             // 4.5 — fenêtre de consultation d'un dossier ouverte par un scan QR (30 min).
             'dossier.actif'      => \App\Http\Middleware\SessionDossierActive::class,
+            // Carnet familial partagé (A) — trace nominative de toute lecture déléguée.
+            // Posé sur le GROUPE authentifié : aucune route portant `{membre}` ne peut l'oublier.
+            'journal.delegue'    => \App\Http\Middleware\JournaliserAccesDelegue::class,
         ]);
 
         // Invités : sur l'API (`api/*`) on NE redirige PAS (null) → combiné à `shouldRenderJsonWhen`,

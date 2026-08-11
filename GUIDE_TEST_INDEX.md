@@ -38,6 +38,7 @@ incréments successifs, ajoutés en **parties** dans le même fichier plutôt qu
 | **P5** | Paiement (microservice Java) | [GUIDE_TEST_Paiement_G4_P5.md](GUIDE_TEST_Paiement_G4_P5.md) | voir table ci-dessous |
 | **CDC_05** | Fraude IA (microservice Python) | [GUIDE_TEST_Fraude_G4.md](GUIDE_TEST_Fraude_G4.md) | §0–6 socle · §7 extraction réelle (A) · §8 routage (B1) · §9 écran admin (B2) |
 | **P6.1** | Identifiant National de Santé | [GUIDE_TEST_NIS.md](GUIDE_TEST_NIS.md) | A mobile · B backend · C base · D qualité · E checklist · F pièges |
+| **P7** | Carnet familial partagé | [GUIDE_TEST_CARNET_FAMILIAL.md](GUIDE_TEST_CARNET_FAMILIAL.md) | **A** partage en lecture · B revendication · C brouillon · D notifications |
 
 ### Détail du guide Paiement (13 parties)
 

@@ -14,6 +14,7 @@ use App\Http\Controllers\Api\V1\Carnet\OrdonnanceController;
 use App\Http\Controllers\Api\V1\Carnet\RappelController;
 use App\Http\Controllers\Api\V1\Carnet\ResultatAnalyseController;
 use App\Http\Controllers\Api\V1\Carnet\VaccinationController;
+use App\Http\Controllers\Api\V1\CarnetsPartagesController;
 use App\Http\Controllers\Api\V1\CarteCmuController;
 use App\Http\Controllers\Api\V1\DelegationController;
 use App\Http\Controllers\Api\V1\DonSangController;
@@ -147,12 +148,19 @@ Route::middleware('throttle:api')->group(function () {
         | Routes authentifiées (token Bearer). L'isolation entre comptes
         | (anti-IDOR, §4.3 Sécurité) est assurée par MembreFamillePolicy.
         */
-        Route::middleware('auth:sanctum')->group(function () {
+        // `journal.delegue` : trace nominative de toute lecture faite par un DÉLÉGUÉ. Posé sur le
+        // GROUPE et non route par route — une route `{membre}` ajoutée plus tard est journalisée
+        // sans que personne ait à y penser (carnet familial partagé, incrément A).
+        Route::middleware(['auth:sanctum', 'journal.delegue'])->group(function () {
             // P6.1 — Dossier de santé du titulaire (ADR-021 §2.1, variante (c)).
             // DÉCLARÉ AVANT l'apiResource : sinon `/membres/titulaire` serait capté par
             // `/membres/{membre}` et le model binding échouerait en 404.
             Route::get('membres/titulaire', [DossierTitulaireController::class, 'show']);
             Route::post('membres/titulaire', [DossierTitulaireController::class, 'store']);
+
+            // Carnet familial partagé (A) — les carnets qu'on m'a partagés. MÊME PIÈGE que
+            // `titulaire` : déclaré avant l'apiResource, sinon capté par `/membres/{membre}`.
+            Route::get('membres/partages', [CarnetsPartagesController::class, 'index']);
 
             Route::apiResource('membres', MembreController::class)->parameters(['membres' => 'membre']);
 
@@ -173,8 +181,11 @@ Route::middleware('throttle:api')->group(function () {
             Route::get('membres/{membre}/nis', [NisController::class, 'afficher']);
 
             // B3 — Délégation d'accès (voie 3) : le titulaire invite un délégué sur un membre ;
-            // le délégué accepte/refuse ; révocable. Le droit se limite à la génération de QR.
+            // le délégué accepte/refuse ; révocable des deux côtés, effet immédiat.
+            // Depuis l'incrément A, une invitation porte `lecture` : le délégué VOIT le carnet.
             Route::get('delegations', [DelegationController::class, 'index']);
+            // Partage en masse — déclaré AVANT les routes `delegations/{delegation}`.
+            Route::post('delegations/en-masse', [DelegationController::class, 'storeEnMasse']);
             Route::post('membres/{membre}/delegations', [DelegationController::class, 'store']);
             Route::post('delegations/{delegation}/accepter', [DelegationController::class, 'accepter']);
             Route::delete('delegations/{delegation}', [DelegationController::class, 'destroy']);
