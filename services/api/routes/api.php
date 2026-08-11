@@ -26,6 +26,7 @@ use App\Http\Controllers\Api\V1\MembreController;
 use App\Http\Controllers\Api\V1\MfaController;
 use App\Http\Controllers\Api\V1\NisController;
 use App\Http\Controllers\Api\V1\PasswordController;
+use App\Http\Controllers\Api\V1\RevendicationCarnetController;
 use App\Http\Controllers\Api\V1\PhotoMembreController;
 use App\Http\Controllers\Api\V1\QrController;
 use App\Http\Controllers\Api\V1\RecuRdvController;
@@ -162,7 +163,13 @@ Route::middleware('throttle:api')->group(function () {
             // `titulaire` : déclaré avant l'apiResource, sinon capté par `/membres/{membre}`.
             Route::get('membres/partages', [CarnetsPartagesController::class, 'index']);
 
+            // Carnet familial partagé (B) — reconnaître un carnet comme le sien, AVANT que
+            // l'écran de complétion de P6.1 n'en crée un second (et un second NIS).
+            Route::get('membres/revendicables', [RevendicationCarnetController::class, 'index']);
+
             Route::apiResource('membres', MembreController::class)->parameters(['membres' => 'membre']);
+
+            Route::post('membres/{membre}/revendiquer', [RevendicationCarnetController::class, 'store']);
 
             /*
             |--------------------------------------------------------------

@@ -35,6 +35,9 @@ class Delegation extends Model
         'delegue_user_id',
         'membre_id',
         'droits',
+        // Incrément B — assertion du responsable : « ce carnet est celui de la personne que
+        // j'invite ». C'est elle qui autorise la revendication, jamais un score de similarité.
+        'est_le_dossier_du_delegue',
         'invitee_at',
         'acceptee_at',
         'revoquee_at',
@@ -46,6 +49,7 @@ class Delegation extends Model
             'invitee_at' => 'datetime',
             'acceptee_at' => 'datetime',
             'revoquee_at' => 'datetime',
+            'est_le_dossier_du_delegue' => 'boolean',
         ];
     }
 

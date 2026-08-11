@@ -54,6 +54,10 @@ class DelegationController extends Controller
         $this->exigerTitulaireHabilite($titulaire);
         $delegue = $this->resoudreDelegue($request->validated()['telephone'], $titulaire);
 
+        // Incrément B — le responsable peut affirmer que ce carnet EST celui de la personne
+        // invitée. Cette assertion, et elle seule, autorisera la revendication.
+        $estSonDossier = $request->boolean('est_le_dossier_du_delegue');
+
         $existante = Delegation::where('delegue_user_id', $delegue->id)
             ->where('membre_id', $membre->id)
             ->first();
@@ -64,7 +68,7 @@ class DelegationController extends Controller
                 : 'Ce proche est déjà délégué pour ce membre.');
         }
 
-        $delegation = $this->inviter($titulaire, $delegue, $membre);
+        $delegation = $this->inviter($titulaire, $delegue, $membre, $estSonDossier);
 
         return response()->json([
             'delegation' => $delegation->load(['membre:id,prenom,nom', 'delegue:id,prenom,nom,telephone']),
@@ -91,6 +95,9 @@ class DelegationController extends Controller
         $valide = $request->validate([
             'membre_ids'   => ['sometimes', 'array'],
             'membre_ids.*' => ['integer'],
+            // Incrément B — parmi les carnets partagés, LEQUEL est celui de la personne invitée.
+            // Au plus un : on ne peut pas être deux personnes à la fois.
+            'membre_id_du_delegue' => ['sometimes', 'nullable', 'integer'],
         ]) + $request->validated();
 
         $delegue = $this->resoudreDelegue($valide['telephone'], $titulaire);
@@ -118,7 +125,12 @@ class DelegationController extends Controller
                 continue;
             }
 
-            $creees[] = $this->inviter($titulaire, $delegue, $membre)->id;
+            $creees[] = $this->inviter(
+                $titulaire,
+                $delegue,
+                $membre,
+                isset($valide['membre_id_du_delegue']) && (int) $valide['membre_id_du_delegue'] === $membre->id,
+            )->id;
         }
 
         return response()->json([
@@ -187,24 +199,34 @@ class DelegationController extends Controller
      * Le droit accordé est `lecture` : le délégué verra le carnet. L'écriture arrive à
      * l'incrément C, avec son circuit de brouillon — elle n'est pas accordée ici.
      */
-    private function inviter(User $titulaire, User $delegue, MembreFamille $membre): Delegation
-    {
+    private function inviter(
+        User $titulaire,
+        User $delegue,
+        MembreFamille $membre,
+        bool $estLeDossierDuDelegue = false,
+    ): Delegation {
+        // Un dossier titulaire appartient déjà à quelqu'un : on ne peut pas affirmer qu'il est
+        // celui d'un tiers. Garde silencieuse — l'assertion est simplement ignorée.
+        $assertion = $estLeDossierDuDelegue && ! $membre->est_titulaire;
+
         $delegation = Delegation::updateOrCreate(
             ['delegue_user_id' => $delegue->id, 'membre_id' => $membre->id],
             [
-                'titulaire_user_id' => $titulaire->id,
-                'droits'            => Delegation::DROIT_LECTURE,
-                'invitee_at'        => now(),
-                'acceptee_at'       => null,
-                'revoquee_at'       => null,
+                'titulaire_user_id'         => $titulaire->id,
+                'droits'                    => Delegation::DROIT_LECTURE,
+                'est_le_dossier_du_delegue' => $assertion,
+                'invitee_at'                => now(),
+                'acceptee_at'               => null,
+                'revoquee_at'               => null,
             ],
         );
 
         Log::info('Invitation de délégation envoyée', [
-            'titulaire_id' => $titulaire->id,
-            'delegue_id'   => $delegue->id,
-            'membre_id'    => $membre->id,
-            'droits'       => Delegation::DROIT_LECTURE,
+            'titulaire_id'              => $titulaire->id,
+            'delegue_id'                => $delegue->id,
+            'membre_id'                 => $membre->id,
+            'droits'                    => Delegation::DROIT_LECTURE,
+            'est_le_dossier_du_delegue' => $assertion,
         ]); // notification en application : incrément D.
 
         return $delegation;

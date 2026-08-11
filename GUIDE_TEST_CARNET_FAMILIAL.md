@@ -8,7 +8,7 @@ Ce guide grandit d'une partie par sous-incrément :
 | Partie | Sous-incrément | État |
 |--------|----------------|------|
 | **A** | Partage du carnet en lecture | ✅ **VALIDÉ G5 le 2026-08-11** — procédure de non-régression |
-| B | Revendication du carnet | à venir |
+| **B** | Revendication du carnet | ✅ **VALIDÉ G5 le 2026-08-11** — procédure de non-régression |
 | C | Contributions au brouillon + responsables | à venir |
 | D | Notifications + fiche de parcours | à venir |
 
@@ -296,3 +296,211 @@ fermé.
 | Jeton Sanctum tronqué | 401 après une connexion réussie | Guillemeter `"$TOKEN"` : le `|` est un tube pour le shell |
 | Route mobile inconnue de TypeScript | `TS2345` sur `/(app)/partager-carnets` | Types de routes générés par Expo : démarrer le serveur de dev une fois |
 | Test avec un seul compte | « ça marche » alors que rien n'est prouvé | Le partage exige **deux comptes** ; un compte ne peut pas se déléguer à lui-même |
+
+---
+
+# Partie B — Revendication du carnet
+
+## Ce que B répare
+
+À la fin de A, le partage fonctionnait mais **le doublon n'était pas empêché** : la personne à qui
+l'on partageait son propre carnet voyait quand même « Créez votre dossier de santé » et en créait
+un second, avec un **second numéro national**.
+
+B ajoute l'étape qui manquait : **reconnaître** le carnet avant d'en créer un.
+
+## Sur quoi la reconnaissance s'appuie
+
+Pas sur un score de ressemblance — c'était la question du propriétaire, et deux personnes peuvent
+porter le même nom et la même date de naissance. Sur **deux actes humains indépendants** :
+
+1. le responsable partage ce carnet à ce numéro **en affirmant** qu'il est celui de la personne
+   invitée — il connaît sa famille ;
+2. la personne s'authentifie sur ce numéro et le **reconnaît** comme sien.
+
+Deux homonymes stricts ne revendiqueront jamais le même carnet : une seule des deux l'a reçu.
+
+## L'ordre est impératif
+
+La revendication passe **avant** l'écran de création. Après, il existe deux NIS pour une personne,
+et **un NIS ne se libère jamais** (P6.1). L'ordre n'est pas une préférence d'ergonomie : c'est ce
+qui empêche le doublon d'exister.
+
+---
+
+## B.1 Affirmer, au moment du partage (compte A)
+
+1. **« Carnet »** → **« Partager mes carnets »**.
+2. Sous chaque carnet coché apparaît un bouton radio :
+   **« C'est le carnet de la personne que j'invite »**.
+3. Le sélectionner sur **un seul** carnet.
+
+✅ **Attendu** : un avertissement apparaît en bas —
+**« Cette personne pourra reconnaître ce carnet comme le sien et en devenir propriétaire. Vous
+garderez l'accès en lecture, qu'elle pourra retirer. »**
+
+❗ **Vérifier** : le bouton radio **n'apparaît pas** sur ton propre dossier (marqué « (vous) ») —
+il t'appartient, il ne peut pas être celui d'un autre. Décocher un carnet retire aussi sa
+désignation.
+
+4. Saisir le numéro du compte B → **« Envoyer l'invitation »**.
+
+---
+
+## B.2 Reconnaître son carnet (compte B, sans dossier de santé)
+
+> Pré-requis : le compte B **ne doit pas avoir** de dossier titulaire. Pour le remettre dans cet
+> état, voir `GUIDE_TEST_NIS.md` §0.2.
+
+1. Compte B → **« Partages reçus »** → **« Accepter le partage »**.
+2. Onglet **« Carnet »**.
+
+✅ **Attendu** : **à la place** de « Créez votre dossier de santé », la carte affiche
+**« Un carnet à votre nom existe déjà »** avec le texte
+**« Un proche a créé un dossier de santé à votre nom. S'il est bien le vôtre, reconnaissez-le
+plutôt que d'en créer un second. »** et le bouton **« Voir ce carnet »**.
+
+3. **« Voir ce carnet »** → écran **« Est-ce votre carnet ? »**, sous-titre **« Un proche a créé un
+   dossier à votre nom »**. La fiche montre nom, âge, sexe, groupe sanguin et **« Créé par
+   [prénom nom] »**.
+4. **« C'est mon carnet »** → une alerte **« Ce carnet est bien le vôtre ? »** annonce que le
+   proche pourra continuer à le consulter et que **l'accès sera retirable à tout moment**.
+5. Confirmer.
+
+✅ **Attendu** : retour au Carnet. Le carnet apparaît sous **« Mon dossier de santé »**, avec son
+historique et **son numéro national d'origine**.
+
+❗ **Le point à vérifier absolument** : le compte B a **un seul** dossier, pas deux. Le NIS est
+celui que le carnet portait déjà.
+
+### B.2b « Aucun de ces carnets n'est le mien »
+L'écran propose toujours **« Créer mon dossier de santé »** en bas. Ce chemin doit rester ouvert :
+un proche peut se tromper de personne.
+
+---
+
+## B.3 Le renversement de propriété
+
+Après la revendication, depuis le **compte A** (l'ancien propriétaire) :
+
+| Tentative | Attendu |
+|-----------|---------|
+| Ouvrir le carnet | **200** — il garde la lecture, par délégation |
+| Modifier le carnet | **403** — il n'en est plus propriétaire |
+| Le voir dans **« Membres de la famille »** | **Absent** — il est passé dans « Carnets partagés avec moi » |
+
+Depuis le **compte B** (nouveau propriétaire) : **« Partages reçus »** ou l'écran des délégués →
+**retirer l'accès** au compte A.
+
+✅ **Attendu** : le compte A reçoit **403** sur le carnet.
+
+> **C'est le cœur de B.** Avant, le responsable restait propriétaire du dossier médical d'une autre
+> personne adulte, qui n'en était que déléguée : elle ne pouvait ni le modifier, ni lui en retirer
+> l'accès. Après, elle décide.
+
+---
+
+## B.4 Ce qui doit être refusé
+
+| Situation | Attendu |
+|-----------|---------|
+| Partage **sans** l'assertion | Aucune proposition de reconnaissance ; revendication → **409** |
+| Invitation **non acceptée** | Aucune proposition — le consentement manque |
+| Compte tiers **sans délégation** | **409** |
+| Le carnet est le **dossier titulaire** du responsable | Non proposé ; revendication → **409** |
+| Le compte a **déjà** un dossier titulaire | Non proposé ; revendication → **409** |
+| **Rejouer** la revendication | **409**, une seule trace de transfert |
+
+---
+
+## B.5 Base de données
+
+```sql
+-- Avant / après revendication
+SELECT id, user_id, est_titulaire, titulaire_du_compte, nis FROM membres_famille;
+
+-- LE contrôle : aucun second NIS n'a été créé
+SELECT COUNT(*) AS journal, COUNT(DISTINCT nis) AS distincts FROM nis_journal;
+
+-- La trace, en ajout seul
+SELECT id, membre_id, ancien_user_id, nouveau_user_id, delegation_id, motif FROM carnet_transferts;
+
+-- La délégation qui portait l'assertion est CONSOMMÉE ; la délégation inverse est née
+SELECT id, titulaire_user_id, delegue_user_id, droits, est_le_dossier_du_delegue,
+       acceptee_at IS NOT NULL AS acceptee, revoquee_at IS NOT NULL AS revoquee
+FROM delegations;
+```
+
+✅ **Attendu** : `user_id` a changé, `est_titulaire = 1`, `titulaire_du_compte = user_id`, **`nis`
+inchangé** ; `journal` et `distincts` **inchangés** ; une trace de transfert ; l'ancienne
+délégation révoquée et une nouvelle, inverse, active.
+
+**Deux invariants à éprouver :**
+
+```sql
+-- Le CHECK refuse un transfert en deux temps
+UPDATE membres_famille SET user_id = <AUTRE> WHERE id = <ID_TITULAIRE>;
+-- attendu : ERROR 3819 « Check constraint 'ck_membres_titulaire_coherent' is violated »
+```
+
+> C'est exactement pourquoi le service n'écrit **qu'une seule fois** : deux écritures successives
+> passeraient par un état intermédiaire que la base refuse. Le garde-fou déclaratif de P6.1 attrape
+> l'erreur avant qu'elle n'existe.
+
+La trace de transfert est **immuable** : une tentative de modification par l'application est
+rejetée (« Trace de transfert immuable »).
+
+---
+
+## B.6 Backend en direct (curl)
+
+Mêmes jetons qu'en A.7.
+
+| # | Commande | Attendu |
+|---|----------|---------|
+| 1 | partage **sans** assertion, puis `GET /membres/revendicables` (compte B) | `revendicables: []` |
+| 2 | `POST /membres/<ID>/revendiquer` | **409** `REVENDICATION_IMPOSSIBLE` |
+| 3 | partage **avec** `membre_id_du_delegue`, **avant** acceptation | `revendicables: []` |
+| 4 | après acceptation | le carnet, avec `propose_par` |
+| 5 | `POST /membres/<ID>/revendiquer` | `200`, `membre.est_titulaire = true`, **même `nis`** |
+| 6 | `GET /membres/titulaire` (compte B) | `existe: true` |
+| 7 | `GET /membres/<ID>` (compte A) | `200` |
+| 8 | `PUT /membres/<ID>` (compte A) | **403** |
+| 9 | rejeu de la revendication | **409**, une seule trace |
+
+---
+
+## B.7 Qualité (G3)
+
+✅ Référence du 2026-08-11 : **343 tests / 14 218 assertions** verts, dont **13 dédiés**
+(`RevendicationCarnetTest`). Typecheck vert sur les trois workspaces.
+
+---
+
+## B.8 Checklist de clôture
+
+- [ ] B.1 Le bouton radio n'apparaît pas sur son propre dossier ; avertissement affiché
+- [ ] B.2 La carte « Un carnet à votre nom existe déjà » **remplace** celle de création
+- [ ] B.2 Alerte de confirmation explicite avant le transfert
+- [ ] B.2 Après reconnaissance : **un seul** dossier, **NIS d'origine conservé**
+- [ ] B.2b « Créer mon dossier de santé » reste accessible
+- [ ] B.3 L'ancien propriétaire lit (200) mais ne modifie plus (403)
+- [ ] B.3 Le nouveau propriétaire peut lui retirer l'accès
+- [ ] B.4 Les six situations refusées
+- [ ] B.5 Aucun second NIS ; trace présente ; délégation consommée + inverse née
+- [ ] B.5 Le CHECK rejette le transfert en deux temps ; trace immuable
+- [ ] B.6 Les 9 vecteurs curl
+- [ ] B.7 Suite complète + typecheck verts
+
+> Tout coché sans écart → écrire **« Incrément B validé »** et ouvrir **C (contributions au
+> brouillon)**.
+
+---
+
+## B.9 Pièges
+
+| Piège | Symptôme | Parade |
+|-------|----------|--------|
+| Transfert en deux écritures | `ERROR 3819` sur `ck_membres_titulaire_coherent` | `user_id` et `est_titulaire` posés dans **une seule** sauvegarde |
+| Revendication proposée après création | Deux NIS pour une personne, irréversible | L'écran passe **avant** la complétion — le backend ne propose rien si un dossier titulaire existe |
+| Route `/membres/revendicables` en **404** | Captée par `/membres/{membre}` | Déclarée **avant** l'`apiResource` |

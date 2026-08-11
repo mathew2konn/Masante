@@ -45,6 +45,16 @@ export type CarnetPartage = {
   membre: Membre;
 };
 
+/**
+ * Un carnet qu'un proche a désigné comme étant celui de ce compte (incrément B).
+ * Le backend ne le propose que si le compte n'a pas encore de dossier titulaire.
+ */
+export type CarnetRevendicable = {
+  delegation_id: number;
+  propose_par: { prenom: string | null; nom: string | null };
+  membre: Membre;
+};
+
 /** Réponse de `POST /delegations/en-masse`. */
 export type ResultatPartageEnMasse = {
   invitations_creees: number;

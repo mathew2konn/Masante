@@ -39,16 +39,23 @@ export async function revoquerDelegation(id: number): Promise<void> {
 
 /**
  * Partage EN UNE FOIS plusieurs carnets avec un proche (incrément A).
+ *
  * `membreIds` omis = tous les carnets du compte. Rejouable : les carnets déjà partagés sont
  * comptés dans `deja_partages`, jamais rejetés.
+ *
+ * `membreIdDuDelegue` (incrément B) désigne LEQUEL de ces carnets est celui de la personne
+ * invitée. C'est l'assertion du responsable — le premier des deux actes humains sur lesquels
+ * repose la revendication. Sans elle, personne ne peut s'approprier un carnet reçu.
  */
 export async function partagerEnMasse(
   telephone: string,
   membreIds?: number[],
+  membreIdDuDelegue?: number | null,
 ): Promise<ResultatPartageEnMasse> {
   const { data } = await api.post<ResultatPartageEnMasse>('/v1/delegations/en-masse', {
     telephone,
     ...(membreIds ? { membre_ids: membreIds } : {}),
+    ...(membreIdDuDelegue ? { membre_id_du_delegue: membreIdDuDelegue } : {}),
   });
   return data;
 }

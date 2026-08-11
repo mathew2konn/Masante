@@ -11,6 +11,7 @@ import { useT } from '../../src/i18n/useT';
 import { listerMembres } from '../../src/api/membres';
 import { etatDossierTitulaire } from '../../src/api/titulaire';
 import { listerCarnetsPartages } from '../../src/api/delegations';
+import { listerCarnetsRevendicables } from '../../src/api/revendication';
 import { messageErreur } from '../../src/utils/erreurs';
 import { MAX_MEMBRES, type Membre } from '../../src/types/membre';
 import type { CarnetPartage } from '../../src/types/delegation';
@@ -35,6 +36,9 @@ export default function CarnetTab() {
   // Carnet familial partagé (A) — carnets qu'un proche m'a délégués. Liste SÉPARÉE de `membres` :
   // ils ne m'appartiennent pas, ils ne comptent pas dans mon quota, et je ne peux pas les modifier.
   const [partages, setPartages] = useState<CarnetPartage[]>([]);
+  // Incrément B — nombre de carnets qu'un proche a désignés comme étant celui de ce compte.
+  // Le backend ne renvoie quelque chose que s'il n'y a pas encore de dossier titulaire.
+  const [aRevendiquer, setARevendiquer] = useState(0);
 
   useFocusEffect(
     useCallback(() => {
@@ -42,15 +46,17 @@ export default function CarnetTab() {
       (async () => {
         setErreur(null);
         try {
-          const [liste, etat, recus] = await Promise.all([
+          const [liste, etat, recus, revendicables] = await Promise.all([
             listerMembres(),
             etatDossierTitulaire(),
             listerCarnetsPartages(),
+            listerCarnetsRevendicables(),
           ]);
           if (actif) {
             setMembres(liste);
             setDossierTitulaireExiste(etat.existe);
             setPartages(recus);
+            setARevendiquer(revendicables.length);
           }
         } catch (e) {
           if (actif) setErreur(messageErreur(e));
@@ -104,6 +110,23 @@ export default function CarnetTab() {
         <ActivityIndicator color={colors.blue[600]} style={styles.loader} />
       ) : erreur ? (
         <Text style={styles.erreur}>{erreur}</Text>
+      ) : completionRequise && aRevendiquer > 0 ? (
+        /* Incrément B — un proche a déjà créé un carnet à ce nom. On propose de le RECONNAÎTRE
+           avant d'en créer un second : après, il y aurait deux NIS, et un NIS ne se libère
+           jamais (P6.1). C'est ici, et nulle part ailleurs, que le doublon est empêché. */
+        <Card style={styles.completion}>
+          <Ionicons name="person-circle-outline" size={32} color={colors.blue[500]} />
+          <Text style={styles.completionTitre}>Un carnet à votre nom existe déjà</Text>
+          <Text style={styles.completionTxt}>
+            {aRevendiquer === 1
+              ? "Un proche a créé un dossier de santé à votre nom. S'il est bien le vôtre, reconnaissez-le plutôt que d'en créer un second."
+              : `${aRevendiquer} proches ont créé un dossier de santé à votre nom. Reconnaissez le vôtre plutôt que d'en créer un second.`}
+          </Text>
+          <PrimaryButton
+            label="Voir ce carnet"
+            onPress={() => router.push('/(app)/revendiquer-carnet')}
+          />
+        </Card>
       ) : completionRequise ? (
         /* P6.1 — porte d'entrée : sans dossier titulaire, pas de carnet (ADR-021 §2.1). */
         <Card style={styles.completion}>
