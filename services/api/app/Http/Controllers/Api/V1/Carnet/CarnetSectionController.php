@@ -72,6 +72,28 @@ abstract class CarnetSectionController extends Controller
         return response()->json(['message' => 'Élément supprimé.']);
     }
 
+    /**
+     * Nom de la relation, exposé au dépôt de contributions (incrément C).
+     *
+     * Accesseurs publics plutôt que passage de `relation()`/`regles()` en public : ces deux-là
+     * sont abstraites, les rendre publiques obligerait à modifier les onze sous-classes — toutes
+     * validées G5. Un délégateur ici ne touche personne.
+     */
+    public function nomRelation(): string
+    {
+        return $this->relation();
+    }
+
+    /**
+     * Règles de validation de la section, pour valider une contribution AU DÉPÔT.
+     *
+     * @return array<string, array<int, mixed>>
+     */
+    public function reglesDeCreation(): array
+    {
+        return $this->regles();
+    }
+
     /** Récupère un élément SCOPÉ au membre (anti-IDOR) ou échoue en 404. */
     private function trouver(MembreFamille $membre, int $id): Model
     {

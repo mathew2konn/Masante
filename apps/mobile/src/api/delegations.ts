@@ -70,3 +70,15 @@ export async function listerCarnetsPartages(): Promise<CarnetPartage[]> {
   const { data } = await api.get<{ partages: CarnetPartage[] }>('/v1/membres/partages');
   return data.partages;
 }
+
+/**
+ * Ce carnet m'a-t-il été partagé (donc : je ne peux qu'y CONTRIBUER, pas y écrire) ?
+ *
+ * Interrogé au montage du formulaire de section plutôt que transporté d'écran en écran : la
+ * réponse du serveur est toujours juste, un paramètre de navigation peut être périmé — et se
+ * tromper ici, c'est écrire directement dans le dossier médical de quelqu'un d'autre.
+ */
+export async function estCarnetPartage(membreId: number): Promise<boolean> {
+  const partages = await listerCarnetsPartages();
+  return partages.some((p) => p.membre.id === membreId);
+}

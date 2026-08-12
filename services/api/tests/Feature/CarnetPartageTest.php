@@ -274,8 +274,12 @@ class CarnetPartageTest extends TestCase
             ->assertJsonPath('deja_partages', 0);
 
         $this->assertSame(3, Delegation::where('delegue_user_id', $delegue->id)->count());
+
+        // Depuis l'incrément C, une invitation porte `lecture_ecriture` : le délégué peut
+        // PROPOSER au brouillon. Ce droit n'ouvre toujours pas l'écriture directe — les tests
+        // « ce qui reste fermé » ci-dessus le vérifient.
         $this->assertSame(
-            Delegation::DROIT_LECTURE,
+            Delegation::DROIT_LECTURE_ECRITURE,
             Delegation::where('membre_id', $membre->id)->first()->droits
         );
     }

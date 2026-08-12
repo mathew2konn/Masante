@@ -12,6 +12,7 @@ import { listerMembres } from '../../src/api/membres';
 import { etatDossierTitulaire } from '../../src/api/titulaire';
 import { listerCarnetsPartages } from '../../src/api/delegations';
 import { listerCarnetsRevendicables } from '../../src/api/revendication';
+import { contributionsEnAttente } from '../../src/api/contributions';
 import { messageErreur } from '../../src/utils/erreurs';
 import { MAX_MEMBRES, type Membre } from '../../src/types/membre';
 import type { CarnetPartage } from '../../src/types/delegation';
@@ -39,6 +40,8 @@ export default function CarnetTab() {
   // Incrément B — nombre de carnets qu'un proche a désignés comme étant celui de ce compte.
   // Le backend ne renvoie quelque chose que s'il n'y a pas encore de dossier titulaire.
   const [aRevendiquer, setARevendiquer] = useState(0);
+  // Incrément C — ajouts proposés par des proches, en attente de MA décision.
+  const [enAttente, setEnAttente] = useState(0);
 
   useFocusEffect(
     useCallback(() => {
@@ -46,17 +49,19 @@ export default function CarnetTab() {
       (async () => {
         setErreur(null);
         try {
-          const [liste, etat, recus, revendicables] = await Promise.all([
+          const [liste, etat, recus, revendicables, aValider] = await Promise.all([
             listerMembres(),
             etatDossierTitulaire(),
             listerCarnetsPartages(),
             listerCarnetsRevendicables(),
+            contributionsEnAttente(),
           ]);
           if (actif) {
             setMembres(liste);
             setDossierTitulaireExiste(etat.existe);
             setPartages(recus);
             setARevendiquer(revendicables.length);
+            setEnAttente(aValider.length);
           }
         } catch (e) {
           if (actif) setErreur(messageErreur(e));
@@ -216,6 +221,15 @@ export default function CarnetTab() {
       )}
 
       <View style={styles.deconnexion}>
+        {/* Carnet familial partagé (C) — la file du responsable. Le compteur vient du backend :
+            on ne déduit jamais localement ce qui est en attente. */}
+        <SecondaryButton
+          label={
+            enAttente > 0 ? `Ajouts à valider (${enAttente})` : 'Ajouts à valider'
+          }
+          onPress={() => router.push('/(app)/contributions')}
+        />
+        <View style={styles.sep} />
         <SecondaryButton label="Partages reçus" onPress={() => router.push('/(app)/partages')} />
         <View style={styles.sep} />
         <SecondaryButton

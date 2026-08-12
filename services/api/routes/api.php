@@ -16,6 +16,7 @@ use App\Http\Controllers\Api\V1\Carnet\ResultatAnalyseController;
 use App\Http\Controllers\Api\V1\Carnet\VaccinationController;
 use App\Http\Controllers\Api\V1\CarnetsPartagesController;
 use App\Http\Controllers\Api\V1\CarteCmuController;
+use App\Http\Controllers\Api\V1\ContributionCarnetController;
 use App\Http\Controllers\Api\V1\DelegationController;
 use App\Http\Controllers\Api\V1\DonSangController;
 use App\Http\Controllers\Api\V1\DossierTitulaireController;
@@ -26,6 +27,7 @@ use App\Http\Controllers\Api\V1\MembreController;
 use App\Http\Controllers\Api\V1\MfaController;
 use App\Http\Controllers\Api\V1\NisController;
 use App\Http\Controllers\Api\V1\PasswordController;
+use App\Http\Controllers\Api\V1\ResponsableFamilleController;
 use App\Http\Controllers\Api\V1\RevendicationCarnetController;
 use App\Http\Controllers\Api\V1\PhotoMembreController;
 use App\Http\Controllers\Api\V1\QrController;
@@ -173,6 +175,27 @@ Route::middleware('throttle:api')->group(function () {
 
             /*
             |--------------------------------------------------------------
+            | Carnet familial partagé (C) — contributions au brouillon.
+            |--------------------------------------------------------------
+            | Un délégué propose ; un responsable valide. Ce que le MÉDECIN
+            | écrit ne passe jamais par ici : une ordonnance ne peut pas
+            | attendre l'accord d'un parent en voyage.
+            */
+            Route::get('membres/{membre}/contributions', [ContributionCarnetController::class, 'index']);
+            Route::post('membres/{membre}/contributions', [ContributionCarnetController::class, 'store']);
+
+            // La file du responsable — déclarée avant `contributions/{contribution}`.
+            Route::get('contributions', [ContributionCarnetController::class, 'enAttente']);
+            Route::post('contributions/{contribution}/valider', [ContributionCarnetController::class, 'valider']);
+            Route::post('contributions/{contribution}/rejeter', [ContributionCarnetController::class, 'rejeter']);
+
+            // Responsables de famille : le propriétaire l'est de droit, il peut en désigner un second.
+            Route::get('responsables', [ResponsableFamilleController::class, 'index']);
+            Route::post('responsables', [ResponsableFamilleController::class, 'store']);
+            Route::delete('responsables/{responsable}', [ResponsableFamilleController::class, 'destroy']);
+
+            /*
+            |--------------------------------------------------------------
             | Module 2 / 2A.3 — QR dynamique + journal d'accès (côté patient).
             |--------------------------------------------------------------
             | Génération d'un QR à usage unique pour un membre, et consultation
@@ -243,14 +266,12 @@ Route::middleware('throttle:api')->group(function () {
             | passe par le membre parent (Policy) + requêtes scopées à la relation.
             | Élément enfant adressé par {id} brut (jamais résolu hors du membre).
             */
-            $sections = [
-                'antecedents'        => AntecedentController::class,
-                'vaccinations'       => VaccinationController::class,
-                'ordonnances'        => OrdonnanceController::class,
-                'resultats-analyses' => ResultatAnalyseController::class,
-                'rappels'            => RappelController::class,
-                'contacts-urgence'   => ContactUrgenceController::class,   // F2.11
-            ];
+            // Source unique (incrément C) : le CRUD générique et le dépôt de contributions lisent
+            // la MÊME liste. `contacts-urgence` (F2.11) garde ses routes ici mais reste hors
+            // contributions — son `store()` porte des règles propres qu'un chemin générique
+            // contournerait.
+            $sections = \App\Support\RegistreSectionsCarnet::SECTIONS
+                + ['contacts-urgence' => ContactUrgenceController::class];
 
             Route::prefix('membres/{membre}')->group(function () use ($sections) {
                 foreach ($sections as $chemin => $controleur) {

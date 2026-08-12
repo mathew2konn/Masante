@@ -13,6 +13,8 @@ import { PrimaryButton } from '../components/PrimaryButton';
 import { SecondaryButton } from '../components/SecondaryButton';
 import { sectionParSlug } from '../carnet/registre';
 import { creerItem, modifierItem, obtenirItem } from '../api/carnet';
+import { estCarnetPartage } from '../api/delegations';
+import { deposerContribution } from '../api/contributions';
 import { messageErreur } from '../utils/erreurs';
 import { heureCourte, isoVersDateInput, validerDate, validerHeure } from '../utils/dates';
 import type { Champ, Medicament, ParametreResultat, SectionDescriptor } from '../types/carnet';
@@ -43,6 +45,21 @@ export function CarnetSectionForm({
   const [chargementErreur, setChargementErreur] = useState<string | null>(null);
   const [envoi, setEnvoi] = useState(false);
   const [erreurServeur, setErreurServeur] = useState<string | null>(null);
+  // Carnet familial partagé (C) — sur un carnet qu'on m'a confié, je PROPOSE, je n'écris pas.
+  // `null` = pas encore su ; le bouton attend la réponse plutôt que de deviner.
+  const [carnetPartage, setCarnetPartage] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    let actif = true;
+    estCarnetPartage(membreId)
+      .then((p) => actif && setCarnetPartage(p))
+      // Si l'on ne sait pas, on suppose le cas le PLUS restrictif : proposer plutôt qu'écrire.
+      // Le serveur tranchera de toute façon — mais l'écran ne doit pas promettre l'inverse.
+      .catch(() => actif && setCarnetPartage(true));
+    return () => {
+      actif = false;
+    };
+  }, [membreId]);
 
   // Valeurs initiales (création) ou préchargement (édition).
   useEffect(() => {
@@ -89,6 +106,9 @@ export function CarnetSectionForm({
     try {
       if (edition) {
         await modifierItem(membreId, section.chemin, itemId!, payload);
+      } else if (carnetPartage) {
+        // Carnet confié par un proche : on dépose une proposition, un responsable la validera.
+        await deposerContribution(membreId, section.chemin, payload);
       } else {
         await creerItem(membreId, section.chemin, payload);
       }
@@ -126,12 +146,22 @@ export function CarnetSectionForm({
             ))}
           </Card>
 
+          {/* Carnet familial partagé (C) — on annonce la portée AVANT que la personne écrive,
+              pas après coup : ce qu'elle note n'entrera au carnet qu'après validation. */}
+          {!edition && carnetPartage ? (
+            <Text style={styles.portee}>
+              Ce carnet vous a été confié. Votre ajout sera soumis à un responsable de la famille
+              avant d&apos;entrer au dossier.
+            </Text>
+          ) : null}
+
           {erreurServeur ? <Text style={styles.erreurServeur}>{erreurServeur}</Text> : null}
 
           <PrimaryButton
-            label={edition ? 'Enregistrer' : 'Ajouter'}
+            label={edition ? 'Enregistrer' : carnetPartage ? 'Proposer cet ajout' : 'Ajouter'}
             onPress={soumettre}
-            loading={envoi}
+            loading={envoi || carnetPartage === null}
+            disabled={carnetPartage === null}
           />
         </>
       )}
@@ -453,6 +483,8 @@ const styles = StyleSheet.create({
   loader: { marginTop: spacing[8] },
   erreur: { ...typography.bodyStrong, color: colors.danger.text },
   erreurServeur: { ...typography.bodyStrong, color: colors.danger.text, marginBottom: spacing[3] },
+  // Carnet familial partagé (C) — portée annoncée avant la saisie.
+  portee: { ...typography.caption, color: colors.ink[500], marginBottom: spacing[3] },
   carte: { marginBottom: spacing[5] },
   bloc: { marginBottom: spacing[4] },
   label: { ...typography.bodyStrong, color: colors.ink[700], marginBottom: spacing[2] },

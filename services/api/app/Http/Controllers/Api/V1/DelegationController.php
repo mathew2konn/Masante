@@ -209,11 +209,14 @@ class DelegationController extends Controller
         // celui d'un tiers. Garde silencieuse — l'assertion est simplement ignorée.
         $assertion = $estLeDossierDuDelegue && ! $membre->est_titulaire;
 
+        // Depuis l'incrément C, une invitation porte `lecture_ecriture` (décision propriétaire :
+        // tous les délégués peuvent contribuer). Ce droit n'ouvre PAS l'écriture directe — il
+        // autorise à déposer une proposition au brouillon, qu'un responsable valide.
         $delegation = Delegation::updateOrCreate(
             ['delegue_user_id' => $delegue->id, 'membre_id' => $membre->id],
             [
                 'titulaire_user_id'         => $titulaire->id,
-                'droits'                    => Delegation::DROIT_LECTURE,
+                'droits'                    => Delegation::DROIT_LECTURE_ECRITURE,
                 'est_le_dossier_du_delegue' => $assertion,
                 'invitee_at'                => now(),
                 'acceptee_at'               => null,
@@ -225,7 +228,7 @@ class DelegationController extends Controller
             'titulaire_id'              => $titulaire->id,
             'delegue_id'                => $delegue->id,
             'membre_id'                 => $membre->id,
-            'droits'                    => Delegation::DROIT_LECTURE,
+            'droits'                    => Delegation::DROIT_LECTURE_ECRITURE,
             'est_le_dossier_du_delegue' => $assertion,
         ]); // notification en application : incrément D.
 

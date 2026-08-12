@@ -1,4 +1,4 @@
-# Guide de test — Carnet familial partagé
+﻿# Guide de test — Carnet familial partagé
 
 > Module issu du plan G1 du 2026-08-11 ([docs/PLAN_G1_Carnet_Familial_Partage.md](docs/PLAN_G1_Carnet_Familial_Partage.md)).
 > Remplace la fusion de dossiers du MPI : au lieu de réparer un doublon, on l'empêche de naître.
@@ -9,7 +9,7 @@ Ce guide grandit d'une partie par sous-incrément :
 |--------|----------------|------|
 | **A** | Partage du carnet en lecture | ✅ **VALIDÉ G5 le 2026-08-11** — procédure de non-régression |
 | **B** | Revendication du carnet | ✅ **VALIDÉ G5 le 2026-08-11** — procédure de non-régression |
-| C | Contributions au brouillon + responsables | à venir |
+| **C** | Contributions au brouillon + responsables | ✅ **VALIDÉ G5 le 2026-08-11** — procédure de non-régression |
 | D | Notifications + fiche de parcours | à venir |
 
 ---
@@ -504,3 +504,252 @@ Mêmes jetons qu'en A.7.
 | Transfert en deux écritures | `ERROR 3819` sur `ck_membres_titulaire_coherent` | `user_id` et `est_titulaire` posés dans **une seule** sauvegarde |
 | Revendication proposée après création | Deux NIS pour une personne, irréversible | L'écran passe **avant** la complétion — le backend ne propose rien si un dossier titulaire existe |
 | Route `/membres/revendicables` en **404** | Captée par `/membres/{membre}` | Déclarée **avant** l'`apiResource` |
+
+---
+
+# Partie C — Contributions au brouillon et responsables
+
+## Le scénario, dans les mots du propriétaire
+
+Les parents sont en voyage. Un enfant de trois ans est malade. La personne restée à la maison
+l'emmène à l'hôpital — elle ne peut pas attendre le retour des parents. Elle note ce qui s'est
+passé dans le carnet de l'enfant. **Son ajout part au brouillon** ; un responsable relit, vérifie
+auprès d'elle, puis valide. Ce n'est qu'alors qu'il entre au dossier.
+
+## La séparation qui ne doit jamais être effacée
+
+| Qui écrit | Traitement |
+|-----------|------------|
+| **Le médecin**, à l'hôpital (QR, référent, bris de glace) | **Direct au dossier.** Jamais de brouillon. |
+| **Un délégué de la famille**, depuis son application | **Brouillon**, validé par un responsable |
+
+Une ordonnance de médecin ne peut pas attendre l'accord d'un parent absent des semaines. Le
+brouillon encadre la **contribution familiale auto-déclarée**, jamais l'acte médical.
+
+## La règle de sécurité clinique
+
+**Un brouillon est visible, jamais caché** — y compris de qui a accès au dossier. Un fait médical
+non validé reste un fait médical : si l'enfant est revu deux jours plus tard, ce qui a été noté
+doit se voir, même sans l'accord du parent. **La validation est un acte de gouvernance familiale,
+pas un critère de vérité clinique.**
+
+## Ce que C ne fait pas
+
+- **Aucune notification** n'est envoyée : le responsable découvre les ajouts en ouvrant
+  « Ajouts à valider ». Les notifications et la fiche de parcours sont l'incrément **D**.
+- Les contributions ne visent que **cinq sections** : antécédents, vaccinations, ordonnances,
+  résultats d'analyses, rappels. Contacts d'urgence, notes, documents, mesures et grossesse
+  gardent leur logique de création propre et restent réservés au propriétaire. Les ouvrir plus
+  tard est purement additif.
+
+---
+
+## C.0 Prérequis
+
+```bash
+cd services/api
+XDEBUG_MODE=off "C:/wamp64/bin/php/php8.3.28/php.exe" artisan migrate
+```
+
+```sql
+SHOW TABLES LIKE 'contributions';
+SHOW TABLES LIKE 'responsables_famille';
+SHOW COLUMNS FROM delegations LIKE 'droits';
+-- attendu : les délégations créées désormais portent 'lecture_ecriture'
+```
+
+> **Changement de comportement introduit par C** : une invitation de partage porte maintenant
+> `lecture_ecriture` — le délégué peut **proposer**. Ce droit n'ouvre toujours **pas** l'écriture
+> directe : les scénarios « ce qui reste fermé » de la partie A restent vrais.
+
+Trois comptes : **A** le parent propriétaire, **B** le délégué (la personne restée à la maison),
+**C** un second responsable (facultatif, pour C.4).
+
+---
+
+## C.1 Proposer un ajout (compte B, sur un carnet partagé)
+
+1. Compte B → **« Carnet »** → section **« Carnets partagés avec moi »** → ouvrir le carnet de
+   l'enfant.
+2. Ouvrir une section (ex. **Antécédents**) → **« Ajouter »**.
+
+✅ **Attendu** : sous le formulaire, la mention
+**« Ce carnet vous a été confié. Votre ajout sera soumis à un responsable de la famille avant
+d'entrer au dossier. »**, et le bouton porte **« Proposer cet ajout »** — pas « Ajouter ».
+
+> La portée est annoncée **avant** la saisie, pas après coup.
+
+3. Remplir et **« Proposer cet ajout »**.
+
+✅ **Attendu** : retour à la liste. **L'ajout n'y figure pas encore** — il n'est pas au dossier.
+
+❗ **Vérifier sur le carnet du compte A** : la section ne contient toujours rien.
+
+## C.1b Le propriétaire, lui, écrit directement
+
+Compte A, sur **son** carnet ou celui d'un membre qui lui appartient → **« Ajouter »**.
+
+✅ **Attendu** : le bouton porte **« Ajouter »**, aucune mention de validation, et l'entrée
+apparaît **immédiatement**. Lui faire valider ses propres brouillons n'aurait aucun sens.
+
+---
+
+## C.2 Valider (compte A)
+
+1. Compte A → **« Carnet »** → bouton **« Ajouts à valider (1) »**.
+
+✅ **Attendu** : le compteur vient du backend — il ne se déduit pas localement.
+
+2. Écran **« Ajouts à valider »**, sous-titre **« Proposés par vos proches »**. La carte montre :
+   le nom du membre, la section, **« Proposé par [prénom nom] »**, et le détail champ par champ.
+3. **« Valider »** → alerte **« Valider cet ajout ? »** rappelant de **vérifier auprès de l'auteur
+   que la consultation a bien eu lieu**.
+4. Confirmer.
+
+✅ **Attendu** : la contribution disparaît de la file, et l'entrée **apparaît dans la section du
+carnet**, marquée comme auto-déclarée.
+
+## C.2b Rejeter
+
+Proposer un second ajout depuis B, puis depuis A → **« Rejeter »**.
+
+✅ **Attendu** : **rien n'est écrit** au carnet. La contribution reste consultable — un rejet doit
+rester explicable.
+
+---
+
+## C.3 Le brouillon n'est pas caché
+
+Pendant qu'une contribution est **en attente** (avant toute décision) :
+
+| Depuis | Attendu |
+|--------|---------|
+| Compte A (propriétaire) | Voit la contribution en attente |
+| Compte B (auteur) | Voit sa propre contribution en attente |
+| Compte tiers sans accès | **403** |
+
+> C'est le point le plus important de la partie C, et le plus contre-intuitif. Cacher une
+> contribution jusqu'à validation exposerait le patient suivant à un fait médical invisible.
+
+---
+
+## C.4 Le second responsable
+
+1. Compte A → désigne le compte C comme responsable (par téléphone).
+2. Compte B propose un ajout.
+3. Compte C ouvre **« Ajouts à valider »**.
+
+✅ **Attendu** : il voit la contribution et peut la valider.
+
+4. Compte A retire la désignation, puis compte B propose à nouveau.
+
+✅ **Attendu** : compte C ne voit plus rien et ne peut plus valider (**409**).
+
+❗ **Vérifier aussi** : le compte C peut **se retirer lui-même**. Renoncer doit être aussi simple
+qu'accepter.
+
+---
+
+## C.5 Ce qui doit être refusé
+
+| Tentative | Attendu |
+|-----------|---------|
+| L'**auteur** valide sa propre contribution | **409** — c'est tout l'objet du circuit |
+| Un tiers valide | **409** |
+| Valider **deux fois** | **409**, une seule entrée créée |
+| Rejeter une contribution déjà validée | **409** |
+| Un délégué en **lecture seule** propose | **403** |
+| Une **section hors liste blanche** (ex. `user`) | **403** |
+| Le **propriétaire** passe par le brouillon | **403** |
+
+---
+
+## C.6 La garantie structurelle
+
+Depuis le compte B, proposer un ajout **en forçant** `source: medecin` (via curl) :
+
+```bash
+curl -s -X POST "$API/membres/<ID>/contributions" -H "Authorization: Bearer $B" \
+  -H 'Content-Type: application/json' \
+  -d '{"section":"antecedents","donnees":{"type":"allergie","description":"test","source":"medecin","added_by":"medecin"}}'
+```
+
+```sql
+SELECT donnees FROM contributions ORDER BY id DESC LIMIT 1;
+```
+
+✅ **Attendu** : `"source":"patient"` et `"added_by":"patient"`. **Un délégué ne peut pas faire
+passer son ajout pour un acte de soignant, quoi qu'il envoie.** Ce n'est pas une validation qu'on
+peut oublier : le service réécrit ces deux champs.
+
+---
+
+## C.7 Base de données
+
+```sql
+SELECT id, membre_id, auteur_user_id, section, statut, decide_par_user_id, entree_id, motif_rejet
+FROM contributions ORDER BY id;
+
+SELECT id, titulaire_user_id, responsable_user_id, designe_le, revoque_le FROM responsables_famille;
+```
+
+✅ **Attendu** : une contribution `VALIDEE` porte `decide_par_user_id` **et** `entree_id` (le lien
+vers la ligne réellement créée) ; une `REJETEE` porte son motif et **aucun** `entree_id`.
+
+> Contrôle utile : le texte médical est **chiffré au repos**. Une requête SQL sur `antecedents`
+> renverra du chiffré pour `description` — c'est normal, il faut relire par l'application.
+
+---
+
+## C.8 Qualité (G3)
+
+✅ Référence du 2026-08-11 : **362 tests / 14 278 assertions** verts, dont **19 dédiés**
+(`ContributionCarnetTest`). Typecheck vert sur les trois workspaces.
+
+---
+
+## C.9 Checklist de clôture
+
+**Proposer**
+- [ ] C.1 Mention de portée + bouton « Proposer cet ajout » sur un carnet partagé
+- [ ] C.1 L'ajout n'entre pas au dossier avant validation
+- [ ] C.1b Le propriétaire écrit directement, sans mention
+
+**Décider**
+- [ ] C.2 Compteur « Ajouts à valider (n) » au Carnet
+- [ ] C.2 Alerte rappelant de vérifier auprès de l'auteur
+- [ ] C.2 Validation → l'entrée apparaît dans la section
+- [ ] C.2b Rejet → rien n'est écrit, la contribution reste consultable
+
+**Visibilité**
+- [ ] C.3 Le brouillon est visible du propriétaire ET de l'auteur
+- [ ] C.3 Un tiers reçoit 403
+
+**Responsables**
+- [ ] C.4 Un second responsable désigné peut valider
+- [ ] C.4 Désignation retirée → 409
+- [ ] C.4 Le désigné peut se retirer lui-même
+
+**Refus**
+- [ ] C.5 Les sept situations refusées
+- [ ] C.6 `source` et `added_by` forcés à `patient`
+
+**Base et qualité**
+- [ ] C.7 `entree_id` sur une validée, motif sur une rejetée
+- [ ] C.8 Suite complète + typecheck verts
+
+> Tout coché sans écart → écrire **« Incrément C validé »** et ouvrir **D (notifications et fiche
+> de parcours)**.
+
+---
+
+## C.10 Pièges
+
+| Piège | Symptôme | Parade |
+|-------|----------|--------|
+| Assertion SQL sur un champ médical | Le test échoue en comparant du clair à du chiffré | Relire par le modèle (`$membre->antecedents()->first()->description`) |
+| Section libre côté client | Un nom de section deviendrait une porte vers n'importe quelle relation Eloquent | Liste blanche fermée `RegistreSectionsCarnet` |
+| `contributions/{id}` capté | La file `GET /contributions` masquée | Route de la file déclarée **avant** les routes paramétrées |
+| Délégation d'avant C | Le délégué ne peut pas proposer (droit `lecture`) | Renvoyer une invitation : elle portera `lecture_ecriture` |
+
+---

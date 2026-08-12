@@ -105,4 +105,20 @@ class Delegation extends Model
             ->active()
             ->exists();
     }
+
+    /**
+     * Le délégué peut-il CONTRIBUER au carnet (incrément C) ?
+     *
+     * Ce droit n'ouvre pas l'écriture directe : il autorise à déposer une proposition au
+     * brouillon, qu'un responsable valide. Une délégation `lecture` seule ne le donne pas.
+     */
+    public static function ecriturePour(int $delegueUserId, int $membreId): bool
+    {
+        return static::query()
+            ->where('delegue_user_id', $delegueUserId)
+            ->where('membre_id', $membreId)
+            ->where('droits', self::DROIT_LECTURE_ECRITURE)
+            ->active()
+            ->exists();
+    }
 }
