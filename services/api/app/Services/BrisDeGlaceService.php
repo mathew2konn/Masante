@@ -63,6 +63,10 @@ class BrisDeGlaceService
             'agent_id'      => $agent->id,
             'type_acces'    => 'bris_de_glace',
             'motif_urgence' => $motif,
+            // D2 — établissement de l'agent AU MOMENT du bris de glace. C'est sur cette voie qu'il
+            // compte le plus : la famille, prévenue d'un accès non consenti, demande d'abord
+            // « quel hôpital ? ».
+            'etablissement' => $agent->structure?->nom,
             'ip_address'    => $ip,
         ]);
 

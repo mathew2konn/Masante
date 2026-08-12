@@ -21,6 +21,7 @@ use App\Http\Controllers\Api\V1\ContributionCarnetController;
 use App\Http\Controllers\Api\V1\DelegationController;
 use App\Http\Controllers\Api\V1\DonSangController;
 use App\Http\Controllers\Api\V1\DossierTitulaireController;
+use App\Http\Controllers\Api\V1\FicheParcoursController;
 use App\Http\Controllers\Api\V1\FicheVitaleController;
 use App\Http\Controllers\Api\V1\MedecinController;
 use App\Http\Controllers\Api\V1\MedicamentController;
@@ -228,6 +229,16 @@ Route::middleware('throttle:api')->group(function () {
             */
             Route::post('membres/{membre}/qr', [QrController::class, 'generer']);
             Route::get('membres/{membre}/acces', [MembreController::class, 'acces']);
+
+            /*
+             * D2 — Fiche de parcours : la version lisible et assemblée de ce journal.
+             *
+             * Route SÉPARÉE de `/acces`, et c'est intentionnel. `/acces` est le droit d'accès
+             * personnel du propriétaire (§10.3) : lignes brutes, adresse IP, lectures familiales
+             * comprises. La fiche est ouverte à toute la famille (`viewParcours`) et ne montre
+             * que les passages en établissement. Deux besoins, deux surfaces, deux gardes.
+             */
+            Route::get('membres/{membre}/parcours', [FicheParcoursController::class, 'show']);
 
             // P6.1 — Lecture du NIS d'un dossier (CDC_09 §3.5). Contrairement au
             // `matricule_ivs` interne, le NIS est destiné à être communiqué. L'isolation

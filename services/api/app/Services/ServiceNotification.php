@@ -93,9 +93,17 @@ class ServiceNotification
             $corps .= ' Motif : '.$contribution->motif_rejet;
         }
 
+        // D2 — DÉCISION DU PROPRIÉTAIRE (2026-08-12) : « lorsque la validation est faite, tous les
+        // autres le sauront ». L'annonce s'élargit donc à toute la famille qui a accès au carnet,
+        // alors que la DÉCISION, elle, reste aux seuls responsables (`decideursPour`, incrément C).
+        // C'est exactement la séparation demandée : voir n'est pas décider.
+        //
+        // Élargir une audience, c'est élargir une surface de fuite : la règle inviolable de D1
+        // s'applique sans exception — le corps ci-dessus dit la section, jamais son contenu.
         $destinataires = $this->sauf(
             array_merge(
                 ResponsableFamille::decideursPour($membre->user_id),
+                Delegation::lecteursDe($membre->id),
                 [$contribution->auteur_user_id],
             ),
             [$decideur->id],   // celui qui vient de décider n'a pas besoin qu'on le lui annonce

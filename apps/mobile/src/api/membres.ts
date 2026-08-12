@@ -17,11 +17,20 @@ export async function listerMembres(): Promise<Membre[]> {
   });
 }
 
-/** Détail d'un membre (réservé au propriétaire). Lisible hors ligne (cache). */
+/**
+ * Détail d'un membre — propriétaire, ou délégué en lecture depuis l'incrément A.
+ * Lisible hors ligne (cache).
+ *
+ * `est_proprietaire` (D2) est REPLIÉ sur l'objet membre plutôt que renvoyé à côté : la forme mise
+ * en cache reste celle d'un `Membre`, et une entrée mise en cache par une version antérieure
+ * continue de se lire — le champ y est simplement absent.
+ */
 export async function obtenirMembre(id: number): Promise<Membre> {
   return lireAvecCache(`membre:${id}`, async () => {
-    const { data } = await api.get<{ membre: Membre }>(`/v1/membres/${id}`);
-    return data.membre;
+    const { data } = await api.get<{ membre: Membre; est_proprietaire?: boolean }>(
+      `/v1/membres/${id}`,
+    );
+    return { ...data.membre, est_proprietaire: data.est_proprietaire };
   });
 }
 

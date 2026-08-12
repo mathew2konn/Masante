@@ -18,6 +18,7 @@ export type AccesDossier = {
   agent_id: number | null;
   token_qr_id: number | null;
   type_acces: string;
+  etablissement: string | null;
   sections_consultees: string[] | null;
   donnees_ajoutees: Record<string, unknown> | null;
   ip_address: string | null;
@@ -25,14 +26,17 @@ export type AccesDossier = {
   created_at: string;
 };
 
-/** Libellés lisibles des types d'accès connus (repli sur la valeur brute sinon). */
-export const LIBELLE_TYPE_ACCES: Record<string, string> = {
-  qr_scan: 'Consultation par QR',
-  consultation: 'Consultation du dossier',
-  ajout: 'Ajout au dossier',
-};
-
-/** Rend lisible un type d'accès (repli sur la valeur brute si inconnue). */
-export function libelleTypeAcces(type: string): string {
-  return LIBELLE_TYPE_ACCES[type] ?? type;
-}
+/**
+ * Libellés des voies d'accès — réexportés depuis `@masante/shared` (incrément D2).
+ *
+ * ILS VIVAIENT ICI, EN DUR, ET AVAIENT DIVERGÉ DE LA BASE. Trois des cinq voies réelles
+ * (`referent`, `delegation`, `bris_de_glace`) n'y figuraient pas, et deux libellés présents
+ * (`consultation`, `ajout`) ne correspondaient à aucune valeur existante. Résultat : un parent
+ * lisait « bris_de_glace » — valeur brute, tiret bas compris — dans le journal d'accès de son
+ * enfant. C'est le constat F1 du G0 de D2.
+ *
+ * La table est désormais dans `@masante/shared`, avec son miroir PHP `App\Support\TypeAccesDossier`.
+ * Ce fichier ne la redéfinit plus : il la réexporte, pour que les écrans existants n'aient pas à
+ * changer leur import.
+ */
+export { libelleTypeAcces, LIBELLE_TYPE_ACCES } from '@masante/shared';

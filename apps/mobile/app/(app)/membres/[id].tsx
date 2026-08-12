@@ -364,6 +364,33 @@ export default function DetailMembreScreen() {
         ) : null}
       </Card>
 
+      {/* D2 — LA FICHE DE PARCOURS EST OUVERTE À TOUTE LA FAMILLE (décision propriétaire) :
+          propriétaire, délégué en lecture, second responsable. Elle est donc HORS du bloc de
+          gouvernance ci-dessous, qui reste au seul propriétaire. Voir n'est pas décider. */}
+      <Card style={styles.bloc}>
+        <Text style={styles.blocTitre}>Fiche de parcours</Text>
+        <Text style={styles.blocAide}>
+          Qui a ouvert ce dossier, dans quel établissement, et ce qui y a été inscrit.
+        </Text>
+        <SecondaryButton
+          label="Voir le parcours"
+          onPress={() =>
+            router.push({
+              pathname: '/(app)/membres/parcours/[id]',
+              params: { id: membreId, prenom: membre.prenom, nom: membre.nom },
+            })
+          }
+        />
+      </Card>
+
+      {/* D2 / correction F6 — ce bloc n'avait AUCUNE garde de propriété : depuis l'incrément A, un
+          carnet partagé y menait aussi, et le délégué qui touchait « Journal d'accès », « Gérer les
+          délégués » ou « Modifier » recevait un 403. Ces actions relèvent de la gouvernance du
+          carnet, elle appartient à son propriétaire.
+
+          `est_proprietaire !== false` et non `=== true` : une fiche mise en cache avant D2 ne porte
+          pas le champ, et hors ligne le propriétaire doit garder ses actions. */}
+      {membre.est_proprietaire !== false ? (
       <Card style={styles.bloc}>
         <Text style={styles.blocTitre}>Partage sécurisé</Text>
         <Text style={styles.blocAide}>
@@ -411,7 +438,9 @@ export default function DetailMembreScreen() {
           }
         />
       </Card>
+      ) : null}
 
+      {membre.est_proprietaire !== false ? (
       <View style={styles.actions}>
         <PrimaryButton
           label="Modifier"
@@ -420,6 +449,14 @@ export default function DetailMembreScreen() {
         <View style={styles.sep} />
         <SecondaryButton label="Supprimer" onPress={confirmerSuppression} disabled={suppression} />
       </View>
+      ) : (
+        // Un carnet partagé se lit et s'enrichit par une proposition (incrément C) ; il ne se
+        // modifie ni ne se supprime — la Policy le refuse déjà, l'écran cesse de le proposer.
+        <Text style={styles.partageAide}>
+          Ce carnet vous est partagé : vous pouvez le consulter et proposer des ajouts, mais sa
+          modification appartient à son propriétaire.
+        </Text>
+      )}
     </Screen>
   );
 }
@@ -478,6 +515,7 @@ const styles = StyleSheet.create({
   bloc: { marginBottom: spacing[5] },
   blocTitre: { ...typography.h2, color: colors.blue[900], marginBottom: spacing[3] },
   blocAide: { ...typography.body, color: colors.ink[700], marginTop: -spacing[1], marginBottom: spacing[4] },
+  partageAide: { ...typography.caption, color: colors.ink[500], marginTop: spacing[4] },
   sectionRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: spacing[3] },
   sectionRowBordure: { borderTopWidth: 1, borderTopColor: colors.line },
   sectionPastille: {

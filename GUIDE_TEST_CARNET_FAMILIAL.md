@@ -12,7 +12,9 @@ Ce guide grandit d'une partie par sous-incrément :
 | **C** | Contributions au brouillon + responsables | ✅ **VALIDÉ G5 le 2026-08-11** — procédure de non-régression |
 | **D1** | Notifications en application | ✅ **VALIDÉ G5 le 2026-08-12** — procédure de non-régression |
 | **D0** | Écriture du soignant au carnet | ✅ **VALIDÉ G5 le 2026-08-12** — procédure de non-régression |
-| D2 | Fiche de parcours | à venir |
+| **D2** | Fiche de parcours | ✅ **VALIDÉ G5 le 2026-08-12** — procédure de non-régression |
+
+> ✅ **Module P7 « Carnet familial partagé » COMPLET** (A → D2), validé G5 le 2026-08-12.
 
 > **Pourquoi D0 arrive après D1.** Le G0 de D2 a découvert qu'**aucun soignant ne pouvait écrire
 > dans le carnet** : la fiche de parcours aurait affiché une section « ordonnance » vide, par
@@ -1237,3 +1239,229 @@ sens — une garde, un vecteur. Suite complète + typecheck ×3.
 | Vocabulaires divergents | `analyses` (portail) ≠ `resultats-analyses` (registre) | Table de correspondance dans `DossierController`, à l'unique frontière |
 | Route `POST dossier/{section}` captée | 404 ou mauvaise action | Déclarée **avant** `GET dossier/{section}` |
 | Permission attendue sur un rôle | « Je suis agent de garde et je ne peux pas écrire » | Normal : `dossier.ecrire` s'accorde **individuellement** |
+
+---
+---
+
+# Partie D2 — Fiche de parcours
+
+> ✅ **VALIDÉ G5 le 2026-08-12** — conservé comme **procédure de non-régression**.
+> Dernier incrément de P7 : le module est **complet**.
+
+## Ce que D2 répond
+
+Un proche a emmené l'enfant à l'hôpital et propose un ajout au carnet. Avant de valider, un
+responsable veut savoir : **qui a ouvert le dossier, dans quel établissement, par quelle voie,
+combien de temps, et ce qui y a été inscrit.** La fiche assemble ces faits.
+
+C'est le dernier morceau de P7 — et il n'aurait rien eu à montrer sans D0 : la section
+« l'ordonnance rédigée par le médecin » aurait été vide par construction.
+
+## Ce que la fiche n'est pas — et l'écran doit le dire
+
+**Une fiche vide ne prouve rien.** Si l'établissement n'a jamais scanné le QR du carnet, le passage
+n'y figure pas. La fiche dit ce que MaSanté a enregistré, pas ce qui s'est passé. C'est un support
+à l'appel téléphonique, pas une preuve — et l'écran le répète en bas de page.
+
+## Voir n'est pas décider
+
+Décision propriétaire du 2026-08-12, et c'est la structure de tout l'incrément :
+
+| Qui | Consulter la fiche | Valider une contribution |
+|---|---|---|
+| Propriétaire du carnet | ✅ | ✅ (de droit) |
+| Second responsable désigné | ✅ | ✅ |
+| Délégué en lecture | ✅ | ❌ |
+| Toute autre personne | ❌ | ❌ |
+
+Le mécanisme de décision de l'incrément C **n'a pas été touché**. Seule une capacité de lecture a
+été ajoutée (`viewParcours`). Et quand une décision tombe, **toute la famille en est informée** —
+sauf celui qui vient de la prendre.
+
+> `viewAcces`, le **journal brut**, reste propriétaire-seul. Il porte l'adresse IP et l'intégralité
+> des lectures familiales : c'est un droit d'accès personnel (§10.3), pas une information de
+> famille. Deux besoins, deux surfaces, deux gardes.
+
+## Trois silences assumés
+
+La fiche préfère dire qu'elle ne sait pas :
+
+| Situation | Ce qui s'affiche |
+|---|---|
+| Accès antérieur à cette migration | « Établissement non enregistré » — jamais déduit du compte de l'agent, qui a pu changer d'hôpital |
+| L'agent a fermé son navigateur | « Consultation non clôturée » — la durée est inconnue, pas estimée |
+| Entrée médicale sans lien de journal | Bloc **séparé** « Autres entrées médicales de la période », lien **non affirmé** |
+
+## Ce qui a été réparé au passage
+
+- **Les libellés des voies d'accès** vivaient en dur côté mobile et avaient divergé de la base :
+  un parent lisait `bris_de_glace` — valeur brute, tiret bas compris. Ils vivent désormais dans
+  `@masante/shared` avec leur miroir PHP, et « bris de glace » devient **« Accès d'urgence
+  vitale »** pour le citoyen (la valeur technique, elle, ne bouge nulle part).
+- **Le bloc « Partage sécurisé »** n'avait aucune garde de propriété : sur un carnet partagé, un
+  délégué touchait « Journal d'accès » ou « Modifier » et recevait un 403.
+- **`tokens_qr.used_by_etablissement`**, capté depuis le Module 2, n'était **lu nulle part**.
+
+---
+
+## D2.0 Prérequis
+
+```powershell
+cd c:\wamp64\www\IVOIRESANTE\services\api
+$env:XDEBUG_MODE='off'
+$PHP='C:\wamp64\bin\php\php8.3.28\php.exe'
+& $PHP artisan migrate                    # etablissement + acces_ouverture_id
+& $PHP artisan serve --host=0.0.0.0 --port=8000
+```
+
+```sql
+SHOW COLUMNS FROM acces_dossier LIKE 'etablissement';       -- varchar(200) NULL
+SHOW COLUMNS FROM acces_dossier LIKE 'acces_ouverture_id';  -- bigint unsigned NULL, FK -> acces_dossier
+```
+
+> ⚠️ **Les lignes déjà écrites gardent `NULL`.** Ce n'est pas un défaut : personne n'a enregistré
+> ces établissements à l'époque. La fiche le dira au lieu de l'inventer.
+
+Côté mobile : `npx expo start --tunnel`, et **reporter l'URL Ngrok** dans `EXPO_PUBLIC_API_URL`.
+
+---
+
+## D2.1 Le chemin normal — depuis la file du responsable
+
+1. Se connecter avec le **propriétaire** d'un carnet sur lequel un proche a proposé un ajout.
+2. Carnet → **« Ajouts à valider »**.
+
+✅ **Attendu** — chaque ajout porte désormais un bouton **« Voir la fiche de parcours »**, au-dessus
+de Valider / Rejeter. C'est le geste que la file appelait depuis l'incrément C : vérifier avant de
+décider.
+
+3. Toucher ce bouton.
+
+✅ **Attendu** — la fiche du carnet concerné s'ouvre, avec ses trois sections :
+**Passages en établissement**, **Autres entrées médicales de la période**, **Ajouts proposés par la
+famille**.
+
+## D2.2 Une consultation réelle, de bout en bout
+
+Sur le **portail** (navigateur), avec un agent habilité :
+
+1. Scanner le QR du carnet, consulter deux ou trois sections, **consigner une ordonnance** (D0),
+   puis **« Fermer le dossier »**.
+2. Revenir sur le **mobile** du propriétaire → fiche de parcours.
+
+✅ **Attendu** — **une seule** carte de visite (et non deux, alors que le journal contient bien deux
+lignes), portant :
+
+- la voie : « Consultation après scan de votre QR » ;
+- le **soignant** par son nom, et l'**établissement** ;
+- la **durée** réelle en minutes ;
+- les **sections consultées** ;
+- un bloc **« Écrit pendant cette consultation »** avec « Ordonnance du Dr … ».
+
+❗ **Vérifier** : le libellé de l'entrée **ne nomme aucun médicament**. La fiche situe et retrouve ;
+le contenu reste dans le carnet, où les mêmes personnes le lisent déjà.
+
+## D2.3 Un accès d'urgence vitale
+
+Ouvrir un dossier par **bris de glace** depuis le portail, avec un motif, puis regarder la fiche.
+
+✅ **Attendu** — une carte **bordée de rouge**, intitulée **« Accès d'urgence vitale »** (et non
+« bris_de_glace »), avec le **motif** saisi par l'agent affiché en clair.
+
+C'est voulu : un accès ouvert **sans le consentement du patient** doit rester explicable par ceux
+qu'il concerne. C'est le seul champ de la fiche dont le produit ne maîtrise pas le contenu.
+
+## D2.4 Ce qui n'entre pas dans la fiche
+
+1. Faire lire le carnet partagé par un **proche** depuis son téléphone (plusieurs sections).
+2. Rouvrir la fiche côté propriétaire.
+
+✅ **Attendu** — **aucune** de ces lectures n'apparaît en « passage en établissement ». Elles restent
+dans le **Journal d'accès** (bouton voisin, propriétaire seul).
+
+Une lecture familiale n'est pas un acte de soin — et il y en a une ligne par section lue.
+
+❗ **Vérifier aussi** : **aucune adresse IP** nulle part dans la fiche, y compris pour le
+propriétaire.
+
+## D2.5 Toute la famille voit, seuls les responsables décident
+
+| Compte | Fiche de parcours | Valider un ajout |
+|---|---|---|
+| Propriétaire | ✅ s'ouvre | ✅ |
+| Délégué en lecture | ✅ **s'ouvre** | ❌ refus « Seul un responsable de ce carnet peut décider. » |
+| Second responsable désigné, **non délégué** | ✅ s'ouvre | ✅ |
+| Compte sans lien | ❌ refus | ❌ |
+
+C'est **le vecteur central de D2**. Le tester dans les deux sens sur le même compte : le délégué
+doit ouvrir la fiche **et** se voir refuser la validation.
+
+## D2.6 La décision se sait dans toute la famille
+
+Valider un ajout en tant que propriétaire, puis regarder les notifications de chacun :
+
+✅ **Attendu** — l'**auteur**, le **second responsable** et les **délégués en lecture** reçoivent
+« … a validé l'ajout au carnet de … ». Le **décideur ne reçoit rien** : on ne s'annonce pas sa
+propre décision.
+
+❗ **Vérifier** : le corps **ne contient aucune donnée clinique**. Élargir l'audience élargit la
+surface de fuite — la règle de D1 s'applique sans exception.
+
+## D2.7 Un carnet partagé n'offre plus de boutons interdits
+
+Ouvrir un **carnet partagé** (section « Carnets partagés avec moi ») :
+
+✅ **Attendu** — le bloc **« Fiche de parcours » est présent**, mais **« Partage sécurisé »**
+(QR, journal d'accès, délégués, référent) et les actions **Modifier / Supprimer** ont **disparu**,
+remplacées par une phrase expliquant que la modification appartient au propriétaire.
+
+Sur **votre propre** carnet, tout est là, inchangé.
+
+## D2.8 Qualité (G3)
+
+✅ Référence du 2026-08-12 : **417 tests / 14 435 assertions** (400 → 417), dont **17 dédiés**
+(`FicheParcoursTest`), écrits dans les deux sens. Typecheck ×3.
+
+---
+
+## D2.9 Checklist de clôture
+
+**Assembler**
+- [ ] D2.1 « Voir la fiche de parcours » présent dans la file « Ajouts à valider »
+- [ ] D2.2 Une consultation = **une** carte, avec agent, établissement, durée, sections
+- [ ] D2.2 Bloc « Écrit pendant cette consultation », **sans nom de médicament**
+- [ ] D2.3 Bris de glace → « Accès d'urgence vitale », en rouge, motif affiché
+
+**Ne pas dire ce qu'on ne sait pas**
+- [ ] D2.2 Session non clôturée → « Consultation non clôturée », aucune durée inventée
+- [ ] Ligne ancienne → « Établissement non enregistré »
+- [ ] Entrée médicale sans lien → bloc **séparé**, avec son avertissement
+
+**Cloisonner**
+- [ ] D2.4 Aucune lecture familiale parmi les passages
+- [ ] D2.4 Aucune adresse IP dans la fiche
+- [ ] D2.5 Délégué : fiche ✅ / validation ❌ — sur le **même** compte
+- [ ] D2.5 Second responsable non délégué : fiche ✅
+- [ ] D2.7 Carnet partagé → plus de boutons de gouvernance
+
+**Prévenir**
+- [ ] D2.6 Auteur + responsables + délégués notifiés, décideur non notifié
+- [ ] D2.6 Aucune donnée clinique dans la notification
+- [ ] D2.8 Suite complète + typecheck verts
+
+> ✅ **Coché sans écart le 2026-08-12 — incrément D2 validé (G5).**
+> **P7 Carnet familial partagé est complet** (A → D2) : ce guide devient la procédure de
+> non-régression du module entier.
+
+---
+
+## D2.10 Pièges
+
+| Piège | Symptôme | Parade |
+|-------|----------|--------|
+| Routes typées Expo | `TS2820` sur `/(app)/membres/parcours/[id]` | Lancer `npx expo start` une fois : les types sont **générés** |
+| Deux lignes par consultation | On croit à un doublon dans la fiche | Normal en base (journal immuable) ; la fiche les réunit par `acces_ouverture_id` |
+| Accès référent/urgence **antérieurs** à D2 | Peuvent apparaître en deux entrées | Rien ne les reliait avant cette migration ; les rapprocher par l'heure serait une devinette |
+| Refus de validation en **409** | On attend un 403 | Choix de l'incrément C : tout refus de décision est « décision impossible » |
+| Fiche vide | « Le module ne marche pas » | L'hôpital n'a pas scanné le QR — c'est le sens même de la limite affichée |
+

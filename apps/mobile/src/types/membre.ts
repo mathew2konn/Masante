@@ -34,6 +34,15 @@ export type Membre = {
   pays_code: string | null;
   /** Dossier de santé du titulaire du compte (un seul par compte, hors quota). */
   est_titulaire: boolean;
+  /**
+   * D2 — ce carnet m'appartient-il, ou m'est-il seulement partagé ?
+   *
+   * Le serveur cache `user_id` : sans cette réponse, l'application ne pouvait pas distinguer les
+   * deux, et proposait à un délégué des actions de gouvernance (journal d'accès brut, gestion des
+   * délégués) qui lui renvoyaient un 403. Optionnel : une entrée mise en cache avant D2 ne le
+   * porte pas, et l'application se comporte alors comme avant.
+   */
+  est_proprietaire?: boolean;
   created_at?: string;
   updated_at?: string;
 };

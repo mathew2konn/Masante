@@ -4,6 +4,7 @@ namespace App\Policies;
 
 use App\Models\Delegation;
 use App\Models\MembreFamille;
+use App\Models\ResponsableFamille;
 use App\Models\User;
 
 /**
@@ -15,9 +16,12 @@ use App\Models\User;
  *  - `generateQr` : tout délégué actif (voie 3, Note_Continuite chap. 4) ;
  *  - `view` : délégué actif portant `lecture` ou `lecture_ecriture` (carnet familial partagé).
  *
- * L'ÉCRITURE (`update`, `delete`) et l'HISTORIQUE D'ACCÈS (`viewAcces`) restent strictement
- * réservés au propriétaire. Un délégué peut voir le dossier, jamais le modifier ni savoir qui
- * d'autre l'a consulté.
+ * L'ÉCRITURE (`update`, `delete`) et l'HISTORIQUE D'ACCÈS BRUT (`viewAcces`) restent strictement
+ * réservés au propriétaire.
+ *
+ * `viewParcours` (D2) est la seule capacité intermédiaire : la FICHE DE PARCOURS est ouverte à
+ * toute la famille, alors que le journal brut reste personnel. La distinction est expliquée sur
+ * la méthode elle-même.
  */
 class MembreFamillePolicy
 {
@@ -64,5 +68,31 @@ class MembreFamillePolicy
     public function viewAcces(User $user, MembreFamille $membre): bool
     {
         return $membre->user_id === $user->id;
+    }
+
+    /**
+     * Consulter la FICHE DE PARCOURS d'un carnet (incrément D2).
+     *
+     * DÉCISION DU PROPRIÉTAIRE (2026-08-12) : « tous les membres peuvent la voir, mais la
+     * validation finale revient au responsable principal et au second responsable ». Cette méthode
+     * ne porte donc que le VOIR. Le DÉCIDER reste où il est depuis l'incrément C, dans
+     * `ContributionCarnetService` — et c'est ce qui rend la séparation vraie plutôt que déclarée.
+     *
+     * Deux branches, et les deux sont nécessaires :
+     *  1. `view` — le propriétaire et les délégués en lecture. Un proche qui lit déjà le carnet
+     *     entier apprend ici OÙ et PAR QUI une ordonnance a été écrite : c'est le contexte de ce
+     *     qu'il peut déjà lire, pas une donnée d'une nouvelle nature.
+     *  2. `decideursPour` — un second responsable désigné n'est PAS forcément délégué sur ce membre
+     *     précis. Sans cette branche, on lui demanderait de valider une contribution sans lui
+     *     laisser vérifier le passage à l'hôpital qui la motive.
+     *
+     * CE QUI N'EST TOUJOURS PAS OUVERT : `viewAcces`, le journal brut. Il porte l'adresse IP et
+     * la totalité des lectures familiales — c'est le droit d'accès PERSONNEL du propriétaire
+     * (§10.3 Sécurité, loi 2013-450), pas une information de famille.
+     */
+    public function viewParcours(User $user, MembreFamille $membre): bool
+    {
+        return $this->view($user, $membre)
+            || in_array($user->id, ResponsableFamille::decideursPour($membre->user_id), true);
     }
 }

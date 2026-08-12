@@ -177,6 +177,14 @@ class SessionDossierService
             // La justification du bris de glace est reportée sur la ligne de clôture : les deux
             // lignes d'un même accès portent ainsi le même motif.
             'motif_urgence'       => $ouverture->motif_urgence,
+            // D2 — l'établissement est repris de l'ouverture, jamais relu depuis le compte de
+            // l'agent : les deux lignes d'un même accès doivent dire le même hôpital, même si
+            // l'agent est muté entre-temps.
+            'etablissement'       => $ouverture->etablissement,
+            // D2 — le lien qui manquait. `token_qr_id` ne relie les deux lignes que sur la voie du
+            // scan ; en accès référent ou d'urgence vitale il est NULL, et la fiche de parcours
+            // aurait dû rapprocher les lignes par proximité horaire — c'est-à-dire deviner.
+            'acces_ouverture_id'  => $ouverture->id,
             'sections_consultees' => $etat['sections'],
             // D0 — `null` plutôt qu'un tableau vide : une session sans écriture n'a rien ajouté,
             // et le journal doit le dire sans ambiguïté.

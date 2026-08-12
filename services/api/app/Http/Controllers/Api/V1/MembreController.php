@@ -46,12 +46,26 @@ class MembreController extends Controller
         return response()->json(['membre' => $membre], 201);
     }
 
-    /** Détail d'un membre (réservé au propriétaire). */
+    /**
+     * Détail d'un membre — propriétaire, ou délégué en lecture depuis l'incrément A.
+     *
+     * `est_proprietaire` (D2) : le modèle CACHE `user_id` (anti-fuite), si bien que le client ne
+     * peut pas savoir s'il regarde son carnet ou celui d'un proche. Il affichait donc à tout le
+     * monde les actions de gouvernance — journal d'accès brut, gestion des délégués — qui
+     * renvoient un 403 à un délégué. Le serveur répond désormais à la question au lieu de laisser
+     * le client la deviner.
+     *
+     * AJOUT PUREMENT ADDITIF au contrat du Module 2 : rien n'est retiré ni renommé, le cache
+     * hors-ligne (P2) continue de lire les mêmes champs.
+     */
     public function show(Request $request, MembreFamille $membre): JsonResponse
     {
         $this->authorize('view', $membre);
 
-        return response()->json(['membre' => $membre]);
+        return response()->json([
+            'membre'           => $membre,
+            'est_proprietaire' => $membre->user_id === $request->user()->id,
+        ]);
     }
 
     /** Mise à jour d'un membre (réservé au propriétaire). */

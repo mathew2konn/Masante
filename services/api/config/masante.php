@@ -142,6 +142,20 @@ return [
         ],
     ],
 
+    /*
+     * D2 — Fiche de parcours (carnet familial partagé).
+     *
+     * La profondeur d'historique est une DONNÉE, pas une constante enfouie dans une requête : ce
+     * qu'un parent veut revoir après le passage aux urgences n'est pas ce qu'un pays voudra
+     * conserver, et la valeur doit pouvoir bouger sans toucher au code (frontière CDC_01 §0.1).
+     *
+     * 90 jours par défaut : assez pour couvrir un épisode de soin et sa contribution en attente,
+     * assez court pour qu'une fiche reste lisible sur un téléphone.
+     */
+    'parcours' => [
+        'fenetre_jours' => (int) env('MASANTE_PARCOURS_JOURS', 90),
+    ],
+
     'ocr' => [
         'binaire'   => env('MASANTE_TESSERACT_BIN', 'C:\\Program Files\\Tesseract-OCR\\tesseract.exe'),
         'tessdata'  => env('MASANTE_TESSDATA_DIR', storage_path('app/tessdata')),

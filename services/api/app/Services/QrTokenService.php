@@ -100,6 +100,10 @@ class QrTokenService
                 'agent_id'            => $contexte['agent_id'] ?? null,
                 'token_qr_id'         => $token->id,
                 'type_acces'          => 'qr_scan',
+                // D2 — le nom de l'établissement était déjà capté sur le token depuis le Module 2,
+                // et n'avait jamais été lu nulle part. Il est désormais copié dans le journal,
+                // qui est la source de la fiche de parcours.
+                'etablissement'       => $contexte['etablissement'] ?? null,
                 'sections_consultees' => $contexte['sections'] ?? null,
                 'ip_address'          => $contexte['ip'] ?? null,
             ]);

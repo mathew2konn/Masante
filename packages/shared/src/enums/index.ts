@@ -130,3 +130,54 @@ export const TypeNotification = {
   CARNET_ENRICHI: 'CARNET_ENRICHI',
 } as const;
 export type TypeNotification = (typeof TypeNotification)[keyof typeof TypeNotification];
+
+/**
+ * Voies d'accès à un dossier (`acces_dossier.type_acces`) — incrément D2.
+ *
+ * POURQUOI CET ENUM ARRIVE ICI ET MAINTENANT. Les libellés vivaient en dur dans l'application
+ * mobile depuis le Module 2 et avaient divergé de la base : trois des cinq voies n'y figuraient
+ * pas, et un parent lisait littéralement « bris_de_glace » à l'écran de son journal d'accès. La
+ * source unique n'est pas une élégance ici — c'est ce qui empêche la divergence de se reformer.
+ *
+ * Miroir PHP : `App\Support\TypeAccesDossier`.
+ */
+export const TypeAccesDossier = {
+  /** Un agent a scanné le QR présenté par le patient (voie consentie, 30 min). */
+  QR_SCAN: 'qr_scan',
+  /** Le médecin désigné référent du membre a ouvert le dossier. */
+  REFERENT: 'referent',
+  /** Un proche à qui le carnet est partagé l'a consulté depuis son application (incrément A). */
+  DELEGATION: 'delegation',
+  /** Urgence vitale : ouverture SANS consentement, périmètre vital, 15 min, motif obligatoire. */
+  BRIS_DE_GLACE: 'bris_de_glace',
+  /** Accès exceptionnel d'un administrateur de la plateforme. */
+  ADMIN: 'admin',
+} as const;
+export type TypeAccesDossier = (typeof TypeAccesDossier)[keyof typeof TypeAccesDossier];
+
+/**
+ * Libellés destinés au CITOYEN (décision propriétaire, 2026-08-12).
+ *
+ * « Bris de glace » est un terme métier (*break the glass*) : clair entre professionnels, opaque
+ * pour une famille. « Accès d'urgence vitale » porte à lui seul la justification de l'absence de
+ * consentement — c'est ce que le lecteur doit comprendre en une ligne, sans connaître le
+ * mécanisme. Les valeurs techniques, elles, ne changent nulle part : elles sont dans l'ENUM de la
+ * base, dans la permission `urgence.bris_de_glace` et dans des modules validés.
+ */
+export const LIBELLE_TYPE_ACCES: Record<TypeAccesDossier, string> = {
+  [TypeAccesDossier.QR_SCAN]: 'Consultation après scan de votre QR',
+  [TypeAccesDossier.REFERENT]: 'Consultation par votre médecin référent',
+  [TypeAccesDossier.DELEGATION]: 'Consultation par un proche',
+  [TypeAccesDossier.BRIS_DE_GLACE]: "Accès d'urgence vitale",
+  [TypeAccesDossier.ADMIN]: 'Accès administrateur MaSanté',
+};
+
+/**
+ * Rend lisible une voie d'accès. Le repli sur la valeur brute est CONSERVÉ à dessein : si la base
+ * gagnait une sixième voie sans que cette table suive, mieux vaut afficher un mot inconnu que
+ * masquer un accès au dossier. Mais le repli ne doit plus jamais être le comportement normal —
+ * c'était le défaut trouvé au G0 de D2.
+ */
+export function libelleTypeAcces(type: string): string {
+  return LIBELLE_TYPE_ACCES[type as TypeAccesDossier] ?? type;
+}

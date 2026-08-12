@@ -133,6 +133,28 @@ export default function ContributionsScreen() {
                   ))}
               </View>
 
+              {/* D2 — le geste que la file appelait depuis l'incrément C : avant de valider, on
+                  va voir ce qui s'est passé. La fiche dit qui a ouvert le dossier, dans quel
+                  établissement et ce qui y a été inscrit — de quoi appeler l'auteur en sachant. */}
+              {c.membre ? (
+                <>
+                  <SecondaryButton
+                    label="Voir la fiche de parcours"
+                    onPress={() =>
+                      router.push({
+                        pathname: '/(app)/membres/parcours/[id]',
+                        params: {
+                          id: c.membre!.id,
+                          prenom: c.membre!.prenom ?? '',
+                          nom: c.membre!.nom,
+                        },
+                      })
+                    }
+                  />
+                  <View style={styles.sep} />
+                </>
+              ) : null}
+
               <PrimaryButton
                 label="Valider"
                 onPress={() => confirmerValidation(c)}

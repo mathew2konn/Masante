@@ -126,7 +126,10 @@ class ReferentService
             'membre_id'  => $membre->id,
             'agent_id'   => $medecinUser->id,
             'type_acces' => 'referent',
-            'ip_address' => $ip,
+            // D2 — établissement du médecin AU MOMENT de l'accès. Copié, jamais déduit plus tard :
+            // s'il change de structure, cette consultation doit rester à l'hôpital où elle a eu lieu.
+            'etablissement' => $medecinUser->structure?->nom,
+            'ip_address'    => $ip,
         ]);
 
         $this->notifierTitulaire($membre, $medecinUser);
