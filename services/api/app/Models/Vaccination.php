@@ -19,6 +19,12 @@ class Vaccination extends Model
         'centre_vaccination',
         'numero_lot',
         'medecin_nom',
+        // D0 — provenance. Jusqu'ici absentes de cette table : l'incrément C les forçait en vain,
+        // Eloquent les écartait sans bruit. `source` et `added_by` sont TOUJOURS réécrits par le
+        // serveur (contribution → `patient`, écriture soignant → `medecin`) : les rendre
+        // assignables ici n'ouvre donc rien au client.
+        'added_by',
+        'source',
     ];
 
     protected function casts(): array

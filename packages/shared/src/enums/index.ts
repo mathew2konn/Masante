@@ -126,5 +126,7 @@ export const TypeNotification = {
   DELEGATION_RECUE: 'DELEGATION_RECUE',
   RESPONSABLE_DESIGNE: 'RESPONSABLE_DESIGNE',
   DOSSIER_CONSULTE: 'DOSSIER_CONSULTE',
+  /** Un soignant a consigné un acte dans le carnet, pendant une session ouverte (D0). */
+  CARNET_ENRICHI: 'CARNET_ENRICHI',
 } as const;
 export type TypeNotification = (typeof TypeNotification)[keyof typeof TypeNotification];

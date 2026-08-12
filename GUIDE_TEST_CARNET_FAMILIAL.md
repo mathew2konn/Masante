@@ -11,7 +11,13 @@ Ce guide grandit d'une partie par sous-incrément :
 | **B** | Revendication du carnet | ✅ **VALIDÉ G5 le 2026-08-11** — procédure de non-régression |
 | **C** | Contributions au brouillon + responsables | ✅ **VALIDÉ G5 le 2026-08-11** — procédure de non-régression |
 | **D1** | Notifications en application | ✅ **VALIDÉ G5 le 2026-08-12** — procédure de non-régression |
+| **D0** | Écriture du soignant au carnet | ✅ **VALIDÉ G5 le 2026-08-12** — procédure de non-régression |
 | D2 | Fiche de parcours | à venir |
+
+> **Pourquoi D0 arrive après D1.** Le G0 de D2 a découvert qu'**aucun soignant ne pouvait écrire
+> dans le carnet** : la fiche de parcours aurait affiché une section « ordonnance » vide, par
+> construction. Le propriétaire a tranché — on ouvre l'écriture d'abord. D0 s'intercale donc avant
+> D2, sans en prendre le numéro.
 
 ---
 
@@ -1027,3 +1033,207 @@ l'écriture d'un dossier médical.
 | `notifications/non-lues` capté | 404 sur le compteur | Routes statiques déclarées **avant** `{notification}` |
 | Push appelé dans la transaction | Un `exp.host` lent bloquerait l'écriture du dossier | `DB::afterCommit()` dans `CanalPushExpo` |
 | Contenu médical concaténé | Un diagnostic sur un écran verrouillé | Le test dédié casse le build |
+
+---
+---
+
+# Partie D0 — Écriture du soignant au carnet
+
+> ✅ **VALIDÉ G5 le 2026-08-12** — conservé comme **procédure de non-régression**.
+
+## Ce que D0 débloque
+
+Jusqu'ici, un soignant qui ouvrait un dossier après un scan QR ne pouvait que **lire**. Le chemin
+d'écriture médecin était annoncé « futur » dans les tests depuis le Module 2. D0 l'ouvre — et c'est
+lui qui rendra la fiche de parcours (D2) réellement utile : sans écriture soignant, la section
+« l'ordonnance rédigée par le médecin » serait vide par construction.
+
+## La règle structurante
+
+**Aucun identifiant de membre n'est accepté**, ni dans l'URL ni dans le formulaire. On écrit dans
+le dossier que porte la **session**, jamais dans un dossier qu'on aurait nommé. C'est la même règle
+que la lecture depuis le Module 4 : l'anti-IDOR est **par construction**, pas par contrôle.
+
+## Les trois gardes, et pourquoi aucune ne suffit
+
+| Garde | Répond à | Où elle vit |
+|---|---|---|
+| Permission `dossier.ecrire` | **qui** a le droit d'écrire | middleware de route |
+| Voie d'accès consentie | par quel **consentement** le dossier est ouvert | `EcritureSoignantService` |
+| Liste blanche des sections | **quoi** | `RegistreSectionsCarnet::SECTIONS_SOIGNANT` |
+
+**La permission n'est attribuée à aucun rôle par défaut** — même précédent que
+`urgence.bris_de_glace`. `agent_garde` porte `qr.scan` et sert l'accueil : un agent d'accueil ne
+rédige pas une ordonnance. C'est le gestionnaire qui l'accorde individuellement.
+
+**Écriture interdite en bris de glace.** Cette voie ouvre le vital minimal, 15 minutes, **sans le
+consentement du patient**. Y autoriser l'écriture ferait d'un accès d'exception non consenti un
+droit de modifier le dossier. Voies autorisées : `qr_scan` (le patient a présenté son QR) et
+`referent` (il a désigné ce médecin).
+
+## Ce que D0 ne fait pas
+
+- Pas de **modification** ni de **suppression** par le soignant — uniquement l'ajout.
+- Pas de signature électronique, pas de contre-signature. Ce n'est pas le DMEN complet.
+- Sections ouvertes : **antécédents, vaccinations, ordonnances, résultats d'analyses**. Documents,
+  mesures, grossesse, notes et contacts d'urgence gardent leur logique propre.
+- Le soignant n'écrit que **pendant sa fenêtre** ; rien de différé.
+
+---
+
+## D0.0 Prérequis
+
+```powershell
+cd c:\wamp64\www\IVOIRESANTE\services\api
+$env:XDEBUG_MODE='off'
+$PHP='C:\wamp64\bin\php\php8.3.28\php.exe'
+& $PHP artisan migrate                                  # provenance sur `vaccinations`
+& $PHP artisan db:seed --class=PortailRolesSeeder       # cree `dossier.ecrire` (idempotent)
+& $PHP artisan serve --host=0.0.0.0 --port=8000
+```
+
+Contrôle du schéma :
+
+```sql
+SHOW COLUMNS FROM vaccinations LIKE 'source';    -- enum('patient','medecin','structure'), defaut patient
+SHOW COLUMNS FROM vaccinations LIKE 'added_by';  -- enum('patient','medecin'), defaut patient
+SELECT name FROM permissions WHERE name = 'dossier.ecrire';
+```
+
+> ⚠️ **Les deux colonnes ont un défaut `patient`** : aucune ligne existante ne change de sens. Ce
+> qui était auto-déclaré le reste.
+
+**Habiliter un agent** (aucun rôle ne porte la permission) :
+
+```powershell
+& $PHP artisan tinker --execute="App\Models\User::find(4)->givePermissionTo('dossier.ecrire');"
+```
+
+---
+
+## D0.1 Le formulaire n'apparaît que si tout est réuni
+
+1. Se connecter au portail avec un **agent NON habilité**, scanner un QR patient.
+
+✅ **Attendu** — le bandeau du dossier dit « **lecture seule** », et **aucun formulaire** n'apparaît
+sous les sections.
+
+2. Habiliter cet agent (commande ci-dessus), se reconnecter, rescanner.
+
+✅ **Attendu** — le bandeau dit « **vous pouvez consigner un acte** », et un bloc
+« **Consigner dans le carnet** » apparaît sous **Antécédents**, **Vaccinations**, **Ordonnances** et
+**Résultats d'analyses** — et **nulle part ailleurs** (ni Fiche vitale, ni Mesures, ni Notes, ni
+Contacts, ni Documents, ni Triage).
+
+## D0.2 Consigner une ordonnance
+
+1. Section **Ordonnances** → le formulaire est **pré-rempli** avec votre nom, votre établissement
+   et la date du jour.
+2. Saisir au moins un médicament → **« Ajouter au carnet »**.
+
+✅ **Attendu** — message vert « **Ajouté au carnet. Le patient et sa famille en sont informés.** »,
+et l'ordonnance apparaît immédiatement dans la liste de la section.
+
+3. Laisser le champ « Médicaments » vide et renvoyer.
+
+✅ **Attendu** — le formulaire revient avec l'erreur, **la saisie est conservée**, rien n'est écrit.
+
+## D0.3 La provenance est décidée par le serveur
+
+C'est **le vecteur qui donne sa valeur à la fiche de parcours**. En base, après l'ajout :
+
+```sql
+SELECT id, source, added_by FROM ordonnances ORDER BY id DESC LIMIT 1;
+-- attendu : source = 'medecin', added_by = 'medecin'
+```
+
+> `added_by` est un **ENUM('patient','medecin')** : il dit une **catégorie**, pas une identité.
+> L'identité du soignant, son établissement et l'heure sont dans `acces_dossier` — journal
+> **immuable**. Les dupliquer dans une table modifiable créerait deux vérités.
+
+## D0.4 Le bris de glace reste en lecture seule
+
+1. Ouvrir un dossier par **bris de glace** (portail → Urgence), avec un agent qui possède **aussi**
+   `dossier.ecrire`.
+
+✅ **Attendu** — l'écran de bris de glace affiche le vital minimal et **ne propose aucun
+formulaire**. Un POST forcé sur `portail/dossier/{section}` est refusé avec
+« *Cet accès est en lecture seule : le patient n'a pas consenti à une écriture.* »
+
+C'est le vecteur le plus important du lot : un accès non consenti ne doit jamais devenir un droit
+d'écriture.
+
+## D0.5 La famille est prévenue
+
+Après l'ajout de D0.2, sur le **mobile** du propriétaire du carnet **et** sur celui d'un proche à
+qui le carnet est partagé en lecture :
+
+✅ **Attendu** — notification « **Nouvel élément au carnet** » : « *Dr … a ajouté une ordonnance au
+carnet de … à [établissement].* »
+
+❗ **Vérifier** : le corps **ne nomme aucun médicament**. On dit la section, jamais son contenu —
+la règle de D1 s'applique sans changement.
+
+Le soignant, lui, **ne reçoit rien** : on ne s'annonce pas son propre acte.
+
+## D0.6 Le journal enregistre ce qui a été écrit
+
+Fermer le dossier (**« Fermer le dossier »**), puis :
+
+```sql
+SELECT id, type_acces, sections_consultees, donnees_ajoutees, duree_minutes
+  FROM acces_dossier ORDER BY id DESC LIMIT 2;
+```
+
+✅ **Attendu** — la ligne de **clôture** porte `donnees_ajoutees` sous la forme
+`[{"section":"ordonnances","id":42,"a":"…"}]`.
+
+❗ **Vérifier** : **aucun contenu clinique** dans cette colonne — ni médicament, ni description.
+Minimisation (loi 2013-450) : le journal dit *quoi* a été ajouté, D2 relira l'entrée réelle par son
+identifiant.
+
+Une session **sans** écriture doit laisser `donnees_ajoutees` à **NULL**, pas à `[]`.
+
+## D0.7 Qualité (G3)
+
+✅ Référence du 2026-08-12 : **13 tests dédiés** (`EcritureSoignantTest`), écrits dans les deux
+sens — une garde, un vecteur. Suite complète + typecheck ×3.
+
+---
+
+## D0.8 Checklist de clôture
+
+**Habilitation**
+- [ ] D0.1 Agent non habilité → « lecture seule », aucun formulaire
+- [ ] D0.1 Agent habilité → formulaire sur les 4 sections ouvertes, et nulle part ailleurs
+
+**Écrire**
+- [ ] D0.2 Ordonnance ajoutée, message de confirmation, apparition immédiate
+- [ ] D0.2 Saisie invalide → erreur, saisie conservée, rien d'écrit
+- [ ] D0.3 `source = medecin` et `added_by = medecin` en base
+- [ ] D0.3 Un client qui envoie `source=patient` obtient quand même `medecin`
+
+**Refuser**
+- [ ] D0.4 Bris de glace → aucun formulaire, POST forcé refusé
+- [ ] D0.4 Aucun chemin ne permet de viser un autre membre
+
+**Tracer et prévenir**
+- [ ] D0.5 Propriétaire ET délégué en lecture notifiés, sans nom de médicament
+- [ ] D0.5 Le soignant n'est pas notifié
+- [ ] D0.6 `donnees_ajoutees` renseignée à la clôture, sans contenu clinique
+- [ ] D0.6 Session sans écriture → `donnees_ajoutees` NULL
+- [ ] D0.7 Suite complète + typecheck verts
+
+> ✅ **Coché sans écart le 2026-08-12 — incrément D0 validé (G5).** D2 (fiche de parcours) est
+> ouvert, et pourra enfin montrer un acte médical réel.
+
+---
+
+## D0.9 Pièges
+
+| Piège | Symptôme | Parade |
+|-------|----------|--------|
+| `added_by` pris pour une chaîne | Insertion rejetée, ou valeur vidée en base | C'est un **ENUM('patient','medecin')** : une catégorie, pas une identité |
+| Vocabulaires divergents | `analyses` (portail) ≠ `resultats-analyses` (registre) | Table de correspondance dans `DossierController`, à l'unique frontière |
+| Route `POST dossier/{section}` captée | 404 ou mauvaise action | Déclarée **avant** `GET dossier/{section}` |
+| Permission attendue sur un rôle | « Je suis agent de garde et je ne peux pas écrire » | Normal : `dossier.ecrire` s'accorde **individuellement** |

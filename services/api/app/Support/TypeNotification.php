@@ -21,6 +21,7 @@ enum TypeNotification: string
     case DELEGATION_RECUE     = 'DELEGATION_RECUE';
     case RESPONSABLE_DESIGNE  = 'RESPONSABLE_DESIGNE';
     case DOSSIER_CONSULTE     = 'DOSSIER_CONSULTE';
+    case CARNET_ENRICHI       = 'CARNET_ENRICHI';
 
     /**
      * Le titre court affiché en tête de la notification (et sur la bannière push).
@@ -34,6 +35,7 @@ enum TypeNotification: string
             self::DELEGATION_RECUE     => 'Un carnet vous a été partagé',
             self::RESPONSABLE_DESIGNE  => 'Vous êtes responsable de famille',
             self::DOSSIER_CONSULTE     => 'Dossier consulté',
+            self::CARNET_ENRICHI       => 'Nouvel élément au carnet',
         };
     }
 

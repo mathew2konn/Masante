@@ -249,6 +249,50 @@ class ServiceNotification
     }
 
     /**
+     * Un soignant vient de consigner un acte dans le carnet (incrément D0).
+     *
+     * Mêmes destinataires que {@see dossierConsulte} — le propriétaire et les délégués en lecture.
+     * Un parent en voyage doit apprendre qu'une ordonnance a été ajoutée au carnet de son enfant
+     * sans avoir à ouvrir l'application par hasard.
+     *
+     * On nomme la SECTION, jamais son contenu : « une ordonnance », pas le médicament prescrit.
+     * La règle inviolable de D1 s'applique ici sans changement.
+     */
+    public function carnetEnrichi(MembreFamille $membre, User $soignant, string $section): void
+    {
+        $lieu = $soignant->structure?->nom;
+
+        $corps = sprintf(
+            '%s a ajouté %s au carnet de %s%s.',
+            $this->nomDe($soignant),
+            $this->libelleSection($section),
+            $this->nomDuMembre($membre),
+            $lieu !== null ? ' à '.$lieu : '',
+        );
+
+        $destinataires = array_merge([$membre->user_id], Delegation::lecteursDe($membre->id));
+
+        $this->envoyer(
+            $this->sauf($destinataires, [$soignant->id]),
+            TypeNotification::CARNET_ENRICHI,
+            $corps,
+            ['membre_id' => $membre->id, 'section' => $section],
+        );
+    }
+
+    /** Libellé lisible d'une section — présentation, aucune règle. */
+    private function libelleSection(string $section): string
+    {
+        return match ($section) {
+            'antecedents'        => 'un antécédent',
+            'vaccinations'       => 'une vaccination',
+            'ordonnances'        => 'une ordonnance',
+            'resultats-analyses' => 'un résultat d\'analyse',
+            default              => 'un élément',
+        };
+    }
+
+    /**
      * Envoi effectif — dédoublonné, débarrassé des identifiants nuls.
      *
      * @param  array<int, int|null>   $userIds

@@ -15,7 +15,12 @@
         <i class="bi bi-folder2-open"></i> {{ $membre->prenom }} {{ $membre->nom }}
       </h1>
       <p class="text-muted small mb-0">
-        Dossier ouvert par scan QR · lecture seule · accès journalisé
+        Dossier ouvert · accès journalisé ·
+        @if ($peutEcrire)
+          <span class="text-success fw-semibold">vous pouvez consigner un acte</span>
+        @else
+          lecture seule
+        @endif
       </p>
     </div>
     <div class="d-flex align-items-center gap-3">
@@ -197,6 +202,13 @@
               <div class="small text-muted">{{ $t->recommandation_texte }}</div>
             </div>
           @endforeach
+        @endif
+
+        {{-- D0 — écriture du soignant. Proposée seulement si les trois conditions sont réunies :
+             section ouverte, compte habilité (`dossier.ecrire`), voie consentie (jamais le bris de
+             glace). Le serveur revérifie tout : ceci n'évite qu'un formulaire voué au refus. --}}
+        @if ($peutEcrire)
+          @include('portail.dossier.formulaire', ['section' => $section])
         @endif
       </div>
     </div>

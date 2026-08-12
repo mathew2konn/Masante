@@ -42,6 +42,10 @@ class PortailRolesSeeder extends Seeder
         // Urgences — VOLONTAIREMENT ATTRIBUÉE À AUCUN RÔLE (Note_Continuite §5.3) : le gestionnaire
         // l'accorde individuellement, et seulement aux agents d'un service d'urgences.
         'urgence.bris_de_glace',  // ouvrir le vital minimal d'un patient hors d'état de consentir
+        // Écriture au carnet (D0) — VOLONTAIREMENT ATTRIBUÉE À AUCUN RÔLE, même précédent :
+        // `agent_garde` porte `qr.scan` et sert l'accueil ; un agent d'accueil ne rédige pas une
+        // ordonnance. Le gestionnaire l'accorde individuellement aux soignants habilités.
+        'dossier.ecrire',         // consigner un acte dans le carnet, pendant une session ouverte
     ];
 
     /** Permissions par rôle (moindre privilège). L'admin reçoit tout. */

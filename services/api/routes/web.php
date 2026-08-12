@@ -198,6 +198,21 @@ Route::prefix('portail')->name('portail.')->group(function () {
         Route::middleware('dossier.actif')->group(function () {
             Route::get('dossier', [DossierController::class, 'show'])->name('dossier.show');
             Route::post('dossier/fermer', [DossierController::class, 'fermer'])->name('dossier.fermer');
+
+            // D0 — écriture du soignant. MÊME RÈGLE QUE LA LECTURE : aucun identifiant de membre
+            // dans l'URL. On écrit dans le dossier que porte la session, jamais dans un dossier
+            // qu'on aurait nommé. L'anti-IDOR reste par CONSTRUCTION.
+            //
+            // Trois gardes cumulatives, dont deux ici : `dossier.actif` (une fenêtre est ouverte)
+            // et `permission:dossier.ecrire` (ce compte est habilité). La troisième — la VOIE
+            // d'accès, qui refuse le bris de glace — est dans le service, parce qu'elle relève du
+            // consentement du patient, pas du rôle de l'agent.
+            //
+            // Déclarée AVANT `dossier/{section}` : sans cela, `enregistrer` serait capté.
+            Route::post('dossier/{section}', [DossierController::class, 'enregistrer'])
+                ->middleware('permission:dossier.ecrire')
+                ->name('dossier.enregistrer');
+
             Route::get('dossier/{section}', [DossierController::class, 'section'])->name('dossier.section');
         });
     });

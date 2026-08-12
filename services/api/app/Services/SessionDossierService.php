@@ -52,6 +52,8 @@ class SessionDossierService
             'duree'     => $dureeMinutes,
             'ouvert_a'  => now()->toIso8601String(),
             'sections'  => [],
+            // D0 — ce que le soignant écrit pendant la fenêtre, inscrit au journal à la clôture.
+            'ecritures' => [],
         ]);
     }
 
@@ -116,6 +118,33 @@ class SessionDossierService
     }
 
     /**
+     * Note qu'un élément vient d'être ÉCRIT au dossier (incrément D0).
+     *
+     * Alimente `acces_dossier.donnees_ajoutees` — colonne déclarée au Module 2 et restée vide
+     * jusqu'ici, faute de chemin d'écriture soignant.
+     *
+     * ON N'Y MET AUCUN CONTENU CLINIQUE : section, identifiant, horodatage. Minimisation (loi
+     * 2013-450) — dupliquer une ordonnance dans le journal d'audit la ferait exister deux fois, et
+     * le journal est immuable. La fiche de parcours (D2) relira l'entrée réelle par son identifiant.
+     */
+    public function noterEcriture(string $section, int|string $entreeId): void
+    {
+        if (! $this->estActive()) {
+            return;
+        }
+
+        $etat = Session::get(self::CLE);
+
+        $etat['ecritures'][] = [
+            'section' => $section,
+            'id'      => $entreeId,
+            'a'       => now()->toIso8601String(),
+        ];
+
+        Session::put(self::CLE, $etat);
+    }
+
+    /**
      * Ferme la session et écrit la ligne d'audit de CLÔTURE. Idempotent : sans session ouverte,
      * ne fait rien. `$motif` n'est pas journalisé en base (le schéma d'audit est figé) mais tracé
      * dans les logs applicatifs, utile au diagnostic.
@@ -149,6 +178,9 @@ class SessionDossierService
             // lignes d'un même accès portent ainsi le même motif.
             'motif_urgence'       => $ouverture->motif_urgence,
             'sections_consultees' => $etat['sections'],
+            // D0 — `null` plutôt qu'un tableau vide : une session sans écriture n'a rien ajouté,
+            // et le journal doit le dire sans ambiguïté.
+            'donnees_ajoutees'    => ($etat['ecritures'] ?? []) !== [] ? $etat['ecritures'] : null,
             'ip_address'          => $ouverture->ip_address,
             // Bornée à la durée ACCORDÉE pour cette voie : une session expirée n'a pas duré plus.
             'duree_minutes'       => min($duree, $etat['duree'] ?? self::DUREE_MINUTES),

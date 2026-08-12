@@ -5,8 +5,11 @@ namespace App\Http\Controllers\Portail;
 use App\Http\Controllers\Controller;
 use App\Models\MembreFamille;
 use App\Models\Triage;
+use App\Services\EcritureSoignantService;
 use App\Services\SessionDossierService;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
+use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 use Symfony\Component\HttpFoundation\Response;
 
@@ -42,6 +45,24 @@ class DossierController extends Controller
         'triage'       => 'Fiche de triage',
     ];
 
+    /**
+     * Sections ouvertes à l'ÉCRITURE du soignant (D0), et leur clé dans
+     * {@see \App\Support\RegistreSectionsCarnet}.
+     *
+     * La table de correspondance existe parce que les deux vocabulaires divergent depuis le Module
+     * 2 : le portail dit `analyses`, le registre dit `resultats-analyses`. Renommer l'un des deux
+     * toucherait des écrans validés G5 — on traduit ici, à l'unique frontière où les deux se
+     * rencontrent, plutôt que de propager le doublon.
+     *
+     * @var array<string, string>
+     */
+    private const SECTIONS_ECRITURE = [
+        'antecedents'  => 'antecedents',
+        'vaccinations' => 'vaccinations',
+        'ordonnances'  => 'ordonnances',
+        'analyses'     => 'resultats-analyses',
+    ];
+
     public function __construct(private readonly SessionDossierService $session)
     {
     }
@@ -68,7 +89,70 @@ class DossierController extends Controller
             'sections' => self::SECTIONS,
             'donnees'  => $this->donneesDe($membre, $section),
             'restant'  => $this->session->secondesRestantes(),
+            // D0 — le formulaire n'est proposé que si les TROIS conditions sont réunies : section
+            // ouverte à l'écriture, compte habilité, voie consentie. Le serveur revérifie tout ;
+            // ceci n'évite qu'un formulaire qui serait de toute façon refusé.
+            'peutEcrire' => $this->peutEcrire($section),
         ]);
+    }
+
+    /**
+     * D0 — consigne un acte dans le carnet du membre porté par la SESSION.
+     *
+     * Aucun identifiant de membre n'est accepté : le dossier écrit est celui de la fenêtre
+     * ouverte. Un agent ne peut donc pas écrire dans un autre dossier en changeant l'adresse,
+     * exactement comme il ne peut pas en lire un autre (anti-IDOR par construction).
+     */
+    public function enregistrer(
+        Request $request,
+        string $section,
+        EcritureSoignantService $ecriture,
+    ): RedirectResponse {
+        $cle = self::SECTIONS_ECRITURE[$section] ?? null;
+        abort_if($cle === null, Response::HTTP_NOT_FOUND);
+
+        $membre = $this->session->membre();
+        abort_if($membre === null, Response::HTTP_FORBIDDEN);
+
+        $soignant = auth()->user();
+
+        try {
+            $entree = $ecriture->ecrire(
+                $soignant,
+                $membre,
+                (string) $this->session->typeAcces(),
+                $cle,
+                $request->except(['_token']),
+            );
+        } catch (ValidationException $e) {
+            return back()->withErrors($e->errors())->withInput();
+        } catch (\RuntimeException $e) {
+            // Refus métier (habilitation, voie non consentie, section fermée) : un message, pas une
+            // page d'exception — à l'accueil comme au chevet, c'est une situation, pas un bug.
+            return back()->withErrors(['ecriture' => $e->getMessage()])->withInput();
+        }
+
+        // Journal AVANT la notification : prévenir la famille d'un ajout dont on n'aurait pas gardé
+        // la trace le rendrait invérifiable — c'est précisément ce que la fiche de parcours doit
+        // pouvoir montrer.
+        $this->session->noterEcriture($cle, $entree->getKey());
+        $ecriture->notifier($membre, $soignant, $cle);
+
+        return redirect()
+            ->route('portail.dossier.section', $section)
+            ->with('statut', 'Ajouté au carnet. Le patient et sa famille en sont informés.');
+    }
+
+    /** Le formulaire d'écriture doit-il être proposé pour cette section ? */
+    private function peutEcrire(string $section): bool
+    {
+        return isset(self::SECTIONS_ECRITURE[$section])
+            && auth()->user()?->can('dossier.ecrire')
+            && in_array(
+                $this->session->typeAcces(),
+                EcritureSoignantService::VOIES_ECRITURE,
+                true,
+            );
     }
 
     /**

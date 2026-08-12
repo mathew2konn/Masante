@@ -42,10 +42,33 @@ final class RegistreSectionsCarnet
         'rappels'            => RappelController::class,
     ];
 
+    /**
+     * Sections qu'un SOIGNANT peut remplir depuis le portail (incrément D0).
+     *
+     * Sous-ensemble strict, et la différence est intentionnelle : `rappels` en est exclu — un
+     * rappel est un outil d'organisation du patient, pas un acte médical. Les quatre autres
+     * portent toutes `source`/`added_by`, condition sans laquelle la fiche de parcours (D2) ne
+     * pourrait pas dire d'où vient la ligne.
+     *
+     * @var array<int, string>
+     */
+    public const SECTIONS_SOIGNANT = [
+        'antecedents',
+        'vaccinations',
+        'ordonnances',
+        'resultats-analyses',
+    ];
+
     /** Les sections ouvertes aux contributions d'un délégué. */
     public static function ouvertesAuxContributions(): array
     {
         return array_keys(self::SECTIONS);
+    }
+
+    /** Un soignant peut-il écrire dans cette section ? */
+    public static function ouverteAuSoignant(string $section): bool
+    {
+        return in_array($section, self::SECTIONS_SOIGNANT, true);
     }
 
     public static function existe(string $section): bool
