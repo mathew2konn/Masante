@@ -28,8 +28,10 @@ use Illuminate\Support\Facades\Log;
  */
 class BrisDeGlaceService
 {
-    public function __construct(private readonly FicheVitaleService $fiches)
-    {
+    public function __construct(
+        private readonly FicheVitaleService $fiches,
+        private readonly ServiceNotification $notifications,
+    ) {
     }
 
     /**
@@ -76,29 +78,37 @@ class BrisDeGlaceService
     }
 
     /**
-     * Notification IMMÉDIATE au titulaire et aux contacts d'urgence du membre (§5.3) :
+     * Notification IMMÉDIATE au titulaire et à la famille (§5.3) :
      * « Accès d'urgence au dossier de [membre] par [établissement] à [heure] ».
      *
-     * Le projet n'a ni Firebase (push) ni passerelle SMS : la notification est une trace applicative
-     * de niveau `warning`, à brancher au module Notifications. Elle est journalisée avec les
-     * destinataires réels, pour qu'on puisse vérifier, en soutenance, qui aurait été prévenu.
+     * Stub levé par l'incrément D1 : la notification part réellement, en application, vers le
+     * propriétaire du carnet ET tous les délégués en lecture — c'est le cœur du scénario que le
+     * propriétaire décrivait au G1 du carnet familial partagé.
+     *
+     * CE QUI RESTE UNE DETTE, ET QU'IL FAUT DIRE : les CONTACTS D'URGENCE ne sont pas notifiés.
+     * Ce sont des numéros de téléphone, pas des comptes MaSanté — les joindre suppose une
+     * passerelle SMS, qui n'existe pas dans le projet. Le journal `warning` est donc conservé, avec
+     * les numéros réels, pour qu'on puisse toujours vérifier qui AURAIT dû être joint.
      */
     private function notifier(MembreFamille $membre, User $agent, AccesDossier $acces): void
     {
-        $destinataires = $membre->contactsUrgence()
+        $this->notifications->dossierConsulte($membre, $agent, 'bris_de_glace', $acces->motif_urgence);
+
+        $horsApplication = $membre->contactsUrgence()
             ->pluck('telephone')
-            ->push($membre->user?->telephone)
             ->filter()
             ->values()
             ->all();
 
         Log::warning('Bris de glace — accès d\'urgence au dossier', [
-            'acces_id'      => $acces->id,
-            'membre_id'     => $membre->id,
-            'agent_id'      => $agent->id,
-            'etablissement' => $agent->structure?->nom,
-            'motif'         => $acces->motif_urgence,
-            'notifies'      => $destinataires,   // titulaire + contacts d'urgence (stub)
+            'acces_id'              => $acces->id,
+            'membre_id'             => $membre->id,
+            'agent_id'              => $agent->id,
+            'etablissement'         => $agent->structure?->nom,
+            'motif'                 => $acces->motif_urgence,
+            // Notifiés en application par ServiceNotification ; ceux-ci restent injoignables
+            // faute de passerelle SMS (dette D1).
+            'contacts_non_joignables' => $horsApplication,
         ]);
     }
 

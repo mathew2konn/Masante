@@ -121,4 +121,24 @@ class Delegation extends Model
             ->active()
             ->exists();
     }
+
+    /**
+     * Tous les comptes qui LISENT ce carnet aujourd'hui (incrément D1).
+     *
+     * Réciproque de {@see lecturePour} : celle-ci répond « untel peut-il lire ? », celle-là « qui
+     * peut lire ? ». C'est ce qui permet de prévenir toute la famille quand un hôpital ouvre le
+     * dossier — le scénario de l'accident. Le propriétaire n'y figure PAS : il n'a pas de ligne de
+     * délégation, l'appelant l'ajoute.
+     *
+     * @return array<int, int>
+     */
+    public static function lecteursDe(int $membreId): array
+    {
+        return static::query()
+            ->where('membre_id', $membreId)
+            ->whereIn('droits', self::DROITS_LECTURE)
+            ->active()
+            ->pluck('delegue_user_id')
+            ->all();
+    }
 }

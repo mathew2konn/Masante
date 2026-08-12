@@ -108,3 +108,23 @@ export const StatutAlerteFraudeIa = {
   REVUE: 'REVUE',
 } as const;
 export type StatutAlerteFraudeIa = (typeof StatutAlerteFraudeIa)[keyof typeof StatutAlerteFraudeIa];
+
+/**
+ * Types de notification en application (carnet familial partagé, incrément D1).
+ *
+ * Le TYPE est décidé par le backend et voyage tel quel jusqu'au mobile, qui s'en sert uniquement
+ * pour choisir l'icône et l'écran de destination. Il ne le recalcule ni ne l'interprète : c'est
+ * l'énumération miroir de `App\Support\TypeNotification` côté Laravel.
+ *
+ * `DOSSIER_CONSULTE` couvre les trois voies d'accès d'un soignant (scan QR à l'accueil, médecin
+ * référent, bris de glace) — le niveau d'urgence est porté par la charge utile, pas par le type.
+ */
+export const TypeNotification = {
+  CONTRIBUTION_DEPOSEE: 'CONTRIBUTION_DEPOSEE',
+  CONTRIBUTION_VALIDEE: 'CONTRIBUTION_VALIDEE',
+  CONTRIBUTION_REJETEE: 'CONTRIBUTION_REJETEE',
+  DELEGATION_RECUE: 'DELEGATION_RECUE',
+  RESPONSABLE_DESIGNE: 'RESPONSABLE_DESIGNE',
+  DOSSIER_CONSULTE: 'DOSSIER_CONSULTE',
+} as const;
+export type TypeNotification = (typeof TypeNotification)[keyof typeof TypeNotification];

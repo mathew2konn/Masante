@@ -14,6 +14,7 @@ use App\Http\Controllers\Api\V1\Carnet\OrdonnanceController;
 use App\Http\Controllers\Api\V1\Carnet\RappelController;
 use App\Http\Controllers\Api\V1\Carnet\ResultatAnalyseController;
 use App\Http\Controllers\Api\V1\Carnet\VaccinationController;
+use App\Http\Controllers\Api\V1\AppareilPushController;
 use App\Http\Controllers\Api\V1\CarnetsPartagesController;
 use App\Http\Controllers\Api\V1\CarteCmuController;
 use App\Http\Controllers\Api\V1\ContributionCarnetController;
@@ -26,6 +27,7 @@ use App\Http\Controllers\Api\V1\MedicamentController;
 use App\Http\Controllers\Api\V1\MembreController;
 use App\Http\Controllers\Api\V1\MfaController;
 use App\Http\Controllers\Api\V1\NisController;
+use App\Http\Controllers\Api\V1\NotificationController;
 use App\Http\Controllers\Api\V1\PasswordController;
 use App\Http\Controllers\Api\V1\ResponsableFamilleController;
 use App\Http\Controllers\Api\V1\RevendicationCarnetController;
@@ -193,6 +195,28 @@ Route::middleware('throttle:api')->group(function () {
             Route::get('responsables', [ResponsableFamilleController::class, 'index']);
             Route::post('responsables', [ResponsableFamilleController::class, 'store']);
             Route::delete('responsables/{responsable}', [ResponsableFamilleController::class, 'destroy']);
+
+            /*
+            |--------------------------------------------------------------
+            | Carnet familial partagé (D1) — notifications en application.
+            |--------------------------------------------------------------
+            | Sans elles, l'incrément C ne sert à rien : le responsable
+            | devrait deviner qu'un ajout l'attend. Toutes les routes sont
+            | scopées au compte connecté — il n'existe aucun chemin
+            | permettant de désigner un autre destinataire.
+            |
+            | `non-lues` et `tout-lu` sont DÉCLARÉES AVANT `{notification}`,
+            | sinon elles seraient captées comme des identifiants.
+            */
+            Route::get('notifications', [NotificationController::class, 'index']);
+            Route::get('notifications/non-lues', [NotificationController::class, 'nonLues']);
+            Route::post('notifications/tout-lu', [NotificationController::class, 'toutMarquerLu']);
+            Route::post('notifications/{notification}/lu', [NotificationController::class, 'marquerLu']);
+
+            // Jeton de push du téléphone. Le canal est gaté OFF (`masante.notifications.push`) :
+            // l'enregistrement fonctionne, l'envoi attend un development build (dette D1).
+            Route::post('appareils-push', [AppareilPushController::class, 'store']);
+            Route::delete('appareils-push', [AppareilPushController::class, 'destroy']);
 
             /*
             |--------------------------------------------------------------

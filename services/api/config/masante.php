@@ -120,6 +120,28 @@ return [
      * Les fichiers de langue vivent DANS le projet (`storage/app/tessdata`) : le serveur de prod
      * n'a pas à dépendre d'un dossier système.
      */
+    /*
+     * D1 — Notifications (carnet familial partagé).
+     *
+     * `push.enabled` est FAUX par défaut, et ce n'est pas de la prudence de façade : le push distant
+     * est indisponible dans Expo Go sur Android depuis le SDK 53 (doc Expo v54), et le G4 de ce
+     * projet se tient sur Expo Go. Tant qu'aucun *development build* n'existe, activer le canal
+     * n'enverrait rien d'utile. Le relais est écrit et prouvé côté serveur ; il est « prêt à
+     * activer », au même titre que MFA, Keycloak et PostgreSQL ailleurs dans le projet.
+     *
+     * `url` est paramétrable pour que le G2 puisse pointer un serveur local et prouver l'appel sans
+     * dépendre d'Internet ni polluer le service d'Expo.
+     */
+    'notifications' => [
+        'push' => [
+            'enabled'   => env('MASANTE_PUSH_ENABLED', false),
+            'url'       => env('MASANTE_PUSH_URL', 'https://exp.host/--/api/v2/push/send'),
+            'timeout_s' => (float) env('MASANTE_PUSH_TIMEOUT', 5),
+            // Expo refuse au-delà de 100 messages par requête (PUSH_TOO_MANY_NOTIFICATIONS).
+            'lot_max'   => 100,
+        ],
+    ],
+
     'ocr' => [
         'binaire'   => env('MASANTE_TESSERACT_BIN', 'C:\\Program Files\\Tesseract-OCR\\tesseract.exe'),
         'tessdata'  => env('MASANTE_TESSDATA_DIR', storage_path('app/tessdata')),

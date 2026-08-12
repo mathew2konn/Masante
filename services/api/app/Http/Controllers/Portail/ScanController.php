@@ -3,13 +3,14 @@
 namespace App\Http\Controllers\Portail;
 
 use App\Http\Controllers\Controller;
+use App\Models\MembreFamille;
 use App\Models\StructureSanitaire;
 use App\Services\QrTokenService;
 use App\Services\RecuRdvService;
+use App\Services\ServiceNotification;
 use App\Services\SessionDossierService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Log;
 use Illuminate\View\View;
 use Symfony\Component\HttpFoundation\Response;
 
@@ -34,6 +35,7 @@ class ScanController extends Controller
         private readonly QrTokenService $qr,
         private readonly RecuRdvService $recus,
         private readonly SessionDossierService $session,
+        private readonly ServiceNotification $notifications,
     ) {
     }
 
@@ -83,13 +85,15 @@ class ScanController extends Controller
 
         $this->session->ouvrir($ouverture);
 
-        // CdC §4.3 étape 6 : notification push au patient (« qui a scanné, quand, quel hôpital »).
-        // Firebase n'est pas intégré au projet → trace applicative, à brancher au module Notifications.
-        Log::info('Dossier consulté après scan QR', [
-            'membre_id'     => $ouverture->membre_id,
-            'agent_id'      => auth()->id(),
-            'etablissement' => $structure->nom,
-        ]);
+        // CdC §4.3 étape 6 : « notification au patient — qui a scanné, quand, quel hôpital ».
+        // Stub levé par l'incrément D1. Le carnet familial partagé élargit le destinataire : ce ne
+        // sont plus seulement le titulaire mais TOUS les délégués en lecture qui sont prévenus —
+        // « si un membre fait un accident, tous les autres le sauront sans même qu'on les appelle ».
+        $membre = MembreFamille::find($ouverture->membre_id);
+
+        if ($membre !== null) {
+            $this->notifications->dossierConsulte($membre, auth()->user(), 'qr_scan');
+        }
 
         return redirect()->route('portail.dossier.show');
     }

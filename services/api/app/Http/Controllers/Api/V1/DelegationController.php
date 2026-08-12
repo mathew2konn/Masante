@@ -7,9 +7,9 @@ use App\Http\Requests\StoreDelegationRequest;
 use App\Models\Delegation;
 use App\Models\MembreFamille;
 use App\Models\User;
+use App\Services\ServiceNotification;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Log;
 
 /**
  * Phase B / B3 — Délégation d'accès (voie 3, Note_Continuite chap. 4), élargie par le carnet
@@ -25,6 +25,10 @@ use Illuminate\Support\Facades\Log;
  */
 class DelegationController extends Controller
 {
+    public function __construct(private readonly ServiceNotification $notifications)
+    {
+    }
+
     /** Liste des délégations accordées (comme titulaire) et reçues (comme délégué), actives/en attente. */
     public function index(Request $request): JsonResponse
     {
@@ -70,6 +74,10 @@ class DelegationController extends Controller
 
         $delegation = $this->inviter($titulaire, $delegue, $membre, $estSonDossier);
 
+        // Incrément D1 — le délégué est prévenu qu'on l'attend. Sans cela, l'invitation reste
+        // invisible jusqu'à ce qu'il pense à ouvrir « Partages reçus ».
+        $this->notifications->delegationRecue($delegation);
+
         return response()->json([
             'delegation' => $delegation->load(['membre:id,prenom,nom', 'delegue:id,prenom,nom,telephone']),
         ], 201);
@@ -111,8 +119,9 @@ class DelegationController extends Controller
             )
             ->get();
 
-        $creees  = [];
-        $ignores = [];
+        $creees        = [];
+        $ignores       = [];
+        $sienPartage   = false;
 
         foreach ($membres as $membre) {
             $existante = Delegation::where('delegue_user_id', $delegue->id)
@@ -125,13 +134,20 @@ class DelegationController extends Controller
                 continue;
             }
 
-            $creees[] = $this->inviter(
-                $titulaire,
-                $delegue,
-                $membre,
-                isset($valide['membre_id_du_delegue']) && (int) $valide['membre_id_du_delegue'] === $membre->id,
-            )->id;
+            $estLeSien = isset($valide['membre_id_du_delegue'])
+                && (int) $valide['membre_id_du_delegue'] === $membre->id;
+
+            $creees[]    = $this->inviter($titulaire, $delegue, $membre, $estLeSien)->id;
+            $sienPartage = $sienPartage || $estLeSien;
         }
+
+        // Incrément D1 — UNE notification pour tout le lot. Quinze lignes identiques dans la liste
+        // du délégué ne l'informeraient pas mieux : elles le décourageraient de la lire.
+        //
+        // `$sienPartage` ne vaut vrai que si le carnet revendicable est parmi ceux RÉELLEMENT
+        // créés : sur un rejeu, où tout est déjà partagé, on ne réannonce pas « l'un d'eux serait
+        // le vôtre » alors qu'aucune invitation nouvelle n'a été émise.
+        $this->notifications->partageEnMasseRecu($titulaire, $delegue, count($creees), $sienPartage);
 
         return response()->json([
             'invitations_creees' => count($creees),
@@ -224,14 +240,9 @@ class DelegationController extends Controller
             ],
         );
 
-        Log::info('Invitation de délégation envoyée', [
-            'titulaire_id'              => $titulaire->id,
-            'delegue_id'                => $delegue->id,
-            'membre_id'                 => $membre->id,
-            'droits'                    => Delegation::DROIT_LECTURE_ECRITURE,
-            'est_le_dossier_du_delegue' => $assertion,
-        ]); // notification en application : incrément D.
-
+        // La notification est émise par l'APPELANT, pas ici : `store` en envoie une par carnet,
+        // `storeEnMasse` une seule pour tout le lot. Le stub `Log::info` qui attendait depuis le
+        // chap. 4.2 est levé.
         return $delegation;
     }
 }

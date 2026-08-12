@@ -1,4 +1,4 @@
-﻿# Guide de test — Carnet familial partagé
+# Guide de test — Carnet familial partagé
 
 > Module issu du plan G1 du 2026-08-11 ([docs/PLAN_G1_Carnet_Familial_Partage.md](docs/PLAN_G1_Carnet_Familial_Partage.md)).
 > Remplace la fusion de dossiers du MPI : au lieu de réparer un doublon, on l'empêche de naître.
@@ -10,7 +10,8 @@ Ce guide grandit d'une partie par sous-incrément :
 | **A** | Partage du carnet en lecture | ✅ **VALIDÉ G5 le 2026-08-11** — procédure de non-régression |
 | **B** | Revendication du carnet | ✅ **VALIDÉ G5 le 2026-08-11** — procédure de non-régression |
 | **C** | Contributions au brouillon + responsables | ✅ **VALIDÉ G5 le 2026-08-11** — procédure de non-régression |
-| D | Notifications + fiche de parcours | à venir |
+| **D1** | Notifications en application | ✅ **VALIDÉ G5 le 2026-08-12** — procédure de non-régression |
+| D2 | Fiche de parcours | à venir |
 
 ---
 
@@ -753,3 +754,276 @@ vers la ligne réellement créée) ; une `REJETEE` porte son motif et **aucun** 
 | Délégation d'avant C | Le délégué ne peut pas proposer (droit `lecture`) | Renvoyer une invitation : elle portera `lecture_ecriture` |
 
 ---
+---
+
+# Partie D1 — Notifications en application
+
+> ✅ **VALIDÉ G5 le 2026-08-12** — conservé comme **procédure de non-régression**.
+
+## Ce que D1 répare
+
+L'incrément C fonctionnait, mais **personne n'était prévenu** : un responsable devait penser à
+ouvrir « Ajouts à valider » pour découvrir qu'un proche avait emmené un enfant à l'hôpital. D1
+branche les notifications — et lève au passage **quatre stubs** `Log::info` qui attendaient depuis
+les modules 2 à 5, dont celui du **scan QR à l'accueil d'un hôpital** (CDC §4.3 étape 6) et celui du
+**bris de glace** (§5.3, notification décrite comme « IMMÉDIATE »).
+
+## Les six événements
+
+| Événement | Qui est prévenu | Qui ne l'est PAS |
+|---|---|---|
+| `CONTRIBUTION_DEPOSEE` | le propriétaire + ses responsables désignés | **l'auteur** (il sait ce qu'il vient de faire) |
+| `CONTRIBUTION_VALIDEE` | l'auteur + les autres responsables | **celui qui vient de décider** |
+| `CONTRIBUTION_REJETEE` | l'auteur (avec le motif) + les autres responsables | idem |
+| `DELEGATION_RECUE` | le délégué invité | — |
+| `RESPONSABLE_DESIGNE` | le désigné | — |
+| `DOSSIER_CONSULTE` | le propriétaire **et tous les délégués en lecture** | **le soignant qui consulte**, et les délégations `qr_generation` |
+
+## La règle inviolable de cet incrément
+
+**Une notification ne porte AUCUN contenu médical.**
+
+> ✅ « Aya Kouassi a proposé un ajout au carnet de Koffi Eli. »
+> ❌ « Aya Kouassi a ajouté : fièvre 39, vue aux urgences. »
+
+Un push s'affiche sur un **écran verrouillé**, visible de n'importe qui dans la pièce, et son corps
+transite par les serveurs d'Expo. Le fait médical reste dans le dossier, derrière
+l'authentification. Un test automatisé (`test_une_notification_ne_contient_aucun_contenu_medical`)
+cherche la donnée clinique dans toute la charge utile et casse le build si elle s'y trouve.
+
+**Ce que la notification révèle quand même, et qui est assumé** : elle nomme un proche et dit que
+son dossier a été consulté. Sur un téléphone posé sur une table, c'est une divulgation. Elle est le
+service demandé — « tous les autres le sauront sans même qu'on les appelle » — mais elle doit être
+dite, pas découverte.
+
+## Ce que D1 ne fait pas
+
+- **Pas de push réel.** Le relais est écrit et prouvé côté serveur, mais **gaté OFF**
+  (`masante.notifications.push.enabled = false`). Le push distant est **indisponible dans Expo Go
+  sur Android depuis le SDK 53** ; l'activer exigerait un *development build* EAS. Voir D1.7.
+- **Donc pas d'alerte téléphone en poche, application fermée.** La liste se met à jour à
+  l'ouverture de l'écran.
+- **Pas de fiche de parcours** — c'est **D2**.
+- **Les contacts d'urgence d'un bris de glace ne sont pas joints** : ce sont des numéros de
+  téléphone, pas des comptes MaSanté, et le projet n'a pas de passerelle SMS. Le journal `warning`
+  les conserve pour qu'on puisse vérifier qui aurait dû être prévenu.
+- Pas de préférences par type (tout ou rien), pas de purge, pas de pagination au-delà de 50.
+
+---
+
+## D1.0 Prérequis
+
+Les mêmes qu'en C (deux comptes réels, un carnet partagé en `lecture_ecriture`), plus un **compte
+tiers** qui ne doit jamais rien recevoir.
+
+```powershell
+cd c:\wamp64\www\IVOIRESANTE\services\api
+$env:XDEBUG_MODE='off'
+$PHP='C:\wamp64\bin\php\php8.3.28\php.exe'
+& $PHP artisan migrate        # 2 migrations : notifications, appareils_push + notification_envois
+```
+
+---
+
+## D1.1 La pastille (compte A, propriétaire)
+
+1. Compte **B** propose un ajout sur un carnet partagé (procédure **C.1**).
+2. Compte **A** : ouvrir l'**Accueil**.
+
+**Attendu** — en haut à droite, à côté de « Bonjour … 👋 », une **cloche** portant une **pastille
+rouge** avec le nombre de non-lues.
+
+> La pastille se rafraîchit **au retour sur l'Accueil**, pas en temps réel : sans push, c'est la
+> seule chose possible. Si elle n'apparaît pas, quitter l'onglet et y revenir.
+
+3. Appuyer sur la cloche.
+
+**Attendu** — écran **« Notifications »**, sous-titre « **1 non lue** », une carte à **liseré bleu**
+portant un **point bleu**, titre « **Un ajout attend votre validation** », corps « *B a proposé un
+ajout au carnet de …* », et une date relative (« À l'instant »).
+
+**À vérifier immédiatement** : le corps **ne contient ni le type d'antécédent, ni sa description**.
+
+4. Appuyer sur la carte → l'écran **« Ajouts à valider »** s'ouvre.
+5. Revenir : la carte a perdu son liseré et son point ; la pastille de l'Accueil a disparu.
+
+## D1.2 L'auteur n'est pas notifié de son propre dépôt
+
+Sur le compte **B**, juste après avoir proposé : Accueil → **aucune pastille**.
+
+C'est délibéré. Notifier quelqu'un de ce qu'il vient de faire est du bruit, et il ne peut de toute
+façon pas valider sa propre contribution.
+
+## D1.3 La décision, dans les deux sens
+
+1. Compte **A** valide l'ajout.
+2. Compte **B** : Accueil → pastille → « **Ajout validé** », corps « *A a validé l'ajout au carnet
+   de … proposé par B* ».
+3. Compte **A** : **pas** de nouvelle notification pour sa propre décision.
+
+Puis le rejet :
+
+4. **B** propose un second ajout ; **A** le rejette avec le motif
+   `Vérification faite : pas de consultation ce jour`.
+5. **B** : « **Ajout refusé** » — et **le motif figure dans le corps**. C'est ce qui évite un
+   second appel téléphonique.
+
+## D1.4 Le second responsable
+
+Avec un troisième compte **C** désigné responsable par **A** (procédure C.4) :
+
+- À la désignation, **C** reçoit « **Vous êtes responsable de famille** ».
+- Quand **B** propose, **A** et **C** reçoivent tous les deux.
+- Quand **A** valide, **C** reçoit « **Ajout validé** » — c'est le « *Tel responsable a validé
+  l'ajout du carnet de X par Y* » demandé au G1.
+
+## D1.5 Le partage : une notification, pas quinze
+
+1. Compte **A** → Carnet → « Partager mes carnets » → tout partager avec **B**.
+2. Compte **B** : **une seule** notification « **Un carnet vous a été partagé** », mentionnant le
+   **nombre** de carnets.
+3. Si l'un des carnets a été désigné comme celui de **B**, la phrase ajoute « *L'un d'eux serait le
+   vôtre* » et l'appui ouvre **« Reconnaître mon carnet »** (incrément B) — pas « Partages reçus ».
+4. **Rejouer** le partage en masse : `invitations_creees: 0` → **aucune notification nouvelle**.
+
+## D1.6 Le scénario de l'accident (le plus important)
+
+Il se teste depuis le **portail web** (compte agent), pas depuis le mobile.
+
+1. Un membre de la famille a un carnet partagé en **lecture** avec **B**.
+2. Compte agent → portail → **bris de glace** sur ce membre, motif « Patient inconscient ».
+3. Compte **A** (propriétaire) **et** compte **B** (délégué en lecture) reçoivent :
+   « **Dossier consulté** » — « *Accès d'urgence au dossier de … à [établissement]. Motif déclaré :
+   Patient inconscient.* » L'icône est **rouge** (`urgent`).
+4. Refaire avec un **scan QR** : même type, corps « *Le dossier de … a été consulté à …* », icône
+   bleue.
+
+**Ce qui doit rester fermé** :
+
+- Une délégation `qr_generation` (d'avant l'incrément A) **ne reçoit rien** — elle ne lit pas le
+  dossier, l'informer divulguerait un passage à l'hôpital à quelqu'un sans accès.
+- Un soignant qui serait par ailleurs délégué du carnet **ne s'alerte pas lui-même**.
+
+## D1.7 Le push (ce qu'on peut prouver, et ce qu'on ne peut pas)
+
+**Sous Expo Go, le push ne peut pas être prouvé.** C'est une limite de l'outil, pas du code :
+
+| Situation | Aujourd'hui |
+|---|---|
+| Application ouverte | pastille à jour au changement d'écran |
+| Application rouverte | à jour immédiatement |
+| **Téléphone en poche, application fermée** | **rien** |
+
+À l'entrée de la zone authentifiée, l'application tente d'obtenir un jeton Expo. Sous Expo Go
+Android, **l'appel échoue silencieusement** — c'est le chemin nominal. **L'application ne doit ni
+planter, ni afficher d'erreur.** C'est le seul point à vérifier au G4 :
+
+- [ ] L'application démarre normalement après l'ajout d'`expo-notifications`
+- [ ] Aucune alerte d'erreur au premier écran
+- [ ] `npx expo-doctor` reste **18/18**
+
+Le relais lui-même est prouvé côté serveur (D1.8, vecteurs 22 à 25).
+
+Pour l'activer le jour venu : *development build* EAS + `projectId` dans `app.config.ts` +
+`MASANTE_PUSH_ENABLED=true`.
+
+## D1.8 Backend en direct (curl)
+
+```powershell
+# Jetons (guillemeter : un jeton Sanctum contient un « | »)
+$A = "…"; $B = "…"; $T = "…"   # A propriétaire, B délégué, T tiers
+
+# Liste et compteur
+curl.exe -s -H "Authorization: Bearer $A" http://127.0.0.1:8000/api/v1/notifications
+curl.exe -s -H "Authorization: Bearer $A" http://127.0.0.1:8000/api/v1/notifications/non-lues
+
+# Anti-IDOR : le tiers ne voit rien, et ne peut pas marquer celle d'autrui
+curl.exe -s -H "Authorization: Bearer $T" http://127.0.0.1:8000/api/v1/notifications
+curl.exe -s -o NUL -w "%{http_code}`n" -X POST -H "Authorization: Bearer $T" `
+  http://127.0.0.1:8000/api/v1/notifications/<uuid-de-A>/lu          # attendu : 404 (jamais 403)
+
+# Idempotence : marquer deux fois ne change pas la date de PREMIÈRE lecture
+curl.exe -s -X POST -H "Authorization: Bearer $A" http://127.0.0.1:8000/api/v1/notifications/<uuid>/lu
+
+# Jeton de push : forme vérifiée
+curl.exe -s -o NUL -w "%{http_code}`n" -X POST -H "Authorization: Bearer $A" `
+  -H "Content-Type: application/json" -d '{\"jeton\":\"pas-un-jeton\"}' `
+  http://127.0.0.1:8000/api/v1/appareils-push                        # attendu : 422
+```
+
+### Vérification en base
+
+```sql
+-- Aucun contenu médical dans les notifications (doit renvoyer 0 ligne)
+SELECT id, type FROM notifications
+ WHERE data LIKE '%maladie_chronique%' OR data LIKE '%Fièvre%';
+
+-- Un jeton, une ligne : jamais deux comptes sur le même téléphone
+SELECT jeton_expo, COUNT(*) FROM appareils_push GROUP BY jeton_expo HAVING COUNT(*) > 1;
+
+-- Trace des envois poussés (vide tant que le push est gaté OFF)
+SELECT statut, COUNT(*) FROM notification_envois GROUP BY statut;
+```
+
+## D1.9 Qualité (G3)
+
+✅ Référence du 2026-08-12 : **25 tests dédiés** (`NotificationCarnetTest`, 90 assertions), écrits
+dans les deux sens. Suite complète + typecheck sur les trois workspaces + `expo-doctor` 18/18.
+
+Les quatre vecteurs de canal méritent d'être cités, ils sont testés sans réseau (`Http::fake`) :
+
+| Vecteur | Attendu |
+|---|---|
+| Push gaté OFF | notification en application écrite, **aucun appel HTTP**, `notification_envois` vide |
+| Push ON, Expo répond `ok` | 1 appel, envoi `ENVOYEE`, `ticket_id` enregistré |
+| Push ON, `DeviceNotRegistered` | envoi `ECHOUEE` **et appareil révoqué** |
+| Push ON, **exp.host injoignable** | **la contribution est créée**, la notification est là, seul l'envoi est `ECHOUEE` |
+
+Le dernier est le plus important du lot : un service tiers n'a jamais le droit de mettre en péril
+l'écriture d'un dossier médical.
+
+---
+
+## D1.10 Checklist de clôture
+
+**Recevoir**
+- [ ] D1.1 Cloche + pastille sur l'Accueil, disparaissent après lecture
+- [ ] D1.1 Le corps ne contient **aucun** détail médical
+- [ ] D1.2 L'auteur n'est pas notifié de son propre dépôt
+
+**Décider**
+- [ ] D1.3 Validation → l'auteur est prévenu ; le décideur, non
+- [ ] D1.3 Rejet → le motif figure dans le corps
+- [ ] D1.4 Le second responsable reçoit dépôt et décision
+
+**Partager**
+- [ ] D1.5 Partage en masse → **une** notification mentionnant le nombre
+- [ ] D1.5 Carnet revendicable → ouvre « Reconnaître mon carnet »
+- [ ] D1.5 Rejeu → aucune notification nouvelle
+
+**Le scénario de l'accident**
+- [ ] D1.6 Bris de glace → propriétaire **et** délégués en lecture prévenus, icône rouge + motif
+- [ ] D1.6 Scan QR → prévenus aussi
+- [ ] D1.6 Délégation `qr_generation` → **rien**
+- [ ] D1.6 Le soignant ne s'alerte pas lui-même
+
+**Push et qualité**
+- [ ] D1.7 L'application démarre et ne plante pas sans jeton (cas nominal sous Expo Go)
+- [ ] D1.7 `expo-doctor` 18/18
+- [ ] D1.8 404 (jamais 403) sur la notification d'autrui ; 422 sur un jeton malformé
+- [ ] D1.8 Aucune ligne médicale en base
+- [ ] D1.9 Suite complète + typecheck verts
+
+> Tout coché sans écart → écrire **« Incrément D1 validé »** et ouvrir **D2 (fiche de parcours)**.
+
+---
+
+## D1.11 Pièges
+
+| Piège | Symptôme | Parade |
+|-------|----------|--------|
+| Push attendu sous Expo Go | « je ne reçois rien téléphone fermé » | Normal : indisponible sur Android depuis le SDK 53, il faut un development build |
+| Route non déclarée `href: null` | Un onglet parasite apparaît dans la barre du bas | Déclarer l'écran dans `app/(app)/_layout.tsx` |
+| `notifications/non-lues` capté | 404 sur le compteur | Routes statiques déclarées **avant** `{notification}` |
+| Push appelé dans la transaction | Un `exp.host` lent bloquerait l'écriture du dossier | `DB::afterCommit()` dans `CanalPushExpo` |
+| Contenu médical concaténé | Un diagnostic sur un écran verrouillé | Le test dédié casse le build |

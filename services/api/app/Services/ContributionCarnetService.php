@@ -34,6 +34,10 @@ use Illuminate\Validation\ValidationException;
  */
 class ContributionCarnetService
 {
+    public function __construct(private readonly ServiceNotification $notifications)
+    {
+    }
+
     /**
      * Dépose une contribution au brouillon.
      *
@@ -70,13 +74,19 @@ class ContributionCarnetService
         $valide['source']   = 'patient';
         $valide['added_by'] = 'patient';
 
-        return Contribution::create([
+        $contribution = Contribution::create([
             'membre_id'      => $membre->id,
             'auteur_user_id' => $auteur->id,
             'section'        => $section,
             'donnees'        => $valide,
             'statut'         => Contribution::BROUILLON,
         ]);
+
+        // Incrément D1 — sans cette ligne, C ne sert à rien : le responsable devrait deviner qu'un
+        // ajout l'attend. C'est le manque que D vient réparer.
+        $this->notifications->contributionDeposee($contribution);
+
+        return $contribution;
     }
 
     /**
@@ -104,6 +114,12 @@ class ContributionCarnetService
                 'entree_id'          => $entree->getKey(),
             ]);
 
+            // DANS la transaction, à dessein : si l'écriture au carnet est annulée (interblocage,
+            // et jusqu'à 3 tentatives ici), la notification l'est aussi. Personne ne doit être
+            // informé d'une validation qui n'a pas eu lieu. Le push, lui, part après le commit —
+            // c'est le rôle de CanalPushExpo.
+            $this->notifications->contributionDecidee($contribution->fresh(), $decideur);
+
             return $contribution->fresh();
         }, 3);
     }
@@ -125,6 +141,10 @@ class ContributionCarnetService
                 'decide_le'          => now(),
                 'motif_rejet'        => $motif,
             ]);
+
+            // Un rejet DOIT être notifié : sans retour, l'auteur croirait sa proposition perdue et
+            // la redéposerait. Le motif voyage avec — c'est ce qui évite un second appel.
+            $this->notifications->contributionDecidee($contribution->fresh(), $decideur);
 
             return $contribution->fresh();
         }, 3);

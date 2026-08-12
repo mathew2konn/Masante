@@ -28,6 +28,10 @@ use Illuminate\Support\Facades\Log;
  */
 class ReferentService
 {
+    public function __construct(private readonly ServiceNotification $notifications)
+    {
+    }
+
     /** Désignation active du membre, s'il en a une. */
     public function actif(MembreFamille $membre): ?Referent
     {
@@ -125,25 +129,21 @@ class ReferentService
             'ip_address' => $ip,
         ]);
 
-        $this->notifierTitulaire($membre, $medecinUser, $acces);
+        $this->notifierTitulaire($membre, $medecinUser);
 
         return $acces;
     }
 
     /**
      * Notification au titulaire du carnet (« votre médecin référent a consulté le dossier de X »).
-     * Ni Firebase ni passerelle SMS dans le projet : trace applicative, à brancher au module
-     * Notifications — même stub que le scan (4.5) et le bris de glace (5.3).
+     *
+     * Stub levé par l'incrément D1 : la notification part désormais réellement, et le carnet
+     * familial partagé en élargit le destinataire au-delà du seul titulaire — tous les délégués en
+     * lecture du membre sont prévenus.
      */
-    private function notifierTitulaire(MembreFamille $membre, User $medecinUser, AccesDossier $acces): void
+    private function notifierTitulaire(MembreFamille $membre, User $medecinUser): void
     {
-        Log::info('Dossier consulté par le médecin référent', [
-            'acces_id'      => $acces->id,
-            'membre_id'     => $membre->id,
-            'medecin_user'  => $medecinUser->id,
-            'etablissement' => $medecinUser->structure?->nom,
-            'notifie'       => $membre->user?->telephone,
-        ]);
+        $this->notifications->dossierConsulte($membre, $medecinUser, 'referent');
     }
 
     /** Révoque la désignation en cours du membre, s'il y en a une. */

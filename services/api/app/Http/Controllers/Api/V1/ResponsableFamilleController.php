@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Controllers\Controller;
 use App\Models\ResponsableFamille;
 use App\Models\User;
+use App\Services\ServiceNotification;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -19,6 +20,10 @@ use Illuminate\Http\Request;
  */
 class ResponsableFamilleController extends Controller
 {
+    public function __construct(private readonly ServiceNotification $notifications)
+    {
+    }
+
     /** GET /api/v1/responsables — qui décide avec moi, et pour qui je décide. */
     public function index(Request $request): JsonResponse
     {
@@ -57,6 +62,10 @@ class ResponsableFamilleController extends Controller
             ['titulaire_user_id' => $titulaire->id, 'responsable_user_id' => $responsable->id],
             ['designe_le' => now(), 'revoque_le' => null],
         );
+
+        // Incrément D1 — on ne reçoit pas un pouvoir de décision sans en être informé : le désigné
+        // doit savoir qu'une file d'ajouts à valider vient d'apparaître chez lui.
+        $this->notifications->responsableDesigne($ligne);
 
         return response()->json([
             'responsable' => $ligne->load('responsable:id,nom,prenom,telephone'),

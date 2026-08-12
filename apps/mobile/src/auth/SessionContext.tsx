@@ -3,6 +3,7 @@ import type { Role } from '@masante/shared';
 import { clearToken, getStoredToken, saveToken } from '../config/api';
 import * as authApi from '../api/auth';
 import { viderDossierCache } from '../services/dossierCache';
+import { retirerCetAppareil } from '../push/enregistrement';
 import type { Utilisateur } from '../types/auth';
 
 /**
@@ -70,6 +71,11 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const signOut = useCallback(async () => {
+    // Incrément D1 — AVANT la révocation du jeton d'auth : après, l'appel serait rejeté et ce
+    // téléphone continuerait de recevoir les notifications d'un compte déconnecté. Même exigence
+    // que la purge du cache chiffré ci-dessous.
+    await retirerCetAppareil();
+
     try {
       await authApi.logout(); // révocation serveur (best-effort)
     } catch {
