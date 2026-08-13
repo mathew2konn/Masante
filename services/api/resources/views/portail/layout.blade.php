@@ -4,8 +4,18 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>@yield('titre', 'Portail') · MaSanté</title>
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+  {{--
+    P6.4d — Bootstrap et ses icônes sont servis EN LOCAL (`public/assets/bootstrap/`).
+
+    Ils arrivaient d'un CDN. Sans internet, le portail ne s'affichait pas « moins bien » : il
+    s'affichait SANS AUCUN STYLE, donc inutilisable. Dans un hôpital à connectivité intermittente,
+    ce n'est pas un détail cosmétique. S'y ajoutait une dépendance externe hors lockfile (§2.6).
+
+    Les polices d'icônes sont dans `fonts/`, à côté du CSS : c'est le chemin relatif que
+    `bootstrap-icons.min.css` attend, aucun réécriture n'est nécessaire.
+  --}}
+  <link href="{{ asset('assets/bootstrap/bootstrap.min.css') }}" rel="stylesheet">
+  <link href="{{ asset('assets/bootstrap/bootstrap-icons.min.css') }}" rel="stylesheet">
   <style>
     :root { --ms-blue: #1E6BB8; --ms-blue-dark: #0C3463; }
     body { background: #F5F7FA; }
@@ -67,6 +77,6 @@
   @yield('content')
 </main>
 
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="{{ asset('assets/bootstrap/bootstrap.bundle.min.js') }}"></script>
 </body>
 </html>

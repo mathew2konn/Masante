@@ -84,6 +84,10 @@ final class SourceEtablissements implements SourceReferentiel
                 'nom_officiel'         => $e->nom_officiel ?? $e->nom,
                 'categorie'            => $e->type,
                 'statut_juridique'     => $e->statut_juridique,
+                // P6.4d — qui possède (`statut_juridique`) et sous quelle forme de droit
+                // (`forme_juridique`) sont deux axes distincts : une clinique privée peut être
+                // une SARL ou une SA. Les deux engagent une autorité, donc les deux sont ici.
+                'forme_juridique'      => $e->forme_juridique,
                 'niveau_soins'         => $e->niveau_soins,
                 'region_code'          => $e->region?->code,
                 'district_code'        => $e->district?->code,

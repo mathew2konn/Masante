@@ -38,7 +38,7 @@ incréments successifs, ajoutés en **parties** dans le même fichier plutôt qu
 | **P5** | Paiement (microservice Java) | [GUIDE_TEST_Paiement_G4_P5.md](GUIDE_TEST_Paiement_G4_P5.md) | voir table ci-dessous |
 | **CDC_05** | Fraude IA (microservice Python) | [GUIDE_TEST_Fraude_G4.md](GUIDE_TEST_Fraude_G4.md) | §0–6 socle · §7 extraction réelle (A) · §8 routage (B1) · §9 écran admin (B2) |
 | **P6.1** | Identifiant National de Santé | [GUIDE_TEST_NIS.md](GUIDE_TEST_NIS.md) | A mobile · B backend · C base · D qualité · E checklist · F pièges |
-| **P6.3 / P6.4** | Référentiels nationaux (CDC_09) | [GUIDE_TEST_REFERENTIELS.md](GUIDE_TEST_REFERENTIELS.md) | **Partie 1** socle (§1–8) · **Partie 2** établissements (§2.1–2.8) · **Partie 3** villes et géolocalisation (§3.1–3.8) · **Partie 4** images (§4.1–4.8) |
+| **P6.3 / P6.4** | Référentiels nationaux (CDC_09) | [GUIDE_TEST_REFERENTIELS.md](GUIDE_TEST_REFERENTIELS.md) | **Partie 1** socle (§1–8) · **Partie 2** établissements (§2.1–2.8) · **Partie 3** villes et géolocalisation (§3.1–3.8) · **Partie 4** images (§4.1–4.8) · **Partie 5** formulaires du portail (§5.1–5.8) |
 | **P7** | Carnet familial partagé | [GUIDE_TEST_CARNET_FAMILIAL.md](GUIDE_TEST_CARNET_FAMILIAL.md) | **A** partage en lecture · B revendication · C brouillon · D notifications |
 
 ### Détail du guide Paiement (13 parties)
@@ -83,7 +83,7 @@ consignée dans les fiches mémoire et les ADR, mais pas dans un guide cochable.
 
 | Module | Domaine | Guide prévu |
 |--------|---------|-------------|
-| **P6.4d** | Écrans du portail alignés sur le schéma enrichi (+ `ville`, `forme_juridique`, formulaire d'images) | **partie 5** de `GUIDE_TEST_REFERENTIELS.md` |
+| **Migration du portail Blade → Next** | Module identifié par ADR-029 : dix-sept zones, où le design moderne se fera **une fois** sur le design system partagé | guide propre |
 | **P6.5** | Référentiel des professionnels + PKI | **partie 6** de `GUIDE_TEST_REFERENTIELS.md` |
 | **P6.6** | Référentiel des médicaments | **partie 7** de `GUIDE_TEST_REFERENTIELS.md` |
 | **P6.7** | Laboratoires + catalogue des analyses | **partie 8** de `GUIDE_TEST_REFERENTIELS.md` |

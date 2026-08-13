@@ -72,7 +72,16 @@ class EtablissementPortailTest extends TestCase
 
         $structure = StructureSanitaire::where('nom', 'CHU de Cocody')->first();
         $this->assertNotNull($structure);
-        $this->assertEquals(['Cardiologie', 'ORL'], $structure->specialites_json);
+
+        // P6.4d (décision K2) — `specialites` a été RETIRÉ du formulaire, et ce test disait
+        // l'inverse : il vérifiait que « Cardiologie, ORL » atterrissait dans `specialites_json`.
+        //
+        // Cette colonne était écrite par le formulaire et lue par PERSONNE — ni la fiche mobile, ni
+        // la tuile, ni aucun filtre ; le `?specialite=` de l'annuaire passe par
+        // `services_etablissement.specialite`, une autre colonne. On cesse de faire saisir une
+        // donnée morte, et le test dit désormais la garantie neuve : un client qui envoie quand
+        // même le champ n'écrit rien.
+        $this->assertNull($structure->specialites_json, 'Le champ retiré ne doit plus être accepté.');
 
         $gestionnaire = User::where('email', 'awa.kone@chu-cocody.ci')->first();
         $this->assertNotNull($gestionnaire);

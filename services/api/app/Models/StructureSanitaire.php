@@ -40,6 +40,7 @@ class StructureSanitaire extends Model
         // un client de choisir son propre numéro national.
         'nom_officiel',
         'statut_juridique',
+        'forme_juridique',
         'niveau_soins',
         'region_id',
         'district_id',

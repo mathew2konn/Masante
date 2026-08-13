@@ -56,6 +56,12 @@ Route::prefix('portail')->name('portail.')->group(function () {
             Route::put('etablissements/{etablissement}', [EtablissementController::class, 'update'])->name('etablissements.update');
             Route::patch('etablissements/{etablissement}/actif', [EtablissementController::class, 'toggleActif'])->name('etablissements.toggle');
             Route::post('etablissements/{etablissement}/lien', [EtablissementController::class, 'regenererLien'])->name('etablissements.lien');
+
+            // P6.4d — Images de l'établissement (CDC_11 §3.1 « formulaire dédié »). Les gardes ne
+            // sont pas réécrites ici : elles vivent dans `ImagesEtablissement`, le service que
+            // l'API mobile utilise déjà (motif de P4, source unique Blade + API).
+            Route::post('etablissements/{etablissement}/images', [EtablissementController::class, 'ajouterImage'])->name('etablissements.images.store');
+            Route::delete('etablissements/{etablissement}/images/{image}', [EtablissementController::class, 'supprimerImage'])->name('etablissements.images.destroy');
         });
 
         // 5.3 — Bris de glace (AGENT DES URGENCES habilité individuellement). Voie 4 d'accès au

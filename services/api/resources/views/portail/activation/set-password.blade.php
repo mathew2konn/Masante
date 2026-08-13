@@ -4,8 +4,8 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Activation du compte · MaSanté</title>
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+  <link href="{{ asset('assets/bootstrap/bootstrap.min.css') }}" rel="stylesheet">
+  <link href="{{ asset('assets/bootstrap/bootstrap-icons.min.css') }}" rel="stylesheet">
   <style>
     :root { --ms-blue: #1E6BB8; --ms-blue-dark: #0C3463; }
     body { background: linear-gradient(135deg, var(--ms-blue-dark), var(--ms-blue)); min-height: 100vh; }

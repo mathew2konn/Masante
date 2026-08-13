@@ -1,7 +1,8 @@
 # GUIDE DE TEST — Référentiels nationaux (CDC_09)
 
 > **Parties** : **1** P6.3 Socle référentiel · **2** P6.4a Référentiel des établissements ·
-> **3** P6.4b Villes et géolocalisation · **4** P6.4c Images des établissements.
+> **3** P6.4b Villes et géolocalisation · **4** P6.4c Images des établissements ·
+> **5** P6.4d Formulaires du portail.
 > Un domaine, un guide : les référentiels d'annuaire à venir (professionnels P6.5, médicaments
 > P6.6, laboratoires P6.7) s'ajouteront ici en parties, pas en fichiers nouveaux.
 
@@ -1048,4 +1049,234 @@ cd apps/mobile && npx expo-doctor
 **Le fichier temporaire d'un `UploadedFile` disparaît avec l'objet.** Écrire `file_get_contents($this->image()->getRealPath())` échoue : l'objet est détruit avant la lecture. Générer les octets d'abord, construire le fichier ensuite.
 
 **Ne pas mettre le logo dans la galerie.** Techniquement c'est une image de plus ; à l'écran, c'est une photo des lieux qui n'en est pas une.
+
+
+---
+
+# PARTIE 5 — Formulaires du portail (P6.4d)
+
+**Module** : P6.4d — formulaire complet, contrôle région/district à la saisie, écran d'images, Bootstrap servi en local.
+**Corpus** : CDC_09 §4.2 · CDC_11 §3.1 · §1.2.4 · **Décision** : [ADR-029](docs/adr/ADR-029-formulaires-portail.md) · **Plan G1** : [docs/PLAN_G1_P6_4d_Formulaires_Portail.md](docs/PLAN_G1_P6_4d_Formulaires_Portail.md).
+
+**Dernier incrément de P6.4.**
+
+## 5.1 Périmètre — et ce que ce module ne fait PAS
+
+### Ce qu'il fait
+
+Le formulaire d'administration passe de **11 champs à une trentaine**, groupés comme CDC_11 §3.1 les décrit. Il refuse un district qui n'appartient pas à la région choisie. Les images se déposent depuis la fiche d'édition. Bootstrap est servi **en local**.
+
+**Trois dettes des incréments précédents sont refermées** : **M3** et **M6** (ADR-026), **N5** (ADR-027), **O1** (ADR-028, côté Blade).
+
+### Ce qu'il ne fait pas — à lire avant de tester
+
+| # | Limite | Pourquoi |
+|---|---|---|
+| **P1** | **La « Méthode 2 » n'est toujours pas livrée** — **M1 d'ADR-026 reste ouverte.** | C'est un parcours public complet (demande, vérification, publication, notifications) : un module, pas un formulaire. **Tant que P1 tient, l'affirmation de CDC_11 §3 selon laquelle les deux méthodes sont implémentées est fausse dans ce projet.** |
+| **P2** | **Le design du portail n'est pas retouché.** | Moderniser Bootstrap reviendrait à écrire un **second design system** par-dessus, en doublon de `@masante/shared` que le portail Next consomme déjà, pour un portail qu'ADR-011 condamne. **La migration devient un module identifié** — dix-sept zones — où le design moderne se fera **une fois**. |
+| **P3** | **Table de référence sur `services.specialite` non faite** — consignée pour **P10**. | C'est elle qui porte le filtre `?specialite=` **et l'orientation après triage (F1.5)**. Conséquence en attendant : **une faute de frappe sur un code de spécialité coûte une mauvaise orientation**. |
+| **P4** | `commune` reste un texte libre (N3 d'ADR-027). | Le promouvoir changerait le contrat `?commune=` de P3, validé G5. |
+| **P5** | **Trois autres bibliothèques arrivent encore d'un CDN** : `html5-qrcode` (écran de scan), Chart.js (deux écrans de statistiques). | Même défaut que Bootstrap — sans internet ces écrans cassent. Hors périmètre de la décision K4, **mais réel**. |
+
+## 5.2 Prérequis
+
+```bash
+cd C:\wamp64\www\IVOIRESANTE\services\api
+set PHP=C:\wamp64\bin\php\php8.3.28\php.exe
+
+XDEBUG_MODE=off %PHP% artisan migrate --force
+XDEBUG_MODE=off %PHP% artisan db:seed --class=DecoupageSanitaireSeeder --force
+XDEBUG_MODE=off %PHP% artisan db:seed --class=VilleSeeder --force
+XDEBUG_MODE=off %PHP% artisan db:seed --class=CategoriesImageEtablissementSeeder --force
+XDEBUG_MODE=off %PHP% artisan serve --host=0.0.0.0 --port=8000
+```
+
+Un compte d'administration **connectable au portail**. Attention : la permission ne suffit pas — le portail exige aussi un **rôle** de portail (`admin_ivoirsante`, `gestionnaire_etablissement` ou `agent_garde`). Un compte n'ayant que `etablissement.manage` est refusé à la connexion.
+
+```bash
+XDEBUG_MODE=off %PHP% artisan tinker
+>>> $u = App\Models\User::firstOrCreate(['telephone'=>'+2250799000011'], ['nom'=>'G4','prenom'=>'Formulaire','date_naissance'=>'1990-01-01']);
+>>> $u->forceFill(['email'=>'g4form@masante.ci','password'=>Hash::make('Formulaire@2026!'),'actif'=>true])->save();
+>>> $u->assignRole('admin_ivoirsante');
+```
+
+## 5.3 Scénarios front (navigateur — c'est ici que se joue le G4)
+
+### 5.3.1 — Le portail est stylé SANS internet
+
+Couper la connexion réseau de la machine (ou passer le navigateur en mode hors ligne), puis ouvrir `http://localhost:8000/portail/login`.
+
+✅ **Attendu** : la page s'affiche **normalement** — fond, cartes, boutons, icônes. Avant P6.4d, elle apparaissait en **HTML brut sans aucun style**, donc inutilisable.
+
+⚠️ Ce n'était pas un défaut cosmétique : dans un établissement à connectivité intermittente, l'agent ne pouvait tout simplement pas travailler.
+
+Vérifier dans l'inspecteur qu'**aucune requête ne part vers `cdn.jsdelivr.net`** pour cette page.
+
+### 5.3.2 — Le formulaire couvre le schéma
+
+Se connecter, puis **Établissements → Créer**.
+
+✅ **Attendu** : six blocs titrés — *Informations générales*, *Coordonnées et localisation*, *Découpage sanitaire*, *Informations légales*, *Capacités, agréments et tarifs*, et la description. On y trouve **Nom officiel**, **Statut juridique**, **Forme juridique**, **Niveau de soins**, **Ville couverte**, **Quartier**, **E-mail**, **Site web**, **Directeur**, **Capacité d'accueil**, **Nombre de lits**, les cinq champs légaux, **Agréments**, **Certifications** et **Description**.
+
+**Absent** : le champ **Spécialités**. Il a été retiré (§5.4.4).
+
+### 5.3.3 — LE VECTEUR CENTRAL : un district hors de sa région est refusé
+
+Dans **Découpage sanitaire**, choisir une région, puis dans la liste des districts en choisir un **rattaché à une autre région** — la liste les affiche sous la forme « *Région — District* », précisément pour que le couple se voie.
+
+Enregistrer.
+
+✅ **Attendu** : le formulaire revient avec l'erreur — **« Le district « Cocody-Bingerville » appartient a la region « Abidjan », pas a celle que vous avez choisie. »** — et **rien n'est créé**.
+
+⚠️ **C'est l'anomalie la plus sournoise du lot.** Les deux références existent et sont valides prises séparément : une validation `exists:` les accepte toutes les deux. Seule leur **combinaison** est fausse, et une statistique par région la propagerait sans que rien ne la signale. P6.4a la *détectait* après coup ; le formulaire est l'endroit où elle doit être **empêchée** — ici l'agent a encore l'information sous les yeux.
+
+Choisir ensuite le district **de la région déclarée** : l'enregistrement passe. **Les deux moitiés comptent** — un contrôle qui refuserait tout serait aussi inutilisable qu'un contrôle qui n'attrape rien.
+
+### 5.3.4 — L'identifiant national se lit, il ne se saisit pas
+
+Ouvrir un établissement **déjà doté** d'un identifiant (après `masante:etablissement:backfill`).
+
+✅ **Attendu** : un bandeau en tête de formulaire — **« Identifiant national (attribué, non modifiable) »** suivi de `ETS000001`. **Aucun champ de saisie.**
+
+⚠️ Il est attribué sous verrou et vit hors de `$fillable` : le laisser saisir permettrait à un établissement de **choisir son propre numéro national**.
+
+### 5.3.5 — Les images se déposent depuis la fiche
+
+Sur la fiche d'édition, bloc **Images**.
+
+✅ **Attendu, sans image** : « Aucune image publiée. Le logo remplacera l'icône générique dans l'application. » Puis un sélecteur portant les **cinq catégories** (Logo, Accueil, Salle d'attente, Bloc opératoire, Parking) et un champ de fichier.
+
+Déposer un logo → il apparaît en vignette avec son libellé et un lien **Supprimer**.
+Déposer un **second** logo → refus annoncé : *« Cet établissement a déjà 1 image(s) « Logo », et le maximum est de 1. »*
+Déposer un **fichier texte renommé `.png`** → *« Format « text/plain » refusé… »*
+
+⚠️ **Le formulaire d'images est séparé de celui de l'établissement, à dessein** : un envoi de fichier échoue plus souvent qu'une saisie de texte. Fondus dans le même formulaire, un refus d'image ferait perdre **trente champs déjà remplis**. Et les refus s'affichent en **message d'écran**, pas en page d'erreur brute.
+
+### 5.3.6 — La ville couverte est modifiable
+
+Champ **Ville couverte**, avec l'option « — Hors des villes couvertes — ».
+
+✅ **Attendu** : le choix est enregistré et l'établissement apparaît ensuite dans `GET /api/v1/structures?ville=ABJ`. Avant P6.4d, seul le seeder pouvait poser ce rattachement (limite N5).
+
+## 5.4 Scénarios backend (curl reproductibles)
+
+La connexion du portail exige un **jeton CSRF** et un **cookie de session** : les vecteurs se jouent avec un bocal à cookies.
+
+```bash
+set J=cookies.txt
+curl -s -c %J% -b %J% http://127.0.0.1:8000/portail/login | findstr "_token"
+:: relever la valeur, puis :
+curl -s -c %J% -b %J% -X POST http://127.0.0.1:8000/portail/login -d "_token=<T>" -d "email=g4form@masante.ci" -d "password=Formulaire@2026!"
+curl -s -b %J% -o nul -w "%%{http_code}\n" http://127.0.0.1:8000/portail/etablissements
+```
+✅ **Attendu** : `200`. Si c'est `302`, le compte n'a pas de **rôle** de portail — la permission seule ne suffit pas (§5.2).
+
+### 5.4.1 — District hors région : refusé, et rien créé
+
+```bash
+curl -s -b %J% -X POST http://127.0.0.1:8000/portail/etablissements ^
+  -d "_token=<T>" -d "nom=Test" -d "type=centre_dialyse" -d "adresse=Rue" -d "commune=Plateau" ^
+  -d "latitude=5.32" -d "longitude=-4.02" -d "gestionnaire_nom=T" -d "gestionnaire_prenom=G" ^
+  -d "gestionnaire_email=t@masante.ci" -d "region_id=<AUTRE>" -d "district_id=<ABJ>"
+```
+✅ **Attendu** : `302` vers le formulaire, l'erreur nommant le district **et sa vraie région**, et `SELECT COUNT(*) … WHERE nom='Test'` → **0**.
+
+### 5.4.2 — Tous les champs neufs sont réellement persistés
+
+Rejouer avec le couple **cohérent** et l'ensemble des champs.
+✅ **Attendu** : `nom_officiel`, `statut_juridique`, `forme_juridique`, `niveau_soins`, `district_id`, `ville_id`, `quartier`, `nombre_lits` et `agrements_json` sont tous renseignés en base.
+
+⚠️ Un formulaire qui **affiche** un champ sans le **persister** est pire que pas de champ du tout : l'agent croit avoir saisi l'information.
+
+### 5.4.3 — Ce qu'un client ne peut pas choisir
+
+Envoyer dans la même requête `identifiant_national=ETS999999` et `pays_code=SN`.
+✅ **Attendu** : en base, `identifiant_national` est **NULL** et `pays_code` vaut **CI**. Les deux sont hors `$fillable` ; ils sont ignorés **silencieusement**, pas rejetés — c'est le comportement d'Eloquent, et c'est ce qui est testé.
+
+### 5.4.4 — `specialites` n'écrit plus rien
+
+Envoyer `specialites=Cardiologie, ORL`.
+✅ **Attendu** : `specialites_json` reste **NULL**.
+
+⚠️ **Pourquoi ce champ a disparu.** Il était écrit par le formulaire et **lu par personne** : ni la fiche mobile, ni la tuile, ni le portail, ni aucun filtre. Le `?specialite=` de l'annuaire passe par `services_etablissement.specialite`, une **autre** colonne — celle qui porte aussi l'orientation après triage. La colonne `specialites_json` est **conservée** (aucune donnée existante perdue) ; on cesse simplement de faire saisir une donnée morte.
+
+### 5.4.5 — Cohérence des capacités
+
+`capacite_accueil=50` et `nombre_lits=80`.
+✅ **Attendu** : erreur — *« Le nombre de lits ne peut pas depasser la capacite d accueil. »*
+
+### 5.4.6 — La forme juridique entre dans le référentiel
+
+```bash
+XDEBUG_MODE=off %PHP% artisan tinker
+>>> collect((new App\Services\Referentiel\SourceEtablissements)->extraire())->first();
+```
+✅ **Attendu** : la projection porte **`statut_juridique`** *et* **`forme_juridique`**.
+
+⚠️ **Deux axes distincts, et c'est le point de M6** : `statut_juridique` dit **qui possède** (public/privé/universitaire/militaire), `forme_juridique` dit **sous quelle forme de droit** (SARL, SA, EPN…). Une clinique privée peut être une SARL ou une SA ; les fondre rendrait impossible la statistique « combien de SARL parmi les cliniques privées ? », qui est exactement l'usage que §4.4 assigne au référentiel.
+
+**Conséquence attendue** : l'empreinte du référentiel **change** avec cet incrément, puisque la projection porte un champ de plus. Ce n'est pas une dérive.
+
+## 5.5 Invariants base de données
+
+```sql
+-- (a) La colonne neuve, nullable (aucune donnée existante cassée).
+SHOW COLUMNS FROM structures_sanitaires LIKE 'forme_juridique';   -- ✅ varchar(80), NULL
+
+-- (b) Aucune structure perdue.
+SELECT COUNT(*) FROM structures_sanitaires;                       -- ✅ 12
+
+-- (c) La colonne `specialites_json` existe TOUJOURS, avec ses données.
+SELECT id, specialites_json FROM structures_sanitaires WHERE specialites_json IS NOT NULL;
+-- ✅ retirer un champ du formulaire ne détruit pas l'existant
+
+-- (d) Les deux axes juridiques cohabitent.
+SELECT statut_juridique, forme_juridique FROM structures_sanitaires WHERE forme_juridique IS NOT NULL;
+-- ✅ ex. prive / SARL
+```
+
+**Bootstrap est tracké par git** — c'est le piège de §5.8 :
+```bash
+git check-ignore -v services/api/public/assets/bootstrap/bootstrap.min.css
+```
+✅ **Attendu** : **aucune sortie**. Une sortie signifierait que les fichiers sont ignorés et que le correctif disparaîtrait sur une autre machine.
+
+## 5.6 Commandes de qualité (G3)
+
+```bash
+XDEBUG_MODE=off %PHP% artisan test --filter=FormulaireEtablissementTest   # 16 tests
+XDEBUG_MODE=off %PHP% artisan test                                        # suite complète
+pnpm typecheck
+```
+✅ **Référence au G5 (2026-08-13)** : 16/16 pour le module · **546 tests / 14 737 assertions, 0 échec** · typecheck ×3 verts.
+
+## 5.7 Checklist de clôture
+
+- [ ] **Portail stylé sans internet**, aucune requête vers un CDN (§5.3.1)
+- [ ] Six blocs, une trentaine de champs, **pas de champ Spécialités** (§5.3.2)
+- [ ] **District hors région → refusé, message nommant sa vraie région, rien créé** (§5.3.3)
+- [ ] **Couple cohérent → accepté** (§5.3.3)
+- [ ] Identifiant national **affiché, non saisissable** (§5.3.4)
+- [ ] Images : dépôt, second logo → refus, fichier non-image → **message d'écran** (§5.3.5)
+- [ ] Ville couverte modifiable, puis filtrable par `?ville=` (§5.3.6)
+- [ ] Tous les champs neufs **persistés** (§5.4.2)
+- [ ] `identifiant_national` et `pays_code` **ignorés** malgré l'envoi (§5.4.3)
+- [ ] `specialites` sans effet, colonne et données **conservées** (§5.4.4, §5.5c)
+- [ ] Lits > capacité → refusé (§5.4.5)
+- [ ] `forme_juridique` dans la projection du référentiel (§5.4.6)
+- [ ] **Bootstrap tracké par git** (§5.5)
+- [ ] Suite complète + typecheck ×3 (§5.6)
+- [ ] **Limites P1→P5 relues et acceptées** (§5.1) — dont **M1 toujours ouverte** et les **trois CDN restants**
+
+## 5.8 Pièges rencontrés
+
+**`.gitignore` porte `**/vendor/` pour Composer, et il ignorait `public/vendor/`.** Bootstrap servi en local aurait fonctionné sur la machine de développement et **disparu partout ailleurs** — un correctif invisible est pire qu'un défaut connu. Déplacé vers `public/assets/bootstrap/`, et `git check-ignore` fait désormais partie de la checklist.
+
+**La permission ne suffit pas à entrer dans le portail.** `AuthController` exige aussi un **rôle** parmi `admin_ivoirsante`, `gestionnaire_etablissement`, `agent_garde`. Un compte porteur de `etablissement.manage` mais sans rôle est refusé à la connexion, avec un message volontairement identique à celui d'un mauvais mot de passe.
+
+**Un test hérité affirmait le comportement qu'on retire.** `EtablissementPortailTest` vérifiait que `specialites` atterrissait dans `specialites_json`. Il a été **réécrit pour dire la garantie neuve** — un client qui envoie encore le champ n'écrit rien — et non « corrigé pour passer ».
+
+**Ne pas jouer un G2 en court-circuitant la chaîne HTTP.** Un premier script construisait les requêtes en mémoire : tout répondait **419** (jeton CSRF absent) et n'aurait rien prouvé. Le G2 se joue avec une **vraie connexion**, un vrai cookie et un vrai jeton.
+
+**Le formulaire d'images est séparé** de celui de l'établissement : un refus d'image ne doit pas faire perdre trente champs déjà remplis.
 
