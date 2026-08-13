@@ -90,10 +90,10 @@ Un `CHECK` MySQL ne peut pas porter sur une colonne qui **subit une action réf�
 
 **Acquis.** Un référentiel national a désormais un responsable, un cycle de décision à deux personnes, un historique immuable, un audit détectable en cas d'altération et une diffusion en lecture. Une décision peut citer une version, et cette version reste rejouable.
 
-**Limites assumées, écrites aussi dans le guide de test.**
+**Limites assumées, écrites aussi dans le guide de test.** **L1 et L2 sont d'une autre nature que les cinq suivantes — leur statut est détaillé au [§5](#5-statut-de-l1-et-l2--la-dette-qui-referme-le-trou-du-g0).**
 
-- **L1** — La diffusion cachée sert la **nouvelle API**. Le triage, les mesures et l'annuaire continuent de lire leur table en direct : leur bascule est un incrément additif ultérieur, module par module (ils sont validés G5).
-- **L2** — L'estampille de version est **fournie et testée**, branchée sur **aucune** décision existante. Estamper rétroactivement les décisions passées serait pire que de ne rien faire : elles n'ont eu aucune version, et leur en inventer une serait un mensonge d'archive.
+- **L1** — La diffusion cachée sert la **nouvelle API**. Le triage, les mesures et l'annuaire continuent de lire leur table en direct : leur bascule est un incrément additif ultérieur, module par module (ils sont validés G5). → **§5**
+- **L2** — L'estampille de version est **fournie et testée**, branchée sur **aucune** décision existante. Estamper rétroactivement les décisions passées serait pire que de ne rien faire : elles n'ont eu aucune version, et leur en inventer une serait un mensonge d'archive. → **§5, et notamment §5.2 : L2 n'est pas recevable avant L1.**
 - **L3** — « Lecture < 50 ms » (§12) : le cache est `database`, pas Redis. Le budget n'est **pas déclaré atteint**.
 - **L4** — MFA sur l'écriture (§10) : gouverné par la bascule `MFA_ENFORCE` de P1, **OFF en MVP**.
 - **L5** — Ni synchronisation nationale, ni diffusion par événements inter-services, ni FHIR/SNOMED/CIM/LOINC/DICOM (§9) : étapes 9 et 10 de l'ordre §14.
@@ -101,3 +101,32 @@ Un `CHECK` MySQL ne peut pas porter sur une colonne qui **subit une action réf�
 - **L7** — Aucun écran. La gouvernance s'exerce par API ; l'écran d'administration viendra avec le portail des référentiels (P6.4+).
 
 **Aucune dépendance nouvelle** : `hash()` de PHP, façade `Cache`, spatie déjà présent, JSON natif MySQL 8.4.
+
+---
+
+## 5. Statut de L1 et L2 — la dette qui referme le trou du G0
+
+L1 et L2 sont d'une autre nature que L3→L7. Les cinq dernières sont des **choix de périmètre** (Redis, MFA, interopérabilité, écran) : le module reste entier sans elles. **L1 et L2, non** — tant qu'elles ne sont pas faites, le défaut identifié au G0 (« corriger un seuil rend tout triage antérieur inexplicable ») est **outillé mais pas refermé**. Le versionnage existe ; rien ne s'en sert encore.
+
+### 5.1 Elles ne sont planifiées nulle part
+
+Elles sont **décidées et consignées**, ici et au §1 du guide de test. Elles ne sont **portées par aucun incrément** : ni P6.4, ni la suite du découpage P6.5 → P6.9. Cette absence est délibérément écrite plutôt que laissée implicite — une dette qu'on croit planifiée est une dette qu'on ne replanifie jamais.
+
+### 5.2 L'ordre n'est pas neutre : **L1 avant L2, jamais l'inverse**
+
+`DiffusionReferentiel::estampille()` renvoie le numéro de la version **publiée**. Si un module continue de calculer à partir de sa table métier (L1 non faite) et qu'on lui fait apposer « calculé avec v7 », **la mention est fausse dès que la table a divergé de v7** — et elle diverge en permanence entre deux publications ; c'est précisément ce que `masante:referentiel:controler` rapporte sous « DIVERGENTE de la table ».
+
+Faire L2 seule remplacerait donc « on ne sait pas » par une **affirmation fausse**, c'est-à-dire le contraire de ce que le versionnage cherche. **L2 n'est recevable qu'une fois L1 faite sur le même référentiel**, et de préférence dans le même incrément — une fois la lecture basculée, l'estampille devient presque gratuite (le numéro est déjà en main).
+
+### 5.3 Foyers pressentis, et l'un des deux n'en a pas
+
+| Référentiel | Lu aujourd'hui par | Foyer naturel |
+|---|---|---|
+| `symptomes_triage` | `TriageService` | **P10** — la refonte « Triage → protocoles + IA » est déjà au programme (CLAUDE.md). Y faire la bascule évite de toucher un module validé G5 **deux fois**. |
+| `seuils_mesure` | `MesureSanteService` | **aucun** — aucune refonte des mesures n'est prévue. À rattacher explicitement à un incrément, faute de quoi cette dette n'a personne pour la porter. |
+
+### 5.4 Le changement de modèle d'exploitation à assumer le jour venu
+
+Une fois la bascule faite, **corriger un seuil par un `UPDATE` n'aura plus aucun effet** tant qu'une version n'est pas publiée. C'est exactement ce qu'exige CDC_09 §1.2.4 (« référentiel = source unique de vérité ») et c'est le but recherché — mais c'est une rupture réelle avec la promesse actuelle, écrite noir sur blanc dans le commentaire de la migration `referentiels_mesure` : « *un médecin peut les corriger par un `UPDATE`, sans redéployer* ».
+
+Ce commentaire devra être corrigé **en même temps** que la bascule, sans quoi le code affirmera durablement l'inverse de ce qu'il fait.
