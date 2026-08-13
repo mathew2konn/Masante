@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Controllers\Controller;
 use App\Models\StructureSanitaire;
 use App\Services\StructureService;
+use App\Support\TypesEtablissement;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -24,8 +25,14 @@ class StructureController extends Controller
     public function index(Request $request): JsonResponse
     {
         $filtres = $request->validate([
-            'type'       => ['nullable', 'in:chu,chr,clinique_privee,cabinet,pharmacie,laboratoire,centre_sante'],
+            // Source unique (P6.4b) : la liste était recopiée ici et refusait en 422 les six
+            // catégories ajoutées par P6.4a — un filtre `?type=centre_dialyse` était rejeté alors
+            // que la base acceptait la valeur.
+            'type'       => ['nullable', TypesEtablissement::regleIn()],
             'commune'    => ['nullable', 'string', 'max:100'],
+            // P6.4b — filtre par CODE de ville (`ABJ`, `YAM`, `BKE`), celui que renvoie
+            // `/villes/localiser`. Additif : `commune` reste servi tel quel.
+            'ville'      => ['nullable', 'string', 'max:20'],
             'specialite' => ['nullable', 'string', 'max:100'],
             'statut'     => ['nullable', 'in:disponible,complet,disponible_apres_14h,ferme,inconnu'],
             'tarif_max'  => ['nullable', 'integer', 'min:0', 'max:1000000'],

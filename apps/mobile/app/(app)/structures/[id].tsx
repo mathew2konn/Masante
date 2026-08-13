@@ -16,13 +16,14 @@ import { messageErreur } from '../../../src/utils/erreurs';
 import { formatDateFr, heureCourte } from '../../../src/utils/dates';
 import {
   LIBELLE_SIGNALEMENT,
-  LIBELLE_TYPE,
+  libelleType,
   type Avis,
   type Service,
   type SignalementPublic,
   type Structure,
 } from '../../../src/types/structure';
 import { colors, radius, spacing, typography } from '../../../src/theme/theme';
+import { useLocalisation } from '../../../src/store/localisation';
 
 /** Libellés lisibles des clés d'horaires (horaires_json). */
 const LIBELLE_HORAIRE: Record<string, string> = {
@@ -41,6 +42,8 @@ const LIBELLE_HORAIRE: Record<string, string> = {
  * Itinéraire (OSRM).
  */
 export default function FicheStructure() {
+  // Libellés de catégorie servis par le serveur (P6.4b, source unique).
+  const typesEtablissement = useLocalisation((e) => e.typesEtablissement);
   const { id } = useLocalSearchParams<{ id: string }>();
   const structureId = Number(id);
 
@@ -119,7 +122,7 @@ export default function FicheStructure() {
       {/* Résumé */}
       <Card style={styles.bloc}>
         <Text style={styles.meta}>
-          {LIBELLE_TYPE[structure.type]} · {structure.commune}
+          {libelleType(structure.type, typesEtablissement)} · {structure.commune}
         </Text>
         <View style={styles.resumeLigne}>
           <PastilleDispo statut={structure.statut_jour} />

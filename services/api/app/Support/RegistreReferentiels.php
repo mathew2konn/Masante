@@ -2,6 +2,7 @@
 
 namespace App\Support;
 
+use App\Services\Referentiel\SourceEtablissements;
 use App\Services\Referentiel\SourceReferentiel;
 use App\Services\Referentiel\SourceSeuilsMesure;
 use App\Services\Referentiel\SourceSymptomesTriage;
@@ -31,6 +32,11 @@ final class RegistreReferentiels
     public const SOURCES = [
         SourceSeuilsMesure::CODE     => SourceSeuilsMesure::class,
         SourceSymptomesTriage::CODE  => SourceSymptomesTriage::class,
+        // P6.4 — première entrée d'un référentiel d'ANNUAIRE. Elle ne gouverne pas la table
+        // `structures_sanitaires` entière mais une **projection d'identité administrative** :
+        // la note d'avis et les horaires y sont exclus, sans quoi l'instantané divergerait à
+        // chaque avis déposé. Voir `SourceEtablissements` et ADR-026.
+        SourceEtablissements::CODE   => SourceEtablissements::class,
     ];
 
     /** @return array<int, string> */

@@ -105,6 +105,12 @@ class StructureService
         if (! empty($filtres['commune'])) {
             $query->where('commune', $filtres['commune']);
         }
+        // P6.4b — filtre par ville, désigné par son CODE (`ABJ`, `YAM`, `BKE`) et non par son id :
+        // le mobile reçoit des codes de `/villes/localiser` et n'a pas à connaître les clés
+        // primaires. Additif : `commune` reste servi tel quel, le contrat de P3 est intact.
+        if (! empty($filtres['ville'])) {
+            $query->whereHas('ville', fn (Builder $v) => $v->where('code', $filtres['ville']));
+        }
         if (! empty($filtres['q'])) {
             $query->where('nom', 'like', '%'.$filtres['q'].'%');
         }

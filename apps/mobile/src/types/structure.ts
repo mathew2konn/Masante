@@ -5,15 +5,16 @@
  * Données NON sensibles (annuaire public) : aucun chiffrement côté client.
  */
 
-/** Type d'établissement (enum backend `structures_sanitaires.type`). */
-export type TypeStructure =
-  | 'chu'
-  | 'chr'
-  | 'clinique_privee'
-  | 'cabinet'
-  | 'pharmacie'
-  | 'laboratoire'
-  | 'centre_sante';
+/**
+ * Catégorie d'établissement (colonne backend `structures_sanitaires.type`).
+ *
+ * VOLONTAIREMENT `string` ET NON UNE UNION FERMÉE (P6.4b). L'union listait sept valeurs ; la base
+ * en accepte treize depuis P6.4a. Une union fermée ne protégeait de rien — la donnée arrive à
+ * l'exécution, TypeScript ne la vérifie pas — mais elle donnait l'illusion d'une garantie et
+ * poussait à recopier la liste ici. Les libellés viennent désormais du serveur
+ * (`useLocalisation().typesEtablissement`), voir `libelleType()`.
+ */
+export type TypeStructure = string;
 
 /** Statut « du jour » agrégé d'une structure (pastille de disponibilité §5.5). */
 export type StatutDispo =
@@ -95,6 +96,11 @@ export interface Structure {
 /** Filtres acceptés par GET /v1/structures (tous optionnels). */
 export interface FiltresStructure {
   type?: TypeStructure;
+  /**
+   * Code de la ville (`ABJ`, `YAM`, `BKE`) — P6.4b. Un CODE et non un identifiant : c'est ce que
+   * renvoie `GET /v1/villes/localiser`, et le mobile n'a pas à connaître les clés primaires.
+   */
+  ville?: string;
   commune?: string;
   specialite?: string;
   statut?: StatutDispo;
@@ -231,24 +237,26 @@ export const BUDGETS: readonly { label: string; valeur: number | null }[] = [
   { label: '≤ 50 000', valeur: 50000 },
 ];
 
-/** Communes couvertes par le catalogue (seeder 3A.1, district d'Abidjan). */
-export const COMMUNES: readonly string[] = [
-  'Abobo',
-  'Adjamé',
-  'Cocody',
-  'Marcory',
-  'Plateau',
-  'Treichville',
-  'Yopougon',
-] as const;
+/*
+ * `COMMUNES` a été SUPPRIMÉE en P6.4b.
+ *
+ * Sept communes d'Abidjan y vivaient en dur. La plateforme couvre désormais trois villes, et
+ * seules certaines se subdivisent en communes — une décision qui appartient au serveur
+ * (`villes.affiche_communes`). La liste est servie par `GET /v1/villes/localiser`, donc dérivée
+ * des structures réellement enregistrées : elle ne peut plus diverger de la base.
+ */
 
-/** Libellés courts des types (français, pour les filtres et les cartes). */
-export const LIBELLE_TYPE: Record<TypeStructure, string> = {
-  chu: 'CHU',
-  chr: 'CHR',
-  clinique_privee: 'Clinique',
-  cabinet: 'Cabinet',
-  pharmacie: 'Pharmacie',
-  laboratoire: 'Laboratoire',
-  centre_sante: 'Centre de santé',
-};
+/**
+ * Libellé citoyen d'une catégorie, à partir de la liste SERVIE PAR LE SERVEUR.
+ *
+ * Remplace la table `LIBELLE_TYPE` qui vivait ici avec sept entrées sur treize : une structure
+ * d'une catégorie récente s'affichait « undefined ». Le repli sur le code brut est délibéré —
+ * si une valeur inconnue traverse un jour, l'écran montre quelque chose de lisible plutôt qu'un
+ * trou (même principe que `TypesEtablissement::libelle()` côté serveur).
+ */
+export function libelleType(
+  code: string,
+  types: readonly { code: string; libelle: string }[],
+): string {
+  return types.find((t) => t.code === code)?.libelle ?? code;
+}

@@ -4,7 +4,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { Card } from './Card';
 import { PastilleDispo } from './PastilleDispo';
 import { colors, radius, spacing, typography } from '../theme/theme';
-import { LIBELLE_TYPE, type Structure } from '../types/structure';
+import { libelleType, type Structure } from '../types/structure';
+import { useLocalisation } from '../store/localisation';
 
 /**
  * StructureCard — tuile d'une structure dans la liste de l'annuaire (Module 3, §5.2/§5.5).
@@ -15,6 +16,11 @@ import { LIBELLE_TYPE, type Structure } from '../types/structure';
  * (navigation) arrive en 3B.3 — on n'anticipe pas.
  */
 export function StructureCard({ structure, onPress }: { structure: Structure; onPress?: () => void }) {
+  // Libellés servis par le serveur (P6.4b) : la table locale n'en connaissait que 7 sur 13 et
+  // affichait « undefined » devant une catégorie récente.
+  const types = useLocalisation((e) => e.typesEtablissement);
+  const categorie = libelleType(structure.type, types);
+
   const contenu = (
     <Card style={styles.card}>
       <View style={styles.entete}>
@@ -24,7 +30,7 @@ export function StructureCard({ structure, onPress }: { structure: Structure; on
         <View style={styles.titreBloc}>
           <Text style={styles.nom} numberOfLines={2}>{structure.nom}</Text>
           <Text style={styles.meta} numberOfLines={1}>
-            {LIBELLE_TYPE[structure.type]} · {structure.commune}
+            {categorie} · {structure.commune}
           </Text>
         </View>
         {structure.distance_km != null && (
@@ -63,7 +69,7 @@ export function StructureCard({ structure, onPress }: { structure: Structure; on
     <Pressable
       onPress={onPress}
       accessibilityRole="button"
-      accessibilityLabel={`${structure.nom}, ${LIBELLE_TYPE[structure.type]} à ${structure.commune}`}
+      accessibilityLabel={`${structure.nom}, ${categorie} à ${structure.commune}`}
       style={({ pressed }) => [styles.wrap, pressed && styles.presse]}
     >
       {contenu}

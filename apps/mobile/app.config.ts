@@ -54,8 +54,11 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     [
       'expo-location',
       {
+        // P6.4b — la formulation dit aussi la VILLE, parce que la position ne sert plus seulement
+        // au tri par proximité : elle détermine la ville dont les contenus sont affichés.
         locationWhenInUsePermission:
-          'MaSante utilise votre position pour trouver les structures de santé les plus proches.',
+          'MaSante utilise votre position pour déterminer votre ville et vous proposer les '
+          + 'structures de santé les plus proches.',
         isAndroidBackgroundLocationEnabled: false,
         isAndroidForegroundServiceEnabled: false,
       },

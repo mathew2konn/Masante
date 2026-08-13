@@ -1,8 +1,11 @@
 import React, { useEffect } from 'react';
+import { Alert } from 'react-native';
 import { Tabs } from 'expo-router';
+import * as Location from 'expo-location';
 import { Ionicons } from '@expo/vector-icons';
 import { enregistrerCetAppareil } from '../../src/push/enregistrement';
 import { colors } from '../../src/theme/theme';
+import { useLocalisation } from '../../src/store/localisation';
 
 /**
  * Navigation basse à onglets (§5.6 Design System) : barre blanche fixe, onglet actif
@@ -15,6 +18,43 @@ export default function AppTabsLayout() {
   // c'est le cas NORMAL (SDK 53+). L'application n'en dépend pas.
   useEffect(() => {
     void enregistrerCetAppareil();
+  }, []);
+
+  // P6.4b — la ville de l'utilisateur est déterminée à l'entrée de la zone authentifiée, parce
+  // que les contenus en dépendent (décision propriétaire du 2026-08-13).
+  //
+  // UNE EXPLICATION AVANT L'INVITE DU SYSTÈME, et seulement la première fois : une autorisation
+  // demandée sans motif se refuse par réflexe, et sur Android comme sur iOS un refus est
+  // difficile à revenir. On explique donc d'abord, on demande ensuite — et si la permission a
+  // déjà été accordée ou refusée, on ne réexplique rien.
+  //
+  // Jamais bloquant : un refus mène au sélecteur de ville, pas à une impasse.
+  useEffect(() => {
+    void (async () => {
+      const { status } = await Location.getForegroundPermissionsAsync();
+
+      if (status !== 'undetermined') {
+        await useLocalisation.getState().initialiser();
+        return;
+      }
+
+      Alert.alert(
+        'Votre ville',
+        "MaSante affiche les établissements de votre ville. Autorisez la localisation pour "
+          + 'la déterminer automatiquement — vous pourrez sinon la choisir vous-même.',
+        [
+          {
+            text: 'Choisir moi-même',
+            style: 'cancel',
+            // On ne déclenche PAS l'invite du système : l'utilisateur a dit non à l'explication.
+            // Lui imposer la boîte de dialogue native derrière produirait le refus définitif
+            // qu'on cherche justement à éviter.
+            onPress: () => useLocalisation.setState({ choixRequis: true }),
+          },
+          { text: 'Autoriser', onPress: () => void useLocalisation.getState().initialiser() },
+        ],
+      );
+    })();
   }, []);
 
   return (

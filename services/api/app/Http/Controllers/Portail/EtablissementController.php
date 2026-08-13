@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Portail;
 
 use App\Http\Controllers\Controller;
+use App\Support\TypesEtablissement;
 use App\Models\ActivationPortail;
 use App\Models\StructureSanitaire;
 use App\Models\User;
@@ -21,16 +22,15 @@ use Illuminate\View\View;
  */
 class EtablissementController extends Controller
 {
-    /** Types d'établissement (miroir de l'enum de la migration structures_sanitaires). */
-    public const TYPES = [
-        'chu'             => 'CHU',
-        'chr'             => 'CHR',
-        'clinique_privee' => 'Clinique privée',
-        'cabinet'         => 'Cabinet',
-        'pharmacie'       => 'Pharmacie',
-        'laboratoire'     => 'Laboratoire',
-        'centre_sante'    => 'Centre de santé',
-    ];
+    /**
+     * Types d'établissement — délégué à la SOURCE UNIQUE `TypesEtablissement` (P6.4b).
+     *
+     * Cette constante était un « miroir de l'enum de la migration » recopié à la main. Le miroir
+     * avait cessé de refléter : P6.4a a porté l'énumération à 13 valeurs, celle-ci en gardait 7.
+     * On conserve le nom `TYPES` — les vues Blade et les tests s'y réfèrent — mais le contenu
+     * vient désormais d'un seul endroit.
+     */
+    public const TYPES = TypesEtablissement::TYPES;
 
     /** Liste + recherche (nom/commune) + filtre par type. */
     public function index(Request $request): View

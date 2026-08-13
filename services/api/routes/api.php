@@ -43,6 +43,7 @@ use App\Http\Controllers\Api\V1\RendezVousController;
 use App\Http\Controllers\Api\V1\SignalementController;
 use App\Http\Controllers\Api\V1\StructureController;
 use App\Http\Controllers\Api\V1\TriageController;
+use App\Http\Controllers\Api\V1\VilleController;
 use App\Http\Controllers\HealthController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -405,6 +406,20 @@ Route::middleware('throttle:api')->group(function () {
         | aucune formalité d'identité (doc Identification — accès léger). Aucune donnée
         | médicale. Les disponibilités sont seedées (écriture agents + Firebase → Module 4).
         */
+        /*
+        |------------------------------------------------------------------
+        | P6.4b — Villes couvertes et localisation de l'utilisateur.
+        |------------------------------------------------------------------
+        | PUBLICS : l'écran a besoin de la liste des villes AVANT toute connexion, pour
+        | proposer le sélecteur de repli quand la localisation est refusée.
+        |
+        | `localiser` est la traduction de la règle de frontière : le mobile envoie sa
+        | position, le BACKEND répond quelle ville la contient, si elle affiche des communes
+        | et lesquelles. Le front affiche, il ne déduit pas.
+        */
+        Route::get('/villes', [VilleController::class, 'index']);
+        Route::get('/villes/localiser', [VilleController::class, 'localiser']);
+
         Route::get('/pharmacies-garde', [StructureController::class, 'pharmaciesGarde']); // F3.8
         Route::get('/structures', [StructureController::class, 'index']);                 // F3.1/F3.2/F3.3
         Route::get('/structures/{structure}', [StructureController::class, 'show']);       // F3.5

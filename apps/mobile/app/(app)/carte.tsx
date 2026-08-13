@@ -26,16 +26,16 @@ import { obtenirPosition } from '../../src/utils/geoloc';
 import { messageErreur } from '../../src/utils/erreurs';
 import {
   BUDGETS,
-  COMMUNES,
-  LIBELLE_TYPE,
+  libelleType,
   type Coordonnees,
   type FiltresStructure,
   type Structure,
   type TypeStructure,
 } from '../../src/types/structure';
 import { colors, radius, spacing, typography } from '../../src/theme/theme';
+import { useLocalisation } from '../../src/store/localisation';
 
-const TYPES = Object.keys(LIBELLE_TYPE) as TypeStructure[];
+
 
 type Vue = 'liste' | 'carte';
 
@@ -58,9 +58,35 @@ export default function CarteTab() {
   const [vue, setVue] = useState<Vue>('liste');
   const [selection, setSelection] = useState<Structure | null>(null);
   const [structures, setStructures] = useState<Structure[]>([]);
+  // Bandeau « vous êtes à X » : replié par défaut, déplié au tap sur l'icône (demande du
+  // propriétaire du 2026-08-13 — « lorsqu'il clique dessus on affiche juste en bas »).
+  const [villeDepliee, setVilleDepliee] = useState(false);
   const [chargement, setChargement] = useState(true);
   const [erreur, setErreur] = useState<string | null>(null);
   const horsLigne = useReseau((e) => e.horsLigne);
+
+  // P6.4b — TOUT vient du serveur : la ville, si elle affiche des communes, lesquelles, et les
+  // libellés de catégorie. L'écran n'en déduit aucun : ouvrir une quatrième ville ne doit pas
+  // demander de republier l'application.
+  const villeCourante = useLocalisation((e) => e.ville);
+  const sourceVille = useLocalisation((e) => e.source);
+  const horsZone = useLocalisation((e) => e.horsZone);
+  const communesDisponibles = useLocalisation((e) => e.communes);
+  const villesParProximite = useLocalisation((e) => e.villesParProximite);
+  const villesCouvertes = useLocalisation((e) => e.villes);
+  const typesEtablissement = useLocalisation((e) => e.typesEtablissement);
+  const choixRequis = useLocalisation((e) => e.choixRequis);
+  const choisirVille = useLocalisation((e) => e.choisirVille);
+
+  // L'initialisation appartient à `(app)/_layout.tsx` : elle explique AVANT de demander la
+  // permission. La déclencher aussi ici ferait surgir l'invite du système par-dessus
+  // l'explication — c'est-à-dire exactement le refus réflexe qu'on cherche à éviter.
+
+  // Le filtre de commune n'a de sens que là où le serveur en annonce. Changer de ville en laisse
+  // un obsolète : on le retire, sinon la liste resterait vide sans explication.
+  useEffect(() => {
+    if (!communesDisponibles.includes(commune ?? '')) setCommune(null);
+  }, [communesDisponibles, commune]);
 
   const charger = useCallback(async () => {
     setChargement(true);
@@ -70,6 +96,9 @@ export default function CarteTab() {
       if (q.trim()) filtres.q = q.trim();
       if (type) filtres.type = type;
       if (commune) filtres.commune = commune;
+      // Hors zone, on ne restreint à aucune ville : l'utilisateur voit TOUTES les structures,
+      // ordonnées depuis la ville la plus proche (décision V6).
+      if (villeCourante && !horsZone) filtres.ville = villeCourante.code;
       if (tarifMax !== null) filtres.tarif_max = tarifMax;
       if (position) {
         filtres.lat = position.lat;
@@ -81,7 +110,7 @@ export default function CarteTab() {
     } finally {
       setChargement(false);
     }
-  }, [q, type, commune, tarifMax, position]);
+  }, [q, type, commune, tarifMax, position, villeCourante, horsZone]);
 
   // Recherche debouncée : on évite une requête à chaque frappe.
   useEffect(() => {
@@ -136,6 +165,86 @@ export default function CarteTab() {
         {/* En-tête fixe : recherche + filtres + bascule de vue */}
         <View style={styles.header}>
           <ScreenHeader title="Structures de santé" subtitle="Trouvez un établissement près de vous" />
+
+          {/*
+            P6.4b — Ville courante. L'icône de géolocalisation porte le nom de la ville ; au tap,
+            la phrase complète s'affiche JUSTE EN DESSOUS (demande du propriétaire).
+
+            La phrase change selon la SOURCE, et ce n'est pas cosmétique : « Vous êtes à X » est
+            une affirmation. On ne la prononce que lorsque la position a réellement répondu — une
+            ville choisie à la main ou ressortie de la mémoire hors ligne se dit autrement.
+          */}
+          {villeCourante && (
+            <View>
+              <Pressable
+                onPress={() => setVilleDepliee((v) => !v)}
+                accessibilityRole="button"
+                accessibilityState={{ expanded: villeDepliee }}
+                accessibilityLabel={`Ville : ${villeCourante.nom}. Toucher pour en savoir plus.`}
+                style={({ pressed }) => [styles.villeChip, pressed && styles.presse]}
+              >
+                <Ionicons name="location" size={15} color={colors.blue[600]} />
+                <Text style={styles.villeNom}>{villeCourante.nom}</Text>
+                <Ionicons
+                  name={villeDepliee ? 'chevron-up' : 'chevron-down'}
+                  size={14}
+                  color={colors.ink[500]}
+                />
+              </Pressable>
+
+              {villeDepliee && (
+                <Text style={styles.villePhrase}>
+                  {sourceVille === 'position'
+                    ? `Vous êtes à ${villeCourante.nom}`
+                    : sourceVille === 'choix'
+                      ? `Ville choisie : ${villeCourante.nom}`
+                      : `Dernière position connue : ${villeCourante.nom}`}
+                </Text>
+              )}
+            </View>
+          )}
+
+          {/*
+            Hors des villes couvertes. On le DIT, et on montre tout de même toutes les structures
+            en commençant par la ville la plus proche — plutôt que de rattacher l'utilisateur à
+            une ville où il n'est pas.
+          */}
+          {horsZone && (
+            <View style={styles.horsZone}>
+              <Ionicons name="information-circle-outline" size={16} color={colors.ink[500]} />
+              <Text style={styles.horsZoneTxt}>
+                Vous êtes hors des zones couvertes.
+                {villesParProximite[0]
+                  ? ` La ville la plus proche est ${villesParProximite[0].nom}, à ${Math.round(villesParProximite[0].distance_km)} km.`
+                  : ''}
+              </Text>
+            </View>
+          )}
+
+          {/*
+            Localisation refusée. Il n'existe AUCUN repli automatique : Android et iOS fusionnent
+            GPS, Wi-Fi et réseau derrière une seule autorisation. On demande donc à l'utilisateur,
+            ce qui est exact par construction — là où une déduction par adresse IP aurait rattaché
+            la plupart des abonnés ivoiriens à Abidjan quelle que soit leur position réelle.
+          */}
+          {choixRequis && villesCouvertes.length > 0 && (
+            <View style={styles.choixVille}>
+              <Text style={styles.choixTitre}>Dans quelle ville êtes-vous ?</Text>
+              <Text style={styles.choixAide}>
+                Sans votre position, nous ne pouvons pas le déterminer.
+              </Text>
+              <View style={styles.choixListe}>
+                {villesCouvertes.map((v) => (
+                  <FiltreChip
+                    key={v.code}
+                    label={v.nom}
+                    actif={false}
+                    onPress={() => void choisirVille(v.code)}
+                  />
+                ))}
+              </View>
+            </View>
+          )}
 
           {/* Recherche (§5.3 : loupe + champ) */}
           <View style={styles.recherche}>
@@ -200,23 +309,35 @@ export default function CarteTab() {
             keyboardShouldPersistTaps="handled"
           >
             <FiltreChip label="Tous" actif={type === null} onPress={() => setType(null)} />
-            {TYPES.map((t) => (
-              <FiltreChip key={t} label={LIBELLE_TYPE[t]} actif={type === t} onPress={() => setType(t)} />
+            {typesEtablissement.map((t) => (
+              <FiltreChip
+                key={t.code}
+                label={t.libelle}
+                actif={type === t.code}
+                onPress={() => setType(t.code)}
+              />
             ))}
           </ScrollView>
 
-          {/* Filtre commune */}
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.filtres}
-            keyboardShouldPersistTaps="handled"
-          >
-            <FiltreChip label="Toutes communes" actif={commune === null} onPress={() => setCommune(null)} />
-            {COMMUNES.map((c) => (
-              <FiltreChip key={c} label={c} actif={commune === c} onPress={() => setCommune(c)} />
-            ))}
-          </ScrollView>
+          {/*
+            Filtre commune — affiché SEULEMENT si le serveur en annonce pour cette ville.
+            Abidjan se subdivise en communes, Yamoussoukro et Bouaké non : la décision vit dans
+            `villes.affiche_communes`, pas dans un `if ville === 'Abidjan'` écrit ici. Une
+            quatrième ville subdivisée demain n'exigera aucun déploiement.
+          */}
+          {communesDisponibles.length > 0 && (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.filtres}
+              keyboardShouldPersistTaps="handled"
+            >
+              <FiltreChip label="Toutes communes" actif={commune === null} onPress={() => setCommune(null)} />
+              {communesDisponibles.map((c) => (
+                <FiltreChip key={c} label={c} actif={commune === c} onPress={() => setCommune(c)} />
+              ))}
+            </ScrollView>
+          )}
 
           {/* Filtre budget (F3.2) */}
           <ScrollView
@@ -361,6 +482,40 @@ const styles = StyleSheet.create({
     borderColor: colors.blue[600],
   },
   geoTxt: { ...typography.caption, fontWeight: '700' },
+
+  // ── P6.4b — ville courante, hors zone, choix de ville ──────────────────────
+  villeChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    gap: spacing[1],
+    paddingVertical: spacing[1],
+    paddingHorizontal: spacing[2],
+    borderRadius: radius.pill,
+    backgroundColor: colors.surface,
+    marginBottom: spacing[1],
+  },
+  villeNom: { ...typography.caption, fontWeight: '700', color: colors.blue[600] },
+  villePhrase: { ...typography.caption, color: colors.ink[500], marginBottom: spacing[1] },
+  horsZone: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: spacing[1],
+    padding: spacing[2],
+    borderRadius: radius.md,
+    backgroundColor: colors.surface,
+    marginBottom: spacing[1],
+  },
+  horsZoneTxt: { ...typography.caption, color: colors.ink[500], flex: 1 },
+  choixVille: {
+    padding: spacing[2],
+    borderRadius: radius.md,
+    backgroundColor: colors.surface,
+    marginBottom: spacing[1],
+  },
+  choixTitre: { ...typography.caption, fontWeight: '700', color: colors.ink[900] },
+  choixAide: { ...typography.caption, color: colors.ink[500], marginTop: 2, marginBottom: spacing[1] },
+  choixListe: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing[1] },
   presse: { opacity: 0.7 },
   bascule: { flex: 1, minWidth: 150 },
   filtres: { gap: spacing[2], paddingVertical: spacing[1], paddingRight: spacing[4] },

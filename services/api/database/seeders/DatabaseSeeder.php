@@ -42,6 +42,13 @@ class DatabaseSeeder extends Seeder
         // Catalogue des médicaments essentiels + prix de référence CENAME (Module 5 / FN7).
         $this->call(MedicamentSeeder::class);
 
+        // P6.4b — Villes couvertes (Abidjan, Yamoussoukro, Bouaké) + rattachement des structures.
+        $this->call(VilleSeeder::class);
+
+        // P6.4 — Découpage sanitaire (régions, districts) + rattachement des structures.
+        // APRÈS `StructureSanitaireSeeder` : il rattache des structures qui doivent exister.
+        $this->call(DecoupageSanitaireSeeder::class);
+
         // P6.3 — Registre des référentiels nationaux gouvernés (CDC_09 §10). APRÈS les seeders de
         // contenu ci-dessus : le registre s'inscrit sur des tables déjà peuplées, faute de quoi la
         // première proposition figerait un instantané vide.
