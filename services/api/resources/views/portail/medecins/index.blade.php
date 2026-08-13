@@ -25,6 +25,7 @@
     <table class="table table-hover align-middle mb-0">
       <thead class="table-light">
         <tr>
+          <th>N° national</th>
           <th>Praticien</th>
           <th>Spécialité</th>
           <th>Service</th>
@@ -36,7 +37,21 @@
       <tbody>
         @forelse ($medecins as $medecin)
           <tr class="{{ $medecin->actif ? '' : 'table-secondary' }}">
-            <td class="fw-medium">{{ $medecin->nom_complet }}</td>
+            <td class="text-nowrap">
+              @if ($medecin->numero_professionnel)
+                <code>{{ $medecin->numero_professionnel }}</code>
+              @else
+                {{-- Absence dite plutôt que comblée : la fiche existe, le référentiel ne la
+                     connaît pas encore. `masante:professionnels:backfill` la sert. --}}
+                <span class="text-muted small">Non attribué</span>
+              @endif
+            </td>
+            <td class="fw-medium">
+              {{ $medecin->nom_complet }}
+              @if ($medecin->profession)
+                <div class="text-muted small">{{ \App\Support\ProfessionsSante::libelle($medecin->profession) }}</div>
+              @endif
+            </td>
             <td>{{ $medecin->specialite }}</td>
             <td>{{ $medecin->service?->nom_service ?? '—' }}</td>
             <td>
@@ -68,7 +83,7 @@
           </tr>
         @empty
           <tr>
-            <td colspan="6" class="text-center text-muted py-4">
+            <td colspan="7" class="text-center text-muted py-4">
               Aucun praticien dans l'annuaire de votre établissement.
               <a href="{{ route('portail.medecins.create') }}">Ajoutez le premier</a> pour que vos patients
               puissent le choisir en rendez-vous ou le désigner médecin référent.

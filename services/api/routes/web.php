@@ -166,6 +166,16 @@ Route::prefix('portail')->name('portail.')->group(function () {
             Route::get('medecins/{medecin}/editer', [PortailMedecinController::class, 'edit'])->name('medecins.edit');
             Route::put('medecins/{medecin}', [PortailMedecinController::class, 'update'])->name('medecins.update');
             Route::patch('medecins/{medecin}/actif', [PortailMedecinController::class, 'toggleActif'])->name('medecins.toggle');
+
+            // P6.5a — lieux d'exercice (§5.2, « établissements d'exercice »). Gardées par
+            // `professionnel.habiliter` EN PLUS de `medecin.manage`, et vérifiées dans le
+            // contrôleur : déclarer qu'un praticien exerce ailleurs est une affirmation NATIONALE
+            // sur quelqu'un, pas la description de son propre annuaire. Un hôpital ne revendique
+            // pas seul le médecin d'un autre.
+            Route::post('medecins/{medecin}/exercices', [PortailMedecinController::class, 'ajouterExercice'])
+                ->name('medecins.exercices.store');
+            Route::delete('medecins/{medecin}/exercices/{exercice}', [PortailMedecinController::class, 'retirerExercice'])
+                ->name('medecins.exercices.destroy');
         });
 
         // 5.8 — Prix & stock d'une PHARMACIE partenaire (FN7/FN8, « modèle freemium » du CdC).

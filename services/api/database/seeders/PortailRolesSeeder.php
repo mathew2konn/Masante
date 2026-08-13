@@ -57,6 +57,16 @@ class PortailRolesSeeder extends Seeder
         // filtrage réel se joue à l'attribution nominative, pas dans cette liste.
         'referentiel.proposer',   // soumettre un changement de référentiel national à décision
         'referentiel.publier',    // décider du sort d'une proposition : la publier ou la rejeter
+        // Habilitation professionnelle (P6.5a, CDC_09 §5.2) — CINQUIÈME occurrence du précédent :
+        // VOLONTAIREMENT ATTRIBUÉE À AUCUN RÔLE MÉTIER, et ici la raison est plus forte qu'ailleurs.
+        //
+        // `medecin.manage` laisse un gestionnaire décrire les praticiens de SON établissement :
+        // nom, spécialité, tarif, service. Mais l'AUTORISATION D'EXERCER n'est pas une donnée
+        // d'établissement — elle est délivrée et retirée par un ordre professionnel. Laisser un
+        // hôpital déclarer ses propres médecins autorisés reviendrait à lui faire signer le
+        // contrôle qui le vise : c'est le §5.4 qui s'appuiera dessus pour laisser signer une
+        // ordonnance, et il serait alors adossé à une déclaration de l'intéressé.
+        'professionnel.habiliter', // déclarer / modifier l'autorisation d'exercer et le n° d'ordre
     ];
 
     /** Permissions par rôle (moindre privilège). L'admin reçoit tout. */
@@ -73,6 +83,29 @@ class PortailRolesSeeder extends Seeder
         // praticien. C'est le patient qui ouvre la porte, pas le rôle (Sécurité §4.4).
         'agent_garde' => [
             'disponibilite.manage', 'rdv.validate', 'qr.scan', 'triage.view', 'dossier.referent',
+        ],
+        // ═══ P6.5a — LE RÔLE `medecin` DEVIENT UTILISABLE (décision propriétaire P5) ═══
+        //
+        // Il existait depuis P1 et n'était accepté par aucun portail : un praticien qui écrivait
+        // au carnet en P7-D0 le faisait sous un compte `agent_garde`, sous l'identité d'un agent
+        // d'accueil. Une signature électronique n'aurait alors désigné personne.
+        //
+        // POURQUOI `dossier.ecrire` LUI EST DONNÉE ALORS QU'ELLE N'EST DONNÉE À AUCUN AUTRE RÔLE.
+        // Le commentaire de P7-D0 disait : « `agent_garde` porte `qr.scan` et sert l'accueil ; un
+        // agent d'accueil ne rédige pas une ordonnance — le gestionnaire l'accorde individuellement
+        // aux soignants habilités. » L'exclusion visait un rôle d'accueil faute de rôle de soin.
+        // Ce rôle de soin existe désormais : c'est exactement le destinataire que la phrase
+        // annonçait. Les TROIS GARDES CUMULATIVES de D0 restent intégralement en place —
+        // permission, voie consentie (`qr_scan` ou `referent`, jamais le bris de glace), liste
+        // blanche des sections.
+        //
+        // CE QU'IL NE REÇOIT PAS, ET POURQUOI. `disponibilite.manage` et `rdv.validate` restent à
+        // l'accueil et au secrétariat : CDC_11 §9 prévoit bien une validation finale par le
+        // médecin, mais ce circuit est celui de P4, validé G5, et on ne le rouvre pas au détour
+        // d'un incrément sur les référentiels. `medecin.manage` non plus — un praticien ne se
+        // décrit pas lui-même dans l'annuaire national.
+        'medecin' => [
+            'qr.scan', 'triage.view', 'dossier.referent', 'dossier.ecrire',
         ],
     ];
 

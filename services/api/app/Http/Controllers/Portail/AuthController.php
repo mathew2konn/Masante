@@ -18,8 +18,23 @@ use Illuminate\View\View;
  */
 class AuthController extends Controller
 {
-    /** Rôles autorisés à accéder au portail. */
-    private const ROLES_PORTAIL = ['admin_ivoirsante', 'gestionnaire_etablissement', 'agent_garde'];
+    /**
+     * Rôles autorisés à accéder au portail.
+     *
+     * P6.5a — `medecin` rejoint la liste (décision propriétaire P5). Ce rôle était créé par le
+     * `RoleSeeder` de P1 et n'était utilisable NULLE PART : un praticien qui écrivait au carnet en
+     * P7-D0 le faisait sous un compte `agent_garde`, c'est-à-dire sous l'identité d'un agent
+     * d'accueil. Tant qu'il en allait ainsi, aucune signature électronique n'aurait pu désigner un
+     * professionnel — elle aurait désigné un guichet.
+     *
+     * LES DIX AUTRES MÉTIERS DU §5.1 RESTENT DEHORS, et c'est une limite annoncée, pas un oubli :
+     * `infirmier`, `pharmacien`, `laborantin` et `radiologue` existent aussi depuis P1, mais leur
+     * ouvrir le portail sans définir ni prouver ce qu'ils y font produirait des comptes capables
+     * d'entrer sans que quiconque ait décidé de ce qu'ils peuvent y faire.
+     */
+    private const ROLES_PORTAIL = [
+        'admin_ivoirsante', 'gestionnaire_etablissement', 'agent_garde', 'medecin',
+    ];
 
     public function showLogin(): View|RedirectResponse
     {

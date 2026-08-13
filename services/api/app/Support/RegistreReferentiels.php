@@ -3,6 +3,7 @@
 namespace App\Support;
 
 use App\Services\Referentiel\SourceEtablissements;
+use App\Services\Referentiel\SourceProfessionnels;
 use App\Services\Referentiel\SourceReferentiel;
 use App\Services\Referentiel\SourceSeuilsMesure;
 use App\Services\Referentiel\SourceSymptomesTriage;
@@ -15,7 +16,7 @@ use App\Services\Referentiel\SourceSymptomesTriage;
  * donc une porte vers n'importe quelle table. La fermeture n'est pas de la rigueur, c'est la garde.
  *
  * CE QUI N'Y FIGURE PAS, ET POURQUOI (décision G1 D3-a) :
- *  - `structures_sanitaires` → P6.4, `medecins` → P6.5, `medicaments` → P6.6, laboratoires → P6.7.
+ *  - `medicaments` → P6.6, laboratoires → P6.7.
  *    Ce sont des référentiels d'ANNUAIRE ; ils entrent sous gouvernance avec leur incrément dédié,
  *    qui les enrichit (identifiant national, district sanitaire, numéro d'ordre — ADR-024).
  *  - `etapes_prenatales`, `alertes_epidemiques` : même logique, ouverture ultérieure additive.
@@ -37,6 +38,11 @@ final class RegistreReferentiels
         // la note d'avis et les horaires y sont exclus, sans quoi l'instantané divergerait à
         // chaque avis déposé. Voir `SourceEtablissements` et ADR-026.
         SourceEtablissements::CODE   => SourceEtablissements::class,
+        // P6.5a — même nature que les établissements : une **projection d'identité**, pas la table
+        // `medecins`. Le tarif de consultation, la biographie et les coordonnées en sont exclus ;
+        // le numéro national, l'ordre professionnel et l'autorisation d'exercer y entrent, parce
+        // qu'eux seuls engagent une autorité. Voir `SourceProfessionnels` et ADR-031.
+        SourceProfessionnels::CODE   => SourceProfessionnels::class,
     ];
 
     /** @return array<int, string> */
