@@ -1,7 +1,7 @@
 # GUIDE DE TEST — Référentiels nationaux (CDC_09)
 
 > **Parties** : **1** P6.3 Socle référentiel · **2** P6.4a Référentiel des établissements ·
-> **3** P6.4b Villes et géolocalisation.
+> **3** P6.4b Villes et géolocalisation · **4** P6.4c Images des établissements.
 > Un domaine, un guide : les référentiels d'annuaire à venir (professionnels P6.5, médicaments
 > P6.6, laboratoires P6.7) s'ajouteront ici en parties, pas en fichiers nouveaux.
 
@@ -802,4 +802,250 @@ cd apps/mobile && npx expo-doctor
 **La palette et l'échelle d'espacement n'ont pas les clés qu'on croit** : `colors.ink` va par 900/700/500 (pas de `600`), et `spacing` est numérique (`spacing[1]`…), pas `xs`/`sm`. Le typecheck les attrape ; les inventer fait perdre un cycle.
 
 **Changer de ville doit purger le filtre de commune.** Un chip « Cocody » resté actif après un passage à Bouaké donnerait une liste **vide sans explication**.
+
+
+---
+
+# PARTIE 4 — Images des établissements (P6.4c)
+
+**Module** : P6.4c — logo et photos, catégories en données, diffusion publique, entrée dans le référentiel gouverné.
+**Corpus** : CDC_09 §4.2 · CDC_11 §3.1 · **Décision** : [ADR-028](docs/adr/ADR-028-images-etablissements.md) · **Plan G1** : [docs/PLAN_G1_P6_4c_Images_Etablissements.md](docs/PLAN_G1_P6_4c_Images_Etablissements.md).
+
+## 4.1 Périmètre — et ce que ce module ne fait PAS
+
+### Ce qu'il fait
+
+Un établissement publie un **logo** et des **photos** dans les cinq catégories que CDC_11 §3.1 nomme. Les images sont servies **publiquement**, affichées sur la carte de résultat et la fiche mobile, et **elles entrent dans le référentiel gouverné** — sous la forme d'une empreinte, pas d'un fichier.
+
+### Ce qu'il ne fait pas — à lire avant de tester
+
+| # | Limite | Pourquoi |
+|---|---|---|
+| **O1** | **Aucun écran d'envoi.** L'API seule. | Le formulaire relève du **portail Next** (ADR-011), comme l'onboarding « Méthode 2 » que P6.4a a reporté pour la même raison (limite M1). Le construire en Blade puis le refaire serait le gaspillage qu'on évite. |
+| **O2** | **Pas d'antivirus** sur ces images. | Symétrie explicite avec `PhotoMembreService` : image **publique**, déposée par un gestionnaire **identifié et habilité**, jamais exécutée, servie avec son type réel. Le crible reste « vraie image » + MIME réel + liste blanche. |
+| **O3** | **Ni redimensionnement ni vignette.** | Ce serait du traitement d'image, donc une dépendance ou une logique neuve. La taille est bornée **à l'entrée** (4 Mo par défaut). |
+| **O4** | **Pas d'images hors ligne.** | Le cache P2 stocke du JSON chiffré, pas du binaire. La fiche retombe sur l'icône — **ce n'est pas une panne**. |
+| **O5** | Le quota « au plus N par catégorie » est tenu **par le service sous verrou**, pas par le moteur. | Sous MySQL, un déclencheur ne peut pas interroger la table qu'il garde (erreur 1442). Seule l'unicité *même image dans la même catégorie* est déclarative. |
+
+## 4.2 Prérequis
+
+Ceux des parties 2 et 3, plus :
+
+```bash
+cd C:\wamp64\www\IVOIRESANTE\services\api
+set PHP=C:\wamp64\bin\php\php8.3.28\php.exe
+
+XDEBUG_MODE=off %PHP% artisan migrate --force
+XDEBUG_MODE=off %PHP% artisan db:seed --class=CategoriesImageEtablissementSeeder --force
+XDEBUG_MODE=off %PHP% artisan serve --host=0.0.0.0 --port=8000
+```
+
+Un compte habilité (`etablissement.manage`) et un compte quelconque :
+
+```bash
+XDEBUG_MODE=off %PHP% artisan tinker
+>>> $a = App\Models\User::firstOrCreate(['telephone'=>'+2250799000009'], ['nom'=>'G4','prenom'=>'Images','email'=>'g4img@masante.ci','password'=>bcrypt('Test@2026!'),'date_naissance'=>'1990-01-01']);
+>>> $a->givePermissionTo('etablissement.manage');
+>>> echo $a->createToken('g4')->plainTextToken;   // → $ADMIN
+```
+
+Quatre fichiers de test, dont deux pièges :
+
+```bash
+%PHP% -r "$d=getcwd().'/g4img/'; @mkdir($d);
+$mk=function($w,$h,$r,$g,$b,$f){$im=imagecreatetruecolor($w,$h);imagefill($im,0,0,imagecolorallocate($im,$r,$g,$b));imagepng($im,$f);};
+$mk(80,80,0,90,200,$d.'logo.png'); $mk(200,140,220,90,0,$d.'accueil.png');
+file_put_contents($d.'menteur.png','ceci est du texte, pas une image');
+$p=file_get_contents($d.'logo.png');
+file_put_contents($d.'zeropixel.png', substr($p,0,16).pack('N',0).pack('N',0).substr($p,24));"
+```
+
+## 4.3 Scénarios front (Expo Go)
+
+### 4.3.1 — Sans image, rien ne casse
+
+Ouvrir l'onglet **Carte**, puis une fiche, **avant** tout dépôt.
+
+✅ **Attendu** : la tuile porte l'icône bleue habituelle, la fiche porte une icône d'immeuble, et **aucun bloc « Photos »** n'apparaît. Un titre au-dessus d'une bande vide annoncerait un contenu absent.
+
+### 4.3.2 — Le logo remplace l'icône
+
+Déposer un logo (§4.4.1), puis tirer pour rafraîchir la liste.
+
+✅ **Attendu** : la tuile de cet établissement affiche **le logo** à la place de l'icône générique ; les autres gardent la leur. Sur la fiche, le logo est en tête, à gauche de « Hôpital · Cocody ».
+
+### 4.3.3 — La galerie n'apparaît qu'avec des photos, et sans le logo
+
+Déposer une photo d'accueil et une de salle d'attente, rouvrir la fiche.
+
+✅ **Attendu** : un bloc **« Photos »** défilant horizontalement, avec **deux** images. **Le logo n'y figure pas** — il est déjà en tête de fiche, et l'y répéter le ferait passer pour une photo des lieux.
+
+### 4.3.4 — Mode avion : l'icône reprend la main
+
+Charger la fiche, puis passer en **mode avion** et rouvrir l'application.
+
+✅ **Attendu** : la fiche reste lisible depuis le cache ; **l'icône de repli remplace le logo**, et les vignettes de la galerie montrent l'icône d'image. Ni rectangle vide, ni croix, ni écran d'erreur.
+
+⚠️ Le cache hors ligne de P2 stocke du **JSON chiffré**, pas du binaire — les images ne sont pas mises en cache (limite **O4**). Le repli est prévu, pas subi.
+
+## 4.4 Scénarios backend (curl reproductibles)
+
+```bash
+set BASE=http://127.0.0.1:8000/api/v1
+```
+
+### 4.4.1 — Dépôt d'un logo par un compte habilité
+
+```bash
+curl -s -X POST %BASE%/structures/1/images -H "Authorization: Bearer %ADMIN%" ^
+  -F "image=@g4img/logo.png" -F "categorie=logo" | jq
+```
+✅ **Attendu** : `201`, avec `categorie_code`, `mime: image/png`, `largeur`/`hauteur` **lues sur les octets**, une `empreinte` SHA-256, et `url: "/api/v1/structures/1/images/1"`.
+
+**Absents de la réponse** : `chemin` (détail de stockage) et `depose_par` — la diffusion des fiches est publique, savoir quel compte a mis en ligne la photo d'un bloc opératoire ne regarde personne au-dehors. L'information reste en base.
+
+### 4.4.2 — Les cinq gardes, une par une
+
+```bash
+:: second logo → 409 (le maximum est une DONNÉE, pas un `if`)
+curl -s -o nul -w "%%{http_code}\n" -X POST %BASE%/structures/1/images -H "Authorization: Bearer %ADMIN%" -F "image=@g4img/accueil.png" -F "categorie=logo"
+:: catégorie inconnue → 404
+curl -s -o nul -w "%%{http_code}\n" -X POST %BASE%/structures/1/images -H "Authorization: Bearer %ADMIN%" -F "image=@g4img/accueil.png" -F "categorie=piscine"
+:: fichier texte nommé .png → 422
+curl -s -X POST %BASE%/structures/1/images -H "Authorization: Bearer %ADMIN%" -F "image=@g4img/menteur.png" -F "categorie=accueil"
+:: PNG de zéro pixel → 422
+curl -s -X POST %BASE%/structures/1/images -H "Authorization: Bearer %ADMIN%" -F "image=@g4img/zeropixel.png" -F "categorie=accueil"
+:: compte non habilité → 403 ; anonyme → 401
+curl -s -o nul -w "%%{http_code}\n" -X POST %BASE%/structures/1/images -H "Authorization: Bearer %QUIDAM%" -F "image=@g4img/accueil.png" -F "categorie=accueil"
+curl -s -o nul -w "%%{http_code}\n" -X POST %BASE%/structures/1/images -F "image=@g4img/accueil.png" -F "categorie=accueil"
+```
+✅ **Attendu** : `409` · `404` · `422 « Format « text/plain » refusé »` · `422 « … dimensions illisibles ou nulles »` · `403` · `401`.
+
+⚠️ **Le vecteur du PNG de zéro pixel a trouvé un vrai trou.** Ses huit premiers octets sont la signature PNG et son en-tête IHDR est valide : `finfo` répond « image/png », donc **le premier crible le laisse passer**. Et `getimagesizefromstring` ne répond pas `false` mais `[0, 0]` — le contrôle initial, qui ne testait que `false`, laissait entrer une image de zéro pixel dans le stockage public. C'est la moitié du contrôle qu'aucun autre vecteur n'atteint.
+
+### 4.4.3 — La diffusion est publique, et cachable
+
+```bash
+curl -s -D - -o recu.png %BASE%/structures/1/images/1
+```
+✅ **Attendu, SANS aucun jeton** : `200`, `Content-Type: image/png`, `Cache-Control: public, max-age=86400`, un `ETag` égal à l'empreinte, et un fichier **identique octet pour octet** à celui envoyé.
+
+```bash
+curl -s -o nul -w "%%{http_code}\n" -H "If-None-Match: \"<empreinte>\"" %BASE%/structures/1/images/1
+curl -s -o nul -w "%%{http_code}\n" %BASE%/structures/2/images/1
+```
+✅ **Attendu** : `304` puis `404` — une image réclamée sous un **autre** établissement n'existe pas, sinon deux chemins désigneraient la même ressource et les caches divergeraient.
+
+### 4.4.4 — L'URL est relative, et c'est délibéré
+
+```bash
+curl -s %BASE%/structures/1 | jq -r '.structure.images[].url'
+```
+✅ **Attendu** : `/api/v1/structures/1/images/1` — **pas** `https://…ngrok-free.dev/…`.
+
+⚠️ Une URL absolue serait bâtie sur `APP_URL`, qui vaut ici l'URL Ngrok : mise en cache par le mobile, elle deviendrait **fausse au prochain redémarrage du tunnel**. Le mobile la préfixe lui-même, en un seul endroit (`ImageEtablissementView`).
+
+### 4.4.5 — La fiche porte tout, la liste seulement le logo
+
+```bash
+curl -s %BASE%/structures/1  | jq '[.structure.images[].categorie_code]'
+curl -s %BASE%/structures    | jq '[.structures[] | select(.id==1) | .images[].categorie_code]'
+```
+✅ **Attendu** : `["logo","accueil"]` puis `["logo"]`. Charger les photos de douze structures pour une tuile qui n'affiche que le logo serait payer un transfert pour rien.
+
+### 4.4.6 — LE VECTEUR CENTRAL : ce que le référentiel voit d'une image
+
+Relever d'abord l'empreinte du référentiel **avant tout dépôt** :
+
+```bash
+XDEBUG_MODE=off %PHP% artisan tinker
+>>> App\Services\Referentiel\EmpreinteReferentiel::duContenu((new App\Services\Referentiel\SourceEtablissements)->extraire());
+```
+
+Déposer un logo, puis reprendre l'empreinte.
+✅ **Attendu** : **elle a changé**. Le propriétaire a placé les images dans le référentiel gouverné (décision I3) : déposer une image **doit** faire diverger, et le référentiel restera « DIVERGENTE de la table » jusqu'à la publication d'une nouvelle version. **C'est le comportement voulu, pas un défaut.**
+
+Puis **supprimer** l'image et **redéposer exactement le même fichier** :
+
+```bash
+curl -s -X DELETE %BASE%/structures/1/images/1 -H "Authorization: Bearer %ADMIN%"
+curl -s -X POST   %BASE%/structures/1/images   -H "Authorization: Bearer %ADMIN%" -F "image=@g4img/logo.png" -F "categorie=logo"
+```
+✅ **Attendu** : l'identifiant de la ligne a changé, **le fichier sur disque porte un nouvel UUID**, et **l'empreinte du référentiel est identique à celle d'avant la suppression**.
+
+⚠️ **Les deux moitiés comptent.** C'est ce couple qui prouve que l'instantané porte **l'empreinte du contenu** et non le chemin de stockage : avec le chemin, redéposer la même image aurait fait diverger le référentiel alors que rien n'a changé.
+
+```bash
+curl -s %BASE%/referentiels/etablissements | jq '.contenu[0].images'
+```
+✅ **Attendu** : `[{"categorie": "...", "empreinte": "..."}]` — **ni chemin, ni octets, ni URL**.
+
+## 4.5 Invariants base de données
+
+```sql
+-- (a) Les cinq catégories du CDC_11, et le maximum en DONNÉE.
+SELECT code, libelle, max_par_etablissement, ordre, actif
+  FROM categories_image_etablissement ORDER BY ordre;
+-- ✅ logo(1) · accueil(5) · salle_attente(5) · bloc_operatoire(5) · parking(3)
+
+-- (b) « Un établissement n'a qu'un logo » se change sans toucher au code.
+UPDATE categories_image_etablissement SET max_par_etablissement = 2 WHERE code = 'logo';
+-- ✅ un second logo est désormais accepté ; remettre 1 ensuite.
+
+-- (c) Le nom du client n'atteint jamais le disque.
+SELECT chemin FROM etablissement_images;
+-- ✅ `<structure>/<uuid>.png` — l'extension vient du MIME réel, jamais du fichier envoyé.
+
+-- (d) La même image ne peut pas entrer deux fois dans la même catégorie (garanti par le moteur).
+SHOW INDEX FROM etablissement_images WHERE Key_name = 'uq_image_unique_par_categorie';
+
+-- (e) Rien n'a bougé ailleurs.
+SELECT COUNT(*) FROM structures_sanitaires;  -- ✅ 12
+```
+
+**Migration strictement additive** : `structures_sanitaires` n'est pas touchée. Une image est une **ligne**, pas une colonne — le corpus en attend plusieurs, et une colonne `photos_json` aurait rendu impossible la suppression d'une seule photo sans réécrire les autres.
+
+## 4.6 Commandes de qualité (G3)
+
+```bash
+XDEBUG_MODE=off %PHP% artisan test --filter=ImagesEtablissementTest   # 30 tests
+XDEBUG_MODE=off %PHP% artisan test                                     # suite complète
+pnpm typecheck
+cd apps/mobile && npx expo-doctor
+```
+✅ **Référence au G5 (2026-08-13)** : 30/30 pour le module · **530 tests / 14 692 assertions, 0 échec** · typecheck ×3 verts · **expo-doctor 18/18**.
+
+## 4.7 Checklist de clôture
+
+- [ ] Sans image : icône générique, **aucun bloc « Photos »** (§4.3.1)
+- [ ] Logo déposé → il remplace l'icône en liste **et** en tête de fiche (§4.3.2)
+- [ ] Galerie présente **sans le logo** (§4.3.3)
+- [ ] Mode avion → repli sur l'icône, jamais une croix (§4.3.4)
+- [ ] Dépôt 201 ; `chemin` et `depose_par` **absents** de la réponse (§4.4.1)
+- [ ] Second logo → 409 · catégorie inconnue → 404 (§4.4.2)
+- [ ] Fichier texte → 422 · **PNG de zéro pixel → 422** (§4.4.2)
+- [ ] Non habilité → 403 · anonyme → 401 (§4.4.2)
+- [ ] Diffusion **publique sans jeton**, octets identiques, `ETag` → 304, autre établissement → 404 (§4.4.3)
+- [ ] URL **relative**, jamais l'URL Ngrok (§4.4.4)
+- [ ] Fiche = toutes les images · liste = logo seul (§4.4.5)
+- [ ] **Dépôt → le référentiel DIVERGE** (§4.4.6)
+- [ ] **Suppression puis redépôt du même fichier → empreinte du référentiel INCHANGÉE**, malgré un UUID neuf (§4.4.6)
+- [ ] Le référentiel publie `{categorie, empreinte}`, ni chemin ni octets (§4.4.6)
+- [ ] `max_par_etablissement` modifiable en base sans toucher au code (§4.5b)
+- [ ] Suite complète + typecheck ×3 + expo-doctor (§4.6)
+- [ ] **Limites O1→O5 relues et acceptées** (§4.1)
+
+## 4.8 Pièges rencontrés
+
+**`getimagesize` ne renvoie pas `false` sur une image de zéro pixel** mais `[0, 0]`. La garde initiale ne testait que `false` : un PNG dont l'en-tête IHDR porte des dimensions nulles passait `finfo` (« image/png »), passait le second crible, et entrait dans le stockage public pour s'afficher en cadre vide. **C'est le vecteur de test qui l'a trouvé, pas la relecture.**
+
+**`abort()` ne met pas son statut dans `getCode()`.** Une `HttpException` porte `getCode() === 0` et le statut dans `getStatusCode()` : dix tests écrits avec `expectExceptionCode(403)` passaient **sans rien vérifier**, et pire, un 500 s'y serait fait passer pour un 403. Assertion refaite par un helper qui compare `getStatusCode()`.
+
+**Un commentaire qui promet plus que le code.** Le modèle annonçait « le chemin ne sort jamais ; l'empreinte non plus » alors que seul `chemin` était caché. Le G2 l'a montré en affichant la réponse réelle — et a révélé au passage que `depose_par` sortait sur un endpoint **public**.
+
+**Un déclencheur MySQL ne peut pas interroger la table qu'il garde** (erreur 1442) : le quota « au plus N par catégorie » ne pouvait pas être déclaratif. Il est tenu par le service **sous verrou pessimiste**, et la limite est annoncée (O5) plutôt que déguisée en garantie du moteur.
+
+**Le fichier temporaire d'un `UploadedFile` disparaît avec l'objet.** Écrire `file_get_contents($this->image()->getRealPath())` échoue : l'objet est détruit avant la lecture. Générer les octets d'abord, construire le fichier ensuite.
+
+**Ne pas mettre le logo dans la galerie.** Techniquement c'est une image de plus ; à l'écran, c'est une photo des lieux qui n'en est pas une.
 

@@ -4,7 +4,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { Card } from './Card';
 import { PastilleDispo } from './PastilleDispo';
 import { colors, radius, spacing, typography } from '../theme/theme';
-import { libelleType, type Structure } from '../types/structure';
+import ImageEtablissementView from './ImageEtablissementView';
+import { CATEGORIE_LOGO, libelleType, type Structure } from '../types/structure';
 import { useLocalisation } from '../store/localisation';
 
 /**
@@ -24,9 +25,19 @@ export function StructureCard({ structure, onPress }: { structure: Structure; on
   const contenu = (
     <Card style={styles.card}>
       <View style={styles.entete}>
-        <View style={styles.cercle}>
-          <Ionicons name={iconePour(structure)} size={22} color={colors.blue[600]} />
-        </View>
+        {/*
+          P6.4c — le logo remplace l'icône générique quand l'établissement en publie un. En liste,
+          le serveur n'envoie QUE le logo : charger les photos d'accueil et de bloc opératoire de
+          douze structures pour des images que cette tuile n'affiche pas serait payer un transfert
+          pour rien. Sans logo — ou hors ligne — on retombe sur l'icône, jamais sur un vide.
+        */}
+        <ImageEtablissementView
+          image={structure.images?.find((i) => i.categorie_code === CATEGORIE_LOGO)}
+          repli={iconePour(structure)}
+          taille={44}
+          style={styles.logo}
+          description={`Logo de ${structure.nom}`}
+        />
         <View style={styles.titreBloc}>
           <Text style={styles.nom} numberOfLines={2}>{structure.nom}</Text>
           <Text style={styles.meta} numberOfLines={1}>
@@ -98,9 +109,8 @@ const styles = StyleSheet.create({
   presse: { opacity: 0.7 },
   card: { gap: spacing[3] },
   entete: { flexDirection: 'row', alignItems: 'center' },
-  cercle: {
-    width: 44, height: 44, borderRadius: radius.pill, backgroundColor: colors.blue[100],
-    alignItems: 'center', justifyContent: 'center', marginRight: spacing[3],
+  logo: {
+    borderRadius: radius.pill, backgroundColor: colors.blue[100], marginRight: spacing[3],
   },
   titreBloc: { flex: 1 },
   nom: { ...typography.bodyStrong, color: colors.blue[900] },

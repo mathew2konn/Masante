@@ -45,6 +45,9 @@ class DatabaseSeeder extends Seeder
         // P6.4b — Villes couvertes (Abidjan, Yamoussoukro, Bouaké) + rattachement des structures.
         $this->call(VilleSeeder::class);
 
+        // P6.4c — Catégories d'images (CDC_11 §3.1). Table de référence, aucune image déposée.
+        $this->call(CategoriesImageEtablissementSeeder::class);
+
         // P6.4 — Découpage sanitaire (régions, districts) + rattachement des structures.
         // APRÈS `StructureSanitaireSeeder` : il rattache des structures qui doivent exister.
         $this->call(DecoupageSanitaireSeeder::class);

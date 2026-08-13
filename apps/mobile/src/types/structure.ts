@@ -91,7 +91,31 @@ export interface Structure {
   distance_km?: number;
   /** Présent uniquement sur la fiche détaillée (GET /v1/structures/{id}). */
   services?: Service[];
+  /**
+   * Images publiques (P6.4c). En LISTE, le serveur n'envoie que le logo ; sur la FICHE, toutes.
+   * Déjà ordonnées par le serveur (catégorie puis rang de dépôt) — l'écran ne trie rien.
+   */
+  images?: ImageEtablissement[];
 }
+
+/**
+ * Une image d'établissement (P6.4c) — logo ou photo.
+ *
+ * `url` est **relative** (`/api/v1/structures/12/images/34`). C'est délibéré : une URL absolue
+ * serait bâtie sur l'URL Ngrok du moment et deviendrait fausse au prochain redémarrage du tunnel,
+ * y compris pour les fiches déjà en cache. Le composant la préfixe avec l'origine de l'API.
+ */
+export interface ImageEtablissement {
+  id: number;
+  categorie_code: string;
+  mime: string;
+  largeur: number | null;
+  hauteur: number | null;
+  url: string;
+}
+
+/** Le code de catégorie du logo, tel que la table de référence backend le nomme. */
+export const CATEGORIE_LOGO = 'logo';
 
 /** Filtres acceptés par GET /v1/structures (tous optionnels). */
 export interface FiltresStructure {

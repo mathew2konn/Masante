@@ -24,6 +24,7 @@ use App\Http\Controllers\Api\V1\DossierTitulaireController;
 use App\Http\Controllers\Api\V1\FicheParcoursController;
 use App\Http\Controllers\Api\V1\FicheVitaleController;
 use App\Http\Controllers\Api\V1\GouvernanceReferentielController;
+use App\Http\Controllers\Api\V1\ImageEtablissementController;
 use App\Http\Controllers\Api\V1\MedecinController;
 use App\Http\Controllers\Api\V1\MedicamentController;
 use App\Http\Controllers\Api\V1\MembreController;
@@ -389,6 +390,20 @@ Route::middleware('throttle:api')->group(function () {
             */
             Route::post('structures/{structure}/avis', [AvisController::class, 'store']);   // F3.9
 
+            /*
+            |--------------------------------------------------------------
+            | P6.4c — Images des établissements (CDC_11 §3.1 « formulaire dédié »).
+            |--------------------------------------------------------------
+            | Écriture sous Sanctum, puis re-gardée DANS le service : permission nationale
+            | `etablissement.manage` OU gestionnaire de CET établissement. La vérification
+            | n'est pas faite par le middleware `permission:` de spatie — les permissions
+            | sont posées sur le guard `web` et ces routes sont Sanctum (piège de P4).
+            |
+            | La lecture, elle, est publique : voir plus bas, avec le reste de l'annuaire.
+            */
+            Route::post('structures/{structure}/images', [ImageEtablissementController::class, 'store']);
+            Route::delete('structures/{structure}/images/{image}', [ImageEtablissementController::class, 'destroy']);
+
             Route::get('rendez-vous', [RendezVousController::class, 'index']);              // F3.6 (mes RDV)
             Route::post('rendez-vous', [RendezVousController::class, 'store']);             // F3.6
             Route::patch('rendez-vous/{rendezVous}/annuler', [RendezVousController::class, 'annuler']);
@@ -423,6 +438,12 @@ Route::middleware('throttle:api')->group(function () {
         Route::get('/pharmacies-garde', [StructureController::class, 'pharmaciesGarde']); // F3.8
         Route::get('/structures', [StructureController::class, 'index']);                 // F3.1/F3.2/F3.3
         Route::get('/structures/{structure}', [StructureController::class, 'show']);       // F3.5
+
+        // P6.4c — Diffusion PUBLIQUE d'une image. Une vitrine d'hôpital est faite pour être vue :
+        // l'exiger authentifiée empêcherait un citoyen de reconnaître l'établissement avant sa
+        // première connexion. Déclarée APRÈS `/structures/{structure}` : l'ordre importe peu ici,
+        // les deux motifs ne se recouvrent pas, mais la proximité rend la lecture évidente.
+        Route::get('/structures/{structure}/images/{image}', [ImageEtablissementController::class, 'show']);
 
         // Module 5 / FN7-FN8 — Catalogue, comparateur de prix et ruptures : PUBLICS en lecture.
         // Savoir où trouver un médicament et à quel prix ne demande aucune identité, et une

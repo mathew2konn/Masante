@@ -1,5 +1,5 @@
 import React, { useCallback, useState } from 'react';
-import { ActivityIndicator, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Screen } from '../../../src/components/Screen';
@@ -14,7 +14,9 @@ import {
 } from '../../../src/api/structures';
 import { messageErreur } from '../../../src/utils/erreurs';
 import { formatDateFr, heureCourte } from '../../../src/utils/dates';
+import ImageEtablissementView from '../../../src/components/ImageEtablissementView';
 import {
+  CATEGORIE_LOGO,
   LIBELLE_SIGNALEMENT,
   libelleType,
   type Avis,
@@ -115,15 +117,33 @@ export default function FicheStructure() {
   // F3.4 (c) : si l'établissement est complet aujourd'hui, on propose automatiquement un RDV.
   const estComplet = structure.statut_jour === 'complet';
 
+  // Le logo est retiré de la galerie : il figure déjà en tête de fiche, et l'y répéter le ferait
+  // passer pour une photo des lieux.
+  const photos = (structure.images ?? []).filter((i) => i.categorie_code !== CATEGORIE_LOGO);
+
   return (
     <Screen>
       <ScreenHeader title={structure.nom} onBack={() => router.back()} />
 
       {/* Résumé */}
       <Card style={styles.bloc}>
-        <Text style={styles.meta}>
-          {libelleType(structure.type, typesEtablissement)} · {structure.commune}
-        </Text>
+        <View style={styles.identite}>
+          {/*
+            P6.4c — le logo, quand l'établissement en publie un. Sans logo, ou hors ligne (le cache
+            de P2 stocke du JSON, pas du binaire), l'icône générique prend le relais : la fiche
+            reste lisible et l'absence d'image ne ressemble pas à une panne.
+          */}
+          <ImageEtablissementView
+            image={structure.images?.find((i) => i.categorie_code === CATEGORIE_LOGO)}
+            repli="business"
+            taille={52}
+            style={styles.logo}
+            description={`Logo de ${structure.nom}`}
+          />
+          <Text style={[styles.meta, styles.metaAvecLogo]}>
+            {libelleType(structure.type, typesEtablissement)} · {structure.commune}
+          </Text>
+        </View>
         <View style={styles.resumeLigne}>
           <PastilleDispo statut={structure.statut_jour} />
           {structure.note_moyenne != null && (
@@ -142,6 +162,37 @@ export default function FicheStructure() {
           </View>
         )}
       </Card>
+
+      {/*
+        P6.4c — Photos de l'établissement (CDC_11 §3.1 : accueil, salle d'attente, bloc opératoire,
+        parking). Le logo est exclu : il est déjà en tête de fiche, et le répéter dans la galerie
+        laisserait croire qu'il s'agit d'une photo des lieux.
+
+        Le bloc entier disparaît quand il n'y a rien — un titre « Photos » au-dessus d'une bande
+        vide annoncerait un contenu absent. L'ORDRE vient du serveur (catégorie puis rang de dépôt) :
+        l'écran ne trie pas.
+      */}
+      {photos.length > 0 && (
+        <Card style={styles.bloc}>
+          <Text style={styles.titreBloc}>Photos</Text>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.galerie}
+          >
+            {photos.map((photo) => (
+              <ImageEtablissementView
+                key={photo.id}
+                image={photo}
+                repli="image"
+                taille={140}
+                style={styles.photo}
+                description={`Photo de ${structure.nom}`}
+              />
+            ))}
+          </ScrollView>
+        </Card>
+      )}
 
       {/* F3.4 (c) — Établissement complet : proposition automatique de rendez-vous */}
       {estComplet && (
@@ -401,6 +452,12 @@ const styles = StyleSheet.create({
   centre: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: spacing[2] },
   bloc: { marginBottom: spacing[4], gap: spacing[2] },
   meta: { ...typography.caption, color: colors.ink[500] },
+  metaAvecLogo: { flex: 1 },
+  identite: { flexDirection: 'row', alignItems: 'center', gap: spacing[3] },
+  logo: { borderRadius: radius.md, backgroundColor: colors.blue[100] },
+  titreBloc: { ...typography.bodyStrong, color: colors.blue[900] },
+  galerie: { gap: spacing[2], paddingVertical: spacing[1] },
+  photo: { borderRadius: radius.md },
   resumeLigne: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: spacing[2] },
   note: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   noteTxt: { ...typography.caption, color: colors.ink[700], fontWeight: '600' },

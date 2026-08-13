@@ -66,6 +66,22 @@ return [
             'report' => false,
         ],
 
+        // P6.4c — Images publiques des établissements (logo, accueil, salle d'attente…).
+        //
+        // PRIVÉ MAIS NON CHIFFRÉ, et c'est délibéré. Non chiffré parce qu'une vitrine d'hôpital
+        // n'a rien à protéger : la déchiffrer à chaque affichage coûterait pour rien. Privé —
+        // c'est-à-dire hors de `public/` et servi par un contrôleur — parce que le disque `public`
+        // exige un lien symbolique (droits administrateur sous Windows) et bâtit ses URL sur
+        // `APP_URL`, qui vaut ici l'URL Ngrok : elles casseraient à chaque redémarrage du tunnel.
+        // La diffusion par contrôleur donne une URL relative, stable, et laisse la porte ouverte à
+        // une garde si une image devait un jour cesser d'être publique.
+        'etablissements' => [
+            'driver' => 'local',
+            'root' => storage_path('app/etablissements'),
+            'throw' => true,
+            'report' => false,
+        ],
+
         's3' => [
             'driver' => 's3',
             'key' => env('AWS_ACCESS_KEY_ID'),

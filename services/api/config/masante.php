@@ -60,6 +60,20 @@ return [
     ],
 
     /*
+     * P6.4c — Images publiques des établissements (CDC_11 §3.1 « formulaire dédié »).
+     *
+     * Liste blanche plus ÉTROITE que celle des photos de profil : `heic`/`heif` en sont absents à
+     * dessein. Une photo de profil vient du téléphone du patient (donc souvent en HEIC sous iOS) et
+     * n'est affichée qu'à lui ; une vitrine d'établissement est servie à tous les navigateurs et à
+     * l'application, or HEIC n'est pas rendu partout. Accepter un format qu'une partie des lecteurs
+     * ne sait pas afficher reviendrait à publier une image invisible.
+     */
+    'etablissement_images' => [
+        'max_ko'    => (int) env('MASANTE_ETAB_IMAGE_MAX_KO', 4096), // 4 Mo
+        'mimetypes' => ['image/jpeg', 'image/png', 'image/webp'],
+    ],
+
+    /*
      * B3 — Délégation d'accès (Note_Continuite chap. 4).
      *  - `exiger_titulaire_verifie` : en prod, seul un compte « vérifié » (CMU/CNI) peut déléguer.
      *    En dev, aucun flux de vérification n'existe encore → `false` = testable (stub, même esprit

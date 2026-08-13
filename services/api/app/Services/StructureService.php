@@ -45,7 +45,13 @@ class StructureService
         $this->triParDefaut($query, $filtres);
 
         $structures = $query
-            ->with(['services.disponibilites' => fn ($d) => $d->whereDate('date', Carbon::today())])
+            ->with([
+                'services.disponibilites' => fn ($d) => $d->whereDate('date', Carbon::today()),
+                // P6.4c — SEUL le logo en liste. Charger les photos d'accueil et de bloc
+                // opératoire alourdirait une réponse de 12 structures pour des images que la
+                // liste n'affiche pas : la carte de résultat ne montre que le logo.
+                'images' => fn ($i) => $i->where('categorie_code', 'logo'),
+            ])
             ->get();
 
         // Statut du jour calculé, puis on n'expose pas les services en liste (payload léger).
@@ -70,6 +76,8 @@ class StructureService
             'services.disponibilites' => fn ($d) => $d->whereDate('date', Carbon::today()),
             // Médecins réservables du service (F3.5) — annuaire public, non sensible.
             'services.medecins' => fn ($m) => $m->where('actif', true)->orderBy('nom'),
+            // P6.4c — logo et photos, déjà ordonnés par la relation (l'ordre est une donnée).
+            'images',
         ]);
 
         $structure->setAttribute('statut_jour', $this->statutDuJour($structure));

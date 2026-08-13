@@ -97,6 +97,22 @@ class StructureSanitaire extends Model
         return $this->belongsTo(DistrictSanitaire::class, 'district_id');
     }
 
+    /**
+     * Images publiques de l'établissement (P6.4c) — logo et photos.
+     *
+     * Ordonnées par catégorie puis par rang de dépôt : le logo d'abord (ordre 1 dans la table de
+     * référence), puis l'accueil, la salle d'attente… L'ordre d'affichage est donc une DONNÉE, et
+     * la fiche mobile n'a rien à trier.
+     */
+    public function images(): HasMany
+    {
+        return $this->hasMany(EtablissementImage::class, 'structure_id')
+            ->join('categories_image_etablissement as c', 'c.code', '=', 'etablissement_images.categorie_code')
+            ->orderBy('c.ordre')
+            ->orderBy('etablissement_images.ordre')
+            ->select('etablissement_images.*');
+    }
+
     /** Services médicaux de l'établissement. */
     public function services(): HasMany
     {

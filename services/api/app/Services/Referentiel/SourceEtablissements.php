@@ -69,7 +69,7 @@ final class SourceEtablissements implements SourceReferentiel
     public function extraire(): array
     {
         return StructureSanitaire::query()
-            ->with(['region:id,code', 'district:id,code,region_id'])
+            ->with(['region:id,code', 'district:id,code,region_id', 'images'])
             // Ordre stable : `identifiant_national` est UNIQUE par pays, mais reste NULL tant
             // qu'un établissement n'a pas été servi par le backfill — d'où `id` en second, qui
             // rend l'ordre total dans tous les cas.
@@ -95,10 +95,50 @@ final class SourceEtablissements implements SourceReferentiel
                 'agrements'            => $e->agrements_json,
                 'certifications'       => $e->certifications_json,
                 'actif'                => (bool) $e->actif,
+                'images'               => $this->projeterImages($e),
                 // Rattachement conservé pour la cohérence hiérarchique contrôlée plus bas :
                 // sans lui, on ne saurait pas dire qu'un district est hors de sa région.
                 'region_du_district'   => $e->district?->region?->code,
             ])
+            ->all();
+    }
+
+    /**
+     * Projection des images (P6.4c, décision propriétaire I3 du 2026-08-13).
+     *
+     * ═══ POURQUOI LES IMAGES ENTRENT DANS LE RÉFÉRENTIEL ═══
+     *
+     * Le propriétaire les y a placées contre la recommandation initiale, et la décision se tient :
+     * une photo est déposée **délibérément par un humain identifié**, comme un numéro d'autorisation
+     * — pas recalculée automatiquement comme une note d'étoiles. La ligne d'exclusion posée
+     * ci-dessus n'est donc pas franchie. La conséquence, elle, est réelle et assumée : **déposer
+     * une image fait diverger le référentiel publié** jusqu'à la version suivante.
+     *
+     * ═══ CE QUI ENTRE N'EST PAS LE FICHIER ═══
+     *
+     * Ni les octets (l'instantané deviendrait énorme — c'est la limite L6 d'ADR-025, qu'on
+     * aggraverait au lieu de la traiter), ni le chemin de stockage (un UUID : redéposer exactement
+     * la même image ferait diverger le référentiel alors que RIEN n'a changé, et l'instantané
+     * publierait des détails d'implémentation).
+     *
+     * Entrent la CATÉGORIE et l'EMPREINTE du contenu. L'instantané dit alors : « cet établissement
+     * publie un logo dont le contenu vaut a3f… ». Changer le logo diverge ; redéposer le même
+     * octet pour octet ne diverge pas. C'est exactement la sensibilité qu'on veut.
+     *
+     * Le TRI est indispensable : sans lui, deux ensembles d'images identiques produiraient deux
+     * empreintes différentes selon l'ordre d'insertion, et le référentiel divergerait sans raison.
+     *
+     * @return list<array{categorie:string, empreinte:string}>
+     */
+    private function projeterImages(StructureSanitaire $etablissement): array
+    {
+        return $etablissement->images
+            ->map(fn ($image): array => [
+                'categorie' => $image->categorie_code,
+                'empreinte' => $image->empreinte,
+            ])
+            ->sortBy([['categorie', 'asc'], ['empreinte', 'asc']])
+            ->values()
             ->all();
     }
 
