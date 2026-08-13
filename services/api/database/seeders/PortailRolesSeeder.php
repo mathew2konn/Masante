@@ -46,6 +46,17 @@ class PortailRolesSeeder extends Seeder
         // `agent_garde` porte `qr.scan` et sert l'accueil ; un agent d'accueil ne rédige pas une
         // ordonnance. Le gestionnaire l'accorde individuellement aux soignants habilités.
         'dossier.ecrire',         // consigner un acte dans le carnet, pendant une session ouverte
+        // Référentiels nationaux (P6.3, CDC_09 §10 « accès en écriture strictement réservé aux
+        // rôles habilités ») — VOLONTAIREMENT ATTRIBUÉES À AUCUN RÔLE MÉTIER, troisième occurrence
+        // du même précédent. Deux permissions distinctes et non une seule : le quatre-yeux du §10
+        // suppose que proposer et décider puissent être portés par des personnes différentes.
+        //
+        // À DIRE HONNÊTEMENT : `admin_ivoirsante` les reçoit quand même, comme toutes les autres,
+        // par le `syncPermissions(Permission::all())` ci-dessous. Cela n'affaiblit pas le
+        // quatre-yeux — qui sépare deux UTILISATEURS, pas deux rôles — mais cela veut dire que le
+        // filtrage réel se joue à l'attribution nominative, pas dans cette liste.
+        'referentiel.proposer',   // soumettre un changement de référentiel national à décision
+        'referentiel.publier',    // décider du sort d'une proposition : la publier ou la rejeter
     ];
 
     /** Permissions par rôle (moindre privilège). L'admin reçoit tout. */

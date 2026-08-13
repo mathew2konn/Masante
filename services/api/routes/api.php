@@ -23,6 +23,7 @@ use App\Http\Controllers\Api\V1\DonSangController;
 use App\Http\Controllers\Api\V1\DossierTitulaireController;
 use App\Http\Controllers\Api\V1\FicheParcoursController;
 use App\Http\Controllers\Api\V1\FicheVitaleController;
+use App\Http\Controllers\Api\V1\GouvernanceReferentielController;
 use App\Http\Controllers\Api\V1\MedecinController;
 use App\Http\Controllers\Api\V1\MedicamentController;
 use App\Http\Controllers\Api\V1\MembreController;
@@ -36,6 +37,7 @@ use App\Http\Controllers\Api\V1\PhotoMembreController;
 use App\Http\Controllers\Api\V1\QrController;
 use App\Http\Controllers\Api\V1\RecuRdvController;
 use App\Http\Controllers\Api\V1\ReferentController;
+use App\Http\Controllers\Api\V1\ReferentielController;
 use App\Http\Controllers\Api\V1\Portail\RendezVousController as PortailRendezVousController;
 use App\Http\Controllers\Api\V1\RendezVousController;
 use App\Http\Controllers\Api\V1\SignalementController;
@@ -145,6 +147,29 @@ Route::middleware('throttle:api')->group(function () {
             Route::get('rendez-vous/{rdv}', [PortailRendezVousController::class, 'show']);
             Route::patch('rendez-vous/{rdv}/confirmer', [PortailRendezVousController::class, 'confirmer']);
             Route::patch('rendez-vous/{rdv}/refuser', [PortailRendezVousController::class, 'refuser']);
+        });
+
+        /*
+        |------------------------------------------------------------------
+        | P6.3 — Gouvernance des référentiels nationaux (CDC_09 §10).
+        |------------------------------------------------------------------
+        | Écriture STRICTEMENT réservée aux habilités. Comme pour le portail ci-dessus, la
+        | permission est vérifiée dans le SERVICE et non par le middleware `permission:` de
+        | spatie : ces routes sont authentifiées par Sanctum alors que les permissions vivent
+        | sur le guard `web` — le middleware refuserait sur un désaccord de guard plutôt que
+        | sur un défaut de droit (piège rencontré en P4 sur `rdv.validate`).
+        |
+        | `referentiels/{code}/versions` (historique, authentifié) est déclaré ici, et
+        | `referentiels/{code}/versions/{numero}` (instantané, public) plus bas : deux segments
+        | de plus, donc aucun risque de capture entre les deux.
+        */
+        Route::middleware('auth:sanctum')->group(function () {
+            Route::get('referentiels-journal', [GouvernanceReferentielController::class, 'journal']);
+            Route::get('referentiels/{code}/versions', [GouvernanceReferentielController::class, 'versions']);
+            Route::get('referentiels/{code}/controle', [GouvernanceReferentielController::class, 'controle']);
+            Route::post('referentiels/{code}/propositions', [GouvernanceReferentielController::class, 'proposer']);
+            Route::post('referentiels/{code}/publication', [GouvernanceReferentielController::class, 'publier']);
+            Route::post('referentiels/{code}/rejet', [GouvernanceReferentielController::class, 'rejeter']);
         });
 
         /*
@@ -411,6 +436,23 @@ Route::middleware('throttle:api')->group(function () {
         Route::get('/structures/{structure}/avis', [AvisController::class, 'index']);                 // F3.9
         Route::get('/structures/{structure}/signalements', [SignalementController::class, 'index']);  // F3.10
         Route::post('/structures/{structure}/signalements', [SignalementController::class, 'store']); // F3.10
+
+        /*
+        |------------------------------------------------------------------
+        | P6.3 — Diffusion des référentiels nationaux (CDC_09 §10) : lecture PUBLIQUE.
+        |------------------------------------------------------------------
+        | « Les référentiels sont exposés en lecture à tous les services » : un socle
+        | d'interopérabilité qu'il faut s'authentifier pour lire n'en est pas un. Aucune donnée
+        | personnelle n'y figure — c'est la même logique que `/symptomes` et `/medicaments`
+        | juste au-dessus, dont ces référentiels sont d'ailleurs la version gouvernée.
+        |
+        | Le contenu servi est celui de la VERSION PUBLIÉE, jamais la table métier en direct :
+        | c'est ce décalage assumé qui permet à une décision de citer une version.
+        */
+        Route::get('/referentiels', [ReferentielController::class, 'index']);
+        Route::get('/referentiels/{code}', [ReferentielController::class, 'show']);
+        Route::get('/referentiels/{code}/versions/{numero}', [ReferentielController::class, 'version'])
+            ->whereNumber('numero');
 
         // Module 1 — Triage et orientation médicale (F1.1 → F1.8). Endpoints publics.
         Route::get('/symptomes', [TriageController::class, 'symptomes']);              // F1.1

@@ -38,6 +38,7 @@ incréments successifs, ajoutés en **parties** dans le même fichier plutôt qu
 | **P5** | Paiement (microservice Java) | [GUIDE_TEST_Paiement_G4_P5.md](GUIDE_TEST_Paiement_G4_P5.md) | voir table ci-dessous |
 | **CDC_05** | Fraude IA (microservice Python) | [GUIDE_TEST_Fraude_G4.md](GUIDE_TEST_Fraude_G4.md) | §0–6 socle · §7 extraction réelle (A) · §8 routage (B1) · §9 écran admin (B2) |
 | **P6.1** | Identifiant National de Santé | [GUIDE_TEST_NIS.md](GUIDE_TEST_NIS.md) | A mobile · B backend · C base · D qualité · E checklist · F pièges |
+| **P6.3** | Référentiels nationaux — socle | [GUIDE_TEST_REFERENTIELS.md](GUIDE_TEST_REFERENTIELS.md) | 1 périmètre+limites · 2 prérequis · 3 front *(néant, L7)* · 4 backend · 5 base · 6 qualité · 7 checklist · 8 pièges |
 | **P7** | Carnet familial partagé | [GUIDE_TEST_CARNET_FAMILIAL.md](GUIDE_TEST_CARNET_FAMILIAL.md) | **A** partage en lecture · B revendication · C brouillon · D notifications |
 
 ### Détail du guide Paiement (13 parties)
@@ -82,5 +83,15 @@ consignée dans les fiches mémoire et les ADR, mais pas dans un guide cochable.
 
 | Module | Domaine | Guide prévu |
 |--------|---------|-------------|
-| **P6.2** | MPI — détection de doublons et fusion (ADR-022) | `GUIDE_TEST_MPI.md` |
-| **P6.3+** | Référentiels nationaux (ADR-024) | `GUIDE_TEST_REFERENTIELS.md` |
+| **P6.4** | Référentiel des établissements (ADR-024) | **partie 2** de `GUIDE_TEST_REFERENTIELS.md` |
+| **P6.5** | Référentiel des professionnels + PKI | **partie 3** de `GUIDE_TEST_REFERENTIELS.md` |
+| **P6.6** | Référentiel des médicaments | **partie 4** de `GUIDE_TEST_REFERENTIELS.md` |
+| **P6.7** | Laboratoires + catalogue des analyses | **partie 5** de `GUIDE_TEST_REFERENTIELS.md` |
+
+> **P6.2 (MPI — détection de doublons et fusion, ADR-022) est ABANDONNÉ** : remplacé par le module
+> **P7 Carnet familial partagé** (décision propriétaire 2026-08-11). Le NIS rend la fusion largement
+> inutile — elle ne réparerait que les doublons nés avant lui, et ce projet n'en a aucun.
+> Aucun `GUIDE_TEST_MPI.md` ne sera produit.
+
+Les référentiels d'annuaire relèvent tous du **même domaine** que P6.3 : ils s'ajouteront en
+**parties** du guide existant, pas en fichiers nouveaux (convention ci-dessus).
