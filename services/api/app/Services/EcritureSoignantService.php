@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\Medecin;
 use App\Models\MembreFamille;
 use App\Models\User;
 use App\Support\RegistreSectionsCarnet;
@@ -103,6 +104,34 @@ class EcritureSoignantService
         // l'agent qui l'a écrite. La fiche de parcours (D2) fera la jointure.
         $valide['source']   = 'medecin';
         $valide['added_by'] = 'medecin';
+
+        // ═══ P6.5b — LE PRESCRIPTEUR N'EST PLUS DÉCLARÉ PAR LE CLIENT ═══
+        //
+        // C'est le constat qui a ouvert P6.5 : `medecin_nom` était `required|string|max:200`, saisi
+        // au formulaire, y compris quand c'était le soignant lui-même qui écrivait. Une ordonnance
+        // pouvait donc porter le nom de n'importe quel médecin.
+        //
+        // Même mouvement que `source` et `added_by` juste au-dessus, et pour la même raison : ce
+        // que le serveur SAIT n'a pas à être redemandé à celui qu'on contrôle. La fiche est reliée
+        // au compte par un gestionnaire (P6.5a) ; c'est un acte humain, pas une déclaration de
+        // l'intéressé.
+        //
+        // LE CHEMIN DU PATIENT N'EST PAS TOUCHÉ : un patient qui recopie une ordonnance papier
+        // continue de saisir le nom du médecin qui la lui a remise — il serait absurde de le lui
+        // imposer depuis un compte qu'il n'a pas. La réécriture n'a lieu que sur CE chemin.
+        $fiche = Medecin::with('structure:id,nom')->where('user_id', $soignant->id)->first();
+
+        if ($fiche !== null) {
+            if (array_key_exists('medecin_nom', $valide)) {
+                $valide['medecin_nom'] = $fiche->nom_complet;
+            }
+
+            // L'établissement suit la même logique. Repli sur la saisie quand la fiche n'en porte
+            // pas : mieux vaut l'information de l'agent qu'un champ vide.
+            if (array_key_exists('structure_sanitaire', $valide) && $fiche->structure?->nom !== null) {
+                $valide['structure_sanitaire'] = $fiche->structure->nom;
+            }
+        }
 
         return $membre->{$controleur->nomRelation()}()->create($valide);
     }

@@ -17,6 +17,7 @@ use App\Http\Controllers\Portail\ModerationController;
 use App\Http\Controllers\Portail\RendezVousController;
 use App\Http\Controllers\Portail\ScanController;
 use App\Http\Controllers\Portail\ServiceController;
+use App\Http\Controllers\Portail\SignatureController;
 use App\Http\Controllers\Portail\StatistiqueController;
 use App\Http\Controllers\Portail\StockPharmacieController;
 use Illuminate\Support\Facades\Route;
@@ -176,6 +177,22 @@ Route::prefix('portail')->name('portail.')->group(function () {
                 ->name('medecins.exercices.store');
             Route::delete('medecins/{medecin}/exercices/{exercice}', [PortailMedecinController::class, 'retirerExercice'])
                 ->name('medecins.exercices.destroy');
+        });
+
+        // P6.5b — Signature électronique (CDC_09 §5.3, CDC_10 §4.5). « Ma signature » : le
+        // praticien demande son certificat, choisit son secret, consulte son journal. La
+        // permission n'ouvre rien à elle seule — les cinq contrôles du §5.4 restent devant.
+        Route::middleware('permission:document.signer')->prefix('signature')->name('signature.')->group(function () {
+            Route::get('/', [SignatureController::class, 'index'])->name('index');
+            Route::post('certificat', [SignatureController::class, 'creer'])->name('creer');
+            Route::post('certificat/revoquer', [SignatureController::class, 'revoquer'])->name('revoquer');
+            Route::get('journal', [SignatureController::class, 'journal'])->name('journal');
+            Route::get('historique', [SignatureController::class, 'historique'])->name('historique');
+            // Déclarée en dernier : sans cela, `journal` et `historique` seraient captés par
+            // `{type}/{id}` — le piège de l'ordre des routes déjà rencontré en P7-D0 avec
+            // `dossier/fermer` avant `dossier/{section}`.
+            Route::get('{type}/{id}', [SignatureController::class, 'verifier'])
+                ->whereNumber('id')->name('verifier');
         });
 
         // 5.8 — Prix & stock d'une PHARMACIE partenaire (FN7/FN8, « modèle freemium » du CdC).

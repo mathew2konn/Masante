@@ -167,6 +167,32 @@
     </div>
   @endif
 
+  {{-- P6.5b — signature électronique de la prescription (CDC_09 §5.3).
+
+       PROPOSÉE, PAS IMPOSÉE : un praticien sans certificat — ou dont le certificat vient
+       d'expirer — doit continuer d'écrire au carnet. Laisser le champ vide enregistre une
+       ordonnance non signée, ce qui reste licite et se voit.
+
+       Ce qui est INCONDITIONNEL, en revanche, c'est que le nom du prescripteur vienne désormais de
+       la fiche professionnelle et non de ce formulaire : c'est pour cela qu'aucun champ
+       « médecin » n'apparaît ci-dessus pour une ordonnance. --}}
+  @if (($peutSigner ?? false) && $section === 'ordonnances')
+    <div class="col-12 mt-3">
+      <div class="border rounded p-3 bg-light">
+        <label class="form-label small mb-1" for="secret_signature">
+          <i class="bi bi-pen"></i> Secret de signature <span class="text-muted">(facultatif)</span>
+        </label>
+        <input type="password" name="secret_signature" id="secret_signature"
+               autocomplete="off" class="form-control form-control-sm" style="max-width:320px">
+        <div class="form-text">
+          Saisi ici, il signe la prescription à votre nom : elle devient vérifiable et toute
+          modification ultérieure sera détectée. Laissé vide, l'ordonnance est enregistrée sans
+          signature. Votre secret n'est stocké nulle part.
+        </div>
+      </div>
+    </div>
+  @endif
+
   <div class="col-12 d-flex align-items-center gap-3 mt-3">
     <button class="btn btn-ms btn-sm" type="submit">
       <i class="bi bi-check2"></i> Ajouter au carnet

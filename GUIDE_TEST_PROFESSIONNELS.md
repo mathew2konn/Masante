@@ -6,7 +6,7 @@
 | Partie | Incrément | Objet |
 |--------|-----------|-------|
 | **1** | **P6.5a** | Référentiel professionnel : numéro national, profession, ordre, autorisation d'exercer, lieux d'exercice, rôle `medecin` au portail |
-| *2* | *P6.5b* | *PKI + signature de l'ordonnance + les 5 contrôles §5.4 — à venir* |
+| **2** | **P6.5b** | PKI, certificats X.509, signature de l'ordonnance, les 5 contrôles §5.4, journal chaîné |
 
 ---
 
@@ -389,3 +389,323 @@ gestion des praticiens lui répond 403 (« Compte non rattaché à un établisse
 été attribué pendant le G2 de P6.4a, puis restauré). Le contrôle qualité signale alors 28 fois
 « un lieu d'exercice désigne un établissement sans identifiant national » — **c'est un signal juste,
 pas un défaut** : lancez `masante:etablissement:backfill`, l'anomalie se referme.
+
+---
+
+# Partie 2 — P6.5b · PKI et signature électronique
+
+## 1. Périmètre, et ce que cet incrément ne fait pas
+
+**Ce qui est livré.** Une autorité de certification racine, un certificat X.509 par praticien, la
+**signature électronique des ordonnances**, les **cinq contrôles obligatoires du §5.4** avant chaque
+signature, un **journal chaîné** où les refus figurent autant que les succès, et la vérification
+d'intégrité. Le trou du G0 est refermé : **`ordonnances.medecin_nom` n'est plus saisi par le
+client** sur le chemin du soignant.
+
+**Ce qui n'est PAS livré — à lire avant de tester :**
+
+- **Aucun HSM** (CDC_10 §4.3 en exige un). La clé de l'autorité est protégée par une phrase de
+  passe d'environnement, celles des praticiens par leur secret. Point d'extension documenté,
+  classé « conçu ».
+- **L'autorité est AUTO-SIGNÉE.** Aucune autorité de certification nationale ivoirienne n'a été
+  consultée. Un navigateur ne reconnaîtra pas ces certificats, et c'est normal : ils lient une
+  prescription à un praticien **dans cette plateforme**, ils ne valent pas confiance publique.
+- **Aucun horodatage qualifié** (pas de TSA) : l'heure est celle du serveur.
+- **La signature n'est pas obligatoire.** Une ordonnance non signée reste licite — P7-D0 est validé
+  G5 et un praticien sans certificat doit continuer d'écrire. Ce qui est inconditionnel, c'est le
+  **nom du prescripteur**.
+- **Un seul des sept types de CDC_10 §4.5 est signé** : l'ordonnance. L'écran « Ma signature » les
+  nomme tous les sept avec l'état de chacun.
+- **Pas de CRL publiée, pas d'OCSP** : la révocation est une colonne, la vérification est locale.
+
+---
+
+## 2. Prérequis
+
+```bash
+cd services/api
+# La phrase de passe de l'autorité — JAMAIS dans le dépôt (documentée sans valeur dans
+# .env.example). Sans elle, la création de l'autorité échoue, et c'est voulu.
+echo 'PKI_CA_PASSPHRASE="votre-phrase-longue"' >> .env
+
+XDEBUG_MODE=off C:/wamp64/bin/php/php8.3.28/php.exe artisan migrate
+XDEBUG_MODE=off C:/wamp64/bin/php/php8.3.28/php.exe artisan db:seed --class=PortailRolesSeeder
+XDEBUG_MODE=off C:/wamp64/bin/php/php8.3.28/php.exe artisan masante:professionnels:backfill
+XDEBUG_MODE=off C:/wamp64/bin/php/php8.3.28/php.exe artisan masante:pki:autorite
+```
+
+**Sauvegardez la base ET votre `.env`** — ce guide écrit dans les deux.
+
+Un compte de rôle `medecin`, relié à une fiche professionnelle **dont l'autorisation d'exercer est
+`valide`** (déclarée par un compte portant `professionnel.habiliter`, partie 1 §3.3).
+
+---
+
+## 3. Scénarios front — portail
+
+### 3.1 L'autorité de certification
+
+```bash
+XDEBUG_MODE=off php artisan masante:pki:autorite
+```
+
+- [ ] Le tableau affiche nom, série, empreinte SHA-256, dates de validité.
+- [ ] Le message final rappelle que l'autorité est **auto-signée** et ne vaut pas confiance publique.
+- [ ] **Relancer la commande → refus explicite**, rien n'est créé : « La régénérer invaliderait TOUS
+      les certificats émis, donc toutes les signatures déjà posées. »
+- [ ] Sans `PKI_CA_PASSPHRASE` → échec **bruyant** nommant la variable. Aucune valeur par défaut
+      n'existe : ce serait un secret dans le dépôt.
+
+### 3.2 « Ma signature »
+
+**Portail → Ma signature** (tuile visible pour un compte portant `document.signer`).
+
+- [ ] Bloc **Identité professionnelle** : nom, N° national, autorisation d'exercer avec sa date.
+- [ ] Sans fiche reliée : « Ce compte n'est relié à aucune fiche professionnelle. »
+- [ ] Bloc **Certificat numérique** : l'avertissement apparaît **avant** la saisie —
+      « Il n'est stocké nulle part et ne peut pas être retrouvé. »
+- [ ] Deux secrets différents → **« Les deux secrets saisis ne correspondent pas. »**
+- [ ] Secret confirmé → bandeau vert, et le certificat s'affiche avec série, échéance, empreinte.
+- [ ] Bandeau vert : **« Vous pouvez signer vos prescriptions »** listant les cinq contrôles.
+- [ ] Bloc **Ce qui est signable aujourd'hui** : les **sept** types du §4.5, un seul en
+      « Signable », les six autres en « Pas encore » **avec leur raison écrite**.
+
+### 3.3 Le praticien sans autorisation d'exercer
+
+Mettez `autorisation_statut` à `NULL` sur la fiche.
+
+- [ ] L'écran affiche **« Aucun certificat ne peut être émis »** suivi du motif exact.
+- [ ] La note explique que l'autorité ne certifie que ce que le référentiel affirme déjà.
+- [ ] Poster quand même le formulaire → refusé, **aucun certificat créé**, et le refus est **au
+      journal**.
+
+### 3.4 Signer une prescription
+
+Ouvrez un dossier par **Scan carnet** (voie consentie), section **Ordonnances**.
+
+- [ ] Le formulaire **ne demande plus le nom du médecin** — il vient de votre fiche.
+- [ ] Un encadré gris **« Secret de signature (facultatif) »** apparaît en bas.
+- [ ] Laissé vide → « Ajouté au carnet… » ; l'ordonnance est enregistrée **non signée**.
+- [ ] Rempli correctement → le message se termine par **« Prescription signée électroniquement. »**
+- [ ] Secret erroné → **« Mais la signature a été refusée : Secret de signature incorrect. »** —
+      et **l'ordonnance reste au carnet**. L'annuler priverait le patient de sa prescription pour
+      une raison qui ne le concerne pas.
+
+### 3.5 Vérifier
+
+`/portail/signature/ordonnance/{id}`
+
+- [ ] Ordonnance signée intacte → **« Signature valide — le document est intègre. »**
+- [ ] Après modification d'un dosage → **« Signature invalide. Le document a été modifié depuis sa
+      signature. »**
+- [ ] Ordonnance jamais signée → **« Document non signé »** en gris, avec la phrase « Ce n'est pas
+      une anomalie ». *(Non signé n'est pas invalide.)*
+- [ ] Le bloc « Ce que la signature affirme » montre le contexte **figé** au jour de la signature.
+
+### 3.6 Révocation
+
+- [ ] Révoquer avec un motif → « Certificat révoqué. Les prescriptions déjà signées restent
+      vérifiables. »
+- [ ] L'écran affiche ensuite **« Votre dernier certificat a été révoqué le … »**, et **non**
+      « aucun certificat » — la seconde phrase serait fausse.
+- [ ] **Mes certificats** : le révoqué reste listé, avec sa date et son motif.
+- [ ] Tenter de signer → refus **pour révocation**, et le journal porte `controle: revocation`.
+
+---
+
+## 4. Scénarios backend
+
+### 4.1 Le serveur seul ne peut pas signer — le vecteur qui tient la promesse
+
+```php
+// artisan tinker
+$coffre = app(App\Services\Pki\CoffreCleProfessionnel::class);
+$scelle = $coffre->sceller('CLE-PRIVEE', 'mon-secret', 'SERIE-1', 7);
+
+// Bon secret → ouvre
+$coffre->ouvrir($scelle['cle_privee_chiffree'], $scelle['nonce'], $scelle['sel_kdf'], 'mon-secret', 'SERIE-1', 7);
+
+// Un caractère de différence → RuntimeException « Coffre illisible. »
+$coffre->ouvrir($scelle['cle_privee_chiffree'], $scelle['nonce'], $scelle['sel_kdf'], 'mon-secreT', 'SERIE-1', 7);
+
+// Même secret, mais déplacé vers un AUTRE certificat → échoue aussi (l'AAD lie le cryptogramme).
+$coffre->ouvrir($scelle['cle_privee_chiffree'], $scelle['nonce'], $scelle['sel_kdf'], 'mon-secret', 'SERIE-1', 99);
+```
+
+- [ ] Sans le secret, **rien** ne s'ouvre. C'est ce qui distingue une non-répudiation réelle d'une
+      non-répudiation décorative.
+- [ ] Une clé recopiée d'une ligne vers une autre **échoue** au lieu d'attribuer silencieusement la
+      clé d'un médecin à un autre.
+
+### 4.2 Le chiffrement au repos ne casse pas la signature
+
+```php
+$ordo  = App\Models\Ordonnance::find($id);
+$avant = $ordo->getRawOriginal('medicaments_json');
+
+// Rechiffrement du MÊME clair (comme le ferait une rotation de clé).
+DB::table('ordonnances')->where('id', $id)->update([
+    'medicaments_json' => Crypt::encryptString(json_encode($ordo->medicaments_json)),
+]);
+
+$apres = App\Models\Ordonnance::find($id)->getRawOriginal('medicaments_json');
+var_dump($avant !== $apres);   // true : le cryptogramme a bien changé
+app(App\Services\Pki\ServiceSignature::class)->verifier('ordonnance', $id)['integre'];   // true
+```
+
+- [ ] Le cryptogramme **change**, la signature **tient**. On signe le sens, jamais les octets
+      stockés — signer le cryptogramme aurait cassé la signature au premier rechiffrement, sans
+      qu'aucune donnée n'ait bougé.
+
+### 4.3 Un champ hors signature ne casse rien
+
+- [ ] Ajouter `photo_url` sur une ordonnance signée → **toujours intègre**. Une signature qui
+      casserait au moindre geste du patient n'apprendrait plus rien à personne.
+
+### 4.4 Le prescripteur vient du serveur
+
+```php
+app(App\Services\EcritureSoignantService::class)->ecrire(
+    $comptePraticien, $membre, 'qr_scan', 'ordonnances',
+    ['medecin_nom' => 'Dr Quelquun dAutre', 'structure_sanitaire' => 'Clinique inventee',
+     'date_prescription' => '2026-08-13', 'medicaments_json' => [['nom' => 'Paracetamol']]],
+)->medecin_nom;
+```
+
+- [ ] Renvoie **le nom de la fiche**, pas celui envoyé. C'est le trou du G0 refermé.
+- [ ] Le chemin **patient** n'est pas touché : `$membre->ordonnances()->create([...])` garde le nom
+      saisi. Un patient qui recopie une ordonnance papier doit nommer le médecin qui la lui a remise.
+
+### 4.5 Les cinq contrôles du §5.4
+
+Chacun a son vecteur. Provoquez, vérifiez le motif **et** le `controle` journalisé.
+
+| Provoquer | Contrôle attendu |
+|---|---|
+| compte sans fiche professionnelle | `identite` |
+| aucun certificat émis | `certificat` |
+| certificat d'un autre praticien | `certificat` |
+| certificat hors chaîne de l'autorité | `certificat` |
+| certificat révoqué | `revocation` |
+| certificat expiré | `expiration` |
+| autorisation suspendue ou retirée | `autorisation_exercer` |
+| autorisation « valide » mais échue | `autorisation_exercer` |
+| profession non prescriptrice (kiné) | `habilitation_document` |
+
+- [ ] Un certificat **révoqué ET expiré** est refusé pour **révocation**, pas pour expiration :
+      l'ordre des contrôles est délibéré, et le motif journalisé doit être celui qui compte en litige.
+- [ ] Sur un état sain, **aucun** contrôle ne se déclenche.
+
+### 4.6 Le journal (§5.4 « l'échec est journalisé »)
+
+```php
+$journal = app(App\Services\Pki\JournalSignature::class);
+var_dump($journal->premierMaillonRompu());   // null : chaîne intacte
+
+// Réécrire le NOM de l'acteur suffit à rompre la chaîne.
+DB::table('signature_journal')->where('id', 1)->update(['acteur_nom' => 'Systeme']);
+var_dump($journal->premierMaillonRompu());   // 1
+```
+
+- [ ] `acteur_nom` entre dans l'empreinte : sans lui, réécrire le nom d'un agent ne romprait rien —
+      or c'est ce nom-là qu'un humain lit dans un audit (leçon P6.3).
+- [ ] `SELECT * FROM signature_journal` → **aucun nom de médicament, aucune posologie, aucun
+      secret**. Le journal prouve, il ne recopie pas — et il n'est pas chiffré, lui.
+
+---
+
+## 5. Invariants base de données
+
+```sql
+-- I1 — un document n'est signé qu'une fois (attendu : aucune ligne)
+SELECT type_document, document_id, COUNT(*) n FROM signatures_electroniques
+ GROUP BY type_document, document_id HAVING n > 1;
+
+-- I2 — au plus un certificat ACTIF par praticien (garantie applicative, sous verrou)
+SELECT medecin_id, COUNT(*) n FROM certificats_numeriques WHERE statut='actif'
+ GROUP BY medecin_id HAVING n > 1;
+
+-- I3 — aucune clé privée en clair (attendu : 0)
+SELECT COUNT(*) FROM certificats_numeriques WHERE cle_privee_chiffree LIKE '%BEGIN%';
+
+-- I4 — tout maillon du journal porte son empreinte (attendu : 0)
+SELECT COUNT(*) FROM signature_journal WHERE empreinte IS NULL OR empreinte = '';
+
+-- I5 — un certificat révoqué n'est jamais supprimé : les signatures le référencent
+SELECT s.id, c.statut FROM signatures_electroniques s
+  JOIN certificats_numeriques c ON c.id = s.certificat_id;
+```
+
+---
+
+## 6. Commandes de qualité (G3)
+
+```bash
+cd services/api && XDEBUG_MODE=off C:/wamp64/bin/php/php8.3.28/php.exe artisan test
+#   attendu : 641 tests / 14 981 assertions, 0 échec
+
+artisan test --filter=SignatureElectroniqueTest    # 39
+artisan test --filter=PrescripteurSignatureTest    # 11
+
+cd ../.. && pnpm typecheck
+```
+
+**Vérifier qu'une garde MORD** : dans `ServiceSignature::signer()`, remplacez `dernierCertificat`
+par `certificatActif`, relancez
+`--filter=test_signer_avec_un_certificat_revoque_est_refuse_POUR_REVOCATION` → **le test doit
+ÉCHOUER**. C'est exactement le défaut trouvé au G2 (§8).
+
+---
+
+## 7. Checklist de clôture
+
+- [ ] Migration jouée : 4 tables neuves, aucune donnée perdue
+- [ ] Autorité créée · rejeu refusé · sans phrase de passe → échec bruyant
+- [ ] Certificat émis : chaîne vérifiée, sujet portant le N° national
+- [ ] Clé privée, nonce, sel et hachage du secret **absents du JSON**
+- [ ] **Coffre** : bon secret ouvre · secret voisin échoue · déplacé vers un autre certificat échoue
+- [ ] Ordonnance signée → **intègre** · dosage modifié → **altérée** · `photo_url` → **intègre**
+- [ ] Rechiffrement du même clair → cryptogramme différent, **signature tient**
+- [ ] **Prescripteur imposé par le serveur** · chemin patient intact · soignant sans fiche écrit
+- [ ] Les 9 contrôles du tableau §4.5 se déclenchent, aucun sur un état sain
+- [ ] Révoqué **et** expiré → refusé pour **révocation**
+- [ ] Verrou temporaire après N échecs · compteur remis à zéro au succès
+- [ ] Journal : refus **et** succès · chaîne intacte → altérée → rétablie
+- [ ] **Zéro contenu clinique, zéro secret, zéro clé privée** dans le journal et dans les logs
+- [ ] Signature posée **reste valide** après révocation du certificat
+- [ ] I1 à I5 vérifiés
+- [ ] G3 vert · **base ET `.env` restaurés**
+
+---
+
+## 8. Pièges rencontrés
+
+**PHP ne peut pas générer de clé RSA sans `openssl.cnf`.** Au G0, `openssl_pkey_new` échouait avec
+« configuration file routines::no such file » : `OPENSSL_CONF` n'est pas défini et PHP ne trouve
+rien. WAMP en livre un (`bin/php/…/extras/ssl/openssl.cnf`) mais s'y fier ferait dépendre la PKI
+d'un chemin propre à un poste. On embarque **`config/pki/openssl.cnf`** et on le passe en `config`
+à chaque appel X.509.
+
+**Le contrôle de révocation était inatteignable — trouvé au G2, pas par les tests.** Le service
+interrogeait `certificatActif()` ; après une révocation elle ne renvoie plus rien, les règles
+concluaient « **aucun certificat n'a été émis** » (faux), et le journal enregistrait
+`controle: certificat` au lieu de `revocation`. Mon premier test ne vérifiait que « ça refuse »,
+pas « ça refuse **pour la bonne raison** » — il passait donc malgré le défaut. Corrigé par
+`dernierCertificat()` : le service rassemble l'état, **les règles jugent**.
+
+**`membre_id` n'est pas `$fillable` sur `Ordonnance`.** `Ordonnance::create(['membre_id' => …])`
+l'écarte silencieusement et la ligne est refusée par la base. Passez par la relation
+`$membre->ordonnances()->create([...])` — c'est la garde anti-IDOR, la contourner dans un test
+l'aurait masquée.
+
+**Eloquent ne réécrit pas une valeur qu'il juge inchangée.** Pour prouver qu'un rechiffrement ne
+casse pas la signature, `update(['medicaments_json' => $meme_tableau])` ne produit aucun `UPDATE`.
+Forcez l'écriture par `DB::table(...)->update(['medicaments_json' => Crypt::encryptString(...)])`.
+
+**Le secret ne doit traverser que ce qu'il doit traverser.** `secret_signature` est retiré de la
+requête **avant** la validation : il en serait de toute façon écarté, mais il aurait transité par un
+tableau susceptible d'être journalisé en cas d'erreur.
+
+**L'ordre des routes.** `signature/{type}/{id}` est déclarée **en dernier**, sinon elle capte
+`signature/journal` et `signature/historique` — le piège déjà rencontré en P7-D0 avec
+`dossier/fermer` avant `dossier/{section}`.

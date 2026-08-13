@@ -67,6 +67,11 @@ class PortailRolesSeeder extends Seeder
         // contrôle qui le vise : c'est le §5.4 qui s'appuiera dessus pour laisser signer une
         // ordonnance, et il serait alors adossé à une déclaration de l'intéressé.
         'professionnel.habiliter', // déclarer / modifier l'autorisation d'exercer et le n° d'ordre
+        // Signature électronique (P6.5b, CDC_09 §5.3). Portée par le rôle `medecin` : signer ses
+        // propres prescriptions relève du soin, pas d'une habilitation exceptionnelle. Elle ne
+        // donne à elle seule AUCUN pouvoir — les cinq contrôles du §5.4 restent devant, et sans
+        // certificat ni autorisation d'exercer valide, elle n'ouvre rien.
+        'document.signer',        // demander son certificat et signer les documents qu'on rédige
     ];
 
     /** Permissions par rôle (moindre privilège). L'admin reçoit tout. */
@@ -105,7 +110,7 @@ class PortailRolesSeeder extends Seeder
         // d'un incrément sur les référentiels. `medecin.manage` non plus — un praticien ne se
         // décrit pas lui-même dans l'annuaire national.
         'medecin' => [
-            'qr.scan', 'triage.view', 'dossier.referent', 'dossier.ecrire',
+            'qr.scan', 'triage.view', 'dossier.referent', 'dossier.ecrire', 'document.signer',
         ],
     ];
 

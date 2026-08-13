@@ -33,6 +33,7 @@
     ['perm' => 'qr.scan',              'icone' => 'bi-qr-code-scan',      'titre' => 'Scan carnet',     'desc' => 'Scanner le QR du carnet et ouvrir le dossier (30 min).', 'route' => 'portail.scan.index', 'structure' => true],
     ['perm' => 'qr.scan',              'icone' => 'bi-person-check',      'titre' => 'Accueil patient', 'desc' => 'Enregistrer l\'arrivée par le QR du reçu de RDV.', 'route' => 'portail.scan.rdv', 'structure' => true],
     ['perm' => 'dossier.referent',     'icone' => 'bi-clipboard2-heart',  'titre' => 'Mes patients suivis', 'desc' => 'Patients qui vous ont désigné médecin référent.', 'route' => 'portail.patients.index', 'structure' => true],
+    ['perm' => 'document.signer',      'icone' => 'bi-pen',               'titre' => 'Ma signature',    'desc' => 'Votre certificat numérique et vos prescriptions signées.', 'route' => 'portail.signature.index'],
     ['perm' => 'urgence.bris_de_glace','icone' => 'bi-exclamation-octagon', 'titre' => 'Accès d\'urgence', 'desc' => 'Patient inconscient : ouvrir ses informations vitales.', 'route' => 'portail.urgence.bris', 'structure' => true, 'danger' => true],
   ];
 @endphp

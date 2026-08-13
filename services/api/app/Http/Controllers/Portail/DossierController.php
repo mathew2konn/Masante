@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\MembreFamille;
 use App\Models\Triage;
 use App\Services\EcritureSoignantService;
+use App\Services\Pki\ServiceSignature;
 use App\Services\SessionDossierService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -63,6 +64,21 @@ class DossierController extends Controller
         'analyses'     => 'resultats-analyses',
     ];
 
+    /**
+     * Les sections dont l'entrée peut être SIGNÉE, et le type de document correspondant au
+     * registre de la PKI (P6.5b).
+     *
+     * Un seul aujourd'hui, et c'est celui que CDC_09 §5.3 nomme : « les prescriptions deviennent
+     * juridiquement traçables ». Les autres sections restent écrivables sans être signables — le
+     * registre `RegistreDocumentsSignables` dit lesquels des sept types du §4.5 manquent et
+     * pourquoi.
+     *
+     * @var array<string, string>
+     */
+    private const SECTIONS_SIGNABLES = [
+        'ordonnances' => \App\Services\Pki\DocumentOrdonnance::CODE,
+    ];
+
     public function __construct(private readonly SessionDossierService $session)
     {
     }
@@ -93,6 +109,12 @@ class DossierController extends Controller
             // ouverte à l'écriture, compte habilité, voie consentie. Le serveur revérifie tout ;
             // ceci n'évite qu'un formulaire qui serait de toute façon refusé.
             'peutEcrire' => $this->peutEcrire($section),
+            // P6.5b — le champ « secret de signature » n'apparaît que si cette section est
+            // signable ET que le compte est habilité. Le serveur revérifie de toute façon les cinq
+            // contrôles du §5.4 ; ceci évite seulement de demander un secret pour rien.
+            'peutSigner' => isset(self::SECTIONS_SIGNABLES[self::SECTIONS_ECRITURE[$section] ?? ''])
+                && auth()->user()?->can('document.signer') === true
+                && $this->peutEcrire($section),
         ]);
     }
 
@@ -107,6 +129,7 @@ class DossierController extends Controller
         Request $request,
         string $section,
         EcritureSoignantService $ecriture,
+        ServiceSignature $signature,
     ): RedirectResponse {
         $cle = self::SECTIONS_ECRITURE[$section] ?? null;
         abort_if($cle === null, Response::HTTP_NOT_FOUND);
@@ -122,7 +145,11 @@ class DossierController extends Controller
                 $membre,
                 (string) $this->session->typeAcces(),
                 $cle,
-                $request->except(['_token']),
+                // `secret_signature` est retiré ici et non laissé à la validation : il serait
+                // certes écarté (les règles de la section ne le connaissent pas), mais il aurait
+                // traversé un tableau susceptible d'être journalisé en cas d'erreur de validation.
+                // Un secret ne traverse que ce qu'il doit traverser.
+                $request->except(['_token', 'secret_signature']),
             );
         } catch (ValidationException $e) {
             return back()->withErrors($e->errors())->withInput();
@@ -138,9 +165,59 @@ class DossierController extends Controller
         $this->session->noterEcriture($cle, $entree->getKey());
         $ecriture->notifier($membre, $soignant, $cle);
 
+        // ═══ P6.5b — SIGNATURE ÉLECTRONIQUE DE LA PRESCRIPTION (CDC_09 §5.3) ═══
+        //
+        // Proposée, pas imposée, et c'est une décision assumée : P7-D0 est validé G5, et un
+        // praticien sans certificat — ou dont le certificat vient d'expirer — doit continuer
+        // d'écrire au carnet. Rendre la signature obligatoire ici aurait transformé un incrément
+        // additif en régression pour tout soignant non encore certifié.
+        //
+        // Ce qui est en revanche INCONDITIONNEL, c'est que le nom du prescripteur vienne désormais
+        // de la fiche et non du formulaire ({@see EcritureSoignantService}) : le trou du G0 se
+        // referme pour toutes les ordonnances, signées ou non.
+        //
+        // L'échec de signature ne défait PAS l'écriture. L'ordonnance est déjà au carnet, déjà
+        // notifiée, déjà journalisée ; l'annuler parce qu'un secret a été mal tapé priverait le
+        // patient de sa prescription pour une raison qui ne le concerne pas. Le message le dit.
+        $messageSignature = $this->signerSiDemande($request, $cle, $entree, $signature);
+
         return redirect()
             ->route('portail.dossier.section', $section)
-            ->with('statut', 'Ajouté au carnet. Le patient et sa famille en sont informés.');
+            ->with('statut', 'Ajouté au carnet. Le patient et sa famille en sont informés.'.$messageSignature);
+    }
+
+    /**
+     * Signe l'entrée si le praticien a fourni son secret et que le type est signable.
+     *
+     * Renvoie le complément de message destiné à l'écran — jamais une exception : la signature est
+     * un plus, son absence n'invalide pas l'acte de soin.
+     */
+    private function signerSiDemande(
+        Request $request,
+        string $cle,
+        \Illuminate\Database\Eloquent\Model $entree,
+        ServiceSignature $signature,
+    ): string {
+        $secret = (string) $request->input('secret_signature', '');
+        $type   = self::SECTIONS_SIGNABLES[$cle] ?? null;
+
+        if ($type === null || $secret === '') {
+            return '';
+        }
+
+        if (auth()->user()?->can('document.signer') !== true) {
+            return " La signature n'a pas été posée : ce compte n'y est pas habilité.";
+        }
+
+        try {
+            $signature->signer(auth()->user(), $type, (int) $entree->getKey(), $secret);
+        } catch (\RuntimeException $e) {
+            // Le motif vient des règles §5.4 ou du secret : il est déjà écrit pour être lu par un
+            // humain, et le refus est déjà au journal.
+            return ' Mais la signature a été refusée : '.$e->getMessage();
+        }
+
+        return ' Prescription signée électroniquement.';
     }
 
     /** Le formulaire d'écriture doit-il être proposé pour cette section ? */

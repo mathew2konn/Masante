@@ -1,0 +1,46 @@
+#
+# P6.5b — Configuration OpenSSL minimale de la PKI MaSanté (CDC_10 §4.1).
+#
+# POURQUOI CE FICHIER EXISTE DANS LE DÉPÔT. Les fonctions X.509 de PHP (`openssl_pkey_new`,
+# `openssl_csr_new`, `openssl_csr_sign`) délèguent à la bibliothèque OpenSSL, qui refuse de
+# démarrer sans fichier de configuration. Sur la machine de développement, `OPENSSL_CONF` n'est
+# pas défini et PHP ne trouve rien : **la génération d'une clé RSA échoue** avec
+# « configuration file routines::no such file » — constaté au G0 de P6.5b.
+#
+# WAMP en livre bien un (`bin/php/…/extras/ssl/openssl.cnf`), mais s'appuyer dessus ferait
+# dépendre l'émission des certificats d'un chemin propre à un poste : la PKI marcherait ici et
+# nulle part ailleurs. On embarque donc le nôtre et on le passe explicitement en `config`.
+#
+# Il ne contient AUCUN secret : ce sont des paramètres de format. La phrase de passe de l'autorité
+# vit dans l'environnement (CDC_10 §5 : aucun secret dans le dépôt).
+#
+
+[ req ]
+default_bits        = 2048
+default_md          = sha256
+distinguished_name  = req_distinguished_name
+prompt              = no
+string_mask         = utf8only
+
+[ req_distinguished_name ]
+countryName                 = Country Name (2 letter code)
+stateOrProvinceName         = State or Province Name
+localityName                = Locality Name
+organizationName            = Organization Name
+organizationalUnitName      = Organizational Unit Name
+commonName                  = Common Name
+emailAddress                = Email Address
+
+# Extensions de l'autorité racine : elle peut signer d'autres certificats, eux ne le peuvent pas.
+[ v3_ca ]
+basicConstraints        = critical,CA:TRUE,pathlen:0
+keyUsage                = critical,keyCertSign,cRLSign
+subjectKeyIdentifier    = hash
+
+# Extensions d'un certificat de professionnel. `nonRepudiation` est l'usage qui porte la promesse
+# du §5.3 ; `CA:FALSE` interdit à un praticien d'émettre des certificats à son tour.
+[ v3_professionnel ]
+basicConstraints        = critical,CA:FALSE
+keyUsage                = critical,digitalSignature,nonRepudiation
+extendedKeyUsage        = emailProtection
+subjectKeyIdentifier    = hash
