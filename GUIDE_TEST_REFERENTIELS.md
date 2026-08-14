@@ -1280,3 +1280,205 @@ pnpm typecheck
 
 **Le formulaire d'images est séparé** de celui de l'établissement : un refus d'image ne doit pas faire perdre trente champs déjà remplis.
 
+
+---
+
+# PARTIE 6 — Bascule des seuils de mesure sur le référentiel gouverné (L1 + L2)
+
+> Referme **la moitié** du défaut nommé au G0 de P6.3 : le journal de bord ne lit plus la table
+> `referentiels_mesure`, il lit la **version publiée** du référentiel national — et chaque mesure
+> conserve la version qui l'a jugée. `symptomes_triage` reste rattaché à **P10**.
+
+## 6.1 Périmètre — et ce que ce module ne fait PAS
+
+**Ce qui change.** Les seuils qui qualifient une mesure (`normal`, `bas`, `eleve`, `critique`) et les
+bornes qui refusent une saisie invraisemblable viennent désormais de la version en vigueur du
+référentiel `seuils_mesure`. Chaque mesure écrite porte le numéro de cette version.
+
+**LA RUPTURE D'EXPLOITATION, À LIRE AVANT DE TESTER.** Jusqu'ici, corriger un seuil se faisait par un
+`UPDATE` en base et prenait effet immédiatement. **Ce n'est plus vrai.** Un `UPDATE` modifie
+désormais le *contenu de travail* ; il ne prend effet qu'après une **proposition** et une
+**publication par un second agent** (§10). C'est exactement ce qu'exige CDC_09 §1.2.4 — et c'est une
+rupture réelle avec ce que trois commentaires du code promettaient encore, tous corrigés ici.
+
+**Ce que ce module ne fait PAS :**
+
+- **`symptomes_triage` n'est pas basculé.** `TriageService` lit toujours la table `symptomes`. Le
+  défaut du G0 est donc **à moitié** refermé. Foyer : **P10** (ADR-025 §5.3).
+- **Aucune mesure antérieure n'est estampillée.** Elles n'ont eu aucune version ; leur en attribuer
+  une serait un mensonge d'archive. Elles restent à `NULL`.
+- **Aucun écran de gouvernance** (limite L7 d'ADR-025, inchangée) : proposer et publier se font par
+  API. La mise en vigueur initiale est donc une **procédure de déploiement**, pas un clic.
+- **Rien côté mobile** : aucun écran, aucun type, aucun appel n'a été touché.
+
+## 6.2 Prérequis
+
+```bash
+XDEBUG_MODE=off %PHP% artisan migrate      # ajoute mesures_sante.referentiel_version
+```
+
+Deux comptes distincts sont nécessaires — le quatre-yeux ne se contourne pas :
+
+```bash
+XDEBUG_MODE=off %PHP% artisan tinker
+>>> $a = App\Models\User::find(<id_agent_1>); $a->givePermissionTo('referentiel.proposer');
+>>> $d = App\Models\User::find(<id_agent_2>); $d->givePermissionTo('referentiel.publier');
+>>> app(Spatie\Permission\PermissionRegistrar::class)->forgetCachedPermissions();
+```
+
+> ⚠️ Les permissions n'existent qu'après `PortailRolesSeeder`, et le cache spatie doit être vidé —
+> sinon `givePermissionTo` lève `PermissionDoesNotExist` (piège déjà rencontré en P6.5a).
+
+## 6.3 Mise en vigueur initiale (la procédure de déploiement)
+
+**À faire une fois, avant d'ouvrir le journal de bord aux utilisateurs.** Tant qu'elle n'est pas
+faite, l'écran des mesures répond **503** — délibérément.
+
+```bash
+# 1. Enregistrer le référentiel au registre (idempotent)
+XDEBUG_MODE=off %PHP% artisan tinker
+>>> app(App\Services\Referentiel\ServiceGouvernanceReferentiel::class)->enregistrer('seuils_mesure');
+```
+
+```bash
+# 2. Proposer (agent 1), puis publier (agent 2) — par l'API, jeton Sanctum de chaque compte
+curl -X POST $API/api/v1/referentiels/seuils_mesure/propositions \
+  -H "Authorization: Bearer $JETON_AGENT_1" -H 'Content-Type: application/json' \
+  -d '{"motif":"Seuils cliniques de reference, mise en vigueur initiale."}'
+
+curl -X POST $API/api/v1/referentiels/seuils_mesure/publication \
+  -H "Authorization: Bearer $JETON_AGENT_2" -H 'Content-Type: application/json' \
+  -d '{"motif":"Controles conformes, publication."}'
+```
+
+## 6.4 Scénarios backend (curl reproductibles)
+
+### 6.4.1 Sans version en vigueur → refus bruyant, jamais un repli
+
+Avant la publication, avec la table pourtant pleine :
+
+```bash
+curl -s -o /dev/null -w '%{http_code}\n' $API/api/v1/membres/$M/mesures -H "Authorization: Bearer $T"
+```
+
+✅ **503**, et le corps nomme ce qui manque (« aucune version en vigueur »). ❌ Un **200** signifierait
+que le repli sur la table a survécu : la garantie serait inactive sans que personne ne le sache.
+
+### 6.4.2 Le vecteur central — un `UPDATE` direct ne change plus la qualification
+
+```sql
+-- 0,90 g/L est normale au référentiel publié
+UPDATE referentiels_mesure SET normal_max = 0.5, critique_haut = 0.6 WHERE type_mesure = 'glycemie';
+```
+
+```bash
+curl -s -X POST $API/api/v1/membres/$M/mesures -H "Authorization: Bearer $T" \
+  -H 'Content-Type: application/json' \
+  -d '{"type_mesure":"glycemie","valeur":0.9,"date_mesure":"2026-08-14 08:00:00"}' | jq '.mesures[0].statut_norme'
+```
+
+✅ **`"normal"`** — la version en vigueur n'a pas bougé.
+
+### 6.4.3 Le jumeau obligatoire — publier une version corrigée change bien la qualification
+
+Sans ce second vecteur, le précédent prouverait seulement que plus rien ne fonctionne.
+
+```sql
+UPDATE referentiels_mesure SET critique_haut = 1.3 WHERE type_mesure = 'glycemie';
+```
+
+Proposer puis publier (§6.3), puis saisir **1.4** :
+✅ **`"critique"`**, alors que la même valeur donnait `"eleve"` avant publication.
+
+### 6.4.4 L'estampille (L2)
+
+```sql
+SELECT id, valeur, statut_norme, referentiel_version FROM mesures_sante ORDER BY id DESC LIMIT 3;
+```
+
+✅ La mesure d'avant publication porte **v1**, celle d'après **v2** — deux jugements opposés sur la
+même valeur, chacun rattaché à ses seuils. **C'est ce qui referme le défaut du G0.**
+✅ Les mesures antérieures à la bascule portent **`NULL`**.
+
+### 6.4.5 Le client ne choisit pas la version qui le juge
+
+```bash
+curl -s -X POST … -d '{"type_mesure":"glycemie","valeur":0.9,"date_mesure":"…","referentiel_version":999}'
+```
+
+✅ La mesure porte la version **en vigueur**, jamais 999.
+
+### 6.4.6 La validation parle de la version en vigueur, pas de la table
+
+Un type présent en table mais absent de la version publiée doit être **refusé à la saisie** (422) —
+c'est le défaut que les deux lectures directes du contrôleur laissaient passer.
+
+## 6.5 Invariants base de données
+
+```sql
+-- a. La colonne existe et reste nullable
+SHOW COLUMNS FROM mesures_sante LIKE 'referentiel_version';
+
+-- b. Aucune mesure écrite après la bascule sans version
+SELECT COUNT(*) FROM mesures_sante WHERE created_at > '<date_bascule>' AND referentiel_version IS NULL;
+-- attendu : 0
+
+-- c. Les deux lignes d'une tension partagent leur version
+SELECT groupe_uuid, COUNT(DISTINCT referentiel_version) FROM mesures_sante
+WHERE groupe_uuid IS NOT NULL GROUP BY groupe_uuid HAVING COUNT(DISTINCT referentiel_version) > 1;
+-- attendu : aucune ligne
+
+-- d. Toute version citée par une mesure a bien été en vigueur
+SELECT DISTINCT m.referentiel_version FROM mesures_sante m
+LEFT JOIN referentiel_versions v
+  ON v.numero = m.referentiel_version
+ AND v.referentiel_id = (SELECT id FROM referentiels WHERE code = 'seuils_mesure' AND pays_code = 'CI')
+WHERE m.referentiel_version IS NOT NULL AND v.id IS NULL;
+-- attendu : aucune ligne
+```
+
+## 6.6 Commandes de qualité (G3)
+
+```bash
+XDEBUG_MODE=off %PHP% artisan test --filter=SeuilsMesureGouvernesTest   # vecteurs dédiés
+XDEBUG_MODE=off %PHP% artisan test --filter=MesureSanteTest             # suite héritée, adaptée
+XDEBUG_MODE=off %PHP% artisan test                                      # suite complète
+pnpm typecheck
+```
+
+✅ **Référence au G5 (2026-08-14)** : **13/13** vecteurs dédiés · **22/22** avec la suite héritée ·
+**654 tests / 15 026 assertions**, **1 échec non lié** (`PrixMedicamentTest`, Tesseract > 20 s sous
+charge — **9/9 vert isolément**, même comportement qu'en P6.3) · typecheck ×3 verts.
+
+**Vérification par mutation** — la bascule a été neutralisée (lecture de la table rétablie dans
+`charger()`) : **4 vecteurs meurent**, dont le vecteur central §6.4.2. Ce dernier ne mourait PAS au
+premier essai — il passait grâce à la mémoïsation intra-requête, c'est-à-dire *sans rien vérifier*.
+Il a fallu lui ajouter une frontière de requête explicite pour qu'il prouve la bascule.
+
+## 6.7 Checklist de clôture
+
+- [ ] Sans version publiée → **503 explicite**, aucun repli sur la table (§6.4.1)
+- [ ] `UPDATE` direct → **aucun effet** sur la qualification (§6.4.2)
+- [ ] Publication d'une version corrigée → **effet immédiat** (§6.4.3)
+- [ ] Deux mesures encadrant une publication → **deux versions** (§6.4.4)
+- [ ] Mesures antérieures → `NULL`, jamais estampillées après coup (§6.4.4)
+- [ ] `referentiel_version` envoyé par le client → **ignoré** (§6.4.5)
+- [ ] Type hors version en vigueur → **422** (§6.4.6)
+- [ ] Invariants a→d (§6.5)
+- [ ] Suite complète + typecheck ×3 (§6.6)
+- [ ] **Limites relues** (§6.1) — dont **`symptomes_triage` toujours ouvert**
+
+## 6.8 Pièges rencontrés
+
+**Les seuils servis n'existent pas en base.** Ils sont hydratés depuis l'instantané publié : pas
+d'`id`, `exists` à faux. C'est ce qui a permis de basculer sans toucher aux quatre consommateurs —
+mais **ne jamais les sauvegarder** : un `save()` créerait un doublon dans la table.
+
+**Le JSON perd trois champs** (`referentiels[].id`, `created_at`, `updated_at`) : l'instantané ne les
+porte pas. Le type mobile ne les avait **jamais déclarés** — la réponse se rapproche donc du contrat
+au lieu de s'en éloigner. Le cache hors-ligne P2 garde d'anciennes entrées plus riches, ce que
+l'interface tolère ; aucune purge n'est nécessaire.
+
+**Il faut deux comptes pour publier, même en test.** Un helper qui aurait triché avec un seul compte
+aurait prouvé le contraire de ce que la bascule garantit.
+

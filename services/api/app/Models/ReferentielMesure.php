@@ -5,8 +5,16 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 
 /**
- * Module 5 / 5.6 — Seuils d'un type de mesure (FN5). Référentiel médical en base (pattern F1.3) :
- * modifiable par un UPDATE, sans redéploiement. Contenu public non sensible (aucun chiffrement).
+ * Module 5 / 5.6 — Seuils d'un type de mesure (FN5). Contenu public non sensible (aucun chiffrement).
+ *
+ * DEUX USAGES, À NE PAS CONFONDRE DEPUIS L1 (ADR-025 §5) :
+ *  - la TABLE `referentiels_mesure` est le contenu de travail, celui qu'une proposition fige ;
+ *  - les instances que renvoie {@see App\Services\MesureSanteService} sont HYDRATÉES DEPUIS LA
+ *    VERSION PUBLIÉE et n'existent pas en base (pas d'`id`, `exists` à faux). Ne jamais les
+ *    sauvegarder : un `save()` créerait un doublon dans la table.
+ *
+ * `statutPour()` fonctionne dans les deux cas — c'est un calcul sur les attributs, et c'est
+ * précisément ce qui a permis de basculer la lecture sans toucher aux quatre consommateurs.
  */
 class ReferentielMesure extends Model
 {

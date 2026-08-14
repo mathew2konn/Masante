@@ -8,6 +8,7 @@ use App\Models\User;
 use Database\Seeders\ReferentielMesureSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Sanctum\Sanctum;
+use Tests\Concerns\PublieLesSeuilsDeMesure;
 use Tests\TestCase;
 
 /**
@@ -20,6 +21,7 @@ use Tests\TestCase;
  */
 class MesureSanteTest extends TestCase
 {
+    use PublieLesSeuilsDeMesure;
     use RefreshDatabase;
 
     private User $user;
@@ -31,6 +33,12 @@ class MesureSanteTest extends TestCase
         parent::setUp();
 
         $this->seed(ReferentielMesureSeeder::class);
+
+        // Depuis la bascule L1 (ADR-025 §5), seeder la table ne suffit plus : le journal de bord lit
+        // la version PUBLIÉE du référentiel national. Ces vecteurs ne sont pas « réparés » pour
+        // qu'ils repassent — ils reflètent la nouvelle règle d'exploitation, qui est le but même de
+        // la bascule.
+        $this->publierLesSeuils('Seuils cliniques de référence, mise en vigueur initiale.');
 
         $this->user = User::factory()->create();
         $this->membre = MembreFamille::factory()->for($this->user)->create();

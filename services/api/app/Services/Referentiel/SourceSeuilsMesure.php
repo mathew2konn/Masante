@@ -12,8 +12,14 @@ use App\Models\ReferentielMesure;
  * C'est précisément cet `UPDATE` que le §10 demande de versionner et d'auditer : sans version,
  * corriger un seuil rend inexplicable toute mesure jugée « critique » avant la correction.
  *
- * La table n'est PAS modifiée et sa lecture par `MesureSanteService` reste inchangée (module
- * validé G5). Le socle l'observe : il en fige des instantanés, il ne s'interpose pas.
+ * DEPUIS L1 (ADR-025 §5), LE SOCLE NE FAIT PLUS QU'OBSERVER : `MesureSanteService` lit la version
+ * publiée de ce référentiel au lieu de la table. La table reste inchangée et reste le contenu de
+ * travail — c'est elle qu'une proposition fige — mais elle ne gouverne plus la qualification d'une
+ * mesure tant qu'elle n'a pas été publiée.
+ *
+ * L'instantané ne porte NI `id` NI horodatages, contrairement à celui des symptômes de triage qui
+ * inclut son `id` délibérément (un triage archivé y désigne les symptômes retenus). Ici
+ * `type_mesure` est UNIQUE : c'est la clé naturelle, et l'identifiant technique n'a rien à porter.
  */
 final class SourceSeuilsMesure implements SourceReferentiel
 {

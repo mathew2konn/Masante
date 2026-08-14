@@ -16,8 +16,10 @@ use Illuminate\Validation\ValidationException;
  *
  * Le mobile ne connaît AUCUN seuil : il reçoit le référentiel (`referentiels`), s'en sert pour
  * saisir (unité, décimales, bornes) et afficher (couleur du statut, conseil), mais c'est le serveur
- * qui qualifie chaque valeur. Corriger une norme médicale = un UPDATE en base, sans redéployer
- * l'app (F1.3) — l'app n'a rien à réapprendre.
+ * qui qualifie chaque valeur. Corriger une norme médicale se fait donc toujours sans redéployer
+ * l'app — mais depuis L1 (ADR-025 §5) cela ne se fait plus par un `UPDATE` : il faut PUBLIER une
+ * nouvelle version du référentiel national (proposition + validation par un second agent, §10).
+ * L'app, elle, n'a toujours rien à réapprendre.
  *
  * La tension se saisit d'un geste (`type_mesure = tension`, systolique + diastolique) et s'écrit en
  * deux lignes, comme le veut l'ENUM du CdC : voir {@see MesureSanteService}.
@@ -44,7 +46,7 @@ class MesureSanteController extends Controller
         $this->authorize('view', $membre);
 
         $filtres = $request->validate([
-            'type'  => ['nullable', Rule::in(ReferentielMesure::pluck('type_mesure')->all())],
+            'type'  => ['nullable', Rule::in($this->mesures->typesConnus())],
             'jours' => ['nullable', 'integer', 'min:1', 'max:730'],
         ]);
 
@@ -107,15 +109,16 @@ class MesureSanteController extends Controller
     }
 
     /**
-     * Règles de saisie, construites À PARTIR DU RÉFÉRENTIEL : les bornes de plausibilité
-     * (`valeur_min`/`valeur_max`) viennent de la base, jamais du code. Une glycémie à 500 g/L est
-     * une faute de frappe — on la refuse avant d'écrire, plutôt que d'alerter sur une valeur absurde.
+     * Règles de saisie, construites À PARTIR DU RÉFÉRENTIEL EN VIGUEUR : les bornes de plausibilité
+     * (`valeur_min`/`valeur_max`) viennent de la version publiée, jamais du code. Une glycémie à
+     * 500 g/L est une faute de frappe — on la refuse avant d'écrire, plutôt que d'alerter sur une
+     * valeur absurde.
      *
      * @return array<string, array<int, mixed>>
      */
     private function regles(Request $request): array
     {
-        $types = ReferentielMesure::pluck('type_mesure')->all();
+        $types = $this->mesures->typesConnus();
         $type = $request->input('type_mesure');
         $estTension = $type === MesureSanteService::TYPE_TENSION;
 

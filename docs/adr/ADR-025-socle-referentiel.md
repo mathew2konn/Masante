@@ -106,6 +106,11 @@ Un `CHECK` MySQL ne peut pas porter sur une colonne qui **subit une action réf�
 
 ## 5. Statut de L1 et L2 — la dette qui referme le trou du G0
 
+> **MISE À JOUR DU 2026-08-14 — L1 et L2 sont FAITES pour `seuils_mesure`, et seulement pour lui.**
+> Le §5 ci-dessous reste écrit au présent de l'époque : c'est l'analyse qui a conduit à l'incrément,
+> et la relire telle quelle explique pourquoi il a eu lieu. Le §6 dit ce qui a changé, et ce qui ne
+> l'a pas.
+
 L1 et L2 sont d'une autre nature que L3→L7. Les cinq dernières sont des **choix de périmètre** (Redis, MFA, interopérabilité, écran) : le module reste entier sans elles. **L1 et L2, non** — tant qu'elles ne sont pas faites, le défaut identifié au G0 (« corriger un seuil rend tout triage antérieur inexplicable ») est **outillé mais pas refermé**. Le versionnage existe ; rien ne s'en sert encore.
 
 ### 5.1 Elles ne sont planifiées nulle part
@@ -130,3 +135,77 @@ Faire L2 seule remplacerait donc « on ne sait pas » par une **affirmation faus
 Une fois la bascule faite, **corriger un seuil par un `UPDATE` n'aura plus aucun effet** tant qu'une version n'est pas publiée. C'est exactement ce qu'exige CDC_09 §1.2.4 (« référentiel = source unique de vérité ») et c'est le but recherché — mais c'est une rupture réelle avec la promesse actuelle, écrite noir sur blanc dans le commentaire de la migration `referentiels_mesure` : « *un médecin peut les corriger par un `UPDATE`, sans redéployer* ».
 
 Ce commentaire devra être corrigé **en même temps** que la bascule, sans quoi le code affirmera durablement l'inverse de ce qu'il fait.
+
+---
+
+## 6. La bascule de `seuils_mesure` — L1 et L2 faites (2026-08-14)
+
+### 6.1 Décisions du propriétaire
+
+| # | Décision |
+|---|---|
+| **Périmètre** | `seuils_mesure` **seul**, L1 **et** L2. `symptomes_triage` reste rattaché à P10. |
+| **Avant la v1** | **Refus bruyant** (HTTP 503 explicite). Pas de repli sur la table, même transitoire. |
+
+Le périmètre suit le §5.3 : le triage a un foyer, les mesures n'en avaient **aucun**. Faire les deux
+aurait modifié `TriageService` que P10 refondra de toute façon — un module G5 touché deux fois.
+
+Le refus bruyant a été préféré au repli parce qu'un repli laisse un oubli de publication **invisible** :
+tout fonctionnerait, et personne ne saurait que la garantie est inactive. La contrepartie est assumée
+et documentée : la mise en vigueur de la v1 est une **étape de déploiement**, faite par deux agents
+habilités via la gouvernance §10 — jamais par un seeder, qui contournerait le quatre-yeux.
+
+### 6.2 Ce que le G0 a trouvé, et qui n'était pas anticipé ici
+
+**Deux lectures contournaient le service.** `MesureSanteController` construisait ses règles de
+validation sur `ReferentielMesure::pluck('type_mesure')`, c'est-à-dire sur la **table**. Basculer le
+seul service aurait laissé la saisie accepter un type absent de la version publiée : le référentiel
+diffusé et les règles gouvernant l'écriture auraient dit deux choses différentes. **Deux vérités** —
+exactement ce que l'anti-substitution du §2.3 cherche à empêcher ailleurs.
+
+**Trois commentaires promettaient l'inverse**, pas un seul comme l'annonçait le §5.4 : la migration
+`referentiels_mesure`, le modèle `ReferentielMesure` et l'en-tête de `MesureSanteController`
+affirmaient tous qu'« un `UPDATE` suffit, sans redéployer ». Tous corrigés.
+
+**La suite de tests d'un module validé G5 devait changer.** `MesureSanteTest` seedait la table ; il
+lui faut désormais une version publiée, donc **deux comptes habilités**. Ce coût n'a pas été contourné
+par un helper à compte unique : un tel helper aurait prouvé le contraire de ce que la bascule garantit.
+
+### 6.3 Comment la bascule reste chirurgicale
+
+`ReferentielMesure::statutPour()` est une méthode **du modèle**, pure — elle ne lit que ses attributs.
+Le service hydrate donc des `ReferentielMesure` **non persistés** depuis l'instantané publié : la
+qualification, les casts et l'unité continuent de fonctionner, et **aucun des quatre consommateurs ne
+change de contrat**. Ces instances n'ont pas d'`id` et ne doivent jamais être sauvegardées.
+
+L'instantané ne porte ni `id` ni horodatages : la réponse de `GET /mesures` perd trois champs que le
+type mobile **n'avait jamais déclarés**. La bascule rapproche donc le contrat servi du contrat écrit.
+
+### 6.4 L'estampille, et son silence
+
+`mesures_sante.referentiel_version` est **nullable et jamais remplie rétroactivement**. Les mesures
+antérieures n'ont eu aucune version ; leur en attribuer une serait un mensonge d'archive — le même
+refus qui avait fait livrer `estampille()` sans l'apposer en P6.3.
+
+La mémoïsation du service **pinne une version pour toute la durée d'une requête**, et c'est voulu :
+les deux lignes d'une tension doivent être jugées par les mêmes seuils, même si une publication
+survient entre les deux écritures.
+
+### 6.5 Ce que la vérification par mutation a corrigé
+
+Neutraliser la bascule (retour à la lecture de la table) devait tuer le vecteur central « un `UPDATE`
+direct ne change plus la qualification ». **Il survivait** — parce que les deux saisies du vecteur
+partageaient le même service mémoïsé, le harnais de test réutilisant le contrôleur d'une requête à
+l'autre là où la production reboote. Le vecteur prouvait donc la mémoïsation, **pas la bascule**.
+
+Corrigé en rétablissant explicitement la frontière de requête (ce que fait Laravel Octane entre deux
+requêtes). Sans la mutation, ce vecteur serait resté vert **en ne vérifiant rien** — troisième
+occurrence du même piège après les dix `expectExceptionCode` de P6.4c et le contrôle de révocation
+de P6.5b.
+
+### 6.6 Ce qui reste ouvert
+
+- **`symptomes_triage` n'est pas basculé** → le défaut du G0 est **à moitié** refermé. Foyer : P10.
+- **Multi-pays** : la version est stockée sans code pays, une instance servant un seul pays.
+- **L3→L7 inchangées**, dont l'absence d'écran de gouvernance (L7) qui fait de la mise en vigueur
+  initiale une procédure en ligne de commande.

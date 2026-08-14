@@ -8,8 +8,15 @@ use Illuminate\Support\Facades\Schema;
  * Module 5 / 5.6 — Référentiel des seuils de mesure (FN5 « alertes si valeurs anormales »).
  *
  * Les seuils médicaux vivent EN BASE, comme les règles du triage (F1.3, table `symptomes`) et le
- * calendrier prénatal (5.5, `etapes_prenatales`) : un médecin peut les corriger par un UPDATE, sans
- * redéployer. C'est le pattern imposé par le CdC pour toute règle médicale.
+ * calendrier prénatal (5.5, `etapes_prenatales`) : ils se corrigent sans redéployer. C'est le
+ * pattern imposé par le CdC pour toute règle médicale.
+ *
+ * ATTENTION — CETTE TABLE N'EST PLUS LUE PAR LE JOURNAL DE BORD. Depuis la bascule L1 (ADR-025 §5),
+ * `MesureSanteService` lit la version PUBLIÉE du référentiel national `seuils_mesure`, pas cette
+ * table. Un `UPDATE` direct ici ne change donc plus rien à la qualification des mesures : il
+ * modifie le contenu qu'une PROCHAINE proposition figera, et il faut publier cette version
+ * (proposition + validation par un second agent, CDC_09 §10) pour qu'elle prenne effet. Ce
+ * commentaire promettait l'inverse jusqu'à L1, ce qui était devenu faux.
  *
  * Deux couples de bornes, à ne pas confondre :
  *  - `valeur_min` / `valeur_max` : PLAUSIBILITÉ de la saisie. Une glycémie de 500 g/L est une faute

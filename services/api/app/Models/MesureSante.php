@@ -8,10 +8,14 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 /**
  * Module 5 / 5.6 — Une mesure du journal de bord (CdC §8.3, FN5).
  *
- * `statut_norme` et `unite` ne sont PAS `fillable` : le serveur les dérive du référentiel de seuils
- * ({@see App\Services\MesureSanteService}). Un client qui enverrait `statut_norme = 'normal'` sur une
- * glycémie à 4 g/L ne serait pas cru. `membre_id` n'est pas `fillable` non plus (convention du
- * carnet : on crée par la relation).
+ * `statut_norme`, `unite` et `referentiel_version` ne sont PAS `fillable` : le serveur les dérive du
+ * référentiel national publié ({@see App\Services\MesureSanteService}). Un client qui enverrait
+ * `statut_norme = 'normal'` sur une glycémie à 4 g/L ne serait pas cru — ni un client qui
+ * prétendrait avoir été jugé par une autre version que celle en vigueur. `membre_id` n'est pas
+ * `fillable` non plus (convention du carnet : on crée par la relation).
+ *
+ * `referentiel_version` est NULL sur les mesures antérieures à la bascule L1 : elles n'ont eu
+ * aucune version, et le disent plutôt que d'en inventer une.
  *
  * `note` est chiffrée au repos (AES-256, §6.1 Sécurité).
  */
@@ -34,9 +38,10 @@ class MesureSante extends Model
     protected function casts(): array
     {
         return [
-            'valeur'      => 'float',
-            'date_mesure' => 'datetime',
-            'note'        => 'encrypted',
+            'valeur'              => 'float',
+            'date_mesure'         => 'datetime',
+            'note'                => 'encrypted',
+            'referentiel_version' => 'integer',
         ];
     }
 
