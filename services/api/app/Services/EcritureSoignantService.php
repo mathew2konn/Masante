@@ -126,6 +126,19 @@ class EcritureSoignantService
                 $valide['medecin_nom'] = $fiche->nom_complet;
             }
 
+            // ═══ P6.7a — LA SECONDE PORTE ═══
+            //
+            // P6.5b a refermé `ordonnances.medecin_nom` en testant CETTE clé-là. Mais
+            // `resultats_analyses` porte `medecin_prescripteur` — un autre nom de colonne, pour la
+            // même chose — et cette section est ouverte au soignant
+            // (`RegistreSectionsCarnet::SECTIONS_SOIGNANT`). Un résultat consigné par un soignant
+            // pouvait donc encore nommer n'importe quel prescripteur.
+            //
+            // Le G0 de P6.7 l'a trouvé : il y avait deux portes, une seule avait été fermée.
+            if (array_key_exists('medecin_prescripteur', $valide)) {
+                $valide['medecin_prescripteur'] = $fiche->nom_complet;
+            }
+
             // L'établissement suit la même logique. Repli sur la saisie quand la fiche n'en porte
             // pas : mieux vaut l'information de l'agent qu'un champ vide.
             if (array_key_exists('structure_sanitaire', $valide) && $fiche->structure?->nom !== null) {

@@ -41,6 +41,7 @@ incréments successifs, ajoutés en **parties** dans le même fichier plutôt qu
 | **P6.3 / P6.4** | Référentiels nationaux (CDC_09) | [GUIDE_TEST_REFERENTIELS.md](GUIDE_TEST_REFERENTIELS.md) | **Partie 1** socle (§1–8) · **Partie 2** établissements (§2.1–2.8) · **Partie 3** villes et géolocalisation (§3.1–3.8) · **Partie 4** images (§4.1–4.8) · **Partie 5** formulaires du portail (§5.1–5.8) · **Partie 6** bascule des seuils de mesure, L1+L2 (§6.1–6.8) |
 | **P6.5** | Professionnels de santé + PKI (CDC_09 §5) | [GUIDE_TEST_PROFESSIONNELS.md](GUIDE_TEST_PROFESSIONNELS.md) | **Partie 1** référentiel professionnel (§1–8) · **Partie 2** PKI et signature électronique (§2.1–2.8) |
 | **P6.6** | Référentiel des médicaments (CDC_09 §6) | [GUIDE_TEST_MEDICAMENTS.md](GUIDE_TEST_MEDICAMENTS.md) | **Partie 1** le référentiel (§1.1–1.8) · **Partie 2** lien ordonnance + interactions (§2.1–2.8) |
+| **P6.7** | Laboratoires + catalogue des analyses (CDC_09 §7) | [GUIDE_TEST_LABORATOIRES.md](GUIDE_TEST_LABORATOIRES.md) | **Partie 0** ce que contient un référentiel biologique réel · **Partie 1** le catalogue (§1.1–1.8) · *Partie 2 laboratoires — à venir* |
 | **P7** | Carnet familial partagé | [GUIDE_TEST_CARNET_FAMILIAL.md](GUIDE_TEST_CARNET_FAMILIAL.md) | **A** partage en lecture · B revendication · C brouillon · D notifications |
 
 ### Détail du guide Paiement (13 parties)
@@ -86,7 +87,6 @@ consignée dans les fiches mémoire et les ADR, mais pas dans un guide cochable.
 | Module | Domaine | Guide prévu |
 |--------|---------|-------------|
 | **Migration du portail Blade → Next** | Module identifié par ADR-029 : dix-sept zones, où le design moderne se fera **une fois** sur le design system partagé | guide propre |
-| **P6.7** | Laboratoires + catalogue des analyses | `GUIDE_TEST_LABORATOIRES.md` |
 | **Documents médicaux signés** | Les 5 entités de CDC_10 §4.5, après P6.7 | guide propre |
 | **Pharmacovigilance (CDC_09 §6.5)** | Propagation d'un retrait aux pharmacies et aux prescripteurs | **partie 3** de `GUIDE_TEST_MEDICAMENTS.md` |
 
@@ -101,5 +101,8 @@ consignée dans les fiches mémoire et les ADR, mais pas dans un guide cochable.
 > inutile — elle ne réparerait que les doublons nés avant lui, et ce projet n'en a aucun.
 > Aucun `GUIDE_TEST_MPI.md` ne sera produit.
 
-Les référentiels d'annuaire relèvent tous du **même domaine** que P6.3 : ils s'ajouteront en
-**parties** du guide existant, pas en fichiers nouveaux (convention ci-dessus).
+**Ce qui a été réellement fait, et pourquoi** : les référentiels d'annuaire assez larges pour se
+tenir seuls ont reçu **leur propre guide** (professionnels, médicaments, laboratoires) ; ceux qui
+prolongent un guide existant s'y ajoutent en **partie** (établissements dans le guide des
+référentiels, lien ordonnance dans celui des médicaments). La règle du domaine est respectée dans
+les deux cas — ce qu'elle interdit, c'est un fichier neuf par incrément.

@@ -2,6 +2,7 @@
 
 namespace App\Support;
 
+use App\Services\Referentiel\SourceAnalyses;
 use App\Services\Referentiel\SourceEtablissements;
 use App\Services\Referentiel\SourceMedicaments;
 use App\Services\Referentiel\SourceProfessionnels;
@@ -17,7 +18,7 @@ use App\Services\Referentiel\SourceSymptomesTriage;
  * donc une porte vers n'importe quelle table. La fermeture n'est pas de la rigueur, c'est la garde.
  *
  * CE QUI N'Y FIGURE PAS, ET POURQUOI (décision G1 D3-a) :
- *  - laboratoires et catalogue des analyses → P6.7.
+ *  - laboratoires (le référentiel des établissements les couvre déjà en identité) → P6.7b.
  *    Ce sont des référentiels d'ANNUAIRE ; ils entrent sous gouvernance avec leur incrément dédié,
  *    qui les enrichit (identifiant national, district sanitaire, numéro d'ordre — ADR-024).
  *  - `etapes_prenatales`, `alertes_epidemiques` : même logique, ouverture ultérieure additive.
@@ -52,6 +53,12 @@ final class RegistreReferentiels
         // les publier séparément laisserait une interaction désigner un produit absent de la
         // version en vigueur. Voir `SourceMedicaments` et ADR-033.
         SourceMedicaments::CODE      => SourceMedicaments::class,
+        // P6.7a — le catalogue des analyses ET ses valeurs de référence dans un seul instantané :
+        // les publier séparément laisserait une strate désigner une analyse absente de la version
+        // en vigueur, donc une référence irrésoluble (même raison que les interactions en P6.6a).
+        // La provenance de chaque strate est OBLIGATOIRE : un intervalle biologique sans source est
+        // une rumeur, et le contrôle qualité refuse de publier un catalogue qui en contient.
+        SourceAnalyses::CODE         => SourceAnalyses::class,
     ];
 
     /** @return array<int, string> */

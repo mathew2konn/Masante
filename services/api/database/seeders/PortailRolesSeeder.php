@@ -73,6 +73,10 @@ class PortailRolesSeeder extends Seeder
         // officine écrire les indications, les contre-indications et les INTERACTIONS, et un
         // laboratoire fabricant serait juge et partie sur son propre produit.
         'medicament.referentiel', // éditer le contenu de travail du référentiel des médicaments
+        // Catalogue des analyses (P6.7a, CDC_09 §7.3) — ATTRIBUÉE À AUCUN RÔLE, septième occurrence,
+        // et la raison est ici plus nette encore : un LABORATOIRE ne peut pas fixer les valeurs de
+        // référence nationales, il serait juge et partie sur les résultats qu'il rend lui-même.
+        'analyse.referentiel',    // éditer le catalogue des analyses et ses valeurs de référence
         // Signature électronique (P6.5b, CDC_09 §5.3). Portée par le rôle `medecin` : signer ses
         // propres prescriptions relève du soin, pas d'une habilitation exceptionnelle. Elle ne
         // donne à elle seule AUCUN pouvoir — les cinq contrôles du §5.4 restent devant, et sans

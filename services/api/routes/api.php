@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\V1\AlerteEpidemiqueController;
+use App\Http\Controllers\Api\V1\AnalyseController;
 use App\Http\Controllers\Api\V1\AlerteSosController;
 use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\AvisController;
@@ -456,6 +457,15 @@ Route::middleware('throttle:api')->group(function () {
         Route::get('/medicaments/interactions', [MedicamentController::class, 'interactions']);
         Route::get('/medicaments/{medicament}/prix', [MedicamentController::class, 'prix']);
         Route::get('/ruptures', [MedicamentController::class, 'ruptures']);
+
+        // P6.7a — Catalogue national des analyses (CDC_09 §7.3), PUBLIC en lecture comme le reste
+        // des référentiels d'annuaire. `references` est declaree APRES `{analyse}` sans risque :
+        // elle est imbriquee sous le parametre, pas a cote de lui.
+        //
+        // CE QUE CES ROUTES NE FONT PAS : elles ne qualifient aucun resultat. Elles servent la
+        // plage habituellement observee, et la phrase qui dit que ce n'est pas un diagnostic.
+        Route::get('/analyses', [AnalyseController::class, 'index']);
+        Route::get('/analyses/{analyse}/references', [AnalyseController::class, 'references']);
 
         // Module 5 / FN6 — Groupes sanguins les plus demandés (public : un appel au don n'a de sens
         // que largement visible). Les urgences remontent en tête. Les donneurs INSCRITS reçoivent en

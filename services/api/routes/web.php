@@ -14,6 +14,7 @@ use App\Http\Controllers\Portail\EtablissementController;
 use App\Http\Controllers\Portail\MedecinController as PortailMedecinController;
 use App\Http\Controllers\Portail\MesPatientsController;
 use App\Http\Controllers\Portail\ModerationController;
+use App\Http\Controllers\Portail\ReferentielAnalyseController;
 use App\Http\Controllers\Portail\ReferentielMedicamentController;
 use App\Http\Controllers\Portail\RendezVousController;
 use App\Http\Controllers\Portail\ScanController;
@@ -212,6 +213,19 @@ Route::prefix('portail')->name('portail.')->group(function () {
         // indications et les interactions du catalogue national — un laboratoire fabricant serait
         // juge et partie sur son propre produit. `medicament.referentiel` n'est portée par AUCUN
         // rôle : elle s'accorde nominativement.
+        // P6.7a — Catalogue NATIONAL des analyses (CDC_09 §7.3). Permission distincte de tout ce
+        // qui precede : un laboratoire ne fixe pas les valeurs de reference nationales.
+        Route::middleware('permission:analyse.referentiel')
+            ->prefix('analyses')->name('analyses.')->group(function () {
+                Route::get('/', [ReferentielAnalyseController::class, 'index'])->name('index');
+                Route::get('{analyse}/editer', [ReferentielAnalyseController::class, 'edit'])->name('edit');
+                Route::put('{analyse}', [ReferentielAnalyseController::class, 'update'])->name('update');
+                Route::post('{analyse}/strates', [ReferentielAnalyseController::class, 'ajouterStrate'])
+                    ->name('strates.ajouter');
+                Route::delete('{analyse}/strates/{reference}', [ReferentielAnalyseController::class, 'retirerStrate'])
+                    ->name('strates.retirer');
+            });
+
         Route::middleware('permission:medicament.referentiel')
             ->prefix('medicaments')->name('medicaments.')->group(function () {
                 Route::get('/', [ReferentielMedicamentController::class, 'index'])->name('index');

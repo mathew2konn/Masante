@@ -15,7 +15,6 @@ export type CarnetItem = {
   [cle: string]: unknown;
 };
 
-/** Une ligne de médicament d'une ordonnance (medicaments_json). */
 /**
  * Une ligne d'ordonnance.
  *
@@ -36,8 +35,26 @@ export type Medicament = {
   readonly dosage_referentiel?: string | null;
 };
 
-/** Un couple paramètre/valeur d'un résultat d'analyse (resultats_json). */
-export type ParametreResultat = { parametre: string; valeur: string };
+/**
+ * Une ligne de résultat d'analyse.
+ *
+ * `analyse_id` est la seule clé que le client envoie ; `code_national`, `libelle_catalogue` et
+ * `unite_catalogue` sont posés par le SERVEUR depuis le catalogue national et figés à la saisie
+ * (P6.7a). Ils sont en lecture seule ici — les déclarer optionnels dit qu'on peut les afficher,
+ * jamais qu'on peut les écrire.
+ *
+ * L'UNITÉ FIGÉE EST LA PLUS IMPORTANTE : une unité qui changerait après coup rendrait le résultat
+ * faux d'un facteur 10 ou 100 sans que rien ne le signale.
+ */
+export type ParametreResultat = {
+  parametre: string;
+  valeur: string;
+  unite?: string;
+  analyse_id?: number;
+  readonly code_national?: string;
+  readonly libelle_catalogue?: string;
+  readonly unite_catalogue?: string;
+};
 
 /** Tonalité sémantique d'un badge de liste (mappée aux couleurs du DS). */
 export type Ton = 'success' | 'warning' | 'danger' | 'neutre';
