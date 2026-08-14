@@ -10,9 +10,6 @@ import { rechercherStructures } from './structures';
 import type { Coordonnees, Structure } from '../types/structure';
 import type { BesoinSang, Donneur, DonSangVue } from '../types/donSang';
 
-/** Spécialité de service qui fait d'une structure un centre de collecte. */
-export const SPECIALITE_DON_SANG = 'don_sang';
-
 /** Mes membres donneurs + les urgences auxquelles ils peuvent répondre (ciblage serveur). */
 export async function obtenirDonSang(): Promise<DonSangVue> {
   const { data } = await api.get<DonSangVue>('/v1/don-sang');
@@ -27,10 +24,17 @@ export async function obtenirBesoins(commune?: string): Promise<BesoinSang[]> {
   return data.besoins;
 }
 
-/** Centres de collecte proches (structures ayant un service `don_sang`). */
-export async function obtenirCentres(position?: Coordonnees): Promise<Structure[]> {
+/**
+ * Centres de collecte proches.
+ *
+ * P6.8a — le code de spécialité n'est plus écrit ici : il vient de `regles.specialite_centre`,
+ * servi par `/v1/don-sang`. Une valeur du domaine recopiée côté client est une valeur qu'aucun
+ * typecheck ne relie à la base — le jour où elle diverge, l'écran affiche une liste vide et
+ * personne n'est prévenu (constat G-a de P6.4b, reproduit ici).
+ */
+export async function obtenirCentres(specialite: string, position?: Coordonnees): Promise<Structure[]> {
   return rechercherStructures({
-    specialite: SPECIALITE_DON_SANG,
+    specialite,
     ...(position ? { lat: position.lat, lng: position.lng } : {}),
   });
 }

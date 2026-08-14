@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\ExerciceProfessionnel;
 use App\Models\Medecin;
 use App\Models\ServiceEtablissement;
+use App\Models\SpecialiteMedicale;
 use App\Models\StructureSanitaire;
 use App\Models\User;
 use App\Services\Professionnel\AttributeurNumeroProfessionnel;
@@ -111,6 +112,7 @@ class MedecinController extends Controller
         return view('portail.medecins.create', [
             'services'      => $this->mesServices(),
             'agents'        => $this->mesAgents(),
+            'specialites'   => $this->vocabulaire(),
             'peutHabiliter' => $this->peutHabiliter(),
         ]);
     }
@@ -150,6 +152,7 @@ class MedecinController extends Controller
             'medecin'       => $medecin->load('exercices.structure:id,nom,identifiant_national'),
             'services'      => $this->mesServices(),
             'agents'        => $this->mesAgents($medecin),
+            'specialites'   => $this->vocabulaire(),
             'peutHabiliter' => $this->peutHabiliter(),
             // Chargée seulement pour qui peut s'en servir : un gestionnaire n'a pas à recevoir la
             // liste complète des établissements du pays pour un formulaire qu'il ne verra pas.
@@ -270,13 +273,25 @@ class MedecinController extends Controller
      */
     private function valider(Request $request, ?Medecin $medecin = null): array
     {
+        $vocabulaire = $this->vocabulaire();
+
         $regles = [
             'titre'              => ['required', Rule::in(['Dr', 'Pr'])],
             'prenom'             => ['required', 'string', 'max:120'],
             'nom'                => ['required', 'string', 'max:120'],
             'sexe'               => ['nullable', Rule::in(['M', 'F'])],
             'date_naissance'     => ['nullable', 'date', 'before:today'],
-            'specialite'         => ['required', 'string', 'max:100'],
+            // ═══ P6.8a — LA SPÉCIALITÉ SE CHOISIT, ELLE NE SE TAPE PLUS ═══
+            //
+            // Le champ envoyé est un CODE du vocabulaire national ; le libellé affiché par
+            // l'annuaire (`specialite`, que P3 et P4 sérialisent) est écrit PAR LE SERVEUR d'après
+            // le référentiel. Un établissement ne décide donc plus du nom sous lequel une
+            // spécialité apparaît au citoyen — sans quoi « Cardiologie », « cardio » et « Cardio. »
+            // coexisteraient dans l'annuaire national.
+            //
+            // La liste n'est pas filtrée sur `nature` : la spécialité d'un biologiste EST
+            // « biologie ». Y poser un garde-fou serait inventer une règle que le §8 ne pose pas.
+            'specialite_code'    => ['required', Rule::in($vocabulaire->pluck('code')->all())],
             // La profession (§5.1) vient de la source unique : la liste n'est jamais recopiée.
             'profession'         => ['nullable', ProfessionsSante::regleIn()],
             'sous_specialite'    => ['nullable', 'string', 'max:100'],
@@ -324,9 +339,11 @@ class MedecinController extends Controller
         $donnees = $request->validate($regles, [
             'autorisation_expire_le.after_or_equal' =>
                 "L'autorisation ne peut pas expirer avant d'avoir été délivrée.",
+            'specialite_code.in' => 'Cette spécialité ne fait pas partie du vocabulaire national.',
         ], [
             'user_id'                => 'compte du praticien',
             'service_id'             => 'service',
+            'specialite_code'        => 'spécialité',
             'annee_diplome'          => 'année de diplôme',
             'autorisation_expire_le' => "date d'expiration de l'autorisation",
         ]);
@@ -336,7 +353,27 @@ class MedecinController extends Controller
         $donnees['consultation_en_ligne'] = $request->boolean('consultation_en_ligne');
         $donnees['consultation_physique'] = $request->boolean('consultation_physique');
 
+        // Le code entre, le LIBELLÉ et le rattachement sortent — tous deux relus au référentiel.
+        // `specialite` n'est jamais repris de la requête : un client qui l'enverrait quand même est
+        // écarté par `validate()` (la clé n'est pas déclarée) puis écrasé ici.
+        $terme = $vocabulaire->firstWhere('code', $donnees['specialite_code']);
+        unset($donnees['specialite_code']);
+
+        $donnees['specialite']    = $terme?->libelle;
+        $donnees['specialite_id'] = $terme?->id;
+
         return $donnees;
+    }
+
+    /**
+     * Le vocabulaire national des spécialités (P6.8a).
+     *
+     * Termes INACTIFS exclus : une fiche déjà rattachée à un terme retiré garde son libellé, mais
+     * on ne peut plus en rattacher de nouvelles — c'est la raison d'être de la désactivation.
+     */
+    private function vocabulaire(): \Illuminate\Database\Eloquent\Collection
+    {
+        return SpecialiteMedicale::query()->active()->ordonnee()->get();
     }
 
     /** Ce compte peut-il déclarer l'ordre professionnel et l'autorisation d'exercer ? (§5.2) */

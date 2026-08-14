@@ -42,6 +42,7 @@ incréments successifs, ajoutés en **parties** dans le même fichier plutôt qu
 | **P6.5** | Professionnels de santé + PKI (CDC_09 §5) | [GUIDE_TEST_PROFESSIONNELS.md](GUIDE_TEST_PROFESSIONNELS.md) | **Partie 1** référentiel professionnel (§1–8) · **Partie 2** PKI et signature électronique (§2.1–2.8) |
 | **P6.6** | Référentiel des médicaments (CDC_09 §6) | [GUIDE_TEST_MEDICAMENTS.md](GUIDE_TEST_MEDICAMENTS.md) | **Partie 1** le référentiel (§1.1–1.8) · **Partie 2** lien ordonnance + interactions (§2.1–2.8) |
 | **P6.7** | Laboratoires + catalogue des analyses (CDC_09 §7) | [GUIDE_TEST_LABORATOIRES.md](GUIDE_TEST_LABORATOIRES.md) | **Partie 0** ce que contient un référentiel biologique réel · **Partie 1** le catalogue (§1.1–1.8) · **Partie 2** laboratoires et liens d'un résultat (§2.1–2.8) |
+| **P6.8** | Référentiels transverses (CDC_09 §8) | [GUIDE_TEST_TRANSVERSES.md](GUIDE_TEST_TRANSVERSES.md) | **Partie 1** spécialités médicales (§1.1–1.9) · parties 2 à 5 à venir (vaccins, maladies, assurances, numéros d'urgence) |
 | **P7** | Carnet familial partagé | [GUIDE_TEST_CARNET_FAMILIAL.md](GUIDE_TEST_CARNET_FAMILIAL.md) | **A** partage en lecture · B revendication · C brouillon · D notifications |
 
 ### Détail du guide Paiement (13 parties)

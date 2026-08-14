@@ -78,6 +78,11 @@ class DonSangController extends Controller
                 'age_min'     => (int) config('masante.don_sang.age_min'),
                 'age_max'     => (int) config('masante.don_sang.age_max'),
                 'delai_jours' => (int) config('masante.don_sang.delai_jours'),
+                // P6.8a — le code de spécialité qui identifie un centre de collecte. Le mobile le
+                // RECEVAIT en dur dans son propre fichier ; il le reçoit désormais du serveur, au
+                // même titre que les bornes d'âge. Changer de terme demain n'exigera plus de
+                // republier l'application (argument V1 d'ADR-027).
+                'specialite_centre' => (string) config('masante.don_sang.specialite_centre'),
             ],
         ]);
     }

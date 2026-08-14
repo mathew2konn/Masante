@@ -8,6 +8,7 @@ use App\Models\ServiceEtablissement;
 use App\Models\StructureSanitaire;
 use App\Models\User;
 use Database\Seeders\PortailRolesSeeder;
+use Database\Seeders\SpecialiteMedicaleSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
@@ -42,6 +43,9 @@ class PortailProfessionnelTest extends TestCase
     {
         parent::setUp();
         $this->seed(PortailRolesSeeder::class);
+        // P6.8a — la spécialité d'une fiche se choisit dans le vocabulaire national : le seeder en
+        // est une précondition, au même titre que les rôles.
+        $this->seed(SpecialiteMedicaleSeeder::class);
 
         $this->structure = StructureSanitaire::create([
             'nom' => 'CHU de Cocody', 'type' => 'chu', 'adresse' => 'Boulevard de France',
@@ -73,7 +77,8 @@ class PortailProfessionnelTest extends TestCase
             'titre'      => 'Dr',
             'prenom'     => 'Aya',
             'nom'        => 'Koffi',
-            'specialite' => 'Cardiologie',
+            // P6.8a — un CODE du vocabulaire national, plus un libellé libre.
+            'specialite_code' => 'cardiologie',
             'profession' => 'medecin_specialiste',
             'service_id' => $this->service->id,
         ], $remplacements);

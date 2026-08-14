@@ -7,6 +7,7 @@ use App\Models\ServiceEtablissement;
 use App\Models\StructureSanitaire;
 use App\Models\User;
 use Database\Seeders\PortailRolesSeeder;
+use Database\Seeders\SpecialiteMedicaleSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -35,6 +36,9 @@ class PortailMedecinTest extends TestCase
     {
         parent::setUp();
         $this->seed(PortailRolesSeeder::class);
+        // P6.8a — la spécialité d'une fiche se CHOISIT désormais dans le vocabulaire national ; le
+        // seeder en est donc une précondition, au même titre que les rôles.
+        $this->seed(SpecialiteMedicaleSeeder::class);
 
         $this->structure = StructureSanitaire::create([
             'nom' => 'Clinique de Morofé', 'type' => 'clinique_privee', 'adresse' => 'Yamoussoukro',
@@ -67,13 +71,18 @@ class PortailMedecinTest extends TestCase
         $this->actingAs($this->gestionnaire)
             ->post('/portail/medecins', [
                 'titre' => 'Dr', 'prenom' => 'Kablan', 'nom' => 'Koffi',
-                'specialite' => 'Cardiologie', 'service_id' => $this->service->id,
+                // P6.8a — un CODE du vocabulaire, plus un libellé libre.
+                'specialite_code' => 'cardiologie', 'service_id' => $this->service->id,
                 'tarif_consultation' => 10000, 'user_id' => $agent->id,
             ])
             ->assertRedirect(route('portail.medecins.index'));
 
         $fiche = Medecin::first();
         $this->assertSame('Dr Kablan Koffi', $fiche->nom_complet);
+        // Le libellé affiché est celui du référentiel, écrit par le serveur — l'établissement ne
+        // décide plus du nom sous lequel une spécialité apparaît au citoyen.
+        $this->assertSame('Cardiologie', $fiche->specialite);
+        $this->assertNotNull($fiche->specialite_id);
         $this->assertSame($this->structure->id, $fiche->structure_id);
         // Le lien est ce qui rend la voie 2 opérante : sans lui, la fiche est visible mais muette.
         $this->assertSame($agent->id, $fiche->user_id);
@@ -94,7 +103,7 @@ class PortailMedecinTest extends TestCase
         $this->actingAs($this->gestionnaire)
             ->post('/portail/medecins', [
                 'titre' => 'Dr', 'prenom' => 'Autre', 'nom' => 'Praticien',
-                'specialite' => 'Pédiatrie', 'service_id' => $this->service->id,
+                'specialite_code' => 'pediatrie', 'service_id' => $this->service->id,
                 'user_id' => $agent->id,
             ])
             ->assertSessionHasErrors('user_id');

@@ -8,6 +8,7 @@ use App\Services\Referentiel\SourceMedicaments;
 use App\Services\Referentiel\SourceProfessionnels;
 use App\Services\Referentiel\SourceReferentiel;
 use App\Services\Referentiel\SourceSeuilsMesure;
+use App\Services\Referentiel\SourceSpecialites;
 use App\Services\Referentiel\SourceSymptomesTriage;
 
 /**
@@ -59,6 +60,11 @@ final class RegistreReferentiels
         // La provenance de chaque strate est OBLIGATOIRE : un intervalle biologique sans source est
         // une rumeur, et le contrôle qualité refuse de publier un catalogue qui en contient.
         SourceAnalyses::CODE         => SourceAnalyses::class,
+        // P6.8a — le premier référentiel qui n'est ni un annuaire ni un catalogue d'objets, mais un
+        // VOCABULAIRE. Il entre sous gouvernance pour une raison qui lui est propre : renommer un
+        // terme ou en retirer un change le sens des services et des fiches de praticiens DÉJÀ
+        // rattachés. C'est une décision, pas une correction de saisie. Voir `SourceSpecialites`.
+        SourceSpecialites::CODE      => SourceSpecialites::class,
     ];
 
     /** @return array<int, string> */

@@ -61,13 +61,31 @@
     @error('sous_specialite') <div class="invalid-feedback">{{ $message }}</div> @enderror
   </div>
 
+  {{--
+    P6.8a — le libellé affiché au patient n'est plus saisi ici : on choisit un TERME, et le serveur
+    écrit son libellé officiel. Sans cela, « Cardiologie », « cardio » et « Cardio. » coexisteraient
+    dans l'annuaire national selon l'établissement qui a rempli la fiche.
+  --}}
   <div class="col-md-6">
-    <label class="form-label">Spécialité <span class="text-danger">*</span></label>
-    <input type="text" name="specialite" class="form-control @error('specialite') is-invalid @enderror"
-           value="{{ old('specialite', $m->specialite ?? '') }}" required maxlength="100"
-           placeholder="Cardiologie, Pédiatrie…">
-    @error('specialite') <div class="invalid-feedback">{{ $message }}</div> @enderror
-    <div class="form-text">Libellé affiché aux patients dans l'annuaire.</div>
+    <label class="form-label" for="specialite_code">Spécialité <span class="text-danger">*</span></label>
+    <select name="specialite_code" id="specialite_code"
+            class="form-select @error('specialite_code') is-invalid @enderror" required>
+      <option value="">— Choisir —</option>
+      @foreach ($specialites as $terme)
+        <option value="{{ $terme->code }}"
+          @selected(old('specialite_code', $m->specialiteReferencee?->code ?? '') === $terme->code)>
+          {{ $terme->libelle }}
+        </option>
+      @endforeach
+    </select>
+    @error('specialite_code') <div class="invalid-feedback">{{ $message }}</div> @enderror
+    <div class="form-text">
+      Vocabulaire national (CDC_09 §8). Le libellé affiché aux patients vient du référentiel.
+      @if (($m->specialite ?? null) && $m->specialiteReferencee === null)
+        <span class="text-warning">Fiche actuellement non rattachée — libellé enregistré :
+          « {{ $m->specialite }} ».</span>
+      @endif
+    </div>
   </div>
   <div class="col-md-6">
     <label class="form-label">Service <span class="text-danger">*</span></label>

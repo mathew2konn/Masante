@@ -6,6 +6,7 @@ use App\Models\DisponibiliteJour;
 use App\Models\Medecin;
 use App\Models\PharmacieGarde;
 use App\Models\ServiceEtablissement;
+use App\Models\SpecialiteMedicale;
 use App\Models\StructureSanitaire;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Carbon;
@@ -218,6 +219,10 @@ class StructureSanitaireSeeder extends Seeder
                     'structure_id' => $structure->id,
                     'nom_service' => $nomService,
                     'specialite' => $specialite,
+                    // P6.8a — le terme du vocabulaire national, s'il a été seedé. NULL sinon : les
+                    // suites de tests qui n'appellent que ce seeder restent valides, et c'est
+                    // exactement l'état que le backfill est fait pour rattraper.
+                    'specialite_id' => SpecialiteMedicale::parCode($specialite)?->id,
                     'actif' => true,
                 ]);
 
@@ -272,7 +277,12 @@ class StructureSanitaireSeeder extends Seeder
                 'titre'              => $this->curseur % 5 === 0 ? 'Pr' : 'Dr',
                 'nom'                => $nom,
                 'prenom'             => $prenom,
+                // Le libellé reste le NOM DU SERVICE, tel qu'un établissement l'affiche
+                // (« Maternité », « Urgences ») — on ne le réécrit pas d'office avec le libellé
+                // officiel du vocabulaire. Le rattachement, lui, est exact : il vient du service.
+                // L'écart entre les deux est ce que l'écran du référentiel signale.
                 'specialite'         => $service->nom_service,
+                'specialite_id'      => $service->specialite_id,
                 'tarif_consultation' => $tarifBase + random_int(0, 4) * 1000,
                 'actif'              => true,
             ]);

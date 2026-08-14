@@ -43,6 +43,7 @@ use App\Http\Controllers\Api\V1\ReferentielController;
 use App\Http\Controllers\Api\V1\Portail\RendezVousController as PortailRendezVousController;
 use App\Http\Controllers\Api\V1\RendezVousController;
 use App\Http\Controllers\Api\V1\SignalementController;
+use App\Http\Controllers\Api\V1\SpecialiteController;
 use App\Http\Controllers\Api\V1\StructureController;
 use App\Http\Controllers\Api\V1\TriageController;
 use App\Http\Controllers\Api\V1\VilleController;
@@ -466,6 +467,12 @@ Route::middleware('throttle:api')->group(function () {
         // plage habituellement observee, et la phrase qui dit que ce n'est pas un diagnostic.
         Route::get('/analyses', [AnalyseController::class, 'index']);
         Route::get('/analyses/{analyse}/references', [AnalyseController::class, 'references']);
+
+        // P6.8a — Vocabulaire national des spécialités (CDC_09 §8), PUBLIC en lecture. Il existe
+        // pour qu'aucun client ne recopie un code : `don_sang` vivait EN DUR dans le mobile,
+        // récidive du constat G-a de P6.4b. Un code recopié dans un client est un code qu'aucun
+        // typecheck ne relie à la base.
+        Route::get('/specialites', [SpecialiteController::class, 'index']);
 
         // Module 5 / FN6 — Groupes sanguins les plus demandés (public : un appel au don n'a de sens
         // que largement visible). Les urgences remontent en tête. Les donneurs INSCRITS reçoivent en

@@ -50,6 +50,11 @@ class Medecin extends Model
         'sexe',
         'date_naissance',
         'specialite',
+        // P6.8a — le terme du vocabulaire national. `specialite` (le libellé) reste, parce que
+        // l'annuaire de P3/P4 sérialise ce modèle et que ces modules sont validés G5 ; ce qui
+        // change, c'est que le portail l'écrit désormais D'APRÈS le référentiel au lieu de le
+        // recevoir du formulaire. Voir la note de `ServiceEtablissement` sur `$fillable`.
+        'specialite_id',
         'profession',
         'sous_specialite',
         'ordre_professionnel',
@@ -120,6 +125,12 @@ class Medecin extends Model
     public function service(): BelongsTo
     {
         return $this->belongsTo(ServiceEtablissement::class, 'service_id');
+    }
+
+    /** Le terme du vocabulaire national qu'exerce ce praticien (P6.8a). */
+    public function specialiteReferencee(): BelongsTo
+    {
+        return $this->belongsTo(SpecialiteMedicale::class, 'specialite_id');
     }
 
     /**

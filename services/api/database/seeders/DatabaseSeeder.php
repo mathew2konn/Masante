@@ -30,6 +30,11 @@ class DatabaseSeeder extends Seeder
         // Référentiel des symptômes du triage (Module 1).
         $this->call(SymptomeSeeder::class);
 
+        // P6.8a — Vocabulaire des spécialités (CDC_09 §8). AVANT les structures : les services
+        // créés juste après y résolvent leur terme, si bien qu'une base fraîchement seedée n'a
+        // aucun service orphelin. Le backfill sert alors uniquement les installations existantes.
+        $this->call(SpecialiteMedicaleSeeder::class);
+
         // Annuaire géolocalisé des structures sanitaires d'Abidjan (Module 3 / 3A.1).
         $this->call(StructureSanitaireSeeder::class);
 

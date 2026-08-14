@@ -6,6 +6,7 @@ use App\Models\ServiceEtablissement;
 use App\Models\StructureSanitaire;
 use App\Models\User;
 use Database\Seeders\PortailRolesSeeder;
+use Database\Seeders\SpecialiteMedicaleSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
 use Tests\TestCase;
@@ -21,6 +22,11 @@ class ServiceAgentPortailTest extends TestCase
     {
         parent::setUp();
         $this->seed(PortailRolesSeeder::class);
+        // P6.8a — le vocabulaire des spécialités est désormais une PRÉCONDITION de la création d'un
+        // service : le formulaire n'accepte plus un code libre, il choisit dans le référentiel
+        // national. Sans ce seeder, ce test ne prouverait plus rien d'autre que l'absence de
+        // vocabulaire (il échouait effectivement à la bascule, et c'est ce qui devait arriver).
+        $this->seed(SpecialiteMedicaleSeeder::class);
     }
 
     private function structure(string $nom = 'CHU Test'): StructureSanitaire

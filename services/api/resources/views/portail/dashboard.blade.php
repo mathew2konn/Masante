@@ -39,6 +39,7 @@
     // est celui d'une officine.
     ['perm' => 'medicament.referentiel', 'icone' => 'bi-capsule-pill',   'titre' => 'Référentiel médicaments', 'desc' => 'Catalogue national : DCI, forme, dosage, interactions.', 'route' => 'portail.medicaments.index'],
     ['perm' => 'analyse.referentiel',    'icone' => 'bi-eyedropper',     'titre' => 'Catalogue analyses', 'desc' => 'Analyses, unités et valeurs de référence stratifiées.', 'route' => 'portail.analyses.index'],
+    ['perm' => 'specialite.referentiel', 'icone' => 'bi-diagram-3',      'titre' => 'Spécialités', 'desc' => 'Vocabulaire national des spécialités et activités de service.', 'route' => 'portail.specialites.index'],
     ['perm' => 'urgence.bris_de_glace','icone' => 'bi-exclamation-octagon', 'titre' => 'Accès d\'urgence', 'desc' => 'Patient inconscient : ouvrir ses informations vitales.', 'route' => 'portail.urgence.bris', 'structure' => true, 'danger' => true],
   ];
 @endphp

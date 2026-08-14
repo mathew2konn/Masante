@@ -77,6 +77,13 @@ class PortailRolesSeeder extends Seeder
         // et la raison est ici plus nette encore : un LABORATOIRE ne peut pas fixer les valeurs de
         // référence nationales, il serait juge et partie sur les résultats qu'il rend lui-même.
         'analyse.referentiel',    // éditer le catalogue des analyses et ses valeurs de référence
+        // Vocabulaire des spécialités (P6.8a, CDC_09 §8) — ATTRIBUÉE À AUCUN RÔLE, huitième
+        // occurrence. `service.manage` appartient au gestionnaire pour décrire les services de SON
+        // établissement ; l'étendre au vocabulaire national laisserait chaque hôpital ajouter le
+        // terme qui l'arrange, et la liste nationale deviendrait la somme des ambitions de chacun.
+        // C'est aussi ce qui rendrait impossible la question du §4.4 : « combien de services de
+        // cardiologie dans ce district ? » — si « cardio » et « cardiologie » coexistent, aucune.
+        'specialite.referentiel', // éditer le vocabulaire des spécialités et activités de service
         // Signature électronique (P6.5b, CDC_09 §5.3). Portée par le rôle `medecin` : signer ses
         // propres prescriptions relève du soin, pas d'une habilitation exceptionnelle. Elle ne
         // donne à elle seule AUCUN pouvoir — les cinq contrôles du §5.4 restent devant, et sans

@@ -52,5 +52,9 @@ export interface DonSangVue {
   donneurs: Donneur[];
   alertes: AlerteDon[];
   /** Règles de collecte (âge, carence) : affichées telles quelles, jamais recodées. */
-  regles: { age_min: number; age_max: number; delai_jours: number };
+  /**
+   * `specialite_centre` (P6.8a) : le code du vocabulaire national qui identifie un centre de
+   * collecte. Il vivait en dur ici même ; il vient du serveur, comme les bornes d'âge.
+   */
+  regles: { age_min: number; age_max: number; delai_jours: number; specialite_centre: string };
 }

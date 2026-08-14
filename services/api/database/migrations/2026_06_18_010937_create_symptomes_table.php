@@ -28,6 +28,12 @@ return new class extends Migration
             $table->unsignedTinyInteger('poids_severite')->default(0);
 
             // Indice de spécialité médicale (§5.1.3). Ex : ORL, Dentisterie, Cardiologie...
+            //
+            // P6.8a — CETTE COLONNE RESTE UN LIBELLÉ LIBRE, et c'est une limite annoncée. Le
+            // vocabulaire national créé par P6.8a (`specialites_medicales`) porte des CODES ; les
+            // valeurs d'ici sont des phrases (« Cardiologie / Urgences »), parfois deux spécialités
+            // à la fois. Les rapprocher demande de revoir la déduction elle-même, donc le triage —
+            // qui est refondu en P10. Y toucher maintenant modifierait deux fois un module G5.
             $table->string('specialite_hint', 100)->nullable();
 
             // Drapeau rouge : un symptôme critique force immédiatement le niveau URGENT (§5.1.2).

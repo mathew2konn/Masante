@@ -16,6 +16,7 @@ use App\Http\Controllers\Portail\MesPatientsController;
 use App\Http\Controllers\Portail\ModerationController;
 use App\Http\Controllers\Portail\ReferentielAnalyseController;
 use App\Http\Controllers\Portail\ReferentielMedicamentController;
+use App\Http\Controllers\Portail\ReferentielSpecialiteController;
 use App\Http\Controllers\Portail\RendezVousController;
 use App\Http\Controllers\Portail\ScanController;
 use App\Http\Controllers\Portail\ServiceController;
@@ -241,6 +242,21 @@ Route::prefix('portail')->name('portail.')->group(function () {
                     ->name('interactions.declarer');
                 Route::delete('{medicament}/interactions/{interaction}', [ReferentielMedicamentController::class, 'retirerInteraction'])
                     ->name('interactions.retirer');
+            });
+
+        // P6.8a — Vocabulaire NATIONAL des spécialités (CDC_09 §8). Permission distincte de
+        // `service.manage` : un établissement décrit SES services, il ne décide pas de la liste
+        // nationale des spécialités — sinon « combien de services de cardiologie dans ce
+        // district ? » n'aurait plus de réponse, « cardio » et « cardiologie » y coexistant.
+        Route::middleware('permission:specialite.referentiel')
+            ->prefix('specialites')->name('specialites.')->group(function () {
+                Route::get('/', [ReferentielSpecialiteController::class, 'index'])->name('index');
+                // Déclarée AVANT `{specialite}/editer` : sans cela, « nouveau » serait capté comme
+                // un identifiant de terme (piège de P7-D0 et de P6.5b).
+                Route::get('nouveau', [ReferentielSpecialiteController::class, 'create'])->name('create');
+                Route::post('/', [ReferentielSpecialiteController::class, 'store'])->name('store');
+                Route::get('{specialite}/editer', [ReferentielSpecialiteController::class, 'edit'])->name('edit');
+                Route::put('{specialite}', [ReferentielSpecialiteController::class, 'update'])->name('update');
             });
 
         // 5.7 — Don de sang (FN6) : l'ÉTABLISSEMENT publie ses besoins — lui seul sait qu'il manque

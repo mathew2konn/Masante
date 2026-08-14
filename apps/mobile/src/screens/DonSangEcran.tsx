@@ -72,12 +72,17 @@ export function DonSangEcran() {
   const donneurParMembre = new Map((vue?.donneurs ?? []).map((d) => [d.membre_id, d]));
 
   const chargerCentres = async () => {
+    // P6.8a — le code de spécialité vient du serveur (`regles.specialite_centre`), plus d'une
+    // constante du client. `vue` est déjà chargée quand ce bouton devient actionnable.
+    const specialite = vue?.regles.specialite_centre;
+    if (!specialite) return;
+
     setCentresEnCours(true);
     const position = await obtenirPosition();
     try {
       // Sans autorisation de position, on liste quand même les centres (sans tri par distance) :
       // refuser la géoloc ne doit pas priver d'une information de santé publique.
-      setCentres(await obtenirCentres(position.ok ? position.coords : undefined));
+      setCentres(await obtenirCentres(specialite, position.ok ? position.coords : undefined));
     } catch (e) {
       Alert.alert('Centres indisponibles', messageErreur(e));
     } finally {

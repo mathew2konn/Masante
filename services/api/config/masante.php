@@ -106,6 +106,14 @@ return [
         'age_min'     => (int) env('MASANTE_DON_AGE_MIN', 18),
         'age_max'     => (int) env('MASANTE_DON_AGE_MAX', 65),
         'delai_jours' => (int) env('MASANTE_DON_DELAI_JOURS', 90),
+
+        /*
+         * P6.8a — le terme du vocabulaire (CDC_09 §8) qui fait d'une structure un centre de
+         * collecte. Il vivait EN DUR dans `apps/mobile/src/api/donSang.ts` : récidive du constat
+         * G-a de P6.4b, où des valeurs du domaine recopiées côté client avaient déjà divergé de la
+         * base sans qu'aucun typecheck ne puisse le voir. Le serveur le dit désormais au client.
+         */
+        'specialite_centre' => env('MASANTE_DON_SPECIALITE', 'don_sang'),
     ],
 
     /*
