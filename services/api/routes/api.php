@@ -449,6 +449,11 @@ Route::middleware('throttle:api')->group(function () {
         // Savoir où trouver un médicament et à quel prix ne demande aucune identité, et une
         // information de prix n'a d'utilité que largement diffusée.
         Route::get('/medicaments', [MedicamentController::class, 'index']);
+        // P6.6b — DÉCLARÉE AVANT `{medicament}` : un segment littéral placé après un paramètre se
+        // ferait capter par lui (piège rencontré en P7-D0 sur `dossier/fermer`, puis en P6.5b sur
+        // `signature/{type}/{id}`). Le référentiel RAPPORTE les interactions déclarées ; il ne les
+        // analyse pas et ne bloque rien — c'est le `interaction-service` de CDC_05 qui jugera.
+        Route::get('/medicaments/interactions', [MedicamentController::class, 'interactions']);
         Route::get('/medicaments/{medicament}/prix', [MedicamentController::class, 'prix']);
         Route::get('/ruptures', [MedicamentController::class, 'ruptures']);
 

@@ -16,7 +16,25 @@ export type CarnetItem = {
 };
 
 /** Une ligne de médicament d'une ordonnance (medicaments_json). */
-export type Medicament = { nom: string; posologie?: string };
+/**
+ * Une ligne d'ordonnance.
+ *
+ * `nom` reste le texte du prescripteur — un patient qui recopie une ordonnance papier n'a pas de
+ * liste sous les yeux, et le lien au référentiel national est donc FACULTATIF.
+ *
+ * `medicament_id` est la seule clé que le client envoie ; `code_national`, `dci` et
+ * `dosage_referentiel` sont posés par le SERVEUR depuis le référentiel et figés à la prescription
+ * (P6.6b). Ils sont en lecture seule ici : les déclarer optionnels dit qu'on peut les afficher,
+ * jamais qu'on peut les écrire.
+ */
+export type Medicament = {
+  nom: string;
+  posologie?: string;
+  medicament_id?: number;
+  readonly code_national?: string;
+  readonly dci?: string;
+  readonly dosage_referentiel?: string | null;
+};
 
 /** Un couple paramètre/valeur d'un résultat d'analyse (resultats_json). */
 export type ParametreResultat = { parametre: string; valeur: string };

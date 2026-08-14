@@ -133,6 +133,11 @@ class EcritureSoignantService
             }
         }
 
+        // P6.6b — dérivations serveur de la section (pour une ordonnance : résolution du lien au
+        // référentiel des médicaments). Appelée ici ET sur les deux autres chemins d'écriture :
+        // une garantie qui ne vaudrait que sur celui du patient n'en serait pas une.
+        $valide = $controleur->preparerDonnees($valide);
+
         return $membre->{$controleur->nomRelation()}()->create($valide);
     }
 

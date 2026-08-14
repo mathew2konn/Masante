@@ -1,4 +1,4 @@
-# ADR-033 — Référentiel National des Médicaments (P6.6a)
+# ADR-033 — Référentiel National des Médicaments (P6.6)
 
 **Statut : Accepté** — 2026-08-14 · Contexte : CDC_09 §6 · Applique [ADR-024](ADR-024-referentiels-nationaux.md) et [ADR-025](ADR-025-socle-referentiel.md) · Suit [ADR-031](ADR-031-referentiel-professionnels.md).
 
@@ -122,9 +122,9 @@ générique/marque qui passe et le vrai doublon qui échoue.
 
 ---
 
-## 5. Limites
+## 5. Limites de P6.6a
 
-1. **Le lien ordonnance → référentiel n'est pas fait** (P6.6b). Le défaut central du G0 reste ouvert.
+1. **Le lien ordonnance → référentiel n'est pas fait** (P6.6b — voir §6, désormais livré).
 2. **Aucun moteur d'interactions** : P6.6 rapporte ce que le référentiel déclare. Pas d'analyse, pas
    d'alternative thérapeutique, pas d'adaptation de dose — `interaction-service`, CDC_05.
 3. **La pharmacovigilance §6.5 n'est pas livrée** : le statut `retire` existe, sa **propagation** aux
@@ -136,3 +136,89 @@ générique/marque qui passe et le vrai doublon qui échoue.
    il ne faut pas le présenter comme tel. Même situation que le découpage sanitaire partiel de P6.4a.
 6. **Aucun écran mobile** : le catalogue enrichi est servi par l'API, les écrans citoyens restent
    ceux du module 5.
+
+---
+
+## 6. P6.6b — le lien ordonnance → référentiel (2026-08-14)
+
+**Referme le défaut central du G0.** `medicaments_json.*.nom` reste du texte libre, mais chaque ligne
+peut désormais **désigner** un produit du référentiel national.
+
+### 6.1 Le lien est facultatif, et il doit le rester
+
+Un patient qui recopie une ordonnance papier n'a pas de liste sous les yeux, et le référentiel est
+incomplet. L'imposer ferait de ses **lacunes** un blocage clinique. Le nom libre suffit toujours.
+
+### 6.2 Mais quand il est fourni, le serveur ne croit rien du client
+
+Le code national, la DCI et le dosage sont **relus au référentiel** et écrasent ce que la requête
+contenait — même mouvement qu'en P6.5a, où `nom` et `prenom` sont refusés du client et repris du
+compte. *Ce que le serveur sait n'a pas à être redemandé à celui qu'on contrôle.*
+
+Et ils sont **figés**. Le nom commercial d'un produit change, un laboratoire cède une marque : une
+ordonnance — surtout signée — doit continuer de dire ce qui a été prescrit ce jour-là. On recopie
+donc au moment de la prescription plutôt que de rejouer par jointure, exactement comme P7-D2 recopie
+l'établissement à l'écriture pour qu'un agent muté ne déplace pas ses visites passées.
+
+### 6.3 La garantie vaut sur les trois chemins d'écriture
+
+Patient, délégué (P7-C) et soignant (P7-D0) partagent les règles de validation mais **écrivent
+chacun de leur côté**. Le point d'accroche `preparerDonnees()` est donc appelé aux trois endroits :
+une garantie qui ne vaudrait que sur celui du patient n'en serait pas une.
+
+Pour une **contribution**, la résolution a lieu **au dépôt** et non à la validation : re-résoudre des
+semaines plus tard pourrait présenter au responsable une DCI différente de celle que l'auteur avait
+sous les yeux, et il validerait alors autre chose que ce qui lui est affiché.
+
+### 6.4 Ce qui est signalé, et ce qui ne l'est pas
+
+Un produit **retiré du marché** est signalé au prescripteur — et **prescrit quand même** : refuser
+serait une décision médicale prise par une machine (CDC_00 §4).
+
+Les **interactions ne sont pas calculées à la prescription**. Le propriétaire a choisi « donnée du
+référentiel + consultation explicite » et non « signalement au moment de prescrire » : les calculer à
+l'écriture rapprocherait P6.6 d'une aide à la décision, terrain de CDC_05 et CDC_08. **Elles se
+demandent, elles ne s'imposent pas.**
+
+### 6.5 La consultation résout par MOLÉCULE
+
+Une interaction est déclarée entre deux **lignes** du référentiel, mais elle vaut cliniquement entre
+deux **molécules** : une interaction posée sur l'aspirine générique concerne aussi la marque qui
+contient la même aspirine. Ne chercher que les identifiants prescrits produirait un **silence qui
+ressemblerait à « aucune interaction »**.
+
+Ce n'est pas une règle médicale, c'est une résolution d'**identité** — précisément le rôle que §6.2
+donne à la DCI. Le jugement reste au `interaction-service`.
+
+La réponse **cite la version** du référentiel qui l'affirme (L2 est faite, on s'en sert) et dit
+qu'elle ne remplace pas l'analyse d'un professionnel.
+
+### 6.6 Le vecteur obligatoire : les signatures déjà posées
+
+`DocumentOrdonnance::contenuCanonique()` signe `medicaments_json` **en entier**. Un vecteur dédié
+prouve qu'une ordonnance signée **dans la forme d'avant P6.6b** reste `INTÈGRE`, et son miroir
+qu'une valeur figée modifiée **révèle** la modification. Sans lui, on l'aurait découvert sur une
+ordonnance réelle — et *une signature qui casse toute seule ne prouve plus rien, pire, elle accuse*.
+
+### 6.7 Ce que la vérification par mutation a corrigé — troisième occurrence
+
+Les premiers vecteurs « le client ne peut pas déclarer le code national » **restaient verts** quand
+on retirait la garde du service. En cherchant pourquoi : `validate()` écarte déjà les clés non
+déclarées, si bien qu'ils prouvaient le comportement du **validateur** et non celui du service.
+
+Le vecteur a été **dédoublé** — une couche, un vecteur — et le second appelle le service
+**directement**, comme le ferait un import. Il meurt sous mutation.
+
+C'est la troisième fois que ce piège apparaît, après les dix `expectExceptionCode` de P6.4c, le
+contrôle de révocation de P6.5b et le vecteur central de L1/L2.
+
+### 6.8 Limites de P6.6b
+
+1. **Aucune migration** : P6.6b est du comportement. Les lignes anciennes restent telles quelles.
+2. **Le lien reste facultatif** — voir §6.1. Il pourra se resserrer quand le référentiel sera chargé
+   depuis la base DPM/CENAME réelle.
+3. **L'équivalence par molécule est une correspondance exacte de DCI.** Une DCI mal orthographiée
+   n'est pas rapprochée — c'est exactement ce que §6.1 veut supprimer, et le référentiel gouverné est
+   le moyen d'y arriver, pas un rattrapage à faire ici.
+4. **Aucun contrôle en SQL direct** sur le contenu des ordonnances : `medicaments_json` est chiffré
+   au repos. Les invariants se vérifient par le service.

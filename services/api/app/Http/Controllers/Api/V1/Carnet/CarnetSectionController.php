@@ -41,9 +41,13 @@ abstract class CarnetSectionController extends Controller
     {
         $this->authorize('update', $membre);
 
-        $item = $membre->{$this->relation()}()->create($request->validate($this->reglesPour(true)));
+        $valide = $this->preparerDonnees($request->validate($this->reglesPour(true)));
+        $item   = $membre->{$this->relation()}()->create($valide);
 
-        return response()->json(['item' => $item], 201);
+        return response()->json(array_filter([
+            'item'          => $item,
+            'avertissements' => $this->avertissements($item) ?: null,
+        ], static fn ($v) => $v !== null), 201);
     }
 
     public function show(MembreFamille $membre, int $id): JsonResponse
@@ -92,6 +96,40 @@ abstract class CarnetSectionController extends Controller
     public function reglesDeCreation(): array
     {
         return $this->regles();
+    }
+
+    /**
+     * Dérivations SERVEUR appliquées aux données validées, juste avant l'écriture.
+     *
+     * Identité par défaut : les onze sous-classes n'ont rien à changer. Ce point d'accroche existe
+     * parce qu'une section peut avoir des valeurs que le serveur SAIT et n'a pas à croire du client
+     * — c'est le cas des ordonnances depuis P6.6b, où le code national et la DCI d'un médicament
+     * sont repris du référentiel et jamais de la requête.
+     *
+     * Appelé par les TROIS chemins d'écriture (le patient ici, le délégué via
+     * {@see App\Services\ContributionCarnetService}, le soignant via
+     * {@see App\Services\EcritureSoignantService}) : une garantie qui ne vaudrait que sur l'un des
+     * trois n'en serait pas une.
+     *
+     * @param  array<string, mixed>  $valide
+     * @return array<string, mixed>
+     */
+    public function preparerDonnees(array $valide): array
+    {
+        return $valide;
+    }
+
+    /**
+     * Avertissements NON BLOQUANTS joints à la réponse de création.
+     *
+     * Aucun par défaut. Un avertissement dit quelque chose que le prescripteur doit savoir ; il ne
+     * refuse rien — refuser serait une décision médicale prise par une machine (CDC_00 §4).
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    public function avertissements(Model $item): array
+    {
+        return [];
     }
 
     /** Récupère un élément SCOPÉ au membre (anti-IDOR) ou échoue en 404. */

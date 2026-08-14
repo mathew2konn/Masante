@@ -1,7 +1,8 @@
 # Guide de test — Référentiel National des Médicaments (P6.6)
 
-> CDC_09 §6, étape 6 de l'ordre §14. **Partie 1** — le référentiel (P6.6a).
-> Partie 2 à venir : le lien ordonnance → référentiel et la consultation des interactions (P6.6b).
+> CDC_09 §6, étape 6 de l'ordre §14. **Module complet.**
+> **Partie 1** — le référentiel (P6.6a) · **Partie 2** — le lien ordonnance → référentiel et la
+> consultation des interactions (P6.6b).
 
 ---
 
@@ -231,3 +232,194 @@ produits. La clé de doublon est le **produit complet**.
 **`PrixMedicamentService` refuse une structure qui n'est pas une pharmacie** (« les prix et les
 ruptures ne se signalent que dans une pharmacie ») : le vecteur en miroir doit viser une vraie
 officine, pas le premier établissement venu.
+
+---
+
+# PARTIE 2 — Le lien ordonnance → référentiel (P6.6b)
+
+> **Referme le défaut central du G0** : une ordonnance peut désormais DÉSIGNER un produit du
+> référentiel national, au lieu de le nommer en texte libre. **P6.6 est complet (a, b) = étape 6.**
+
+## 2.1 Périmètre — et ce que ce module ne fait PAS
+
+**Ce qui change.** Chaque ligne de `medicaments_json` peut porter un `medicament_id`. Quand il est
+fourni, le serveur relit le référentiel et **fige** le code national, la DCI et le dosage. Un produit
+retiré du marché est **signalé** au prescripteur. Un endpoint public permet de **demander** les
+interactions déclarées entre plusieurs produits.
+
+**Ce que ce module ne fait PAS :**
+
+- **Le lien reste FACULTATIF.** Un patient qui recopie une ordonnance papier n'a pas de liste sous
+  les yeux, et le référentiel est incomplet : l'imposer ferait de ses lacunes un blocage clinique.
+- **Les interactions ne sont PAS calculées à la prescription.** Choix du propriétaire : « donnée du
+  référentiel + consultation explicite », et non « signalement au moment de prescrire ». Les
+  calculer à l'écriture rapprocherait P6.6 d'une aide à la décision — terrain de CDC_05 et CDC_08.
+- **Rien n'est bloqué.** Ni un produit retiré, ni une contre-indication déclarée. Refuser serait une
+  décision médicale prise par une machine (CDC_00 §4).
+- **Aucun moteur d'analyse** : pas d'alternative thérapeutique, pas d'adaptation de dose.
+- **Aucune migration** : P6.6b est du comportement, pas du schéma.
+
+## 2.2 Prérequis
+
+Ceux de la partie 1 (codes nationaux attribués). Pour voir l'estampille de version dans la réponse
+des interactions, il faut en plus avoir **publié** le référentiel (§1.4.5).
+
+## 2.3 Scénarios front (Expo Go — c'est ici que se joue le G4)
+
+### 2.3.1 La saisie libre n'a pas bougé
+
+Carnet → un membre → **Ordonnances** → Ajouter.
+
+- ✅ Le champ « Médicament 1 » se remplit à la main comme avant.
+- ✅ Tant qu'on tape moins de 3 caractères, **rien n'apparaît** : le formulaire ne harcèle pas.
+
+### 2.3.2 La proposition du référentiel
+
+- ✅ À partir de 3 caractères, une ligne discrète annonce « *N produit(s) au référentiel national —
+  appuyez pour les voir* ». Elle **propose**, elle n'impose rien.
+- ✅ Appuyer déroule jusqu'à 5 produits, chacun avec son **code national**.
+- ✅ Choisir un produit remplace le nom par le libellé du référentiel et affiche un bandeau vert
+  « **Référentiel national · MED000001** ».
+- ✅ « Détacher » rend la ligne libre à nouveau.
+
+### 2.3.3 Hors ligne, le formulaire ne se plaint pas
+
+Mode avion, puis saisir un nom :
+- ✅ Aucune suggestion, **aucune erreur**. La saisie libre reste entière — une recherche impossible
+  n'est pas une panne, et afficher une erreur ferait croire que le formulaire est cassé.
+
+## 2.4 Scénarios backend (curl reproductibles)
+
+### 2.4.1 Sans lien : le nom libre suffit toujours
+
+```bash
+curl -s -X POST $API/api/v1/membres/$M/ordonnances -H "Authorization: Bearer $T" \
+  -H 'Content-Type: application/json' \
+  -d '{"medecin_nom":"Dr Aya Koffi","structure_sanitaire":"CHU","date_prescription":"2026-08-14",
+       "medicaments_json":[{"nom":"Doliprane 500 (papier)","posologie":"3/jour"}]}'
+```
+✅ 201, et la ligne stockée ne porte **ni** `medicament_id` **ni** `code_national`.
+
+### 2.4.2 Avec lien : le serveur fige, et ne croit rien du client
+
+```bash
+… -d '{…,"medicaments_json":[{"nom":"Doliprane 500","medicament_id":1,
+       "code_national":"MED999999","dci":"Molecule inventee"}]}'
+```
+✅ La ligne porte `code_national: MED000001` et `dci: Paracétamol` — **ceux du référentiel**.
+❌ Retrouver `MED999999` signifierait qu'une ordonnance peut porter une référence nationale que
+personne n'a vérifiée.
+
+### 2.4.3 Un médicament inconnu est refusé, et le message le nomme
+
+```bash
+… -d '{…,"medicaments_json":[{"nom":"Fantôme","medicament_id":4242}]}'
+```
+✅ **422** — « Le médicament n°4242 n'existe pas au référentiel national. »
+
+### 2.4.4 Un produit retiré est PRESCRIT et SIGNALÉ
+
+✅ L'ordonnance est **créée**, et la réponse porte un `avertissements[]` disant que le produit est
+retiré du marché.
+❌ Un refus serait une décision médicale prise par le serveur.
+
+### 2.4.5 Les valeurs figées ne bougent plus
+
+Après la prescription, corriger la DCI ou le dosage au référentiel :
+✅ L'ordonnance **garde** ce qui a été prescrit ce jour-là. Une ordonnance signée doit continuer de
+dire ce qu'elle disait.
+
+### 2.4.6 La consultation des interactions, résolue PAR MOLÉCULE
+
+Interaction déclarée entre **Warfarine** et **Aspirine générique** ; on interroge Warfarine + une
+**marque** de la même aspirine :
+
+```bash
+curl -s "$API/api/v1/medicaments/interactions?medicament_id[]=28&medicament_id[]=30" | jq
+```
+✅ L'interaction est **trouvée**. Ne chercher que les identifiants prescrits produirait un silence
+qui ressemblerait à « aucune interaction ».
+✅ La réponse cite la **version du référentiel** (`{"referentiel":"medicaments","version":1}`) et
+porte un avertissement disant qu'elle **ne remplace pas** l'analyse d'un professionnel.
+✅ Avec un seul médicament → **422** : la question n'a pas de sens.
+
+### 2.4.7 La route littérale n'est pas captée
+
+```bash
+curl -s -o /dev/null -w '%{http_code}\n' "$API/api/v1/medicaments/interactions?medicament_id[]=1&medicament_id[]=2"
+curl -s -o /dev/null -w '%{http_code}\n' "$API/api/v1/medicaments/1/prix"
+```
+✅ **200** et **200** — `interactions` est déclarée avant `{medicament}` (piège de P7-D0 et P6.5b).
+
+### 2.4.8 LE VECTEUR OBLIGATOIRE — les signatures déjà posées
+
+✅ Une ordonnance signée **dans la forme d'avant P6.6b** reste `integre = true`.
+✅ Une ordonnance **portant le lien** se signe et se vérifie de la même façon.
+✅ Modifier une valeur figée → `integre = false` : la signature **révèle** toujours (§5.3).
+
+❌ Un `integre = false` sur le premier cas signifierait qu'on a cassé des signatures existantes — et
+*une signature qui casse toute seule ne prouve plus rien, pire, elle accuse*.
+
+## 2.5 Invariants base de données
+
+```sql
+-- a. Aucune ligne ne porte un code national sans lien (le code viendrait d'où ?)
+--    `medicaments_json` étant chiffré, ce contrôle se fait par le service, pas en SQL :
+--    php artisan tinker
+--    >>> App\Models\Ordonnance::get()->flatMap->medicaments_json
+--    ...     ->filter(fn ($l) => isset($l['code_national']) && ! isset($l['medicament_id']))->count();
+--    attendu : 0
+
+-- b. Tout `medicament_id` cité désigne un produit existant — même contrôle, côté service.
+```
+
+> ⚠️ `medicaments_json` est un cast `encrypted:array` : aucun de ces contrôles ne se fait en SQL
+> direct. C'est voulu — une ordonnance est une donnée de santé.
+
+## 2.6 Commandes de qualité (G3)
+
+```bash
+XDEBUG_MODE=off %PHP% artisan test --filter=LienOrdonnanceMedicamentTest
+XDEBUG_MODE=off %PHP% artisan test
+pnpm typecheck
+npx expo-doctor
+```
+
+## 2.7 Checklist de clôture
+
+- [ ] Saisie libre inchangée, aucune suggestion sous 3 caractères (§2.3.1)
+- [ ] Proposition du référentiel, rattachement, bandeau avec code, détachement (§2.3.2)
+- [ ] **Hors ligne : aucune suggestion et AUCUNE erreur** (§2.3.3)
+- [ ] Sans lien → accepté ; avec lien → code et DCI **du référentiel** (§2.4.1, §2.4.2)
+- [ ] `medicament_id` inconnu → **422 nommant le produit** (§2.4.3)
+- [ ] Produit retiré → **prescrit et signalé** (§2.4.4)
+- [ ] Valeurs figées insensibles aux corrections ultérieures (§2.4.5)
+- [ ] Interactions résolues **par molécule**, version citée, 422 à un seul produit (§2.4.6)
+- [ ] Route littérale non captée (§2.4.7)
+- [ ] **Ordonnance signée avant P6.6b toujours INTÈGRE** (§2.4.8)
+- [ ] Suite complète, typecheck ×3, expo-doctor 18/18 (§2.6)
+- [ ] **Limites relues** (§2.1) — dont « aucune interaction calculée à la prescription »
+
+## 2.8 Pièges rencontrés
+
+**Un vecteur passait sans rien éprouver — troisième occurrence.** Les premiers vecteurs « le client
+ne peut pas déclarer le code » restaient verts quand on retirait la garde du service : `validate()`
+écarte déjà les clés non déclarées, si bien qu'ils prouvaient le comportement du **validateur** et
+non celui du service. Le vecteur a été dédoublé — une couche, un vecteur — et le second appelle le
+service **directement**, comme le ferait un import.
+
+**La garantie doit valoir sur les TROIS chemins d'écriture** (patient, délégué, soignant). Ils
+partagent les règles de validation depuis P7-C/D0 mais écrivent chacun de leur côté : le point
+d'accroche est appelé aux trois endroits.
+
+**La résolution a lieu au DÉPÔT pour une contribution**, pas à la validation. Re-résoudre des
+semaines plus tard pourrait présenter au responsable une DCI différente de celle que l'auteur avait
+sous les yeux — il validerait alors autre chose que ce qui lui est affiché.
+
+**Le type mobile du catalogue n'avait pas suivi P6.6a** : `code` manquait, et le typecheck l'a
+attrapé au moment de l'afficher. C'est exactement l'écart que P6.4b avait dû rattraper à la main.
+
+**Monter un praticien pour le G2 demande quatre choses** : un compte relié, une autorisation valide,
+un **numéro national** (sans lui, pas de certificat) et une **profession prescriptrice** — le
+contrôle d'habilitation de P6.5b a refusé la première tentative, ce qui est son rôle.
+

@@ -15,9 +15,11 @@ import { sectionParSlug } from '../carnet/registre';
 import { creerItem, modifierItem, obtenirItem } from '../api/carnet';
 import { estCarnetPartage } from '../api/delegations';
 import { deposerContribution } from '../api/contributions';
+import { rechercherMedicaments } from '../api/medicaments';
 import { messageErreur } from '../utils/erreurs';
 import { heureCourte, isoVersDateInput, validerDate, validerHeure } from '../utils/dates';
 import type { Champ, Medicament, ParametreResultat, SectionDescriptor } from '../types/carnet';
+import type { Medicament as MedicamentCatalogue } from '../types/medicament';
 import { colors, spacing, typography } from '../theme/theme';
 
 /**
@@ -287,10 +289,27 @@ function RepeaterMedicaments({
   onChange: (v: Medicament[]) => void;
   erreur?: string | null;
 }) {
-  const maj = (idx: number, champ: keyof Medicament, val: string) =>
+  const maj = (idx: number, champ: 'nom' | 'posologie', val: string) =>
     onChange(rows.map((r, i) => (i === idx ? { ...r, [champ]: val } : r)));
   const ajouter = () => onChange([...rows, { nom: '', posologie: '' }]);
   const retirer = (idx: number) => onChange(rows.filter((_, i) => i !== idx));
+
+  /**
+   * Rattache la ligne à un produit du référentiel national (P6.6b).
+   *
+   * On ne pose QUE `medicament_id` : le code national et la DCI viennent du serveur, qui les relit
+   * au référentiel et les fige. Les écrire ici donnerait l'illusion qu'ils font autorité alors
+   * qu'ils n'auraient été vérifiés par personne.
+   */
+  const rattacher = (idx: number, produit: MedicamentCatalogue) =>
+    onChange(rows.map((r, i) => (i === idx ? { ...r, nom: produit.libelle, medicament_id: produit.id } : r)));
+
+  const detacher = (idx: number) =>
+    onChange(
+      rows.map((r, i) =>
+        i === idx ? { nom: r.nom, posologie: r.posologie, medicament_id: undefined } : r,
+      ),
+    );
 
   return (
     <View style={styles.bloc}>
@@ -298,6 +317,15 @@ function RepeaterMedicaments({
       {rows.map((r, idx) => (
         <View key={idx} style={styles.repeaterRow}>
           <TextField label={`Médicament ${idx + 1}`} value={r.nom} onChangeText={(t) => maj(idx, 'nom', t)} autoCapitalize="sentences" placeholder="Nom" />
+
+          <ChercheurReferentiel
+            terme={r.nom}
+            rattache={r.medicament_id !== undefined}
+            codeNational={r.code_national}
+            onChoisir={(produit) => rattacher(idx, produit)}
+            onDetacher={() => detacher(idx)}
+          />
+
           <TextField label="Posologie" value={r.posologie ?? ''} onChangeText={(t) => maj(idx, 'posologie', t)} placeholder="ex. 1 cp matin et soir" autoCapitalize="sentences" />
           {rows.length > 1 ? (
             <Pressable onPress={() => retirer(idx)} accessibilityRole="button" accessibilityLabel={`Retirer le médicament ${idx + 1}`} style={styles.retirer}>
@@ -311,6 +339,105 @@ function RepeaterMedicaments({
       <View style={styles.ajouterLigne}>
         <SecondaryButton label="Ajouter un médicament" onPress={ajouter} />
       </View>
+    </View>
+  );
+}
+
+/**
+ * Rattachement d'une ligne au référentiel national des médicaments (CDC_09 §6.1).
+ *
+ * FACULTATIF, ET IL DOIT LE RESTER. Un patient qui recopie une ordonnance papier ne trouvera pas
+ * toujours le produit — le référentiel est incomplet, et l'y contraindre ferait de ses lacunes un
+ * blocage. Le champ libre au-dessus continue donc de suffire : ce composant PROPOSE, il n'exige pas.
+ *
+ * HORS LIGNE, IL SE TAIT. Une recherche impossible n'est pas une panne : la saisie libre reste
+ * entière, et afficher une erreur ferait croire que le formulaire est cassé.
+ */
+function ChercheurReferentiel({
+  terme,
+  rattache,
+  codeNational,
+  onChoisir,
+  onDetacher,
+}: {
+  terme: string;
+  rattache: boolean;
+  codeNational?: string;
+  onChoisir: (produit: MedicamentCatalogue) => void;
+  onDetacher: () => void;
+}) {
+  const [suggestions, setSuggestions] = useState<MedicamentCatalogue[]>([]);
+  const [ouvert, setOuvert] = useState(false);
+
+  useEffect(() => {
+    const q = terme.trim();
+
+    if (rattache || q.length < 3) {
+      setSuggestions([]);
+      return;
+    }
+
+    let vivant = true;
+    const minuteur = setTimeout(() => {
+      rechercherMedicaments(q)
+        .then((liste) => {
+          if (vivant) setSuggestions(liste.slice(0, 5));
+        })
+        // Silence volontaire : sans réseau, la saisie libre suffit (voir l'en-tête).
+        .catch(() => {
+          if (vivant) setSuggestions([]);
+        });
+    }, 350);
+
+    return () => {
+      vivant = false;
+      clearTimeout(minuteur);
+    };
+  }, [terme, rattache]);
+
+  if (rattache) {
+    return (
+      <View style={styles.lienReferentiel}>
+        <Ionicons name="shield-checkmark-outline" size={16} color={colors.success.text} />
+        <Text style={styles.lienTexte}>
+          Référentiel national{codeNational ? ` · ${codeNational}` : ''}
+        </Text>
+        <Pressable onPress={onDetacher} accessibilityRole="button" accessibilityLabel="Détacher du référentiel">
+          <Text style={styles.lienDetacher}>Détacher</Text>
+        </Pressable>
+      </View>
+    );
+  }
+
+  if (suggestions.length === 0) {
+    return null;
+  }
+
+  return (
+    <View style={styles.suggestions}>
+      {!ouvert ? (
+        <Pressable onPress={() => setOuvert(true)} accessibilityRole="button">
+          <Text style={styles.suggestionsInvite}>
+            {suggestions.length} produit(s) au référentiel national — appuyez pour les voir
+          </Text>
+        </Pressable>
+      ) : (
+        suggestions.map((s) => (
+          <Pressable
+            key={s.id}
+            onPress={() => {
+              onChoisir(s);
+              setOuvert(false);
+            }}
+            accessibilityRole="button"
+            accessibilityLabel={`Rattacher à ${s.libelle}`}
+            style={styles.suggestion}
+          >
+            <Text style={styles.suggestionNom}>{s.libelle}</Text>
+            {s.code ? <Text style={styles.suggestionCode}>{s.code}</Text> : null}
+          </Pressable>
+        ))
+      )}
     </View>
   );
 }
@@ -386,7 +513,18 @@ function initiales(section: SectionDescriptor, item: Record<string, unknown> | n
         break;
       case 'medicaments': {
         const arr = Array.isArray(brut) ? (brut as Medicament[]) : [];
-        v[c.cle] = arr.length ? arr.map((m) => ({ nom: m.nom ?? '', posologie: m.posologie ?? '' })) : [{ nom: '', posologie: '' }];
+        v[c.cle] = arr.length
+          ? arr.map((m) => ({
+              nom: m.nom ?? '',
+              posologie: m.posologie ?? '',
+              // Le lien et ses valeurs figées sont RELUS tels quels : les perdre à l'édition
+              // délierait silencieusement une ligne que le prescripteur avait rattachée.
+              medicament_id: m.medicament_id,
+              code_national: m.code_national,
+              dci: m.dci,
+              dosage_referentiel: m.dosage_referentiel,
+            }))
+          : [{ nom: '', posologie: '' }];
         break;
       }
       case 'resultats': {
@@ -464,7 +602,15 @@ function construirePayload(section: SectionDescriptor, valeurs: Record<string, u
         const arr = (val as Medicament[]) ?? [];
         p[c.cle] = arr
           .filter((m) => m.nom.trim())
-          .map((m) => (m.posologie?.trim() ? { nom: m.nom.trim(), posologie: m.posologie.trim() } : { nom: m.nom.trim() }));
+          .map((m) => {
+            // On n'envoie JAMAIS `code_national`, `dci` ni `dosage_referentiel` : le serveur les
+            // relit au référentiel et les fige. Les transmettre laisserait croire qu'ils viennent
+            // du client, alors qu'ils n'auraient été vérifiés par personne.
+            const ligne: Record<string, unknown> = { nom: m.nom.trim() };
+            if (m.posologie?.trim()) ligne.posologie = m.posologie.trim();
+            if (m.medicament_id !== undefined) ligne.medicament_id = m.medicament_id;
+            return ligne;
+          });
         break;
       }
       case 'resultats': {
@@ -495,4 +641,13 @@ const styles = StyleSheet.create({
   retirer: { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', paddingVertical: spacing[1] },
   retirerTxt: { ...typography.caption, color: colors.danger.text, marginLeft: spacing[1], fontWeight: '700' },
   ajouterLigne: { marginTop: spacing[3] },
+  // P6.6b — rattachement au référentiel national des médicaments.
+  lienReferentiel: { flexDirection: 'row', alignItems: 'center', gap: spacing[2], marginBottom: spacing[2] },
+  lienTexte: { ...typography.caption, color: colors.success.text, flex: 1 },
+  lienDetacher: { ...typography.caption, color: colors.ink[500], fontWeight: '700' },
+  suggestions: { marginBottom: spacing[2] },
+  suggestionsInvite: { ...typography.caption, color: colors.blue[600], fontWeight: '700' },
+  suggestion: { paddingVertical: spacing[2], borderBottomWidth: 1, borderBottomColor: colors.line },
+  suggestionNom: { ...typography.body, color: colors.ink[700] },
+  suggestionCode: { ...typography.caption, color: colors.ink[500] },
 });

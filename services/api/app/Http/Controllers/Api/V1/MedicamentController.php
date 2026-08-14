@@ -5,8 +5,12 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Controllers\Controller;
 use App\Models\Medicament;
 use App\Models\StructureSanitaire;
+use App\Services\Medicament\ServiceInteractions;
+use App\Services\Medicament\ServiceLienMedicament;
 use App\Services\PrixMedicamentService;
 use App\Services\RecuOcrService;
+use App\Services\Referentiel\DiffusionReferentiel;
+use App\Services\Referentiel\SourceMedicaments;
 use App\Support\Medicaments;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -59,6 +63,55 @@ class MedicamentController extends Controller
         return response()->json([
             'medicaments'  => $medicaments,
             'enumerations' => Medicaments::pourApi(),
+        ]);
+    }
+
+    /**
+     * P6.6b — Les interactions DÉCLARÉES entre plusieurs médicaments (CDC_09 §6.2).
+     *
+     * ═══ CE QUE CET ENDPOINT EST, ET CE QU'IL N'EST PAS ═══
+     *
+     * Il RAPPORTE ce que le référentiel national affirme. Il ne calcule aucun risque, ne classe
+     * aucune gravité de son propre chef, ne propose aucune alternative et n'adapte aucune dose :
+     * tout cela appartient au `interaction-service` de CDC_05 §2. Rien n'est bloqué, rien n'est
+     * décidé — une machine qui refuserait une association prendrait une décision médicale
+     * (CDC_00 §4).
+     *
+     * LA RÉPONSE CITE LA VERSION DU RÉFÉRENTIEL qui l'affirme. Sans elle, une interaction lue
+     * aujourd'hui serait inexplicable demain si le référentiel change — c'est exactement le défaut
+     * que L1/L2 ont refermé sur les seuils de mesure.
+     *
+     * ON RÉSOUT PAR MOLÉCULE, pas par identifiant : une interaction déclarée sur l'aspirine
+     * générique vaut pour la marque qui contient la même aspirine. Ne chercher que les
+     * identifiants prescrits produirait un silence qui ressemblerait à « aucune interaction ».
+     */
+    public function interactions(Request $request, ServiceInteractions $interactions, ServiceLienMedicament $lien, DiffusionReferentiel $diffusion): JsonResponse
+    {
+        $filtres = $request->validate([
+            'medicament_id'   => ['required', 'array', 'min:2'],
+            'medicament_id.*' => ['integer'],
+        ]);
+
+        $etendus = $lien->etendreParMolecule($filtres['medicament_id']);
+
+        $declarees = $interactions->entre($etendus)->map(fn ($i) => [
+            'niveau'           => $i->niveau,
+            'niveau_libelle'   => Medicaments::libelleNiveau($i->niveau),
+            'medicament_a'     => ['code' => $i->medicamentA?->code, 'libelle' => $i->medicamentA?->libelle],
+            'medicament_b'     => ['code' => $i->medicamentB?->code, 'libelle' => $i->medicamentB?->libelle],
+            'description'      => $i->description,
+            'conduite_a_tenir' => $i->conduite_a_tenir,
+            'source'           => $i->source,
+        ])->values();
+
+        return response()->json([
+            'interactions' => $declarees,
+            // L'estampille du référentiel — nulle tant qu'aucune version n'est publiée, et on le
+            // dit plutôt que de laisser croire que la réponse fait autorité.
+            'referentiel'  => $diffusion->estampille(SourceMedicaments::CODE),
+            'avertissement' => 'Le référentiel rapporte les interactions déclarées. Il ne remplace '
+                .'pas l\'analyse d\'un professionnel de santé et ne tient compte ni du terrain du '
+                .'patient, ni des doses, ni des durées de traitement.',
         ]);
     }
 

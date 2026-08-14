@@ -74,6 +74,12 @@ class ContributionCarnetService
         $valide['source']   = 'patient';
         $valide['added_by'] = 'patient';
 
+        // P6.6b — la résolution a lieu AU DÉPÔT, pas à la validation. Le brouillon doit montrer ce
+        // que l'auteur a choisi : re-résoudre des semaines plus tard pourrait présenter au
+        // responsable une DCI différente de celle qui était sous les yeux de l'auteur, et il
+        // validerait alors autre chose que ce qui lui est affiché.
+        $valide = $controleur->preparerDonnees($valide);
+
         $contribution = Contribution::create([
             'membre_id'      => $membre->id,
             'auteur_user_id' => $auteur->id,
