@@ -14,6 +14,7 @@ use App\Http\Controllers\Portail\EtablissementController;
 use App\Http\Controllers\Portail\MedecinController as PortailMedecinController;
 use App\Http\Controllers\Portail\MesPatientsController;
 use App\Http\Controllers\Portail\ModerationController;
+use App\Http\Controllers\Portail\ReferentielMedicamentController;
 use App\Http\Controllers\Portail\RendezVousController;
 use App\Http\Controllers\Portail\ScanController;
 use App\Http\Controllers\Portail\ServiceController;
@@ -202,6 +203,25 @@ Route::prefix('portail')->name('portail.')->group(function () {
             Route::get('stock', [StockPharmacieController::class, 'index'])->name('stock.index');
             Route::post('stock/{medicament}', [StockPharmacieController::class, 'declarer'])->name('stock.declarer');
         });
+
+        // P6.6a — Référentiel NATIONAL des médicaments (CDC_09 §6.2).
+        //
+        // PERMISSION DISTINCTE de `medicament.manage` ci-dessus, et ce n'est pas de la prudence
+        // décorative : `medicament.manage` appartient au gestionnaire d'établissement pour les prix
+        // et les ruptures de SA pharmacie. La réutiliser ici laisserait une officine écrire les
+        // indications et les interactions du catalogue national — un laboratoire fabricant serait
+        // juge et partie sur son propre produit. `medicament.referentiel` n'est portée par AUCUN
+        // rôle : elle s'accorde nominativement.
+        Route::middleware('permission:medicament.referentiel')
+            ->prefix('medicaments')->name('medicaments.')->group(function () {
+                Route::get('/', [ReferentielMedicamentController::class, 'index'])->name('index');
+                Route::get('{medicament}/editer', [ReferentielMedicamentController::class, 'edit'])->name('edit');
+                Route::put('{medicament}', [ReferentielMedicamentController::class, 'update'])->name('update');
+                Route::post('{medicament}/interactions', [ReferentielMedicamentController::class, 'declarerInteraction'])
+                    ->name('interactions.declarer');
+                Route::delete('{medicament}/interactions/{interaction}', [ReferentielMedicamentController::class, 'retirerInteraction'])
+                    ->name('interactions.retirer');
+            });
 
         // 5.7 — Don de sang (FN6) : l'ÉTABLISSEMENT publie ses besoins — lui seul sait qu'il manque
         // de O− ce matin. Seul le niveau « urgent » alerte les donneurs compatibles. L'écran ne montre

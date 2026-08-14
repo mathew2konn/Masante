@@ -7,6 +7,7 @@ use App\Models\Medicament;
 use App\Models\StructureSanitaire;
 use App\Services\PrixMedicamentService;
 use App\Services\RecuOcrService;
+use App\Support\Medicaments;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -29,7 +30,14 @@ class MedicamentController extends Controller
     ) {
     }
 
-    /** Recherche au catalogue (public), par DCI, nom commercial ou catégorie. */
+    /**
+     * Recherche au catalogue (public), par code national, DCI, nom commercial ou catégorie.
+     *
+     * LES ÉNUMÉRATIONS ACCOMPAGNENT LA RÉPONSE, et ce n'est pas de l'ornement : sans elles, chaque
+     * client recopierait la liste des formes et des voies pour afficher « Comprimé » plutôt que
+     * `comprime`. C'est exactement le défaut trouvé en P6.4b, où sept libellés de catégorie vivaient
+     * en dur côté mobile et avaient divergé de la base sans que le typecheck le voie.
+     */
     public function index(Request $request): JsonResponse
     {
         $filtres = $request->validate([
@@ -41,13 +49,17 @@ class MedicamentController extends Controller
             ->when($filtres['q'] ?? null, fn ($q, $terme) => $q->where(
                 fn ($sous) => $sous->where('nom_generique', 'like', "%{$terme}%")
                     ->orWhere('nom_commercial', 'like', "%{$terme}%")
+                    ->orWhere('code', 'like', "%{$terme}%")
             ))
             ->when($filtres['categorie'] ?? null, fn ($q, $c) => $q->where('categorie', $c))
             ->orderBy('nom_generique')
             ->limit(50)
             ->get();
 
-        return response()->json(['medicaments' => $medicaments]);
+        return response()->json([
+            'medicaments'  => $medicaments,
+            'enumerations' => Medicaments::pourApi(),
+        ]);
     }
 
     /**

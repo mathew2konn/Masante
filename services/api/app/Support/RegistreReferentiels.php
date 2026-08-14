@@ -3,6 +3,7 @@
 namespace App\Support;
 
 use App\Services\Referentiel\SourceEtablissements;
+use App\Services\Referentiel\SourceMedicaments;
 use App\Services\Referentiel\SourceProfessionnels;
 use App\Services\Referentiel\SourceReferentiel;
 use App\Services\Referentiel\SourceSeuilsMesure;
@@ -16,13 +17,14 @@ use App\Services\Referentiel\SourceSymptomesTriage;
  * donc une porte vers n'importe quelle table. La fermeture n'est pas de la rigueur, c'est la garde.
  *
  * CE QUI N'Y FIGURE PAS, ET POURQUOI (décision G1 D3-a) :
- *  - `medicaments` → P6.6, laboratoires → P6.7.
+ *  - laboratoires et catalogue des analyses → P6.7.
  *    Ce sont des référentiels d'ANNUAIRE ; ils entrent sous gouvernance avec leur incrément dédié,
  *    qui les enrichit (identifiant national, district sanitaire, numéro d'ordre — ADR-024).
  *  - `etapes_prenatales`, `alertes_epidemiques` : même logique, ouverture ultérieure additive.
  *
- * Les deux référentiels retenus ici sont les seuls qui portent des RÈGLES CLINIQUES — donc les
- * seuls dont une décision passée doit pouvoir être rejouée.
+ * Les deux premiers référentiels retenus étaient les seuls qui portaient des RÈGLES CLINIQUES —
+ * donc les seuls dont une décision passée devait pouvoir être rejouée. Les suivants sont entrés
+ * avec leur incrément, chacun pour une raison écrite dans sa propre source.
  *
  * AJOUTER UN RÉFÉRENTIEL = ajouter une classe et une ligne ici. Le moteur de gouvernance
  * (proposition, quatre-yeux, contrôles, publication, audit, diffusion) ne change pas.
@@ -43,6 +45,13 @@ final class RegistreReferentiels
         // le numéro national, l'ordre professionnel et l'autorisation d'exercer y entrent, parce
         // qu'eux seuls engagent une autorité. Voir `SourceProfessionnels` et ADR-031.
         SourceProfessionnels::CODE   => SourceProfessionnels::class,
+        // P6.6a — le premier référentiel dont la projection prend la ligne ENTIÈRE. La question a
+        // été reposée plutôt que la conclusion de P6.4a recopiée, et la vérification a donné une
+        // réponse opposée : rien n'écrit automatiquement dans `medicaments`, les prix relevés par
+        // les citoyens vivant dans `prix_pharmacie`. L'instantané porte aussi les INTERACTIONS :
+        // les publier séparément laisserait une interaction désigner un produit absent de la
+        // version en vigueur. Voir `SourceMedicaments` et ADR-033.
+        SourceMedicaments::CODE      => SourceMedicaments::class,
     ];
 
     /** @return array<int, string> */

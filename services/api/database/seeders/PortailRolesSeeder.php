@@ -67,6 +67,12 @@ class PortailRolesSeeder extends Seeder
         // contrôle qui le vise : c'est le §5.4 qui s'appuiera dessus pour laisser signer une
         // ordonnance, et il serait alors adossé à une déclaration de l'intéressé.
         'professionnel.habiliter', // déclarer / modifier l'autorisation d'exercer et le n° d'ordre
+        // Référentiel national des médicaments (P6.6a, CDC_09 §6.2) — ATTRIBUÉE À AUCUN RÔLE, même
+        // motif. `medicament.manage` ci-dessus appartient au gestionnaire d'établissement pour les
+        // prix et les ruptures de SA pharmacie ; l'étendre au catalogue national laisserait une
+        // officine écrire les indications, les contre-indications et les INTERACTIONS, et un
+        // laboratoire fabricant serait juge et partie sur son propre produit.
+        'medicament.referentiel', // éditer le contenu de travail du référentiel des médicaments
         // Signature électronique (P6.5b, CDC_09 §5.3). Portée par le rôle `medecin` : signer ses
         // propres prescriptions relève du soin, pas d'une habilitation exceptionnelle. Elle ne
         // donne à elle seule AUCUN pouvoir — les cinq contrôles du §5.4 restent devant, et sans
