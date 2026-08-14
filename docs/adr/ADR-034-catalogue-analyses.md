@@ -1,4 +1,4 @@
-# ADR-034 — Catalogue national des analyses et valeurs de référence (P6.7a)
+# ADR-034 — Catalogue des analyses, laboratoires et valeurs de référence (P6.7)
 
 **Statut : Accepté** — 2026-08-14 · Contexte : CDC_09 §7.3 · Applique [ADR-024](ADR-024-referentiels-nationaux.md) et [ADR-025](ADR-025-socle-referentiel.md) · Suit [ADR-033](ADR-033-referentiel-medicaments.md).
 
@@ -16,10 +16,13 @@ analyse sous deux noms et deux unités — l'inverse exact de ce que §7.3 deman
 Troisième instance de la même famille de défauts, après `ordonnances.medecin_nom` (P6.5) et
 `medicaments_json.*.nom` (P6.6).
 
-**P6.5 avait refermé UNE porte du prescripteur ; il y en avait DEUX.** `EcritureSoignantService`
-teste la clé `medecin_nom`. `resultats_analyses` porte `medecin_prescripteur` — un autre nom pour la
-même chose — et cette section **est ouverte au soignant**. Un résultat consigné par un soignant
-pouvait donc encore nommer n'importe quel prescripteur.
+**`medecin_prescripteur` est déclaré par le client**, y compris quand un soignant consigne le
+résultat — la section est ouverte au soignant.
+
+> ⚠️ **CE CONSTAT A ÉTÉ MAL INTERPRÉTÉ EN P6.7a**, qui y a vu « une seconde porte » symétrique de
+> `ordonnances.medecin_nom` et a réécrit le champ. C'était faux, et le §8.1 explique pourquoi : celui
+> qui consigne un résultat n'est pas forcément celui qui l'a prescrit. La réécriture a été retirée en
+> P6.7b et remplacée par un lien vérifié.
 
 **`laboratoire` est un texte libre** alors que le référentiel des établissements porte le type
 `laboratoire` depuis P6.4a. Traité en P6.7b.
@@ -34,7 +37,7 @@ pouvait donc encore nommer n'importe quel prescripteur.
 |---|---|
 | **1** | **§7.4 est un module séparé** — c'est un workflow, pas un référentiel, et il suppose la *prescription biologique*, entité qui n'existe pas. |
 | **2** | **Les valeurs de référence sont AFFICHÉES, jamais conclusives**, et **stratifiées** dès maintenant. Le jeu livré est un jeu de démonstration honnêtement étiqueté, remplaçable sans migration. |
-| **3** | **P6.7 referme la seconde porte du prescripteur.** |
+| **3** | **P6.7 traite le prescripteur d'un résultat.** *Révisée en P6.7b* : la réécriture posée par P6.7a écrivait un nom faux ; elle est retirée et remplacée par un lien vérifié au référentiel (§8). |
 
 ---
 
@@ -121,7 +124,7 @@ correspondante :
 | Mutation | Vecteur mort |
 |---|---|
 | La résolution ne renvoie qu'une strate | `test_la_resolution_renvoie_TOUTES_les_strates_applicables` |
-| La réécriture du prescripteur est retirée | `test_le_soignant_ne_declare_PLUS_le_prescripteur` |
+| *(retirée en P6.7b — la garde elle-même était fautive, voir §8.1)* | — |
 | La source n'est plus obligatoire | `test_une_strate_sans_source_empeche_la_publication` |
 
 ---
@@ -132,10 +135,101 @@ correspondante :
 2. **Les intervalles sont un jeu de démonstration** (§4), non validés et non attribués.
 3. **Aucun code LOINC.**
 4. **Le serveur ne conclut jamais** — pas de statut sur un résultat de laboratoire.
-5. **Le référentiel des laboratoires est en P6.7b** : `resultats_analyses.laboratoire` reste du
-   texte libre.
-6. **Aucun écran citoyen n'affiche les références.** L'API les sert, le portail les montre à
-   l'autorité, mais le carnet n'a pas d'écran de détail d'un résultat. Rattaché à **P6.7b**, qui
-   touche déjà cet écran pour le lien laboratoire — un foyer réel, pas un report.
+5. ~~Le référentiel des laboratoires est en P6.7b.~~ **LEVÉE en P6.7b** (§8.2, §8.3).
+6. ~~Aucun écran citoyen n'affiche les références.~~ **LEVÉE en P6.7b** (§8.4) : le carnet montre
+   les strates applicables sous chaque ligne rattachée au catalogue, sans jamais comparer.
 7. **La grossesse n'est pas lue** pour choisir une strate (§3.1).
 8. **Intervalles ivoiriens absents** — la structure les attend, les valeurs livrées ne le sont pas.
+
+---
+
+## 8. P6.7b — Laboratoires, liens d'un résultat, et LA CORRECTION DE P6.7a (2026-08-14)
+
+### 8.1 Ce que P6.7a affirmait, et pourquoi c'était faux
+
+P6.7a réécrivait `resultats_analyses.medecin_prescripteur` avec le nom du soignant qui consignait le
+résultat, en le présentant comme le miroir de `ordonnances.medecin_nom`.
+
+**Ce n'en était pas un.** Pour une ordonnance, celui qui écrit **est** le prescripteur : rédiger
+l'ordonnance *est* l'acte de prescrire. Pour un résultat d'analyse, celui qui consigne est souvent
+**quelqu'un d'autre** — un biologiste, ou un médecin hospitalier qui classe un résultat prescrit par
+un généraliste de ville.
+
+L'écrasement était inconditionnel. Dans ce cas très courant, le serveur remplaçait « Dr A » par
+« Dr B » et **affirmait une chose fausse, avec son autorité**. C'est pire que le défaut d'origine :
+celui-ci était une déclaration humaine non vérifiée, celui-là une assertion du système.
+
+Le G2 de P6.7a l'avait même montré — « Dr Quelqu'un d'Autre » remplacé par « Dr Kablan Koffi » — et
+je l'avais présenté comme une réussite.
+
+**Le G0 de P6.7b l'a trouvé. La réécriture est retirée, et un vecteur dédié empêche son retour.**
+
+### 8.2 Ce qui la remplace : vérifier au lieu de deviner
+
+Le prescripteur et le laboratoire d'un résultat sont des déclarations sur des **TIERS**. On ne les
+devine pas : on les fait **vérifier** quand elles sont faites.
+
+`medecin_prescripteur_id` et `laboratoire_id` sont facultatifs — un patient qui recopie un compte
+rendu papier n'a pas de liste sous les yeux. Mais quand ils sont fournis, le serveur relit le
+référentiel et **fige** le nom. Même forme que le lien médicament (P6.6b) et le lien analyse
+(P6.7a) : *ce que le serveur peut vérifier n'a pas à être cru, et ce qu'il a vérifié doit rester
+stable.*
+
+**On ne déduit pas non plus le laboratoire de l'établissement du soignant** : un résultat vient très
+souvent d'un laboratoire externe, et le déduire serait la même erreur transposée.
+
+**Un établissement qui n'est pas un laboratoire est refusé.** Sans ce contrôle, « laboratoire »
+deviendrait « établissement », et le référentiel des laboratoires ne voudrait plus rien dire.
+
+### 8.3 §7.1 / §7.2 — ce qui entre dans la projection gouvernée, et ce qui n'y entre pas
+
+La moitié du §7.2 existait déjà depuis P6.4a (identifiant national, nom officiel, statut juridique,
+adresse, GPS, contacts, `agrements_json`, `certifications_json`, `horaires_json`). On n'ajoute que ce
+qui est propre au laboratoire.
+
+**`type_laboratoire` entre dans la projection** : c'est un **second axe** de la catégorie —
+`type = 'laboratoire'` dit *ce que c'est*, `type_laboratoire` dit *lequel* (§7.1). Les fondre rendrait
+insoluble « combien de laboratoires de santé publique dans ce district ? ». Même raisonnement qu'en
+P6.4a entre `type` et `statut_juridique`.
+
+**Le responsable scientifique, les équipements, le délai de rendu et les analyses réalisées n'y
+entrent PAS.** Le critère est refait, pas recopié : une **accréditation** est délivrée par une
+autorité (gouvernée, déjà dans `certifications_json`) ; ces données-là changent avec le personnel et
+les automates. Les gouverner ferait de l'arrivée d'un appareil une décision ministérielle — même
+critère que `directeur`, déjà exclu en P6.4a.
+
+**Deux vecteurs en miroir le prouvent** : la typologie fait diverger le référentiel · les données
+d'exploitation ne le font pas.
+
+### 8.4 L'affichage citoyen des références — la limite 6 de P6.7a est levée
+
+Le carnet montre désormais, sous chaque ligne de résultat rattachée au catalogue, les strates
+applicables au patient — âge et sexe résolus depuis sa fiche. **Il ne compare jamais** la valeur
+saisie à la plage : aucune couleur, aucun verdict. Les strates conditionnelles sont marquées
+« selon votre situation », la provenance de démonstration est dite, et l'avertissement du serveur est
+affiché tel quel. Hors ligne, le bloc disparaît sans message d'erreur.
+
+### 8.5 Le piège de la vérification par mutation
+
+La première passe a laissé croire que le vecteur anti-régression survivait à la mutation. En
+réalité **la mutation ne s'était pas appliquée** : le `str.replace` n'avait pas trouvé sa cible et
+échouait en silence. Une mutation qui ne s'applique pas ressemble exactement à un vecteur qui
+survit — d'où l'assertion obligatoire avant de conclure quoi que ce soit d'une mutation.
+
+Rejouée correctement, elle tue bien son vecteur.
+
+### 8.6 Un vecteur réécrit, pas supprimé
+
+`test_le_soignant_ne_declare_PLUS_le_prescripteur` affirmait le comportement fautif. Il a été
+**réécrit pour dire la garantie juste** — le prescripteur déclaré est conservé — et non retiré pour
+que la suite passe. Précédent P6.4d.
+
+### 8.7 Limites de P6.7b
+
+1. **§7.4 (traçabilité des prélèvements) toujours non livré** — module séparé.
+2. **Le lien reste facultatif** des deux côtés : le texte libre demeure la voie normale du patient.
+3. **`laboratoire_code` est nul tant que l'établissement n'a pas de `identifiant_national`** : le
+   code figé ne peut pas être meilleur que le référentiel qui le porte.
+4. **La liste des analyses réalisées n'est pas gouvernée** (§8.3) : elle n'entre dans aucune version
+   publiée, donc aucune décision ne peut la citer.
+5. **Aucun écran mobile ne montre les laboratoires** : le lien se pose par l'API et par le portail.

@@ -89,6 +89,17 @@ final class SourceEtablissements implements SourceReferentiel
                 // une SARL ou une SA. Les deux engagent une autorité, donc les deux sont ici.
                 'forme_juridique'      => $e->forme_juridique,
                 'niveau_soins'         => $e->niveau_soins,
+                // P6.7b — la typologie du §7.1, second axe de la catégorie `laboratoire`. Elle
+                // ENTRE dans la projection parce qu'elle classe l'établissement, comme
+                // `statut_juridique` et `niveau_soins` juste au-dessus.
+                //
+                // CE QUI N'Y ENTRE PAS, et le critère est refait plutôt que recopié : le
+                // responsable scientifique, les équipements, le délai moyen de rendu et la liste
+                // des analyses réalisées. Ce sont des données d'EXPLOITATION — elles changent avec
+                // le personnel et les automates —, au même titre que `directeur`, déjà exclu en
+                // P6.4a. Les soumettre au quatre-yeux national ferait de l'arrivée d'un appareil
+                // une décision ministérielle.
+                'type_laboratoire'     => $e->type_laboratoire,
                 'region_code'          => $e->region?->code,
                 'district_code'        => $e->district?->code,
                 'commune'              => $e->commune,

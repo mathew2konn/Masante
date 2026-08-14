@@ -41,7 +41,7 @@ incréments successifs, ajoutés en **parties** dans le même fichier plutôt qu
 | **P6.3 / P6.4** | Référentiels nationaux (CDC_09) | [GUIDE_TEST_REFERENTIELS.md](GUIDE_TEST_REFERENTIELS.md) | **Partie 1** socle (§1–8) · **Partie 2** établissements (§2.1–2.8) · **Partie 3** villes et géolocalisation (§3.1–3.8) · **Partie 4** images (§4.1–4.8) · **Partie 5** formulaires du portail (§5.1–5.8) · **Partie 6** bascule des seuils de mesure, L1+L2 (§6.1–6.8) |
 | **P6.5** | Professionnels de santé + PKI (CDC_09 §5) | [GUIDE_TEST_PROFESSIONNELS.md](GUIDE_TEST_PROFESSIONNELS.md) | **Partie 1** référentiel professionnel (§1–8) · **Partie 2** PKI et signature électronique (§2.1–2.8) |
 | **P6.6** | Référentiel des médicaments (CDC_09 §6) | [GUIDE_TEST_MEDICAMENTS.md](GUIDE_TEST_MEDICAMENTS.md) | **Partie 1** le référentiel (§1.1–1.8) · **Partie 2** lien ordonnance + interactions (§2.1–2.8) |
-| **P6.7** | Laboratoires + catalogue des analyses (CDC_09 §7) | [GUIDE_TEST_LABORATOIRES.md](GUIDE_TEST_LABORATOIRES.md) | **Partie 0** ce que contient un référentiel biologique réel · **Partie 1** le catalogue (§1.1–1.8) · *Partie 2 laboratoires — à venir* |
+| **P6.7** | Laboratoires + catalogue des analyses (CDC_09 §7) | [GUIDE_TEST_LABORATOIRES.md](GUIDE_TEST_LABORATOIRES.md) | **Partie 0** ce que contient un référentiel biologique réel · **Partie 1** le catalogue (§1.1–1.8) · **Partie 2** laboratoires et liens d'un résultat (§2.1–2.8) |
 | **P7** | Carnet familial partagé | [GUIDE_TEST_CARNET_FAMILIAL.md](GUIDE_TEST_CARNET_FAMILIAL.md) | **A** partage en lecture · B revendication · C brouillon · D notifications |
 
 ### Détail du guide Paiement (13 parties)

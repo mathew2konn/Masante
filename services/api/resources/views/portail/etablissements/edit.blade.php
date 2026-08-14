@@ -111,4 +111,86 @@
     @error('gestionnaire') <div class="text-danger small mt-2">{{ $message }}</div> @enderror
   </div>
 </div>
+
+{{--
+  P6.7b — Les analyses que CE laboratoire réalise (CDC_09 §7.2 « analyses disponibles »).
+
+  Bloc affiché UNIQUEMENT pour un laboratoire : le montrer ailleurs laisserait croire qu'un CHU ou
+  une pharmacie déclare des analyses, et le référentiel des laboratoires ne voudrait plus rien dire.
+
+  DONNÉE D'EXPLOITATION, PAS DE RÉFÉRENTIEL : cette liste change avec les automates et le personnel,
+  elle n'est donc pas soumise au quatre-yeux national — contrairement à la typologie du laboratoire,
+  qui, elle, classe l'établissement et entre dans la projection gouvernée.
+--}}
+@if ($etablissement->type === 'laboratoire')
+<div class="card border-0 shadow-sm mt-4">
+  <div class="card-header bg-white fw-medium"><i class="bi bi-eyedropper text-ms"></i> Analyses réalisées</div>
+  <div class="card-body">
+
+    <p class="text-muted small">
+      Ce que ce laboratoire réalise, et en combien de temps. Le délai déclaré ici <strong>prime</strong>
+      sur celui du catalogue national — les deux restent visibles, on ne remplace jamais en silence.
+    </p>
+
+    <table class="table align-middle">
+      <thead class="table-light">
+        <tr><th>Analyse</th><th>Unité</th><th>Délai appliqué</th><th>Méthode</th><th></th></tr>
+      </thead>
+      <tbody>
+        @forelse ($analysesLabo as $ligne)
+          <tr>
+            <td>
+              <div class="fw-medium">{{ $ligne['analyse'] }}</div>
+              @if ($ligne['code'])<code class="small">{{ $ligne['code'] }}</code>@endif
+            </td>
+            <td class="small">{{ $ligne['unite'] }}</td>
+            <td class="small">
+              @if ($ligne['delai_applique'] !== null)
+                {{ $ligne['delai_applique'] }} h
+                <span class="text-muted">({{ $ligne['delai_source'] }})</span>
+              @else
+                <span class="text-muted">non renseigné</span>
+              @endif
+            </td>
+            <td class="small">{{ $ligne['methode'] ?? '—' }}</td>
+            <td class="text-end">
+              <form method="POST" action="{{ route('portail.etablissements.analyses.destroy', [$etablissement, $ligne['id']]) }}">
+                @csrf @method('DELETE')
+                <button class="btn btn-sm btn-outline-danger"><i class="bi bi-x-lg"></i></button>
+              </form>
+            </td>
+          </tr>
+        @empty
+          <tr><td colspan="5" class="text-center text-muted py-3">Aucune analyse déclarée.</td></tr>
+        @endforelse
+      </tbody>
+    </table>
+
+    <form method="POST" action="{{ route('portail.etablissements.analyses.store', $etablissement) }}" class="row g-2 align-items-end">
+      @csrf
+      <div class="col-md-6">
+        <label class="form-label small">Analyse du catalogue national *</label>
+        <select name="analyse_id" class="form-select form-select-sm" required>
+          <option value="">— choisir —</option>
+          @foreach ($catalogueDisponible as $a)
+            <option value="{{ $a->id }}">{{ $a->designation }}{{ $a->code ? ' · '.$a->code : '' }}</option>
+          @endforeach
+        </select>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label small">Délai (heures)</label>
+        <input type="number" name="delai_rendu_heures" class="form-control form-control-sm" min="0" max="8760">
+      </div>
+      <div class="col-md-3">
+        <label class="form-label small">Méthode</label>
+        <input type="text" name="methode" class="form-control form-control-sm" maxlength="200">
+      </div>
+      <div class="col-md-1 d-grid">
+        <button class="btn btn-sm btn-outline-primary"><i class="bi bi-plus-lg"></i></button>
+      </div>
+    </form>
+  </div>
+</div>
+@endif
+
 @endsection

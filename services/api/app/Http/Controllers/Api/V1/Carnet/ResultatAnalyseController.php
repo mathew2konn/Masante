@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\V1\Carnet;
 
 use App\Services\Analyse\ServiceLienAnalyse;
+use App\Services\Analyse\ServiceLienResultat;
 
 /**
  * Résultats d'analyses (F2.6) — `resultats_json` chiffré en base.
@@ -13,15 +14,18 @@ use App\Services\Analyse\ServiceLienAnalyse;
  * le libellé et **l'unité** sont relus au catalogue et figés
  * ({@see App\Services\Analyse\ServiceLienAnalyse}).
  *
- * `medecin_prescripteur` reste saisi par le patient — mais il est RÉÉCRIT quand c'est un soignant
- * qui consigne le résultat ({@see App\Services\EcritureSoignantService}). P6.5 avait refermé cette
- * porte sur `ordonnances.medecin_nom` ; celle-ci portait un autre nom de colonne et était restée
- * ouverte.
+ * `medecin_prescripteur` et `laboratoire` sont des déclarations sur des TIERS : celui qui consigne
+ * un résultat n'est pas forcément celui qui l'a prescrit, et l'analyse vient souvent d'un
+ * laboratoire externe. On ne les devine donc PAS — P6.7a l'a fait un temps pour le prescripteur et
+ * écrivait alors un nom faux. On les fait vérifier quand elles sont faites, par un lien facultatif
+ * au référentiel ({@see App\Services\Analyse\ServiceLienResultat}).
  */
 class ResultatAnalyseController extends CarnetSectionController
 {
-    public function __construct(private readonly ServiceLienAnalyse $lien)
-    {
+    public function __construct(
+        private readonly ServiceLienAnalyse $lien,
+        private readonly ServiceLienResultat $liensResultat,
+    ) {
     }
 
     protected function relation(): string
@@ -37,6 +41,12 @@ class ResultatAnalyseController extends CarnetSectionController
             'date_analyse'         => ['required', 'date'],
             'laboratoire'          => ['nullable', 'string', 'max:200'],
             'medecin_prescripteur' => ['nullable', 'string', 'max:200'],
+            // P6.7b — liens vers des TIERS : le prescripteur et le laboratoire qui a realise
+            // l'analyse. Facultatifs (un compte rendu papier ne se choisit pas dans une liste),
+            // mais verifies et figes quand ils sont fournis. L'existence est controlee par le
+            // service, pour que le message nomme ce qui est introuvable.
+            'medecin_prescripteur_id' => ['nullable', 'integer'],
+            'laboratoire_id'          => ['nullable', 'integer'],
             'resultats_json'       => ['nullable', 'array'],
             // P6.7a — la structure d'une ligne de résultat, là où il n'y en avait AUCUNE.
             'resultats_json.*.parametre'  => ['required', 'string', 'max:200'],
@@ -64,6 +74,6 @@ class ResultatAnalyseController extends CarnetSectionController
             $valide['resultats_json'] = $this->lien->resoudre($valide['resultats_json']);
         }
 
-        return $valide;
+        return $this->liensResultat->resoudre($valide);
     }
 }

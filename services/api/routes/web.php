@@ -65,6 +65,12 @@ Route::prefix('portail')->name('portail.')->group(function () {
             // l'API mobile utilise déjà (motif de P4, source unique Blade + API).
             Route::post('etablissements/{etablissement}/images', [EtablissementController::class, 'ajouterImage'])->name('etablissements.images.store');
             Route::delete('etablissements/{etablissement}/images/{image}', [EtablissementController::class, 'supprimerImage'])->name('etablissements.images.destroy');
+
+            // P6.7b — analyses realisees par un laboratoire (§7.2). Les gardes vivent dans
+            // `CatalogueDuLaboratoire` : habilitation a deux chemins, et refus de tout
+            // etablissement qui n'est pas un laboratoire.
+            Route::post('etablissements/{etablissement}/analyses', [EtablissementController::class, 'ajouterAnalyse'])->name('etablissements.analyses.store');
+            Route::delete('etablissements/{etablissement}/analyses/{ligne}', [EtablissementController::class, 'retirerAnalyse'])->name('etablissements.analyses.destroy');
         });
 
         // 5.3 — Bris de glace (AGENT DES URGENCES habilité individuellement). Voie 4 d'accès au

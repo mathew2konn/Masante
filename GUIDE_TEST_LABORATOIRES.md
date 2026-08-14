@@ -1,7 +1,8 @@
 # Guide de test — Laboratoires et catalogue des analyses (P6.7)
 
-> CDC_09 §7, étape 7 de l'ordre §14. **Partie 1** — le catalogue des analyses (P6.7a).
-> Partie 2 à venir : le référentiel des laboratoires (P6.7b).
+> CDC_09 §7, étape 7 de l'ordre §14. **Module complet.**
+> **Partie 0** ce que contient un référentiel biologique réel · **Partie 1** le catalogue (P6.7a) ·
+> **Partie 2** laboratoires, liens d'un résultat et la correction de P6.7a (P6.7b).
 
 ---
 
@@ -72,11 +73,9 @@ d'écriture ; l'écran du portail réservé à l'autorité sanitaire.
 - **La traçabilité des prélèvements (§7.4)** — les huit étapes, l'identifiant de prélèvement, le
   code-barres — est un **module séparé**. C'est un workflow, pas un référentiel, et il suppose la
   *prescription biologique*, entité qui n'existe pas encore.
-- **Le référentiel des laboratoires (§7.2)** est en **P6.7b** : `resultats_analyses.laboratoire`
-  reste du texte libre jusque-là.
-- **Aucun écran citoyen n'affiche encore les références.** L'API les sert, le portail les montre à
-  l'autorité — mais le carnet n'a pas d'écran de détail d'un résultat. Rattaché à **P6.7b**, qui
-  touche déjà cet écran pour le lien laboratoire.
+- ~~Le référentiel des laboratoires (§7.2) est en P6.7b.~~ **LIVRÉ en P6.7b** — voir partie 2.
+- ~~Aucun écran citoyen n'affiche encore les références.~~ **LIVRÉ en P6.7b** (§2.3.1) : le carnet
+  les montre sous chaque ligne rattachée, sans jamais comparer.
 - **La grossesse n'est pas lue** pour choisir une strate : elles sont **toutes** affichées.
 
 ## 1.2 Prérequis
@@ -273,3 +272,197 @@ signaler comme un chevauchement rendrait tout catalogue impubliable.
 permissions, le vecteur serait vert quoi qu'il arrive (leçon de P6.6a).
 
 **Monter un soignant pour le G2 demande un `service_id`** : `medecins.service_id` est non nul.
+
+---
+
+# PARTIE 2 — Laboratoires, liens d'un résultat, et la correction de P6.7a (P6.7b)
+
+> **Dernier incrément de P6.7 → l'étape 7 du corpus est complète.**
+> Cette partie commence par une correction : P6.7a écrivait une fausseté, et elle a été retirée.
+
+## 2.1 Ce que P6.7a affirmait, et pourquoi c'était faux
+
+P6.7a réécrivait `medecin_prescripteur` avec le nom du soignant qui consignait le résultat, en le
+présentant comme le miroir de `ordonnances.medecin_nom`.
+
+**Ce n'en était pas un.** Pour une ordonnance, celui qui écrit **est** le prescripteur — rédiger
+l'ordonnance *est* l'acte de prescrire. Pour un résultat, celui qui consigne est souvent **quelqu'un
+d'autre** : un biologiste, ou un médecin hospitalier qui classe un résultat prescrit par un
+généraliste de ville.
+
+Le serveur inscrivait alors **le nom du mauvais médecin** — et une affirmation fausse portée par le
+système est plus difficile à contester qu'une saisie humaine non vérifiée.
+
+Le G2 de P6.7a l'avait même montré (« Dr Quelqu'un d'Autre » → « Dr Kablan Koffi ») et cela avait été
+présenté comme une réussite.
+
+**La réécriture est retirée. Un vecteur dédié empêche son retour.**
+
+## 2.2 Périmètre — et ce que ce module ne fait PAS
+
+**Ce qui est livré** : la correction ci-dessus ; les liens **vérifiés et figés** d'un résultat vers
+son prescripteur et son laboratoire ; les champs §7.1/§7.2 propres au laboratoire ; les **analyses
+réalisées** par un laboratoire ; et **l'affichage citoyen des valeurs de référence** — la limite 6 de
+P6.7a est levée.
+
+**Ce qui n'est PAS livré** :
+
+- **§7.4 (traçabilité des prélèvements)** — toujours un module séparé.
+- **Les liens restent facultatifs** : le texte libre demeure la voie normale du patient.
+- **La liste des analyses réalisées n'est pas gouvernée** : c'est une donnée d'exploitation, aucune
+  décision ne peut la citer.
+- **Aucun écran mobile ne montre les laboratoires** : le lien se pose par l'API et par le portail.
+
+## 2.3 Scénarios front
+
+### 2.3.1 Le carnet montre les références, et ne conclut jamais (Expo Go)
+
+Carnet → un membre → **Résultats d'analyses** → ouvrir un résultat.
+
+- ✅ Sous « Paramètre », à partir de 3 caractères, une ligne propose les analyses du catalogue.
+- ✅ Choisir une analyse affiche le bandeau vert « **Catalogue national · ANA000001** ».
+- ✅ Un bloc **« Valeurs habituellement observées »** apparaît, avec la ou les strates applicables à
+  ce membre — son âge et son sexe viennent de sa fiche.
+- ✅ Une strate de grossesse est marquée **« (selon votre situation) »** : elle est ajoutée, jamais
+  choisie à la place de la patiente.
+- ✅ Si les valeurs viennent du jeu de démonstration, la ligne rouge le dit.
+- ✅ **Aucune couleur, aucun « normal » ou « anormal »** — la valeur saisie n'est jamais comparée.
+- ✅ **Mode avion** : le bloc disparaît, sans message d'erreur. Le résultat reste lisible.
+
+### 2.3.2 Le portail : les analyses d'un laboratoire
+
+Portail → Établissements → éditer un **laboratoire**.
+
+- ✅ Le bloc « **Analyses réalisées** » apparaît, avec le délai appliqué et sa source.
+- ✅ Sur un **CHU**, le bloc **n'apparaît pas** : l'afficher laisserait croire qu'un hôpital déclare
+  des analyses au titre du §7.2.
+- ✅ Déclarer deux fois la même analyse est refusé.
+
+## 2.4 Scénarios backend (curl / tinker reproductibles)
+
+### 2.4.1 LA CORRECTION — le prescripteur déclaré est conservé
+
+Un soignant consigne un résultat en envoyant `medecin_prescripteur: "Dr Konan, généraliste de ville"` :
+
+✅ La base contient **« Dr Konan, généraliste de ville »**.
+❌ Y trouver le nom du soignant signifierait que la régression de P6.7a est revenue.
+
+Et la non-régression dans l'autre sens : sur une **ordonnance**, le prescripteur reste réécrit avec
+la fiche du soignant (P6.5b intact).
+
+### 2.4.2 Le lien laboratoire est vérifié et figé
+
+```bash
+… -d '{"…","laboratoire":"Nom invente par le client","laboratoire_id":<id>,"laboratoire_nom":"Faux nom"}'
+```
+✅ `laboratoire_nom` et `laboratoire` portent le nom **du référentiel**, pas celui du client.
+✅ Renommer ensuite le laboratoire **ne change pas** le résultat.
+
+### 2.4.3 Un établissement qui n'est pas un laboratoire est refusé
+
+```bash
+… -d '{"…","laboratoire_id":<id de la pharmacie>}'
+```
+✅ **422** — « … n'est pas un laboratoire au référentiel national. »
+❌ L'accepter ferait de « laboratoire » un champ « établissement », et le référentiel des
+laboratoires ne voudrait plus rien dire.
+
+### 2.4.4 Les deux vecteurs en miroir de la projection gouvernée
+
+| Changement sur un laboratoire | Empreinte du référentiel |
+|---|---|
+| Responsable scientifique, équipements, délai de rendu, connexion SI | **inchangée** |
+| `type_laboratoire` (§7.1) | **change** |
+
+La typologie **classe** l'établissement ; les autres données changent avec le personnel et les
+automates. Les gouverner ferait de l'arrivée d'un appareil une décision ministérielle — même critère
+que `directeur`, exclu depuis P6.4a.
+
+### 2.4.5 Les analyses réalisées
+
+✅ Déclarer une analyse pour un laboratoire : accepté, avec un délai propre.
+✅ Le **délai du laboratoire prime**, mais **les deux sont portés** dans la réponse (`delai_source`)
+— on ne remplace jamais en silence.
+✅ Deux fois la même analyse → refusé par le moteur (`UNIQUE(structure_id, analyse_id)`).
+✅ Un CHU → refusé.
+✅ Un gestionnaire ne déclare que pour **SON** laboratoire.
+
+## 2.5 Invariants base de données
+
+```sql
+-- a. Les colonnes du §7.2 et les liens
+SHOW COLUMNS FROM structures_sanitaires LIKE 'type_laboratoire';
+SHOW COLUMNS FROM resultats_analyses LIKE 'laboratoire_%';
+
+-- b. Aucun résultat lié à un établissement qui n'est pas un laboratoire
+SELECT COUNT(*) FROM resultats_analyses r
+JOIN structures_sanitaires s ON s.id = r.laboratoire_id
+WHERE s.type <> 'laboratoire';
+-- attendu : 0
+
+-- c. Aucune analyse déclarée par un non-laboratoire
+SELECT COUNT(*) FROM laboratoire_analyses la
+JOIN structures_sanitaires s ON s.id = la.structure_id
+WHERE s.type <> 'laboratoire';
+-- attendu : 0
+
+-- d. Aucun nom figé sans son lien
+SELECT COUNT(*) FROM resultats_analyses
+WHERE (laboratoire_nom IS NOT NULL AND laboratoire_id IS NULL)
+   OR (medecin_prescripteur_nom IS NOT NULL AND medecin_prescripteur_id IS NULL);
+-- attendu : 0
+```
+
+## 2.6 Commandes de qualité (G3)
+
+```bash
+XDEBUG_MODE=off %PHP% artisan test --filter=ReferentielLaboratoiresTest
+XDEBUG_MODE=off %PHP% artisan test
+pnpm typecheck && npx expo-doctor
+```
+
+✅ **Référence au G5 (2026-08-14)** : **21 vecteurs dédiés** (57 avec ceux de P6.7a) · suite
+**757 tests / 15 344 assertions, 0 échec** · typecheck ×3 · expo-doctor 18/18.
+
+**Vérification par mutation** :
+
+| Mutation | Vecteur mort |
+|---|---|
+| On remet la réécriture fautive de P6.7a | `test_le_soignant_ne_REMPLACE_PLUS_le_prescripteur_declare` |
+| Le contrôle « ce n'est pas un laboratoire » saute | `test_un_etablissement_qui_n_est_PAS_un_laboratoire_est_refuse` |
+| `type_laboratoire` sort de la projection | `test_la_typologie_du_laboratoire_FAIT_diverger_le_referentiel` |
+
+## 2.7 Checklist de clôture
+
+- [ ] **Le prescripteur déclaré est conservé** (§2.4.1) — et l'ordonnance reste réécrite
+- [ ] Lien laboratoire vérifié, figé, insensible au renommage (§2.4.2)
+- [ ] Pharmacie → **422** (§2.4.3)
+- [ ] **Deux vecteurs en miroir** sur la projection (§2.4.4)
+- [ ] Analyses réalisées : délai qui prime, doublon refusé, CHU refusé, cloisonnement (§2.4.5)
+- [ ] Carnet : références affichées, **aucune conclusion**, grossesse « selon votre situation »,
+      mention de démonstration, **silence hors ligne** (§2.3.1)
+- [ ] Portail : bloc présent sur un laboratoire, **absent sur un CHU** (§2.3.2)
+- [ ] Invariants a→d (§2.5)
+- [ ] Suite complète, typecheck ×3, expo-doctor (§2.6)
+- [ ] **Limites relues** (§2.2) — dont §7.4 toujours non livré
+
+## 2.8 Pièges rencontrés
+
+**Une mutation qui ne s'applique pas ressemble à un vecteur qui survit.** La première passe a laissé
+croire que le vecteur anti-régression résistait : en réalité le remplacement de texte n'avait pas
+trouvé sa cible et avait échoué **en silence**. Toute mutation doit être **assertée** avant qu'on en
+conclue quoi que ce soit.
+
+**Un test hérité affirmait le comportement fautif.** `test_le_soignant_ne_declare_PLUS_le_prescripteur`
+a été **réécrit pour dire la garantie juste**, et non supprimé pour que la suite passe (précédent
+P6.4d).
+
+**Les noms figés doivent être `$fillable`.** Le chemin d'écriture des sections du carnet est une
+assignation de masse : une colonne absente de `$fillable` est silencieusement perdue, et le service
+les posait pour rien. La garantie ne repose donc pas sur `$fillable` mais sur deux couches — les
+règles de validation qui ne déclarent pas ces clés, et le service qui les efface — chacune éprouvée
+par son vecteur.
+
+**`laboratoire_code` reste nul** tant que l'établissement n'a pas d'`identifiant_national` : le code
+figé ne peut pas être meilleur que le référentiel qui le porte.
+

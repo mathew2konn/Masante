@@ -42,6 +42,14 @@ class StructureSanitaire extends Model
         'statut_juridique',
         'forme_juridique',
         'niveau_soins',
+        // P6.7b — §7.1/§7.2, propres au laboratoire. `type_laboratoire` est un SECOND AXE de la
+        // categorie (`type = 'laboratoire'` dit ce que c'est, celui-ci dit lequel).
+        'type_laboratoire',
+        'responsable_scientifique',
+        'responsable_scientifique_titre',
+        'equipements',
+        'delai_rendu_moyen_heures',
+        'connecte_si_national',
         'region_id',
         'district_id',
         'ville_id',

@@ -126,18 +126,23 @@ class EcritureSoignantService
                 $valide['medecin_nom'] = $fiche->nom_complet;
             }
 
-            // ═══ P6.7a — LA SECONDE PORTE ═══
+            // ═══ CE QU'ON NE RÉÉCRIT PAS, ET POURQUOI (correction de P6.7a, décidée en P6.7b) ═══
             //
-            // P6.5b a refermé `ordonnances.medecin_nom` en testant CETTE clé-là. Mais
-            // `resultats_analyses` porte `medecin_prescripteur` — un autre nom de colonne, pour la
-            // même chose — et cette section est ouverte au soignant
-            // (`RegistreSectionsCarnet::SECTIONS_SOIGNANT`). Un résultat consigné par un soignant
-            // pouvait donc encore nommer n'importe quel prescripteur.
+            // P6.7a réécrivait aussi `resultats_analyses.medecin_prescripteur`, en le présentant
+            // comme le miroir de `medecin_nom`. **C'était faux.**
             //
-            // Le G0 de P6.7 l'a trouvé : il y avait deux portes, une seule avait été fermée.
-            if (array_key_exists('medecin_prescripteur', $valide)) {
-                $valide['medecin_prescripteur'] = $fiche->nom_complet;
-            }
+            // Pour une ordonnance, celui qui écrit EST le prescripteur : rédiger l'ordonnance est
+            // l'acte de prescrire. Pour un résultat d'analyse, celui qui consigne est souvent
+            // QUELQU'UN D'AUTRE — un biologiste, ou un médecin hospitalier qui classe un résultat
+            // prescrit par un généraliste de ville. L'écraser inscrivait alors le nom du mauvais
+            // médecin, et une affirmation fausse écrite par le SERVEUR est plus difficile à
+            // contester qu'une saisie humaine non vérifiée.
+            //
+            // Le prescripteur d'un résultat est une déclaration sur un TIERS, au même titre que le
+            // laboratoire qui a réalisé l'analyse. On ne la devine pas : on la fait VÉRIFIER quand
+            // elle est faite, par un lien au référentiel des professionnels
+            // ({@see App\Services\Analyse\ServiceLienResultat}) — même forme que le lien
+            // médicament (P6.6b) et le lien analyse (P6.7a).
 
             // L'établissement suit la même logique. Repli sur la saisie quand la fiche n'en porte
             // pas : mieux vaut l'information de l'agent qu'un champ vide.

@@ -30,7 +30,8 @@ use Tests\TestCase;
  *  · **aucun endpoint ne qualifie un résultat** ;
  *  · un intervalle **sans source** empêche la publication ;
  *  · le lien résultat → catalogue fige code, libellé et **unité**, sur les trois chemins d'écriture ;
- *  · **la seconde porte du prescripteur est refermée** (le défaut que P6.5 avait laissé ouvert).
+ *  · le prescripteur d'un résultat n'est **jamais réécrit** : celui qui consigne n'est pas
+ *    forcément celui qui a prescrit (correction de P6.7a, décidée en P6.7b).
  */
 class CatalogueAnalysesTest extends TestCase
 {
@@ -402,17 +403,26 @@ class CatalogueAnalysesTest extends TestCase
     }
 
     // ─────────────────────────────────────────────────────────────────────────────
-    // LA SECONDE PORTE DU PRESCRIPTEUR
+    // LE PRESCRIPTEUR D'UN RÉSULTAT — CE VECTEUR A ÉTÉ RÉÉCRIT, ET IL FAUT DIRE POURQUOI
     // ─────────────────────────────────────────────────────────────────────────────
 
-    public function test_le_soignant_ne_declare_PLUS_le_prescripteur(): void
+    public function test_le_soignant_ne_REMPLACE_PAS_le_prescripteur_declare(): void
     {
-        // ═══ LE VECTEUR CENTRAL DE LA DÉCISION 3 ═══
+        // ═══ CE VECTEUR AFFIRMAIT L'INVERSE, ET IL AVAIT TORT ═══
         //
-        // P6.5b a refermé `ordonnances.medecin_nom` en testant CETTE clé-là. `resultats_analyses`
-        // porte `medecin_prescripteur` — un autre nom pour la même chose — et la section est
-        // ouverte au soignant. La porte était restée ouverte : un résultat consigné par un soignant
-        // pouvait nommer n'importe quel prescripteur.
+        // P6.7a le présentait comme le miroir de `ordonnances.medecin_nom` : le soignant qui
+        // consigne serait le prescripteur, donc le serveur devait écraser le champ. **C'était
+        // faux.** Pour une ordonnance, celui qui écrit EST le prescripteur — rédiger l'ordonnance
+        // est l'acte de prescrire. Pour un résultat, celui qui consigne est souvent quelqu'un
+        // d'autre : un biologiste, ou un médecin hospitalier qui classe un résultat prescrit par un
+        // généraliste de ville.
+        //
+        // Le serveur inscrivait alors le nom du MAUVAIS médecin — et une affirmation fausse portée
+        // par le système est plus difficile à contester qu'une saisie humaine non vérifiée.
+        //
+        // Le vecteur est donc réécrit pour dire la garantie JUSTE, et non corrigé pour passer
+        // (précédent P6.4d). La vérifiabilité passe désormais par un lien au référentiel, éprouvé
+        // dans `ReferentielLaboratoiresTest`.
         $this->seed(PortailRolesSeeder::class);
         app(PermissionRegistrar::class)->forgetCachedPermissions();
 
@@ -421,13 +431,13 @@ class CatalogueAnalysesTest extends TestCase
             'latitude' => 5.35, 'longitude' => -3.98, 'actif' => true,
         ]);
 
-        $compte = User::factory()->create(['structure_id' => $structure->id]);
-        $compte->givePermissionTo('dossier.ecrire');
-
         $service = \App\Models\ServiceEtablissement::create([
             'structure_id' => $structure->id, 'nom_service' => 'Laboratoire',
             'specialite' => 'biologie', 'actif' => true,
         ]);
+
+        $compte = User::factory()->create(['structure_id' => $structure->id]);
+        $compte->givePermissionTo('dossier.ecrire');
 
         \App\Models\Medecin::create([
             'structure_id' => $structure->id, 'service_id' => $service->id, 'user_id' => $compte->id,
@@ -444,12 +454,15 @@ class CatalogueAnalysesTest extends TestCase
                 'type_analyse'         => 'biologique',
                 'intitule'             => 'NFS',
                 'date_analyse'         => '2026-08-14',
-                // Le client tente de nommer quelqu'un d'autre.
-                'medecin_prescripteur' => 'Dr Quelqu\'un d\'Autre',
+                'medecin_prescripteur' => 'Dr Konan, generaliste de ville',
             ],
         );
 
-        $this->assertSame('Dr Aya Koffi', $entree->medecin_prescripteur, 'La seconde porte est restée ouverte.');
+        $this->assertSame(
+            'Dr Konan, generaliste de ville',
+            $entree->medecin_prescripteur,
+            'Le serveur a remplacé le prescripteur par celui qui consigne — la régression de P6.7a.',
+        );
     }
 
     public function test_le_soignant_voit_aussi_son_lien_au_catalogue_resolu(): void

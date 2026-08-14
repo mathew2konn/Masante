@@ -125,6 +125,36 @@ final class Analyses
         'publication'        => 'Publication scientifique',
     ];
 
+    /**
+     * Types de laboratoire (§7.1) — SECOND AXE, à ne pas confondre avec la catégorie
+     * d'établissement.
+     *
+     * `structures_sanitaires.type = 'laboratoire'` dit **ce que c'est** ; `type_laboratoire` dit
+     * **lequel**. Les fondre rendrait insoluble « combien de laboratoires de santé publique dans ce
+     * district ? », que §4.4 assigne au référentiel — même raisonnement qu'en P6.4a entre `type` et
+     * `statut_juridique`.
+     *
+     * @var array<string, string>
+     */
+    public const TYPES_LABORATOIRE = [
+        'hospitalier'    => 'Laboratoire hospitalier',
+        'prive'          => 'Laboratoire privé',
+        'sante_publique' => 'Laboratoire de santé publique',
+        'universitaire'  => 'Laboratoire universitaire',
+        'specialise'     => 'Laboratoire spécialisé',
+    ];
+
+    /** @return array<int, string> */
+    public static function typesLaboratoire(): array
+    {
+        return array_keys(self::TYPES_LABORATOIRE);
+    }
+
+    public static function libelleTypeLaboratoire(?string $cle): ?string
+    {
+        return $cle === null ? null : (self::TYPES_LABORATOIRE[$cle] ?? $cle);
+    }
+
     /** @return array<int, string> */
     public static function categories(): array
     {
@@ -196,6 +226,7 @@ final class Analyses
             'sexes_strate'      => $paires(self::SEXES_STRATE),
             'etats'             => $paires(self::ETATS),
             'sources_reference' => $paires(self::SOURCES_REFERENCE),
+            'types_laboratoire' => $paires(self::TYPES_LABORATOIRE),
         ];
     }
 }

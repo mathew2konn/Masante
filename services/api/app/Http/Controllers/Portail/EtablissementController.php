@@ -3,6 +3,9 @@
 namespace App\Http\Controllers\Portail;
 
 use App\Http\Controllers\Controller;
+use App\Models\Analyse;
+use App\Models\LaboratoireAnalyse;
+use App\Services\Analyse\CatalogueDuLaboratoire;
 use App\Support\TypesEtablissement;
 use App\Models\ActivationPortail;
 use App\Models\CategorieImageEtablissement;
@@ -109,12 +112,28 @@ class EtablissementController extends Controller
     {
         $etablissement->load(['images', 'staff' => fn ($q) => $q->role('gestionnaire_etablissement')]);
 
+        // P6.7b — les analyses realisees ne concernent qu'un laboratoire. Pour les autres
+        // categories, on ne charge rien : la vue ne montre pas le bloc.
+        $estLabo = $etablissement->type === 'laboratoire';
+        $analysesLabo = $estLabo
+            ? app(CatalogueDuLaboratoire::class)->analysesDe($etablissement)
+            : collect();
+        $catalogueDisponible = $estLabo
+            ? Analyse::where('actif', true)
+                ->whereNotIn('id', LaboratoireAnalyse::where('structure_id', $etablissement->id)->pluck('analyse_id'))
+                ->orderBy('libelle')->get()
+            : collect();
+
         return view('portail.etablissements.edit', $this->donneesDeReference() + [
             'etablissement' => $etablissement,
             'gestionnaire'  => $etablissement->staff->first(),
             // P6.4c/P6.4d — les images se gèrent depuis la fiche d'édition (lève la limite O1).
             'images'        => $etablissement->images,
             'categories'    => CategorieImageEtablissement::query()->active()->orderBy('ordre')->get(),
+            // P6.7b — vides pour toute catégorie autre que `laboratoire` : la vue ne montre alors
+            // pas le bloc, plutôt que d'afficher une section sans objet.
+            'analysesLabo'        => $analysesLabo,
+            'catalogueDisponible' => $catalogueDisponible,
         ]);
     }
 
@@ -244,6 +263,16 @@ class EtablissementController extends Controller
             'statut_juridique'      => ['nullable', Rule::in(['public', 'prive', 'universitaire', 'militaire'])],
             'forme_juridique'       => ['nullable', 'string', 'max:80'],
             'niveau_soins'          => ['nullable', Rule::in(['primaire', 'secondaire', 'tertiaire'])],
+            // P6.7b — §7.1/§7.2. Ces champs ne concernent qu'un laboratoire ; on ne les impose donc
+            // jamais, et le formulaire ne les montre que pour cette categorie. Le referentiel ne
+            // gouverne QUE `type_laboratoire` : les autres sont des donnees d'exploitation, qui
+            // changent avec le personnel et les automates (voir `SourceEtablissements`).
+            'type_laboratoire'      => ['nullable', Rule::in(\App\Support\Analyses::typesLaboratoire())],
+            'responsable_scientifique'       => ['nullable', 'string', 'max:200'],
+            'responsable_scientifique_titre' => ['nullable', 'string', 'max:120'],
+            'equipements'           => ['nullable', 'string', 'max:5000'],
+            'delai_rendu_moyen_heures' => ['nullable', 'integer', 'min:0', 'max:8760'],
+            'connecte_si_national'  => ['nullable', 'boolean'],
 
             // — Coordonnées —
             'adresse'               => ['required', 'string', 'max:500'],
@@ -308,6 +337,21 @@ class EtablissementController extends Controller
 
         $valide['partenaire_ivoirsante'] = $request->boolean('partenaire_ivoirsante');
 
+        // P6.7b — les champs du §7.2 ne concernent QUE les laboratoires. Sur une autre catégorie,
+        // on les efface plutôt que de les laisser passer : un CHU qui porterait
+        // `type_laboratoire = 'prive'` produirait une statistique fausse, et le champ resterait
+        // invisible au formulaire — donc impossible à corriger par celui qui l'aurait rempli.
+        if (($valide['type'] ?? null) !== 'laboratoire') {
+            foreach (['type_laboratoire', 'responsable_scientifique', 'responsable_scientifique_titre',
+                'equipements', 'delai_rendu_moyen_heures'] as $champ) {
+                $valide[$champ] = null;
+            }
+
+            $valide['connecte_si_national'] = false;
+        } else {
+            $valide['connecte_si_national'] = $request->boolean('connecte_si_national');
+        }
+
         return $valide;
     }
 
@@ -351,5 +395,40 @@ class EtablissementController extends Controller
     private function emettreLienActivation(User $user): string
     {
         return route('portail.activation.show', ['token' => ActivationPortail::genererPour($user)]);
+    }
+
+    /**
+     * P6.7b — Déclare qu'un laboratoire réalise une analyse (CDC_09 §7.2).
+     *
+     * Les gardes ne sont PAS réécrites ici : elles vivent dans `CatalogueDuLaboratoire`, qui vérifie
+     * l'habilitation à deux chemins et refuse un établissement qui n'est pas un laboratoire. Motif
+     * de P6.4d, où les gardes d'image n'ont pas été dupliquées non plus.
+     */
+    public function ajouterAnalyse(Request $request, StructureSanitaire $etablissement): RedirectResponse
+    {
+        $donnees = $request->validate([
+            'analyse_id'         => ['required', 'integer', 'exists:analyses,id'],
+            'delai_rendu_heures' => ['nullable', 'integer', 'min:0', 'max:8760'],
+            'methode'            => ['nullable', 'string', 'max:200'],
+        ]);
+
+        app(CatalogueDuLaboratoire::class)->declarer(
+            $etablissement,
+            Analyse::findOrFail($donnees['analyse_id']),
+            $request->user(),
+            $donnees['delai_rendu_heures'] ?? null,
+            $donnees['methode'] ?? null,
+        );
+
+        return redirect()->route('portail.etablissements.edit', $etablissement)
+            ->with('succes', 'Analyse déclarée.');
+    }
+
+    public function retirerAnalyse(Request $request, StructureSanitaire $etablissement, LaboratoireAnalyse $ligne): RedirectResponse
+    {
+        app(CatalogueDuLaboratoire::class)->retirer($etablissement, $ligne, $request->user());
+
+        return redirect()->route('portail.etablissements.edit', $etablissement)
+            ->with('succes', 'Analyse retirée.');
     }
 }
