@@ -62,6 +62,33 @@
       <textarea name="description" rows="2" maxlength="2000" required
                 class="form-control form-control-sm">{{ old('description') }}</textarea>
     </div>
+    {{--
+      P6.8c — LE LIEN AU RÉFÉRENTIEL DES MALADIES, FACULTATIF ET DÉCLARÉ.
+
+      Il ne remplace pas la description : celle-ci reste ce que le patient ou le soignant a écrit,
+      mot pour mot (leçon P6.7b). Et le serveur ne DEVINE jamais un code depuis ce texte — ce serait
+      un diagnostic posé par une machine (CDC_00 §4).
+    --}}
+    <div class="col-12">
+      <label class="form-label small">Maladie du référentiel national <span class="text-muted">(facultatif)</span></label>
+      <select name="maladie_id" class="form-select form-select-sm">
+        <option value="">— Aucun rattachement —</option>
+        @foreach ($maladiesReferentiel as $m)
+          <option value="{{ $m['id'] }}" @selected((int) old('maladie_id') === $m['id'])>{{ $m['libelle'] }}</option>
+        @endforeach
+      </select>
+      @if (empty($maladiesReferentiel))
+        <div class="form-text">
+          Aucune version du référentiel des maladies n'est en vigueur : la description libre
+          ci-dessus reste le seul contenu enregistré.
+        </div>
+      @else
+        <div class="form-text">
+          Rattacher rend l'antécédent exploitable (« diabète », « DT2 » et « Diabète type 2 » sont
+          trois chaînes, un code national n'en est qu'un). La description n'est pas modifiée.
+        </div>
+      @endif
+    </div>
     <div class="col-12">
       <label class="form-label small">Traitement en cours</label>
       <textarea name="traitement_actuel" rows="2" maxlength="2000"

@@ -114,6 +114,14 @@ export type ChampResultats = ChampBase & { kind: 'resultats' };
  * dose sans vaccin — donc d'envoyer au serveur une combinaison qu'il refuse.
  */
 export type ChampVaccin = ChampBase & { kind: 'vaccin' };
+/**
+ * P6.8c — La maladie : un rattachement FACULTATIF au référentiel national, à CÔTÉ de la description.
+ *
+ * À la différence du vaccin, il ne remplace aucun champ existant : `description` reste ce que le
+ * patient a écrit, mot pour mot. Le serveur ne devine jamais un code depuis ce texte — ce serait un
+ * diagnostic posé par une machine (CDC_00 §4) — donc c'est bien une saisie humaine, séparée.
+ */
+export type ChampMaladie = ChampBase & { kind: 'maladie' };
 
 export type Champ =
   | ChampTexte
@@ -123,7 +131,8 @@ export type Champ =
   | ChampBooleen
   | ChampMedicaments
   | ChampResultats
-  | ChampVaccin;
+  | ChampVaccin
+  | ChampMaladie;
 
 /** Descriptif complet d'une section (clé = slug d'URL). */
 export type SectionDescriptor = {

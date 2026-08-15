@@ -23,14 +23,48 @@
       @if ($alerte->exists) @method('PUT') @endif
 
       <div class="row g-3">
+        {{--
+          P6.8c — LE MENU DEVIENT RÉEL, ET LA PORTE RESTE ENTROUVERTE.
+
+          Il portait sept libellés EN DUR dans un `<datalist>` pendant que la validation acceptait
+          n'importe quelle chaîne : il RESSEMBLAIT à une contrainte. La liste vient maintenant de la
+          version publiée du référentiel national — mais le champ libre reste accessible sous une
+          case explicite (décision E4) : une maladie émergente n'est dans aucune nomenclature au
+          moment où elle émerge, et bloquer une alerte urgente pour une lacune du référentiel
+          coûterait plus que la faute de frappe qu'on évite. L'écart est compté sur la liste.
+        --}}
         <div class="col-md-6">
-          <label for="maladie" class="form-label">Maladie</label>
-          <input type="text" id="maladie" name="maladie" list="maladies" maxlength="100" required
-                 class="form-control @error('maladie') is-invalid @enderror" value="{{ old('maladie', $alerte->maladie) }}">
-          <datalist id="maladies">
-            @foreach ($maladies as $m)<option value="{{ $m }}">@endforeach
-          </datalist>
-          @error('maladie')<div class="invalid-feedback">{{ $message }}</div>@enderror
+          <label for="maladie_id" class="form-label">Maladie</label>
+          <select id="maladie_id" name="maladie_id" class="form-select @error('maladie_id') is-invalid @enderror"
+                  onchange="document.getElementById('champ-maladie-libre').style.display = this.value === '' ? 'block' : 'none'">
+            <option value="">— Hors référentiel (à saisir) —</option>
+            @foreach ($maladiesReferentiel as $m)
+              <option value="{{ $m['id'] }}" @selected((int) old('maladie_id', $alerte->maladie_id) === $m['id'])>
+                {{ $m['libelle'] }}{{ $m['surveillance_prioritaire'] ? ' — surveillance prioritaire' : '' }}
+              </option>
+            @endforeach
+          </select>
+          @error('maladie_id')<div class="invalid-feedback">{{ $message }}</div>@enderror
+
+          @unless ($referentielEnVigueur)
+            <div class="form-text text-danger">
+              Aucune version du référentiel des maladies n'est en vigueur : la liste est vide tant
+              qu'une version n'a pas été publiée (CDC_09 §10). La saisie libre reste possible.
+            </div>
+          @endunless
+
+          <div id="champ-maladie-libre" class="mt-2"
+               style="{{ old('maladie_id', $alerte->maladie_id) ? 'display:none' : '' }}">
+            <input type="text" id="maladie" name="maladie" maxlength="100"
+                   class="form-control @error('maladie') is-invalid @enderror"
+                   value="{{ old('maladie', $alerte->maladie) }}"
+                   placeholder="Nom de la maladie, si elle n'est pas au référentiel">
+            @error('maladie')<div class="invalid-feedback d-block">{{ $message }}</div>@enderror
+            <div class="form-text">
+              Cette alerte sera comptée <strong>hors référentiel</strong> : elle restera lisible mais
+              ne pourra pas être agrégée avec les autres.
+            </div>
+          </div>
         </div>
 
         <div class="col-md-6">

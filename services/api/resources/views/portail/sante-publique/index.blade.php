@@ -17,6 +17,24 @@
   </a>
 </div>
 
+{{--
+  P6.8c — LE TÉMOIN DE L'ÉCART (décision E4). Le lien au référentiel est facultatif : une maladie
+  émergente n'est dans aucune nomenclature au moment où elle émerge. Ce qu'on ne peut pas fermer, on
+  le rend VISIBLE — sans quoi une alerte hors vocabulaire ne se distinguerait d'aucune autre, et
+  personne ne saurait que les statistiques de santé publique ne les couvrent pas.
+--}}
+@if ($horsReferentiel > 0)
+  <div class="alert alert-warning d-flex gap-2">
+    <i class="bi bi-exclamation-triangle"></i>
+    <div class="small">
+      <strong>{{ $horsReferentiel }}</strong> alerte(s) sur {{ $totalAlertes }} ne désignent
+      <strong>aucune entrée du référentiel national des maladies</strong> : leur libellé a été saisi
+      librement. Elles restent diffusées, mais <strong>ne peuvent pas être agrégées</strong> avec les
+      autres — « combien d'alertes de choléra cette année ? » les ignore.
+    </div>
+  </div>
+@endif
+
 <div class="card border-0 shadow-sm">
   <div class="table-responsive">
     <table class="table table-hover align-middle mb-0">
@@ -28,6 +46,11 @@
           <tr>
             <td>
               <strong>{{ $a->maladie }}</strong>
+              @if ($a->maladie_code)
+                <code class="small text-muted">{{ $a->maladie_code }}</code>
+              @else
+                <span class="badge bg-warning-subtle text-warning-emphasis">hors référentiel</span>
+              @endif
               <div class="text-muted small">{{ $a->titre }}</div>
             </td>
             <td>

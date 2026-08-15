@@ -130,6 +130,10 @@ const antecedents: SectionDescriptor = {
   champs: [
     { kind: 'select', cle: 'type', label: 'Type', obligatoire: true, options: opts(ANTECEDENT_TYPE) },
     { kind: 'texte', cle: 'description', label: 'Description', obligatoire: true, multiligne: true, max: 2000 },
+    // P6.8c — le rattachement FACULTATIF au référentiel des maladies. Il s'ajoute À CÔTÉ de la
+    // description, il ne la remplace pas : « diabète », « DT2 » et « Diabète type 2 » sont trois
+    // chaînes, un code national n'en est qu'un — mais ce que le patient a écrit lui appartient.
+    { kind: 'maladie', cle: 'maladie_id', label: 'Maladie du référentiel national' },
     { kind: 'date', cle: 'date_diagnostic', label: 'Date du diagnostic', futurInterdit: true },
     { kind: 'texte', cle: 'medecin_nom', label: 'Médecin', max: 200, autoCap: 'words' },
     { kind: 'texte', cle: 'structure_sanitaire', label: 'Structure sanitaire', max: 200, autoCap: 'words' },
@@ -137,7 +141,13 @@ const antecedents: SectionDescriptor = {
   ],
   resume: (i: CarnetItem) => ({
     titre: ANTECEDENT_TYPE[str(i.type)] ?? 'Antécédent',
-    lignes: [str(i.description), i.date_diagnostic ? `Diagnostiqué le ${formatDateFr(str(i.date_diagnostic))}` : ''].filter(Boolean),
+    lignes: [
+      str(i.description),
+      i.date_diagnostic ? `Diagnostiqué le ${formatDateFr(str(i.date_diagnostic))}` : '',
+      // P6.8c — le rattachement se voit, SOUS la description et jamais à sa place : c'est ce qui
+      // distingue un texte recopié d'une entrée exploitable.
+      i.maladie_code ? `Référentiel national · ${str(i.maladie_libelle)} · ${str(i.maladie_code)}` : '',
+    ].filter(Boolean),
   }),
 };
 

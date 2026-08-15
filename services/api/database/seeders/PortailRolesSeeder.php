@@ -90,6 +90,12 @@ class PortailRolesSeeder extends Seeder
         // calendrier vaccinal n'est pas une donnée d'exploitation — c'est une politique de santé
         // publique, dont le caractère obligatoire engage l'État.
         'vaccin.referentiel',     // éditer le référentiel des vaccins et le calendrier vaccinal
+        // Référentiel des maladies (P6.8c, CDC_09 §8) — ATTRIBUÉE À AUCUN RÔLE, DIXIÈME occurrence,
+        // et la raison lui est propre. `sante_publique.manage` existe déjà et sert à PUBLIER LES
+        // ALERTES épidémiques ; l'étendre au vocabulaire ferait de l'auteur d'une alerte celui qui
+        // décide de ce qu'est une maladie — et de sa liste de surveillance nationale. Une
+        // classification des maladies engage une autorité sanitaire, pas le rédacteur d'un bulletin.
+        'maladie.referentiel',    // éditer le référentiel des maladies, leurs libellés et la surveillance
         // Signature électronique (P6.5b, CDC_09 §5.3). Portée par le rôle `medecin` : signer ses
         // propres prescriptions relève du soin, pas d'une habilitation exceptionnelle. Elle ne
         // donne à elle seule AUCUN pouvoir — les cinq contrôles du §5.4 restent devant, et sans

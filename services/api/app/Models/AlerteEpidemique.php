@@ -26,6 +26,10 @@ class AlerteEpidemique extends Model
         'titre',
         'description',
         'maladie',
+        // P6.8c — lien FACULTATIF au référentiel (décision E4). `maladie` reste la valeur lue par le
+        // mobile ; quand un lien est fourni, le serveur la REPREND du référentiel, jamais du client.
+        'maladie_id',
+        'maladie_code',
         'niveau_alerte',
         'source',
         'date_debut',
@@ -46,6 +50,24 @@ class AlerteEpidemique extends Model
     public function publiePar(): BelongsTo
     {
         return $this->belongsTo(User::class, 'publie_par_user_id');
+    }
+
+    /**
+     * La maladie du référentiel national, quand l'alerte en désigne une (P6.8c).
+     *
+     * NULLABLE PAR DÉCISION (E4) : une maladie émergente n'est dans aucune nomenclature au moment où
+     * elle émerge. Imposer le référentiel ferait payer ses lacunes à une alerte urgente. L'écart est
+     * compté et affiché au portail, jamais tu.
+     */
+    public function maladieReferentiel(): BelongsTo
+    {
+        return $this->belongsTo(Maladie::class, 'maladie_id');
+    }
+
+    /** Les alertes qui ne désignent aucune entrée du référentiel — le témoin de l'écart. */
+    public function scopeHorsReferentiel(Builder $query): Builder
+    {
+        return $query->whereNull('maladie_id');
     }
 
     /**

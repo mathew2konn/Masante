@@ -4,6 +4,7 @@ namespace App\Support;
 
 use App\Services\Referentiel\SourceAnalyses;
 use App\Services\Referentiel\SourceEtablissements;
+use App\Services\Referentiel\SourceMaladies;
 use App\Services\Referentiel\SourceMedicaments;
 use App\Services\Referentiel\SourceProfessionnels;
 use App\Services\Referentiel\SourceReferentiel;
@@ -72,6 +73,13 @@ final class RegistreReferentiels
         // rattrapage sont des actes de santé publique, et un parent doit pouvoir savoir sous quelle
         // version du calendrier son enfant a été suivi. Voir `SourceVaccins`.
         SourceVaccins::CODE          => SourceVaccins::class,
+        // P6.8c — le premier référentiel dont le contenu N'APPARTIENT À AUCUN PAYS : le paludisme
+        // est le paludisme partout, et son code est unique globalement (décision propriétaire E2).
+        // Ce qui est national — ce qu'on surveille, ce qu'on doit déclarer — vit dans une table à
+        // part, publiée dans le MÊME instantané. Il entre sous gouvernance parce que renommer une
+        // maladie ou la retirer change le sens des alertes et des antécédents déjà rattachés.
+        // Voir `SourceMaladies` et ADR-037.
+        SourceMaladies::CODE         => SourceMaladies::class,
     ];
 
     /** @return array<int, string> */

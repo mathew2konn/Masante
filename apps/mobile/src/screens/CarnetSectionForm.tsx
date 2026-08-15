@@ -18,6 +18,7 @@ import { deposerContribution } from '../api/contributions';
 import { rechercherMedicaments } from '../api/medicaments';
 import { obtenirReferences, rechercherAnalyses } from '../api/analyses';
 import { rechercherVaccins } from '../api/vaccins';
+import { rechercherMaladies } from '../api/maladies';
 import { obtenirMembre } from '../api/membres';
 import { messageErreur } from '../utils/erreurs';
 import { heureCourte, isoVersDateInput, validerDate, validerHeure } from '../utils/dates';
@@ -31,6 +32,7 @@ import type {
 import type { Medicament as MedicamentCatalogue } from '../types/medicament';
 import type { AnalyseCatalogue, ReferencesAnalyse } from '../types/analyse';
 import type { VaccinCatalogue } from '../types/vaccin';
+import type { MaladieCatalogue, SaisieMaladie } from '../types/maladie';
 import { colors, spacing, typography } from '../theme/theme';
 
 /**
@@ -320,7 +322,138 @@ function ChampVue({
           erreur={erreur}
         />
       );
+    case 'maladie':
+      return (
+        <SelecteurMaladie
+          label={libelle(champ)}
+          valeur={(valeur as SaisieMaladie) ?? { recherche: '' }}
+          onChange={onChange}
+        />
+      );
   }
+}
+
+/**
+ * P6.8c — Le rattachement FACULTATIF d'un antécédent au référentiel national des maladies.
+ *
+ * ═══ IL S'AJOUTE, IL NE REMPLACE RIEN ═══
+ *
+ * À la différence du champ vaccin, il ne prend la place d'aucun champ existant : la description
+ * reste ce que le patient a écrit, mot pour mot. C'est la leçon de P6.7b, où la réécriture du
+ * prescripteur inscrivait le nom du mauvais médecin — *une affirmation fausse portée par le système
+ * est plus difficile à contester qu'une saisie humaine non vérifiée*.
+ *
+ * ═══ IL PROPOSE, IL NE DEVINE PAS ═══
+ *
+ * Rien ne rapproche automatiquement « diabète » d'une entrée du référentiel : ce serait un
+ * diagnostic posé par une machine (CDC_00 §4). C'est l'utilisateur qui cherche et qui choisit — la
+ * recherche interroge le libellé officiel ET les synonymes (« palu » retrouve « Paludisme »).
+ *
+ * ═══ HORS LIGNE, IL SE TAIT ═══
+ *
+ * Une recherche impossible n'est pas une panne : le champ est facultatif, et afficher une erreur
+ * ferait croire que le formulaire est cassé. Même décision qu'en P6.6b, P6.7a et P6.8b.
+ */
+function SelecteurMaladie({
+  label,
+  valeur,
+  onChange,
+}: {
+  label: string;
+  valeur: SaisieMaladie;
+  onChange: (v: SaisieMaladie) => void;
+}) {
+  const [suggestions, setSuggestions] = useState<MaladieCatalogue[]>([]);
+
+  const rattache = valeur.maladie_id !== undefined;
+
+  useEffect(() => {
+    const q = valeur.recherche.trim();
+
+    if (rattache || q.length < 3) {
+      setSuggestions([]);
+      return;
+    }
+
+    let vivant = true;
+    const minuteur = setTimeout(() => {
+      rechercherMaladies(q)
+        .then((liste) => {
+          if (vivant) setSuggestions(liste.slice(0, 5));
+        })
+        // Silence volontaire : sans réseau, ou avant la première publication du référentiel (503),
+        // l'antécédent s'enregistre sans rattachement — voir l'en-tête.
+        .catch(() => {
+          if (vivant) setSuggestions([]);
+        });
+    }, 350);
+
+    return () => {
+      vivant = false;
+      clearTimeout(minuteur);
+    };
+  }, [valeur.recherche, rattache]);
+
+  if (rattache) {
+    return (
+      <View style={styles.bloc}>
+        <Text style={styles.label}>{label}</Text>
+        <View style={styles.lienReferentiel}>
+          <Ionicons name="bookmark-outline" size={16} color={colors.success.text} />
+          <Text style={styles.lienTexte}>
+            {valeur.libelle}
+            {valeur.code_national ? ` · ${valeur.code_national}` : ''}
+          </Text>
+          <Pressable
+            onPress={() => onChange({ recherche: '' })}
+            accessibilityRole="button"
+            accessibilityLabel="Détacher du référentiel national"
+          >
+            <Text style={styles.lienDetacher}>Détacher</Text>
+          </Pressable>
+        </View>
+      </View>
+    );
+  }
+
+  return (
+    <View style={styles.bloc}>
+      <TextField
+        label={label}
+        value={valeur.recherche}
+        onChangeText={(t) => onChange({ recherche: t })}
+        maxLength={120}
+        autoCapitalize="sentences"
+      />
+
+      {suggestions.length > 0 ? (
+        <View style={styles.suggestions}>
+          {suggestions.map((m) => (
+            <Pressable
+              key={m.code}
+              onPress={() =>
+                // On ne pose que `maladie_id` côté payload : le libellé et le code affichés ici
+                // viennent du serveur, qui les relira et les figera. Les renvoyer donnerait
+                // l'illusion qu'ils font autorité alors qu'ils n'auraient été vérifiés par personne.
+                onChange({
+                  recherche: m.libelle,
+                  maladie_id: m.id,
+                  libelle: m.libelle,
+                  code_national: m.code,
+                })
+              }
+              accessibilityRole="button"
+              accessibilityLabel={`Rattacher à ${m.libelle}`}
+              style={styles.suggestion}
+            >
+              <Text style={styles.suggestionNom}>{m.libelle}</Text>
+              <Text style={styles.suggestionCode}>{m.code}</Text>
+            </Pressable>
+          ))}
+        </View>
+      ) : null}
+    </View>
+  );
 }
 
 /**
@@ -954,6 +1087,19 @@ function initiales(section: SectionDescriptor, item: Record<string, unknown> | n
         } satisfies SaisieVaccin;
         break;
       }
+      case 'maladie': {
+        // Le lien est RELU tel quel : le perdre à l'édition délierait silencieusement une ligne que
+        // quelqu'un avait rattachée au référentiel (même précaution que pour le vaccin).
+        const libelleFige = typeof item?.maladie_libelle === 'string' ? item.maladie_libelle : undefined;
+
+        v[c.cle] = {
+          recherche: libelleFige ?? '',
+          maladie_id: typeof item?.maladie_id === 'number' ? item.maladie_id : undefined,
+          libelle: libelleFige,
+          code_national: typeof item?.maladie_code === 'string' ? item.maladie_code : undefined,
+        } satisfies SaisieMaladie;
+        break;
+      }
     }
   }
   return v;
@@ -1065,6 +1211,16 @@ function construirePayload(section: SectionDescriptor, valeurs: Record<string, u
         p.vaccin_nom = saisie.nom.trim();
         p.vaccin_id = saisie.vaccin_id ?? null;
         p.numero_dose = saisie.vaccin_id !== undefined ? saisie.numero_dose ?? null : null;
+        break;
+      }
+      case 'maladie': {
+        const saisie = (val as SaisieMaladie) ?? { recherche: '' };
+
+        // SEULE la clé technique part. Ni `maladie_code` ni `maladie_libelle` : le serveur les relit
+        // à la version publiée et les fige. Les transmettre laisserait croire qu'ils viennent du
+        // client, alors qu'ils n'auraient été vérifiés par personne. Le texte de recherche, lui,
+        // n'est jamais envoyé — il n'a servi qu'à trouver.
+        p[c.cle] = saisie.maladie_id ?? null;
         break;
       }
     }

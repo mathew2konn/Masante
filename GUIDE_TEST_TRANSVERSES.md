@@ -431,3 +431,235 @@ passer inaperçu, tout fonctionnerait, et personne ne saurait la garantie inacti
 8. **Un trou antérieur trouvé en passant** : `update()` n'appelait pas `preparerDonnees()`. Un `PUT`
    pouvait donc changer `laboratoire_id` **sans repasser** par le contrôle « ce n'est pas un
    laboratoire » de P6.7b. Corrigé pour toutes les sections du carnet.
+
+---
+
+# Partie 3 — P6.8c : Référentiel national des maladies (CDC_09 §8)
+
+> Troisième incrément de P6.8. Referme **T3** du G0 — la liste de maladies en dur dans un contrôleur
+> et les vocabulaires libres qui l'entouraient. ADR-037.
+
+## 3.1 Ce qu'il faut comprendre avant de tester
+
+**Le menu déroulant des alertes ressemblait à une contrainte et n'en était pas une.** Sept libellés
+étaient figés dans `AlerteEpidemiqueController::MALADIES` pour alimenter un `<datalist>`, pendant que
+la validation acceptait n'importe quelle chaîne de 100 caractères — le commentaire du code l'avouait
+lui-même. Ce libellé part **brut** dans la bannière du mobile : une faute de frappe s'affichait telle
+quelle à toute une commune, et « combien d'alertes de choléra cette année ? » restait insoluble.
+
+**Trois choses à ne pas confondre en testant :**
+
+| Ce qu'on teste | Ce que ça veut dire |
+|---|---|
+| le **code national** (`MAL000001`) | un identifiant de **ligne**, attribué par la plateforme |
+| le **code CIM** (`code_cim10`) | la **nomenclature de l'OMS** — elle n'a **pas** été chargée, et **rien n'a été inventé** |
+| le **libellé officiel** | il vit sur `maladies.libelle` et **nulle part ailleurs** |
+
+**Une maladie n'appartient à aucun pays** (décision E2) : `MAL000001` est unique **globalement**,
+à la différence de `ETS`, `PRO`, `MED`, `ANA` et `VAC`. Ce qui est national, c'est la **surveillance**
+— ce que le pays suit et ce qu'il faut déclarer —, dans sa propre table.
+
+**Le lien d'une alerte est facultatif** (décision E4) : une maladie émergente n'est dans aucune
+nomenclature au moment où elle émerge. L'écart n'est donc pas supprimé, il est **compté et affiché**.
+
+## 3.2 Préparation
+
+```bash
+cd services/api
+XDEBUG_MODE=off php artisan migrate
+XDEBUG_MODE=off php artisan db:seed --class=VaccinSeeder       # les vaccins d'abord
+XDEBUG_MODE=off php artisan masante:vaccins:backfill
+XDEBUG_MODE=off php artisan db:seed --class=MaladieSeeder      # puis les maladies (elles s'y relient)
+XDEBUG_MODE=off php artisan db:seed --class=PortailRolesSeeder # cree la permission maladie.referentiel
+```
+
+> **Piège** : la permission `maladie.referentiel` n'existe qu'**après** `PortailRolesSeeder`. Sans
+> lui, tout appel à `can('maladie.referentiel')` lève `PermissionDoesNotExist` (déjà rencontré en
+> P6.5a).
+
+## 3.3 Le backfill
+
+```bash
+XDEBUG_MODE=off php artisan masante:maladies:backfill --dry-run   # annonce, n'ecrit rien
+XDEBUG_MODE=off php artisan masante:maladies:backfill             # MAL000001 ... MAL000021
+XDEBUG_MODE=off php artisan masante:maladies:backfill             # rejeu : rien a faire
+```
+
+**Ce que l'aperçu annonce doit être exactement ce que fera le passage réel** — le G2 de P6.8a avait
+trouvé l'inverse.
+
+Le backfill rattache aussi les alertes **existantes**, mais **par égalité exacte seulement** (casse et
+accents normalisés). Vecteur à rejouer : une alerte « Cholécystite » à côté d'une alerte « choléra »
+→ la seconde est rattachée, la première **jamais**. *Mesurer une distance entre deux noms de maladies
+pour décider laquelle l'agent voulait dire serait deviner une maladie* (CDC_00 §4).
+
+## 3.4 Les gardes du moteur
+
+```sql
+-- Doublon de code national
+INSERT INTO maladies (code, libelle, source, actif, created_at, updated_at)
+VALUES ('MAL000001','Test','demonstration',1,NOW(),NOW());
+-- attendu : ERROR 1062 ... 'maladies.uq_maladie_code'
+
+-- Doublon de libelle (deux maladies indiscernables dans une liste d'alerte)
+INSERT INTO maladies (code, libelle, source, actif, created_at, updated_at)
+VALUES ('MAL999999','Paludisme','demonstration',1,NOW(),NOW());
+-- attendu : ERROR 1062 ... 'maladies.uq_maladie_libelle'
+
+-- Un libelle alternatif qui RECOPIE le libelle officiel
+INSERT INTO maladie_libelles (maladie_id, langue, libelle, principal, source, created_at, updated_at)
+SELECT id,'fr',libelle,0,'demonstration',NOW(),NOW() FROM maladies WHERE libelle='Paludisme';
+-- attendu : ERROR 1644 (45000) : ck_libelle_alternatif_distinct
+```
+
+**Et le vecteur en sens inverse, qui doit PASSER :**
+
+```sql
+SELECT m.libelle AS officiel, l.langue, l.libelle AS alternatif
+FROM maladies m JOIN maladie_libelles l ON l.maladie_id = m.id
+WHERE m.libelle = 'Choléra';
+-- attendu : Choléra | en | Cholera
+```
+
+> **C'est le défaut que le G2 a trouvé et que les tests ne pouvaient pas voir.** Écrit en `=` simple,
+> le déclencheur comparait avec la **collation** de la colonne — insensible à la casse **et aux
+> accents** sous MySQL 8. « Cholera » et « Choléra » y étaient **égaux**, et le seeder s'arrêtait sur
+> `ERROR 1644` en enregistrant un libellé anglais légitime. SQLite compare octet à octet : la suite
+> de tests était verte. Correctif : `CAST(... AS BINARY)`.
+>
+> **Divergence connue** : `uq_maladie_libelle` hérite de la même collation. MySQL refuserait donc
+> deux maladies dont les libellés ne diffèrent que par un accent, là où SQLite les accepterait.
+> C'est plus strict en production qu'en test, et c'est écrit ici plutôt que découvert.
+
+## 3.5 La gouvernance mord — et le refus se vérifie PAR SON MOTIF
+
+```bash
+XDEBUG_MODE=off php artisan tinker
+```
+
+1. Enregistrer le référentiel, créer **deux** comptes habilités.
+2. A propose. **A tente de publier alors qu'il porte l'habilitation `referentiel.publier`.**
+3. Attendu : *« L'auteur d'une proposition ne peut pas la valider lui-même (CDC_09 §10, double
+   validation) »*.
+4. B publie → version 1.
+
+> **Piège de méthode, déjà rencontré en P6.8a.** Si A n'a **pas** la permission de publier, le refus
+> vient de l'habilitation et **ne prouve rien du quatre-yeux**. C'est arrivé au premier essai de ce
+> G2 : le message reçu parlait d'habilitation, pas de double validation. Un refus se vérifie
+> **par son motif**.
+
+## 3.6 Un `UPDATE` direct reste sans effet
+
+```sql
+UPDATE maladies SET libelle = 'MENSONGE DIRECT' WHERE code = 'MAL000001';
+```
+
+```bash
+curl -s "http://127.0.0.1:8000/api/v1/maladies?q=palu"
+# attendu : "libelle":"Paludisme"  <- la version publiee, pas la table
+```
+
+```sql
+SELECT libelle FROM maladies WHERE code='MAL000001';  -- dit bien MENSONGE DIRECT
+```
+
+C'est le but du §1.2.4, et la leçon de L1+L2. **Avant la première publication**, `GET /v1/maladies`
+répond **503**, jamais une liste vide : *un repli laisserait un oubli de publication invisible.*
+
+## 3.7 Les trois vecteurs en miroir — aucun ne suffit seul
+
+| # | Geste | Empreinte attendue |
+|---|---|---|
+| 1 | publier une **alerte épidémique** | **inchangée** (rien n'écrit automatiquement dans `maladies`) |
+| 2 | corriger le **libellé officiel** | **changée** |
+| 3 | rattacher un **vaccin** à une maladie | l'empreinte du **référentiel des vaccins** change |
+
+Le 3 est une **conséquence assumée et annoncée avant d'avoir codé** : les codes des maladies entrent
+dans la projection des vaccins. Même cas que `forme_juridique` en P6.4d.
+
+## 3.8 Le consommateur clinique : l'antécédent
+
+Avec un jeton Sanctum et un membre à soi :
+
+```bash
+# 1. Sans lien -- le serveur NE DEVINE PAS, meme quand la description est exacte
+curl -X POST .../antecedents -d '{"type":"maladie_chronique","description":"Diabete sucre"}'
+# attendu : maladie_code = null
+
+# 2. Avec lien, en envoyant un code fantaisiste
+curl -X POST .../antecedents -d '{"type":"maladie_chronique",
+  "description":"DT2 decouvert en 2019, suivi au CHU",
+  "maladie_id":18,"maladie_code":"MAL999999","maladie_libelle":"Ce que je veux"}'
+# attendu : code = MAL000018, libelle fige = Diabete sucre,
+#           et la DESCRIPTION EST INTACTE, mot pour mot
+
+# 3. Maladie inconnue
+curl -X POST .../antecedents -d '{"type":"maladie_chronique","description":"x","maladie_id":99999}'
+# attendu : 422 « La maladie n°99999 n'existe pas au referentiel national. »
+```
+
+**Le vecteur 1 est le plus important du module.** La description est *exactement* le libellé officiel,
+et pourtant rien n'est rattaché : rapprocher serait un **diagnostic posé par une machine**.
+
+**Le vecteur 2 tient la leçon de P6.7b** : le lien s'ajoute **à côté** des mots du patient, il ne les
+remplace pas — là-bas, la réécriture du prescripteur inscrivait le nom du **mauvais** médecin.
+
+**Fiche vitale** : le bloc « Maladies chroniques » montre désormais `code_national` et
+`libelle_reference` **à côté** de la description, jamais à sa place.
+
+## 3.9 L'alerte épidémique (décision E4)
+
+- Avec un lien : le libellé enregistré est celui **du référentiel**, quel que soit le texte envoyé.
+- Sans lien : « Pneumonie atypique d'origine inconnue » est **acceptée**, `maladie_id` reste `NULL`.
+- L'écran de liste affiche en permanence *« N alerte(s) sur M ne désignent aucune entrée du
+  référentiel »*, et chaque ligne concernée porte un badge « hors référentiel ».
+
+## 3.10 Le portail
+
+- `/portail/maladies` → **403** pour un compte qui porte `sante_publique.manage` (l'auteur des
+  alertes ne décide pas de ce qu'est une maladie) ; **200** pour `maladie.referentiel`.
+- Le formulaire **ne propose ni le code national ni les codes CIM** : envoyer `code=MAL999999` le
+  laisse `NULL`.
+- Deux bandeaux comptent l'honnêteté du contenu : **entrées de démonstration** et **entrées sans code
+  CIM** (21/21 au moment du G5).
+- La fiche d'édition refuse un libellé alternatif identique à l'officiel **avec un message d'écran**,
+  pas une erreur 500 : le moteur le rend impossible, l'écran le nomme.
+
+## 3.11 Mobile (Expo Go)
+
+Carnet → un membre → **Antécédents** → *Ajouter*. Sous « Description » apparaît « Maladie du
+référentiel national » (facultatif) : trois caractères suffisent à proposer, « palu » retrouve
+« Paludisme ». Une fois rattachée, la ligne affiche « Référentiel national · … » **sous** la
+description. **Hors ligne, le champ se tait** — une recherche impossible n'est pas une panne.
+
+## 3.12 Checklist G4
+
+- [ ] `MAL000001…MAL000021` attribués, rejeu sans effet
+- [ ] `1062` sur code et sur libellé ; `1644` sur la recopie du libellé officiel
+- [ ] « Cholera » (en) coexiste avec « Choléra » (fr)
+- [ ] contrôle qualité : **0 anomalie**, 21/21 en démonstration, 21/21 sans code CIM, 0 prétendant
+      venir d'une autorité
+- [ ] quatre-yeux refusé **par son motif**, puis publication par un second agent
+- [ ] `UPDATE` direct sans effet sur `/v1/maladies` ; **503** avant la v1
+- [ ] les **trois** vecteurs en miroir
+- [ ] antécédent : le serveur ne devine pas · description intacte · code et libellé figés · 422 nommant
+- [ ] alerte : libellé repris du référentiel · maladie émergente acceptée · écart compté
+- [ ] portail 403/200 · code national ignoré · deux bandeaux d'honnêteté
+- [ ] mobile : rattachement, détachement, silence hors ligne
+- [ ] **base restaurée compte par compte**
+
+## 3.13 Pièges rencontrés
+
+1. **La collation MySQL rendait le déclencheur plus strict que sa règle** (§3.4) — trouvé au G2,
+   invisible en test.
+2. **Une mutation a montré qu'un vecteur ne prouvait rien.** « Le client ne peut pas déclarer les
+   valeurs figées » envoyait *aussi* `maladie_id`, donc le service réécrivait les deux valeurs de
+   toute façon : retirer l'effacement le laissait vert. Le cas que la garde couvre réellement est
+   **un code déclaré sans lien** — vecteur ajouté. Troisième instance de cette famille après les
+   `expectExceptionCode` de P6.4c et le contrôle de révocation de P6.5b.
+3. **Un refus de quatre-yeux qui parle d'habilitation ne prouve pas le quatre-yeux** (§3.5).
+4. **`MembreFamille::create` ne passe pas `user_id`** (hors `$fillable`) : utiliser la factory.
+5. **La permission n'existe qu'après `PortailRolesSeeder`** (§3.2).
+6. **`admin_ivoirsante` reçoit `maladie.referentiel`** comme toutes les autres, par
+   `syncPermissions(Permission::all())`. « Portée par aucun rôle » veut dire **aucun rôle métier** —
+   le filtrage réel se joue à l'attribution nominative. C'est dit depuis P6.3, et ça reste vrai ici.

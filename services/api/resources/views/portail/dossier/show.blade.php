@@ -208,7 +208,11 @@
              section ouverte, compte habilité (`dossier.ecrire`), voie consentie (jamais le bris de
              glace). Le serveur revérifie tout : ceci n'évite qu'un formulaire voué au refus. --}}
         @if ($peutEcrire)
-          @include('portail.dossier.formulaire', ['section' => $section, 'peutSigner' => $peutSigner ?? false])
+          @include('portail.dossier.formulaire', [
+            'section' => $section,
+            'peutSigner' => $peutSigner ?? false,
+            'maladiesReferentiel' => $maladiesReferentiel ?? [],
+          ])
         @endif
       </div>
     </div>

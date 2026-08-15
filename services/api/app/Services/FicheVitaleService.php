@@ -93,15 +93,27 @@ class FicheVitaleService
      * Maladies chroniques ET traitement en cours : un secouriste doit savoir ce que le patient
      * prend déjà (interactions médicamenteuses).
      *
-     * @return array<array{libelle: string, traitement: string|null}>
+     * ═══ P6.8c — LE CODE NATIONAL EST JOINT, IL NE REMPLACE RIEN ═══
+     *
+     * `libelle` reste ce que le patient a écrit, mot pour mot. Le rattachement au référentiel des
+     * maladies s'ajoute À CÔTÉ : « diabète », « Diabète type 2 » et « DT2 » sont trois chaînes, un
+     * code national n'en est qu'un.
+     *
+     * *Un champ de plus sur un écran lu sans authentification se justifie ici parce qu'il ne révèle
+     * rien de neuf* : c'est la normalisation de ce qui s'affiche déjà juste au-dessus. Et il vaut
+     * `null` tant que personne n'a déclaré de lien — le serveur ne devine aucune maladie (CDC_00 §4).
+     *
+     * @return array<array{libelle: string, traitement: string|null, code_national: ?string, libelle_reference: ?string}>
      */
     private function maladiesChroniques(MembreFamille $membre): array
     {
         return $membre->antecedents
             ->where('type', 'maladie_chronique')
             ->map(fn (Antecedent $a) => [
-                'libelle'    => $a->description,
-                'traitement' => $a->traitement_actuel,
+                'libelle'           => $a->description,
+                'traitement'        => $a->traitement_actuel,
+                'code_national'     => $a->maladie_code,
+                'libelle_reference' => $a->maladie_libelle,
             ])
             ->values()
             ->all();

@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Portail;
 
 use App\Http\Controllers\Controller;
 use App\Models\EcheanceVaccinale;
+use App\Models\Maladie;
 use App\Models\Vaccin;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -90,8 +91,13 @@ class ReferentielVaccinController extends Controller
     public function edit(Vaccin $vaccin): View
     {
         return view('portail.vaccins.edit', [
-            'vaccin'    => $vaccin->load('echeances'),
+            'vaccin'    => $vaccin->load(['echeances', 'maladies']),
             'sources'   => self::SOURCES,
+            // P6.8c — le vocabulaire des maladies, pour rattacher ce vaccin à ce dont il protège.
+            // Lu dans la TABLE et non dans la version publiée : on édite ici du contenu de travail,
+            // et rattacher une maladie qui n'est pas encore publiée est légitime — c'est la
+            // publication du référentiel des vaccins qui décidera de ce qui est diffusé.
+            'maladies'  => Maladie::query()->active()->orderBy('libelle')->get(['id', 'libelle', 'code']),
             // Combien de lignes de carnet le référencent : retirer un vaccin n'est pas anodin, et
             // l'écran doit le dire avant, pas après.
             'rattachees' => $vaccin->vaccinations()->count(),
@@ -101,6 +107,14 @@ class ReferentielVaccinController extends Controller
     public function update(Request $request, Vaccin $vaccin): RedirectResponse
     {
         $vaccin->update($this->valider($request, $vaccin));
+
+        // P6.8c — les maladies évitées, par lien plutôt que par phrase. `sync` et non
+        // `syncWithoutDetaching` : ici l'agent voit la liste complète à l'écran et la coche, donc
+        // décocher DOIT retirer — à la différence du seeder, où un rejeu ne doit rien détruire.
+        // Un envoi sans le champ ne détache rien : l'absence de champ n'est pas une liste vide.
+        if ($request->has('maladies')) {
+            $vaccin->maladies()->sync($request->input('maladies', []));
+        }
 
         return redirect()->route('portail.vaccins.edit', $vaccin)
             ->with('succes', 'Vaccin enregistré. Il ne sera diffusé qu\'après publication d\'une '

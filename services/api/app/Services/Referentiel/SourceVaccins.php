@@ -59,7 +59,7 @@ final class SourceVaccins implements SourceReferentiel
     public function extraire(): array
     {
         return Vaccin::query()
-            ->with('echeances')
+            ->with(['echeances', 'maladies'])
             // Ordre stable et TOTAL : `code` est unique par pays, `pays_code` le complète pour que
             // deux pays ne s'entrelacent pas au gré des identifiants techniques (précédent P6.4a).
             ->orderBy('pays_code')
@@ -71,6 +71,21 @@ final class SourceVaccins implements SourceReferentiel
                 'libelle'             => $v->libelle,
                 'abreviation'         => $v->abreviation,
                 'maladies_evitees'    => $v->maladies_evitees,
+                // P6.8c — les maladies évitées, par CODE NATIONAL. Le texte ci-dessus est conservé
+                // (ADR-024) : il porte des formulations que le lien ne rend pas (« formes graves
+                // de… »). Rattacher un vaccin FAIT CHANGER L'EMPREINTE de ce référentiel, et c'était
+                // dit avant de coder — même cas que `forme_juridique` en P6.4d.
+                //
+                // Par code et jamais par identifiant technique : un instantané doit rester lisible
+                // quand les identifiants d'une base ne sont plus ceux d'une autre. TRIÉ, sans quoi
+                // deux ensembles identiques donneraient deux empreintes selon l'ordre d'insertion
+                // (précédent P6.4c).
+                'maladies_codes'      => $v->maladies
+                    ->pluck('code')
+                    ->filter()
+                    ->sort()
+                    ->values()
+                    ->all(),
                 'voie_administration' => $v->voie_administration,
                 'nb_doses'            => $v->nb_doses,
                 'statut_marche'       => $v->statut_marche,

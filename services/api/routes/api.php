@@ -27,6 +27,7 @@ use App\Http\Controllers\Api\V1\FicheParcoursController;
 use App\Http\Controllers\Api\V1\FicheVitaleController;
 use App\Http\Controllers\Api\V1\GouvernanceReferentielController;
 use App\Http\Controllers\Api\V1\ImageEtablissementController;
+use App\Http\Controllers\Api\V1\MaladieController;
 use App\Http\Controllers\Api\V1\MedecinController;
 use App\Http\Controllers\Api\V1\MedicamentController;
 use App\Http\Controllers\Api\V1\MembreController;
@@ -500,6 +501,14 @@ Route::middleware('throttle:api')->group(function () {
         // réponse est un 503 explicite — jamais une liste vide, qui aurait ressemblé à « aucun
         // vaccin n'existe ».
         Route::get('/vaccins', [VaccinController::class, 'index']);
+
+        // P6.8c — Référentiel national des maladies (CDC_09 §8), PUBLIC en lecture, même raison.
+        //
+        // `?q=` cherche dans le libellé officiel ET dans les libellés alternatifs — c'est le service
+        // que rend le multilingue du §8 : « palu » retrouve « Paludisme ». Aucune distance n'est
+        // mesurée, aucune maladie n'est devinée : deviner serait un diagnostic posé par une machine
+        // (CDC_00 §4). SERVI DEPUIS LA VERSION PUBLIÉE, 503 explicite tant qu'il n'y en a aucune.
+        Route::get('/maladies', [MaladieController::class, 'index']);
 
         // Module 5 / FN6 — Groupes sanguins les plus demandés (public : un appel au don n'a de sens
         // que largement visible). Les urgences remontent en tête. Les donneurs INSCRITS reçoivent en

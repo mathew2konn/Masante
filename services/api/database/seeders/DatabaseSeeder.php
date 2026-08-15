@@ -54,6 +54,12 @@ class DatabaseSeeder extends Seeder
         // passe par le quatre-yeux du §10.
         $this->call(VaccinSeeder::class);
 
+        // P6.8c — Maladies (CDC_09 §8). APRÈS `VaccinSeeder` : il relie les vaccins aux maladies
+        // dont ils protègent, et cette liaison suppose que les vaccins existent. JEU DE
+        // DÉMONSTRATION, AUCUN CODE CIM — CIM-10 et CIM-11 sont des publications de l'OMS ; les
+        // charger sera de la donnée, zéro code. Ne publie rien : la mise en vigueur passe par le §10.
+        $this->call(MaladieSeeder::class);
+
         // P6.4b — Villes couvertes (Abidjan, Yamoussoukro, Bouaké) + rattachement des structures.
         $this->call(VilleSeeder::class);
 

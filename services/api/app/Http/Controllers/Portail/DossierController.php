@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\MembreFamille;
 use App\Models\Triage;
 use App\Services\EcritureSoignantService;
+use App\Services\Maladie\ServiceMaladies;
 use App\Services\Pki\ServiceSignature;
 use App\Services\SessionDossierService;
 use Illuminate\Http\RedirectResponse;
@@ -115,6 +116,13 @@ class DossierController extends Controller
             'peutSigner' => isset(self::SECTIONS_SIGNABLES[self::SECTIONS_ECRITURE[$section] ?? ''])
                 && auth()->user()?->can('document.signer') === true
                 && $this->peutEcrire($section),
+            // P6.8c — le vocabulaire des maladies proposé au soignant qui consigne un antécédent.
+            // DEPUIS LA VERSION PUBLIÉE, et sans lever de 503 : une liste vide veut dire « aucune
+            // version en vigueur », et le formulaire le dit. Le lien reste facultatif — le serveur
+            // ne devine jamais une maladie depuis la description (CDC_00 §4).
+            'maladiesReferentiel' => $section === 'antecedents'
+                ? app(ServiceMaladies::class)->listePubliee()
+                : [],
         ]);
     }
 

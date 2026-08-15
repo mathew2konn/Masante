@@ -70,8 +70,38 @@
     <label class="form-label">Maladies évitées</label>
     <textarea name="maladies_evitees" class="form-control" rows="2" maxlength="2000"
               placeholder="Diphtérie, tétanos, coqueluche, hépatite B, infections à Haemophilus influenzae de type b.">{{ old('maladies_evitees', $v->maladies_evitees ?? '') }}</textarea>
-    <div class="form-text">Texte libre : le référentiel des maladies (CIM) arrive en P6.8c.</div>
+    <div class="form-text">
+      Texte libre, <strong>conservé</strong> : il porte des formulations que le lien ne rend pas
+      (« formes graves de… »). Le rattachement au référentiel se fait juste en dessous.
+    </div>
   </div>
+
+  {{--
+    P6.8c — LA PROMESSE DE P6.8b, TENUE. La migration des vaccins disait : « TEXTE et non table de
+    maladies : la CIM arrive en P6.8c, et un lien vers une table qui n'existe pas encore serait une
+    promesse, pas une donnée. »
+
+    Conséquence dite AVANT d'avoir codé : rattacher un vaccin ici FAIT CHANGER L'EMPREINTE du
+    référentiel des vaccins — les codes des maladies entrent dans sa projection. Ce n'est pas une
+    dérive, c'est le même cas que `forme_juridique` en P6.4d.
+  --}}
+  @if ($v !== null && isset($maladies))
+    <div class="col-12">
+      <label class="form-label">Maladies évitées — rattachement au référentiel</label>
+      <select name="maladies[]" class="form-select" multiple size="8">
+        @foreach ($maladies as $maladie)
+          <option value="{{ $maladie->id }}"
+                  @selected(in_array($maladie->id, old('maladies', $v->maladies->pluck('id')->all()), false))>
+            {{ $maladie->libelle }}{{ $maladie->code ? ' ('.$maladie->code.')' : ' — sans code national' }}
+          </option>
+        @endforeach
+      </select>
+      <div class="form-text">
+        Maintenez <kbd>Ctrl</kbd> (ou <kbd>Cmd</kbd>) pour en choisir plusieurs. Décocher retire le
+        rattachement ; le texte ci-dessus n'est pas modifié.
+      </div>
+    </div>
+  @endif
 
   <div class="col-12">
     <label class="form-label">Description</label>

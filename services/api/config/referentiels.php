@@ -28,4 +28,20 @@ return [
     */
     'pays_defaut' => env('REFERENTIELS_PAYS_DEFAUT', 'CI'),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Langue pivot des référentiels (CDC_09 §8, « libellés multilingues »)
+    |--------------------------------------------------------------------------
+    |
+    | La langue dont le libellé vit SUR LA LIGNE du référentiel (`maladies.libelle`) et non dans la
+    | table des libellés alternatifs. C'est cette asymétrie qui rend la seconde vérité inexprimable :
+    | il ne peut pas exister deux libellés officiels concurrents pour la langue pivot, puisque la
+    | table des alternatifs n'en porte aucun.
+    |
+    | Conséquence tenue par le contrôle qualité : une ligne de `maladie_libelles` dans la langue
+    | pivot est forcément un SYNONYME (« palu »), donc jamais `principal`.
+    |
+    */
+    'langue_pivot' => env('REFERENTIELS_LANGUE_PIVOT', 'fr'),
+
 ];

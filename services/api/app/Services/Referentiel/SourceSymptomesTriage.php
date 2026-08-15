@@ -61,6 +61,21 @@ final class SourceSymptomesTriage implements SourceReferentiel
                 'specialite_hint'                => $s->specialite_hint,
                 'drapeau_rouge'                  => (bool) $s->drapeau_rouge,
                 'questions_complementaires_json' => $s->questions_complementaires_json,
+                // ═══ P6.8c — CES LIBELLÉS NE SONT PAS CEUX DU RÉFÉRENTIEL DES MALADIES ═══
+                //
+                // Ils sont libres, et ils mêlent des maladies (« Paludisme »), des syndromes
+                // (« Détresse respiratoire ») et un état physiologique (« Grossesse »). Le G0 de
+                // P6.8c a par ailleurs vérifié qu'ILS N'ONT AUCUN LECTEUR : `TriageController`
+                // sélectionne des colonnes explicites et ne les renvoie pas, et rien dans le mobile
+                // ne les affiche. Leur seule sortie du serveur est CET INSTANTANÉ — c'est-à-dire
+                // l'endroit qui leur donne le plus d'autorité.
+                //
+                // POURQUOI ILS NE SONT PAS RATTACHÉS ICI, et le porteur est nommé : le triage est
+                // refondu en **P10**, et y toucher maintenant modifierait deux fois un module validé
+                // G5 (même raisonnement que `specialite_hint` en P6.8a). S'y ajoute qu'aucun
+                // consommateur ne les lit : les rattacher aujourd'hui serait le socle à vide refusé
+                // en P6.3-D3. *Nommer un manque ne le comble pas, mais un manque nommé ne s'oublie
+                // pas.*
                 'maladies_probables_json'        => $s->maladies_probables_json,
                 'actif'                          => (bool) $s->actif,
             ])

@@ -16,6 +16,7 @@ use App\Http\Controllers\Portail\MesPatientsController;
 use App\Http\Controllers\Portail\ModerationController;
 use App\Http\Controllers\Portail\ReferentielAnalyseController;
 use App\Http\Controllers\Portail\ReferentielMedicamentController;
+use App\Http\Controllers\Portail\ReferentielMaladieController;
 use App\Http\Controllers\Portail\ReferentielSpecialiteController;
 use App\Http\Controllers\Portail\ReferentielVaccinController;
 use App\Http\Controllers\Portail\RendezVousController;
@@ -276,6 +277,29 @@ Route::prefix('portail')->name('portail.')->group(function () {
                     ->name('echeances.store');
                 Route::delete('{vaccin}/echeances/{echeance}', [ReferentielVaccinController::class, 'supprimerEcheance'])
                     ->name('echeances.destroy');
+            });
+
+        // P6.8c — Référentiel NATIONAL des maladies (CDC_09 §8). Permission distincte de
+        // `sante_publique.manage`, qui sert à publier les ALERTES : les confondre ferait de
+        // l'auteur d'une alerte celui qui décide de ce qu'est une maladie, et de ce que le pays
+        // surveille.
+        Route::middleware('permission:maladie.referentiel')
+            ->prefix('maladies')->name('maladies.')->group(function () {
+                Route::get('/', [ReferentielMaladieController::class, 'index'])->name('index');
+                // Déclarée AVANT `{maladie}/editer` : sans cela, « nouveau » serait capté comme un
+                // identifiant (piège de P7-D0, puis P6.5b, puis P6.8a, puis P6.8b).
+                Route::get('nouveau', [ReferentielMaladieController::class, 'create'])->name('create');
+                Route::post('/', [ReferentielMaladieController::class, 'store'])->name('store');
+                Route::get('{maladie}/editer', [ReferentielMaladieController::class, 'edit'])->name('edit');
+                Route::put('{maladie}', [ReferentielMaladieController::class, 'update'])->name('update');
+                Route::post('{maladie}/libelles', [ReferentielMaladieController::class, 'enregistrerLibelle'])
+                    ->name('libelles.store');
+                Route::delete('{maladie}/libelles/{libelle}', [ReferentielMaladieController::class, 'supprimerLibelle'])
+                    ->name('libelles.destroy');
+                Route::post('{maladie}/surveillance', [ReferentielMaladieController::class, 'enregistrerSurveillance'])
+                    ->name('surveillance.store');
+                Route::delete('{maladie}/surveillance/{surveillance}', [ReferentielMaladieController::class, 'supprimerSurveillance'])
+                    ->name('surveillance.destroy');
             });
 
         // 5.7 — Don de sang (FN6) : l'ÉTABLISSEMENT publie ses besoins — lui seul sait qu'il manque

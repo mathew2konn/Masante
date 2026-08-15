@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
@@ -50,6 +51,18 @@ class Vaccin extends Model
     public function vaccinations(): HasMany
     {
         return $this->hasMany(Vaccination::class, 'vaccin_id');
+    }
+
+    /**
+     * Les maladies dont ce vaccin protège (P6.8c — la promesse écrite dans la migration de P6.8b).
+     *
+     * `maladies_evitees` reste à côté et n'est pas supprimée (ADR-024) : elle porte des formulations
+     * que le lien ne rend pas (« formes graves de… »).
+     */
+    public function maladies(): BelongsToMany
+    {
+        return $this->belongsToMany(Maladie::class, 'vaccin_maladies', 'vaccin_id', 'maladie_id')
+            ->withTimestamps();
     }
 
     public function scopeActif(Builder $query): Builder
