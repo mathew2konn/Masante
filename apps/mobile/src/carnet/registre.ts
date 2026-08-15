@@ -7,6 +7,11 @@
  *
  * Les énumérations reflètent À L'IDENTIQUE les règles `in:...` des contrôleurs backend.
  */
+import {
+  LIBELLE_STATUT_ECHEANCE,
+  StatutVaccination,
+  type StatutEcheanceVaccinale,
+} from '@masante/shared';
 import type { CarnetItem, Medicament, SectionDescriptor, Ton } from '../types/carnet';
 import { formatDateFr, formatDateHeureFr, heureCourte } from '../utils/dates';
 
@@ -20,16 +25,23 @@ const ANTECEDENT_TYPE: Record<string, string> = {
   autre: 'Autre',
 };
 
-const VACCIN_STATUT: Record<string, string> = {
-  fait: 'Fait',
-  a_faire: 'À faire',
-  en_retard: 'En retard',
-};
-
+/**
+ * P6.8b — Le statut vaccinal N'EST PLUS SAISI, il est LU.
+ *
+ * Ces libellés alimentaient un `select` OBLIGATOIRE du formulaire : on demandait au citoyen de
+ * DÉCLARER si sa vaccination était faite, à faire ou en retard. C'était doublement faux — un état
+ * métier est fourni par le backend (CDC_01 §0.1), et celui-ci était en plus figé au jour de la
+ * saisie, si bien qu'un « à faire » dépassé depuis six mois restait « à faire » avec une pastille
+ * de couleur qui lui donnait l'autorité d'un calcul.
+ *
+ * Ils ne servent plus qu'à AFFICHER ce que le serveur a décidé. Les valeurs viennent de
+ * `@masante/shared` : troisième récidive évitée du constat G-a de P6.4b, après les communes
+ * d'Abidjan et les catégories d'établissement.
+ */
 const VACCIN_STATUT_TON: Record<string, Ton> = {
-  fait: 'success',
-  a_faire: 'warning',
-  en_retard: 'danger',
+  [StatutVaccination.FAIT]: 'success',
+  [StatutVaccination.A_FAIRE]: 'warning',
+  [StatutVaccination.EN_RETARD]: 'danger',
 };
 
 const ANALYSE_TYPE: Record<string, string> = {
@@ -136,9 +148,13 @@ const vaccinations: SectionDescriptor = {
   titreSingulier: 'vaccination',
   icone: 'shield-outline',
   champs: [
-    { kind: 'texte', cle: 'vaccin_nom', label: 'Vaccin', obligatoire: true, max: 200, autoCap: 'sentences' },
-    { kind: 'select', cle: 'statut', label: 'Statut', obligatoire: true, options: opts(VACCIN_STATUT) },
-    { kind: 'booleen', cle: 'obligatoire', label: 'Vaccin obligatoire', defaut: false },
+    // P6.8b — DEUX CHAMPS ONT DISPARU DE CE FORMULAIRE, et c'est tout l'incrément :
+    //   · « Statut »            → calculé par le serveur (voir VACCIN_STATUT_TON plus haut) ;
+    //   · « Vaccin obligatoire » → fait de POLITIQUE NATIONALE lu au calendrier, jamais coché ici.
+    // Le second était le plus discret et le plus grave : c'est lui, avec le statut, que la fiche
+    // vitale d'urgence lisait — un secouriste voyait donc « vaccinations essentielles » sous une
+    // icône de bouclier coché, alimentées par deux cases que n'importe qui pouvait cocher.
+    { kind: 'vaccin', cle: 'vaccin_id', label: 'Vaccin', obligatoire: true },
     { kind: 'date', cle: 'date_administration', label: "Date d'administration" },
     { kind: 'date', cle: 'date_rappel', label: 'Date de rappel' },
     { kind: 'texte', cle: 'centre_vaccination', label: 'Centre de vaccination', max: 200, autoCap: 'words' },
@@ -147,8 +163,16 @@ const vaccinations: SectionDescriptor = {
   ],
   resume: (i: CarnetItem) => ({
     titre: str(i.vaccin_nom) || 'Vaccin',
-    lignes: [i.date_administration ? `Administré le ${formatDateFr(str(i.date_administration))}` : ''].filter(Boolean),
-    badge: { texte: VACCIN_STATUT[str(i.statut)] ?? str(i.statut), ton: VACCIN_STATUT_TON[str(i.statut)] ?? 'neutre' },
+    lignes: [
+      i.date_administration ? `Administré le ${formatDateFr(str(i.date_administration))}` : '',
+      // Le rattachement au référentiel se voit : c'est ce qui distingue un texte recopié d'un fait
+      // vérifiable, et c'est aussi ce qui permet au calendrier de reconnaître la dose.
+      i.vaccin_code ? `Référentiel national · ${str(i.vaccin_code)}${i.numero_dose ? ` · dose ${String(i.numero_dose)}` : ''}` : '',
+    ].filter(Boolean),
+    badge: {
+      texte: LIBELLE_STATUT_ECHEANCE[str(i.statut) as StatutEcheanceVaccinale] ?? str(i.statut),
+      ton: VACCIN_STATUT_TON[str(i.statut)] ?? 'neutre',
+    },
   }),
 };
 

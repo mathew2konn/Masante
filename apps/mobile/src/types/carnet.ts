@@ -56,6 +56,23 @@ export type ParametreResultat = {
   readonly unite_catalogue?: string;
 };
 
+/**
+ * La saisie d'un vaccin : un nom, et un rattachement FACULTATIF au référentiel national (P6.8b).
+ *
+ * `nom` reste libre — un parent qui recopie un carnet papier n'a pas la liste sous les yeux, et le
+ * référentiel est incomplet : l'imposer ferait de ses lacunes un blocage.
+ *
+ * `vaccin_id` et `numero_dose` sont les SEULES clés que le client envoie. Le code national et le
+ * libellé sont posés par le SERVEUR depuis la version publiée du calendrier, et figés — d'où
+ * `readonly` : on peut les afficher, jamais les écrire.
+ */
+export type SaisieVaccin = {
+  nom: string;
+  vaccin_id?: number;
+  numero_dose?: number;
+  readonly code_national?: string;
+};
+
 /** Tonalité sémantique d'un badge de liste (mappée aux couleurs du DS). */
 export type Ton = 'success' | 'warning' | 'danger' | 'neutre';
 
@@ -89,6 +106,14 @@ export type ChampSelect = ChampBase & { kind: 'select'; options: { value: string
 export type ChampBooleen = ChampBase & { kind: 'booleen'; defaut?: boolean };
 export type ChampMedicaments = ChampBase & { kind: 'medicaments' };
 export type ChampResultats = ChampBase & { kind: 'resultats' };
+/**
+ * P6.8b — Le vaccin : un nom libre, et un rattachement FACULTATIF au référentiel national.
+ *
+ * Un champ à part plutôt qu'un `texte` plus un `select` : le nom, le vaccin choisi et la dose ne
+ * sont qu'une seule information pour l'utilisateur, et les séparer aurait permis de choisir une
+ * dose sans vaccin — donc d'envoyer au serveur une combinaison qu'il refuse.
+ */
+export type ChampVaccin = ChampBase & { kind: 'vaccin' };
 
 export type Champ =
   | ChampTexte
@@ -97,7 +122,8 @@ export type Champ =
   | ChampSelect
   | ChampBooleen
   | ChampMedicaments
-  | ChampResultats;
+  | ChampResultats
+  | ChampVaccin;
 
 /** Descriptif complet d'une section (clé = slug d'URL). */
 export type SectionDescriptor = {

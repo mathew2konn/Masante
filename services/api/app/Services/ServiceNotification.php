@@ -288,6 +288,67 @@ class ServiceNotification
         );
     }
 
+    /**
+     * P6.8b — des échéances du calendrier vaccinal national sont atteintes pour ce membre.
+     *
+     * ═══ UNE NOTIFICATION, PAS UNE PAR DOSE ═══
+     *
+     * À six semaines, le calendrier prévoit quatre injections le même jour. Émettre quatre
+     * notifications identiques noierait l'information dans son propre bruit — et la première chose
+     * qu'un utilisateur fait d'une liste de lignes identiques, c'est de cesser de la lire. Motif
+     * repris de `partageEnMasseRecu` (D1), pour la même raison.
+     *
+     * ═══ LA RÈGLE INVIOLABLE MORD ICI, ET IL FAUT LE DIRE ═══
+     *
+     * Le corps NE NOMME AUCUN VACCIN. Un nom de vaccin est une information de santé : il désigne
+     * une pathologie visée, parfois une situation. Cette phrase s'affiche sur un écran verrouillé et
+     * transite, pour le push, par un tiers. Le détail se lit dans l'application, après
+     * authentification — le calendrier y est à un geste.
+     *
+     * ═══ DESTINATAIRES ═══
+     *
+     * Le propriétaire du carnet ET les délégués en lecture — mêmes destinataires que
+     * {@see carnetEnrichi} et {@see dossierConsulte}. Celui qui emmène l'enfant au centre n'est pas
+     * toujours celui qui détient le carnet, et c'est précisément le scénario fondateur de P7.
+     *
+     * @param  bool  $enRetard  vrai quand le délai de grâce publié est écoulé
+     */
+    public function echeanceVaccinale(MembreFamille $membre, int $nombre, bool $enRetard): void
+    {
+        if ($nombre <= 0) {
+            return;
+        }
+
+        $corps = $enRetard
+            ? sprintf(
+                '%d vaccination%s prévue%s au calendrier national %s en retard pour %s. '
+                .'Ouvrez son carnet pour voir lesquelles.',
+                $nombre,
+                $nombre > 1 ? 's' : '',
+                $nombre > 1 ? 's' : '',
+                $nombre > 1 ? 'sont' : 'est',
+                $this->nomDuMembre($membre),
+            )
+            : sprintf(
+                '%d vaccination%s du calendrier national %s prévue%s pour %s. '
+                .'Ouvrez son carnet pour voir lesquelles.',
+                $nombre,
+                $nombre > 1 ? 's' : '',
+                $nombre > 1 ? 'sont' : 'est',
+                $nombre > 1 ? 's' : '',
+                $this->nomDuMembre($membre),
+            );
+
+        $this->envoyer(
+            array_merge([$membre->user_id], Delegation::lecteursDe($membre->id)),
+            TypeNotification::ECHEANCE_VACCINALE,
+            $corps,
+            // `nombre` et `en_retard` sont des compteurs et un drapeau d'affichage, jamais un
+            // contenu clinique : ils disent COMBIEN, pas QUOI.
+            ['membre_id' => $membre->id, 'nombre' => $nombre, 'en_retard' => $enRetard],
+        );
+    }
+
     /** Libellé lisible d'une section — présentation, aucune règle. */
     private function libelleSection(string $section): string
     {

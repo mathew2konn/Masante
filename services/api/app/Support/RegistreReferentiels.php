@@ -10,6 +10,7 @@ use App\Services\Referentiel\SourceReferentiel;
 use App\Services\Referentiel\SourceSeuilsMesure;
 use App\Services\Referentiel\SourceSpecialites;
 use App\Services\Referentiel\SourceSymptomesTriage;
+use App\Services\Referentiel\SourceVaccins;
 
 /**
  * Liste blanche FERMÉE des référentiels nationaux placés sous gouvernance (CDC_09 §10 ; P6.3).
@@ -65,6 +66,12 @@ final class RegistreReferentiels
         // terme ou en retirer un change le sens des services et des fiches de praticiens DÉJÀ
         // rattachés. C'est une décision, pas une correction de saisie. Voir `SourceSpecialites`.
         SourceSpecialites::CODE      => SourceSpecialites::class,
+        // P6.8b — le premier référentiel qui porte un PLAN plutôt qu'un état : le calendrier dit ce
+        // qui sera dû, à quel âge, à qui. Il entre sous gouvernance pour une raison qui lui est
+        // propre — avancer une échéance, rendre une dose obligatoire ou ouvrir une fenêtre de
+        // rattrapage sont des actes de santé publique, et un parent doit pouvoir savoir sous quelle
+        // version du calendrier son enfant a été suivi. Voir `SourceVaccins`.
+        SourceVaccins::CODE          => SourceVaccins::class,
     ];
 
     /** @return array<int, string> */

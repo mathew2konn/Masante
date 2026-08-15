@@ -17,6 +17,7 @@ use App\Http\Controllers\Portail\ModerationController;
 use App\Http\Controllers\Portail\ReferentielAnalyseController;
 use App\Http\Controllers\Portail\ReferentielMedicamentController;
 use App\Http\Controllers\Portail\ReferentielSpecialiteController;
+use App\Http\Controllers\Portail\ReferentielVaccinController;
 use App\Http\Controllers\Portail\RendezVousController;
 use App\Http\Controllers\Portail\ScanController;
 use App\Http\Controllers\Portail\ServiceController;
@@ -257,6 +258,24 @@ Route::prefix('portail')->name('portail.')->group(function () {
                 Route::post('/', [ReferentielSpecialiteController::class, 'store'])->name('store');
                 Route::get('{specialite}/editer', [ReferentielSpecialiteController::class, 'edit'])->name('edit');
                 Route::put('{specialite}', [ReferentielSpecialiteController::class, 'update'])->name('update');
+            });
+
+        // P6.8b — Vaccins et calendrier vaccinal NATIONAL (CDC_09 §8). Permission distincte, pour
+        // une raison qui lui est propre : un centre de vaccination serait juge et partie sur ce
+        // qu'il administre, et le caractère obligatoire d'une dose engage l'État.
+        Route::middleware('permission:vaccin.referentiel')
+            ->prefix('vaccins')->name('vaccins.')->group(function () {
+                Route::get('/', [ReferentielVaccinController::class, 'index'])->name('index');
+                // Déclarée AVANT `{vaccin}/editer` : sans cela, « nouveau » serait capté comme un
+                // identifiant (piège de P7-D0, puis de P6.5b, puis de P6.8a).
+                Route::get('nouveau', [ReferentielVaccinController::class, 'create'])->name('create');
+                Route::post('/', [ReferentielVaccinController::class, 'store'])->name('store');
+                Route::get('{vaccin}/editer', [ReferentielVaccinController::class, 'edit'])->name('edit');
+                Route::put('{vaccin}', [ReferentielVaccinController::class, 'update'])->name('update');
+                Route::post('{vaccin}/echeances', [ReferentielVaccinController::class, 'enregistrerEcheance'])
+                    ->name('echeances.store');
+                Route::delete('{vaccin}/echeances/{echeance}', [ReferentielVaccinController::class, 'supprimerEcheance'])
+                    ->name('echeances.destroy');
             });
 
         // 5.7 — Don de sang (FN6) : l'ÉTABLISSEMENT publie ses besoins — lui seul sait qu'il manque

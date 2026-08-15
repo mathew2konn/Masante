@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\V1\AlerteSosController;
 use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\AvisController;
 use App\Http\Controllers\Api\V1\Carnet\AntecedentController;
+use App\Http\Controllers\Api\V1\Carnet\CalendrierVaccinalController;
 use App\Http\Controllers\Api\V1\Carnet\ContactUrgenceController;
 use App\Http\Controllers\Api\V1\Carnet\DocumentMedicalController;
 use App\Http\Controllers\Api\V1\Carnet\GrossesseController;
@@ -46,6 +47,7 @@ use App\Http\Controllers\Api\V1\SignalementController;
 use App\Http\Controllers\Api\V1\SpecialiteController;
 use App\Http\Controllers\Api\V1\StructureController;
 use App\Http\Controllers\Api\V1\TriageController;
+use App\Http\Controllers\Api\V1\VaccinController;
 use App\Http\Controllers\Api\V1\VilleController;
 use App\Http\Controllers\HealthController;
 use Illuminate\Http\Request;
@@ -274,6 +276,21 @@ Route::middleware('throttle:api')->group(function () {
             // reste assurée par MembreFamillePolicy::view (anti-IDOR, inchangée).
             Route::get('membres/{membre}/nis', [NisController::class, 'afficher']);
 
+            /*
+             * P6.8b — Calendrier vaccinal du membre (CDC_09 §8).
+             *
+             * DÉCLARÉE AVANT le groupe des sections du carnet : `vaccinations` y est un préfixe
+             * littéral et ne recouvre pas `calendrier-vaccinal`, mais l'ordre reste explicite —
+             * le piège de `dossier/fermer` (P7-D0) puis de `signature/{type}/{id}` (P6.5b) s'est
+             * produit deux fois.
+             *
+             * LECTURE SEULE. Le calendrier répond « qu'est-ce qui est dû ? » ; il n'écrit ni dans
+             * `vaccinations` ni dans `rappels` (décision W3). La garde est `view` — celle de P7-A,
+             * ni élargie ni déplacée : le calendrier met en regard ce que le lecteur peut déjà lire
+             * et un référentiel public.
+             */
+            Route::get('membres/{membre}/calendrier-vaccinal', [CalendrierVaccinalController::class, 'show']);
+
             // B3 — Délégation d'accès (voie 3) : le titulaire invite un délégué sur un membre ;
             // le délégué accepte/refuse ; révocable des deux côtés, effet immédiat.
             // Depuis l'incrément A, une invitation porte `lecture` : le délégué VOIT le carnet.
@@ -473,6 +490,16 @@ Route::middleware('throttle:api')->group(function () {
         // récidive du constat G-a de P6.4b. Un code recopié dans un client est un code qu'aucun
         // typecheck ne relie à la base.
         Route::get('/specialites', [SpecialiteController::class, 'index']);
+
+        // P6.8b — Vaccins et calendrier vaccinal national (CDC_09 §8), PUBLIC en lecture : savoir
+        // à quel âge une dose est prévue est une information de santé publique, et l'exiger
+        // authentifiée en priverait précisément ceux qui n'ont pas encore de compte.
+        //
+        // SERVI DEPUIS LA VERSION PUBLIÉE, jamais depuis la table : un `UPDATE` direct n'a aucun
+        // effet ici avant publication (leçon L1+L2, ADR-025 §6). Sans version en vigueur, la
+        // réponse est un 503 explicite — jamais une liste vide, qui aurait ressemblé à « aucun
+        // vaccin n'existe ».
+        Route::get('/vaccins', [VaccinController::class, 'index']);
 
         // Module 5 / FN6 — Groupes sanguins les plus demandés (public : un appel au don n'a de sens
         // que largement visible). Les urgences remontent en tête. Les donneurs INSCRITS reçoivent en

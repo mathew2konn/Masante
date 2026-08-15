@@ -85,18 +85,30 @@ class CarnetSectionTest extends TestCase
             ->assertNotFound();
     }
 
-    public function test_vaccination_crud_basique(): void
+    /**
+     * RÉÉCRIT EN P6.8b — ce vecteur affirmait le comportement que l'incrément a retiré.
+     *
+     * Il vérifiait qu'un `PUT { statut: 'en_retard' }` faisait passer une vaccination administrée à
+     * « en retard ». C'était vrai, et c'était le défaut : le statut était DÉCLARÉ par le client,
+     * puis figé au jour de la saisie. Il est désormais CALCULÉ (frontière CDC_01 §0.1 — un état
+     * métier est fourni par le backend, jamais déclaré).
+     *
+     * Le vecteur n'est donc pas corrigé pour passer : il est réécrit pour dire la garantie NEUVE
+     * — une dose administrée reste `fait`, quoi que le client envoie (précédent P6.4d).
+     */
+    public function test_vaccination_crud_basique_et_le_statut_ne_se_declare_plus(): void
     {
         $user = User::factory()->create();
         $membre = MembreFamille::factory()->for($user)->create();
         Sanctum::actingAs($user);
 
         $id = $this->postJson("/api/v1/membres/{$membre->id}/vaccinations", [
-            'vaccin_nom' => 'BCG', 'statut' => 'fait', 'date_administration' => '2015-05-01',
-        ])->assertCreated()->json('item.id');
+            'vaccin_nom' => 'BCG', 'statut' => 'a_faire', 'date_administration' => '2015-05-01',
+        ])->assertCreated()->assertJsonPath('item.statut', 'fait')->json('item.id');
 
+        // Le client insiste à la modification : la dose reste administrée, donc faite.
         $this->putJson("/api/v1/membres/{$membre->id}/vaccinations/{$id}", ['statut' => 'en_retard'])
-            ->assertOk()->assertJsonPath('item.statut', 'en_retard');
+            ->assertOk()->assertJsonPath('item.statut', 'fait');
 
         $this->deleteJson("/api/v1/membres/{$membre->id}/vaccinations/{$id}")->assertOk();
         $this->assertDatabaseCount('vaccinations', 0);

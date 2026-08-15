@@ -78,7 +78,7 @@ class ContributionCarnetService
         // que l'auteur a choisi : re-résoudre des semaines plus tard pourrait présenter au
         // responsable une DCI différente de celle qui était sous les yeux de l'auteur, et il
         // validerait alors autre chose que ce qui lui est affiché.
-        $valide = $controleur->preparerDonnees($valide);
+        $valide = $controleur->preparerDonnees($valide, $membre);
 
         $contribution = Contribution::create([
             'membre_id'      => $membre->id,

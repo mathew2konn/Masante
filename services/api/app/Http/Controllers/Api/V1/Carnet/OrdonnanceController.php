@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api\V1\Carnet;
 
+use App\Models\MembreFamille;
 use App\Models\Ordonnance;
 use App\Services\Medicament\ServiceLienMedicament;
 use Illuminate\Database\Eloquent\Model;
@@ -54,7 +55,7 @@ class OrdonnanceController extends CarnetSectionController
      * @param  array<string, mixed>  $valide
      * @return array<string, mixed>
      */
-    public function preparerDonnees(array $valide): array
+    public function preparerDonnees(array $valide, ?MembreFamille $membre = null): array
     {
         if (isset($valide['medicaments_json']) && is_array($valide['medicaments_json'])) {
             $valide['medicaments_json'] = $this->lien->resoudre($valide['medicaments_json']);

@@ -17,12 +17,20 @@ import { estCarnetPartage } from '../api/delegations';
 import { deposerContribution } from '../api/contributions';
 import { rechercherMedicaments } from '../api/medicaments';
 import { obtenirReferences, rechercherAnalyses } from '../api/analyses';
+import { rechercherVaccins } from '../api/vaccins';
 import { obtenirMembre } from '../api/membres';
 import { messageErreur } from '../utils/erreurs';
 import { heureCourte, isoVersDateInput, validerDate, validerHeure } from '../utils/dates';
-import type { Champ, Medicament, ParametreResultat, SectionDescriptor } from '../types/carnet';
+import type {
+  Champ,
+  Medicament,
+  ParametreResultat,
+  SaisieVaccin,
+  SectionDescriptor,
+} from '../types/carnet';
 import type { Medicament as MedicamentCatalogue } from '../types/medicament';
 import type { AnalyseCatalogue, ReferencesAnalyse } from '../types/analyse';
+import type { VaccinCatalogue } from '../types/vaccin';
 import { colors, spacing, typography } from '../theme/theme';
 
 /**
@@ -303,7 +311,182 @@ function ChampVue({
           patient={patient}
         />
       );
+    case 'vaccin':
+      return (
+        <SelecteurVaccin
+          label={libelle(champ)}
+          valeur={(valeur as SaisieVaccin) ?? { nom: '' }}
+          onChange={onChange}
+          erreur={erreur}
+        />
+      );
   }
+}
+
+/**
+ * P6.8b — Le champ vaccin : un nom libre, et un rattachement FACULTATIF au calendrier national.
+ *
+ * ═══ CE QU'IL REMPLACE ═══
+ *
+ * Un champ texte, un `select` « Statut » OBLIGATOIRE et un interrupteur « Vaccin obligatoire ». Les
+ * deux derniers ont disparu : le statut est calculé par le serveur, et le caractère obligatoire est
+ * un fait de politique nationale qu'on ne fait pas cocher au citoyen.
+ *
+ * ═══ IL PROPOSE, IL N'EXIGE PAS ═══
+ *
+ * Le référentiel est incomplet et un parent qui recopie un carnet papier n'a pas la liste sous les
+ * yeux : la saisie libre suffit toujours. Choisir un vaccin ouvre en plus le choix de la dose, que
+ * le calendrier national énumère — l'utilisateur ne l'invente pas.
+ *
+ * ═══ HORS LIGNE, IL SE TAIT ═══
+ *
+ * Une recherche impossible n'est pas une panne : afficher une erreur ferait croire que le
+ * formulaire est cassé, alors que la seule chose indisponible est une aide à la saisie. Même
+ * décision qu'en P6.6b pour les médicaments et P6.7a pour les analyses.
+ */
+function SelecteurVaccin({
+  label,
+  valeur,
+  onChange,
+  erreur,
+}: {
+  label: string;
+  valeur: SaisieVaccin;
+  onChange: (v: SaisieVaccin) => void;
+  erreur?: string | null;
+}) {
+  const [suggestions, setSuggestions] = useState<VaccinCatalogue[]>([]);
+  const [choisi, setChoisi] = useState<VaccinCatalogue | null>(null);
+  const [ouvert, setOuvert] = useState(false);
+
+  const rattache = valeur.vaccin_id !== undefined;
+
+  useEffect(() => {
+    const q = valeur.nom.trim();
+
+    if (rattache || q.length < 3) {
+      setSuggestions([]);
+      return;
+    }
+
+    let vivant = true;
+    const minuteur = setTimeout(() => {
+      rechercherVaccins(q)
+        .then((liste) => {
+          if (vivant) setSuggestions(liste.slice(0, 5));
+        })
+        // Silence volontaire : sans réseau, ou avant la première publication du calendrier
+        // national (503), la saisie libre suffit — voir l'en-tête.
+        .catch(() => {
+          if (vivant) setSuggestions([]);
+        });
+    }, 350);
+
+    return () => {
+      vivant = false;
+      clearTimeout(minuteur);
+    };
+  }, [valeur.nom, rattache]);
+
+  return (
+    <View style={styles.bloc}>
+      {rattache ? (
+        // Rattaché, le nom n'est plus une saisie : c'est le libellé publié au calendrier national.
+        // Laisser le champ modifiable donnerait l'illusion d'une liberté que le serveur reprend —
+        // il réaligne le nom sur le référentiel à chaque enregistrement.
+        <View style={styles.bloc}>
+          <Text style={styles.label}>{label}</Text>
+          <Text style={styles.valeurFigee}>{valeur.nom}</Text>
+        </View>
+      ) : (
+        <TextField
+          label={label}
+          value={valeur.nom}
+          onChangeText={(t) => onChange({ ...valeur, nom: t })}
+          maxLength={200}
+          autoCapitalize="sentences"
+          erreur={erreur ?? undefined}
+        />
+      )}
+
+      {rattache ? (
+        <View style={styles.lienReferentiel}>
+          <Ionicons name="shield-checkmark-outline" size={16} color={colors.success.text} />
+          <Text style={styles.lienTexte}>
+            Calendrier national
+            {valeur.code_national ? ` · ${valeur.code_national}` : ''}
+            {valeur.numero_dose ? ` · dose ${valeur.numero_dose}` : ''}
+          </Text>
+          <Pressable
+            onPress={() => {
+              setChoisi(null);
+              onChange({ nom: valeur.nom });
+            }}
+            accessibilityRole="button"
+            accessibilityLabel="Détacher du calendrier national"
+          >
+            <Text style={styles.lienDetacher}>Détacher</Text>
+          </Pressable>
+        </View>
+      ) : null}
+
+      {/* Le choix de la dose n'apparaît QU'APRÈS le rattachement, et n'énumère que les doses que le
+          calendrier prévoit : proposer « dose 4 » sur un vaccin qui en compte trois enverrait au
+          serveur une combinaison qu'il refuse, et l'utilisateur ne saurait pas pourquoi. */}
+      {rattache && choisi && choisi.doses.length > 0 ? (
+        <View style={styles.suggestions}>
+          <Text style={styles.suggestionsInvite}>De quelle dose s'agit-il ?</Text>
+          <View style={styles.dosesLigne}>
+            {choisi.doses.map((d) => (
+              <Chip
+                key={d.numero_dose}
+                label={d.libelle_echeance ? `${d.numero_dose} · ${d.libelle_echeance}` : `Dose ${d.numero_dose}`}
+                selected={valeur.numero_dose === d.numero_dose}
+                onPress={() =>
+                  onChange({
+                    ...valeur,
+                    numero_dose: valeur.numero_dose === d.numero_dose ? undefined : d.numero_dose,
+                  })
+                }
+              />
+            ))}
+          </View>
+        </View>
+      ) : null}
+
+      {!rattache && suggestions.length > 0 ? (
+        <View style={styles.suggestions}>
+          {!ouvert ? (
+            <Pressable onPress={() => setOuvert(true)} accessibilityRole="button">
+              <Text style={styles.suggestionsInvite}>
+                {suggestions.length} vaccin(s) au calendrier national — appuyez pour les voir
+              </Text>
+            </Pressable>
+          ) : (
+            suggestions.map((s) => (
+              <Pressable
+                key={s.code}
+                onPress={() => {
+                  setChoisi(s);
+                  setOuvert(false);
+                  // `nom` et `code_national` viennent du référentiel ; le serveur les relira et les
+                  // figera de toute façon — on les affiche pour que l'utilisateur voie ce qu'il a
+                  // choisi, on ne prétend pas les décider.
+                  onChange({ nom: s.libelle, vaccin_id: s.id, code_national: s.code });
+                }}
+                accessibilityRole="button"
+                accessibilityLabel={`Rattacher à ${s.libelle}`}
+                style={styles.suggestion}
+              >
+                <Text style={styles.suggestionNom}>{s.libelle}</Text>
+                <Text style={styles.suggestionCode}>{s.code}</Text>
+              </Pressable>
+            ))
+          )}
+        </View>
+      ) : null}
+    </View>
+  );
 }
 
 /** Répéteur de médicaments (nom obligatoire + posologie). */
@@ -756,6 +939,21 @@ function initiales(section: SectionDescriptor, item: Record<string, unknown> | n
         }));
         break;
       }
+      case 'vaccin': {
+        // À l'édition, ce champ compose PLUSIEURS colonnes de l'élément — c'est la seule
+        // exception au « une clé, un champ » du moteur, et elle est assumée : pour l'utilisateur,
+        // le vaccin, son code et sa dose sont une seule information.
+        //
+        // Le lien est RELU tel quel : le perdre délierait silencieusement une ligne que quelqu'un
+        // avait rattachée au calendrier national.
+        v[c.cle] = {
+          nom: typeof item?.vaccin_nom === 'string' ? item.vaccin_nom : '',
+          vaccin_id: typeof item?.vaccin_id === 'number' ? item.vaccin_id : undefined,
+          numero_dose: typeof item?.numero_dose === 'number' ? item.numero_dose : undefined,
+          code_national: typeof item?.vaccin_code === 'string' ? item.vaccin_code : undefined,
+        } satisfies SaisieVaccin;
+        break;
+      }
     }
   }
   return v;
@@ -792,6 +990,13 @@ function validerTout(section: SectionDescriptor, valeurs: Record<string, unknown
       case 'medicaments': {
         const arr = (val as Medicament[]) ?? [];
         errs[c.cle] = c.obligatoire && !arr.some((m) => m.nom.trim()) ? 'Ajoutez au moins un médicament.' : null;
+        break;
+      }
+      case 'vaccin': {
+        const saisie = (val as SaisieVaccin) ?? { nom: '' };
+        // Seul le NOM est exigé : le rattachement au calendrier national reste facultatif, et la
+        // dose n'a de sens qu'avec un rattachement.
+        errs[c.cle] = c.obligatoire && !saisie.nom.trim() ? 'Indiquez le vaccin.' : null;
         break;
       }
       default:
@@ -850,6 +1055,18 @@ function construirePayload(section: SectionDescriptor, valeurs: Record<string, u
         p[c.cle] = nettoye.length ? nettoye : null;
         break;
       }
+      case 'vaccin': {
+        const saisie = (val as SaisieVaccin) ?? { nom: '' };
+
+        // Ce champ écrit TROIS clés, et non `c.cle` : voir `initiales()`. On n'envoie JAMAIS
+        // `vaccin_code` — le serveur le relit à la version publiée du calendrier et le fige. Le
+        // transmettre laisserait croire qu'il vient du client, alors qu'il n'aurait été vérifié
+        // par personne.
+        p.vaccin_nom = saisie.nom.trim();
+        p.vaccin_id = saisie.vaccin_id ?? null;
+        p.numero_dose = saisie.vaccin_id !== undefined ? saisie.numero_dose ?? null : null;
+        break;
+      }
     }
   }
   if (section.ajoutParPatient) p.added_by = 'patient';
@@ -890,4 +1107,7 @@ const styles = StyleSheet.create({
   referenceIncertitude: { ...typography.caption, color: colors.ink[500], fontStyle: 'italic', marginTop: spacing[1] },
   referenceDemonstration: { ...typography.caption, color: colors.danger.text, fontWeight: '700', marginTop: spacing[2] },
   referenceAvertissement: { ...typography.caption, color: colors.ink[500], marginTop: spacing[1] },
+  // P6.8b — le choix de la dose, et le nom figé par le rattachement au calendrier national.
+  dosesLigne: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing[2], marginTop: spacing[2] },
+  valeurFigee: { ...typography.body, color: colors.ink[900], marginTop: spacing[1] },
 });

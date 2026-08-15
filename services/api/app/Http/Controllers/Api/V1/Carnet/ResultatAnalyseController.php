@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api\V1\Carnet;
 
+use App\Models\MembreFamille;
 use App\Services\Analyse\ServiceLienAnalyse;
 use App\Services\Analyse\ServiceLienResultat;
 
@@ -68,7 +69,7 @@ class ResultatAnalyseController extends CarnetSectionController
      * @param  array<string, mixed>  $valide
      * @return array<string, mixed>
      */
-    public function preparerDonnees(array $valide): array
+    public function preparerDonnees(array $valide, ?MembreFamille $membre = null): array
     {
         if (isset($valide['resultats_json']) && is_array($valide['resultats_json'])) {
             $valide['resultats_json'] = $this->lien->resoudre($valide['resultats_json']);

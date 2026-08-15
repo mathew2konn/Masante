@@ -108,20 +108,52 @@ class FicheVitaleService
     }
 
     /**
-     * Vaccinations ESSENTIELLES uniquement : celles marquées obligatoires et effectivement faites.
-     * Le carnet vaccinal complet ne relève pas de l'urgence.
+     * Vaccinations EFFECTUÉES, avec ce qui les atteste (P6.8b — décision propriétaire W2-bis).
      *
-     * @return array<array{vaccin: string, date: string|null}>
+     * ═══ CE QUE CE FILTRE DISAIT AVANT, ET POURQUOI C'ÉTAIT FAUX ═══
+     *
+     * Il retenait `obligatoire = true` ET `statut = 'fait'` — c'est-à-dire **les deux seules
+     * colonnes de la table que le client déclarait librement**, et elles n'étaient lues nulle part
+     * ailleurs dans le projet. Cet écran est pourtant montré à un secouriste SANS authentification,
+     * sous un bloc « Vaccinations essentielles » et une icône de bouclier coché.
+     *
+     * Conséquence en deux sens : n'importe qui cochant les deux cases faisait apparaître une
+     * vaccination **présentée comme attestée** ; et un BCG réellement administré, saisi sans cocher
+     * « obligatoire », en était **absent**. *Le bouclier coché couvrait une case cochée par
+     * l'intéressé lui-même.*
+     *
+     * ═══ CE SUR QUOI IL S'APPUIE MAINTENANT ═══
+     *
+     * Sur un signal que **le serveur garantit et que le client ne peut pas falsifier** : `source`,
+     * écrite depuis P7-D0 par les trois chemins d'écriture (contribution → `patient`, écriture
+     * soignant → `medecin`). Il existait déjà sur cette table, et cet écran ne s'en servait pas.
+     *
+     * Le critère de sélection devient donc le seul fait qui compte en urgence — **la dose a-t-elle
+     * été administrée ?** —, et l'attestation devient une information JOINTE plutôt qu'un filtre :
+     * rien ne disparaît de l'écran, et ce qui s'y affiche cesse de prétendre plus qu'il ne sait.
+     *
+     * `statut` reste consulté, mais il est désormais CALCULÉ ({@see App\Models\Vaccination::statut}) :
+     * il ne peut plus être déclaré. `date_administration` suffirait, et la garder rend le critère
+     * lisible ; les deux disent la même chose et ne peuvent pas diverger.
+     *
+     * @return array<array{vaccin: string, date: string|null, atteste: bool, code_national: ?string}>
      */
     private function vaccinationsEssentielles(MembreFamille $membre): array
     {
         return $membre->vaccinations
-            ->where('obligatoire', true)
             ->where('statut', 'fait')
             ->map(fn ($v) => [
                 'vaccin' => $v->vaccin_nom,
                 'date'   => $v->date_administration?->toDateString(),
+                // Vrai UNIQUEMENT si un soignant ou une structure l'a consigné. Le secouriste doit
+                // pouvoir distinguer ce qu'un professionnel a écrit de ce qu'une famille a recopié
+                // — les deux sont utiles, ils n'ont pas le même poids.
+                'atteste' => in_array($v->source, ['medecin', 'structure'], true),
+                // Rattaché au référentiel national ou non : « BCG », « bcg » et « B.C.G. » sont
+                // trois chaînes, un code national n'en est qu'un (P6.8b).
+                'code_national' => $v->vaccin_code,
             ])
+            ->sortByDesc('atteste')
             ->values()
             ->all();
     }

@@ -47,6 +47,13 @@ class DatabaseSeeder extends Seeder
         // Catalogue des médicaments essentiels + prix de référence CENAME (Module 5 / FN7).
         $this->call(MedicamentSeeder::class);
 
+        // P6.8b — Vaccins et calendrier vaccinal (CDC_09 §8). JEU DE DÉMONSTRATION : chaque
+        // échéance porte `source = 'demonstration'`, le contrôle qualité l'exige et l'écran en
+        // affiche le compte. Le calendrier officiel du PEV n'a pas été vu ; le charger sera de la
+        // donnée, zéro code. Ce seeder alimente les tables et NE PUBLIE RIEN — la mise en vigueur
+        // passe par le quatre-yeux du §10.
+        $this->call(VaccinSeeder::class);
+
         // P6.4b — Villes couvertes (Abidjan, Yamoussoukro, Bouaké) + rattachement des structures.
         $this->call(VilleSeeder::class);
 

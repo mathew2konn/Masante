@@ -128,6 +128,14 @@ export const TypeNotification = {
   DOSSIER_CONSULTE: 'DOSSIER_CONSULTE',
   /** Un soignant a consigné un acte dans le carnet, pendant une session ouverte (D0). */
   CARNET_ENRICHI: 'CARNET_ENRICHI',
+  /**
+   * Une échéance du calendrier vaccinal national est atteinte, ou dépassée (P6.8b, CDC_09 §8).
+   *
+   * La charge utile porte `nombre` et `en_retard` — COMBIEN, jamais QUOI. Un nom de vaccin désigne
+   * une pathologie visée : il n'apparaît nulle part dans la notification, et le détail se lit dans
+   * le carnet, après authentification.
+   */
+  ECHEANCE_VACCINALE: 'ECHEANCE_VACCINALE',
 } as const;
 export type TypeNotification = (typeof TypeNotification)[keyof typeof TypeNotification];
 
@@ -181,3 +189,59 @@ export const LIBELLE_TYPE_ACCES: Record<TypeAccesDossier, string> = {
 export function libelleTypeAcces(type: string): string {
   return LIBELLE_TYPE_ACCES[type as TypeAccesDossier] ?? type;
 }
+
+/**
+ * Statut d'une ligne du carnet de vaccination (P6.8b, CDC_09 §8).
+ *
+ * ═══ POURQUOI CET ENUM ARRIVE ICI ET MAINTENANT ═══
+ *
+ * Les libellés et les tons vivaient EN DUR dans `apps/mobile/src/carnet/registre.ts` — troisième
+ * récidive du constat G-a de P6.4b, après les communes d'Abidjan et les catégories d'établissement.
+ * Ils y alimentaient surtout un `select` OBLIGATOIRE : on demandait au citoyen de DÉCLARER son
+ * statut vaccinal.
+ *
+ * Ce statut est désormais **calculé par le serveur** (frontière CDC_01 §0.1 : un état métier est
+ * fourni, jamais déduit ni déclaré). Le champ de saisie a donc disparu ; ces valeurs ne servent
+ * plus qu'à AFFICHER ce que le backend a décidé.
+ *
+ * Miroir PHP : `App\Support\ReglesCalendrierVaccinal`.
+ */
+export const StatutVaccination = {
+  /** La dose a été administrée — un fait, que nulle échéance ne remet en cause. */
+  FAIT: 'fait',
+  /** Elle est due (ou pas encore datée), et le délai de grâce publié court encore. */
+  A_FAIRE: 'a_faire',
+  /** Le délai de grâce publié au calendrier national est écoulé. */
+  EN_RETARD: 'en_retard',
+} as const;
+export type StatutVaccination = (typeof StatutVaccination)[keyof typeof StatutVaccination];
+
+/**
+ * Statut d'une ÉCHÉANCE du calendrier vaccinal — surensemble du précédent.
+ *
+ * Une LIGNE du carnet et une ÉCHÉANCE du calendrier ne sont pas la même chose, et les confondre
+ * produirait des réponses fausses dans les deux sens : ranger `A_VENIR` parmi les statuts d'une
+ * ligne ferait apparaître comme « en attente » des vaccinations qui ne concernent pas encore
+ * l'enfant ; l'omettre du calendrier afficherait « en retard » à un nourrisson de cinq semaines
+ * pour une échéance prévue à six.
+ */
+export const StatutEcheanceVaccinale = {
+  FAIT: 'fait',
+  A_FAIRE: 'a_faire',
+  EN_RETARD: 'en_retard',
+  /** L'enfant est trop jeune : ce n'est pas un retard. */
+  A_VENIR: 'a_venir',
+  /** La fenêtre de rattrapage publiée au calendrier national est passée. */
+  HORS_DELAI: 'hors_delai',
+} as const;
+export type StatutEcheanceVaccinale =
+  (typeof StatutEcheanceVaccinale)[keyof typeof StatutEcheanceVaccinale];
+
+/** Libellés citoyens d'un statut d'échéance. Présentation seule — aucune règle. */
+export const LIBELLE_STATUT_ECHEANCE: Record<StatutEcheanceVaccinale, string> = {
+  [StatutEcheanceVaccinale.FAIT]: 'Fait',
+  [StatutEcheanceVaccinale.A_FAIRE]: 'À faire',
+  [StatutEcheanceVaccinale.EN_RETARD]: 'En retard',
+  [StatutEcheanceVaccinale.A_VENIR]: 'À venir',
+  [StatutEcheanceVaccinale.HORS_DELAI]: 'Fenêtre de rattrapage passée',
+};

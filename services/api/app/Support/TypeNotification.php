@@ -22,6 +22,15 @@ enum TypeNotification: string
     case RESPONSABLE_DESIGNE  = 'RESPONSABLE_DESIGNE';
     case DOSSIER_CONSULTE     = 'DOSSIER_CONSULTE';
     case CARNET_ENRICHI       = 'CARNET_ENRICHI';
+    /**
+     * P6.8b — une échéance du calendrier vaccinal national est atteinte, ou dépassée.
+     *
+     * LA RÈGLE INVIOLABLE MORD ICI. Le corps dit qu'une vaccination est due ; il ne dit JAMAIS
+     * laquelle. Le nom d'un vaccin est une information de santé — il révèle une pathologie visée,
+     * parfois un âge, parfois une situation — et cette phrase s'affiche sur un écran verrouillé
+     * avant de transiter par un tiers. Le détail se lit dans l'application, après authentification.
+     */
+    case ECHEANCE_VACCINALE   = 'ECHEANCE_VACCINALE';
 
     /**
      * Le titre court affiché en tête de la notification (et sur la bannière push).
@@ -36,6 +45,7 @@ enum TypeNotification: string
             self::RESPONSABLE_DESIGNE  => 'Vous êtes responsable de famille',
             self::DOSSIER_CONSULTE     => 'Dossier consulté',
             self::CARNET_ENRICHI       => 'Nouvel élément au carnet',
+            self::ECHEANCE_VACCINALE   => 'Vaccination à prévoir',
         };
     }
 

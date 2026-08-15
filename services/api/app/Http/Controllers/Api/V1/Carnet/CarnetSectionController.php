@@ -41,7 +41,7 @@ abstract class CarnetSectionController extends Controller
     {
         $this->authorize('update', $membre);
 
-        $valide = $this->preparerDonnees($request->validate($this->reglesPour(true)));
+        $valide = $this->preparerDonnees($request->validate($this->reglesPour(true)), $membre);
         $item   = $membre->{$this->relation()}()->create($valide);
 
         return response()->json(array_filter([
@@ -62,7 +62,17 @@ abstract class CarnetSectionController extends Controller
         $this->authorize('update', $membre);
 
         $item = $this->trouver($membre, $id);
-        $item->update($request->validate($this->reglesPour(false)));
+
+        // P6.8b — LA MODIFICATION PASSE PAR LE MÊME POINT D'ACCROCHE QUE LA CRÉATION.
+        //
+        // Elle ne le faisait pas, et c'était un trou réel, antérieur à cet incrément : `vaccin_id`,
+        // `laboratoire_id` et `medecin_prescripteur_id` sont des champs modifiables, donc un `PUT`
+        // pouvait changer le lien d'une ligne **sans repasser par sa vérification** — y compris le
+        // contrôle « cet établissement n'est pas un laboratoire » de P6.7b — et laisser les valeurs
+        // figées désigner autre chose que le lien. *Une garantie qui ne vaut qu'à la création n'en
+        // est pas une*, exactement comme une garantie qui ne vaudrait que sur un des trois chemins
+        // d'écriture.
+        $item->update($this->preparerDonnees($request->validate($this->reglesPour(false)), $membre));
 
         return response()->json(['item' => $item]);
     }
@@ -111,10 +121,15 @@ abstract class CarnetSectionController extends Controller
      * {@see App\Services\EcritureSoignantService}) : une garantie qui ne vaudrait que sur l'un des
      * trois n'en serait pas une.
      *
+     * P6.8b — `$membre` est ajouté, FACULTATIF et rétrocompatible. Une dérivation peut dépendre de
+     * la personne et pas seulement de la saisie : l'échéance d'une dose de vaccin se déduit de la
+     * date de naissance, qu'aucun champ du formulaire ne porte. Les trois appelants la connaissent
+     * déjà ; la rendre optionnelle évite d'imposer un argument aux sections qui n'en ont que faire.
+     *
      * @param  array<string, mixed>  $valide
      * @return array<string, mixed>
      */
-    public function preparerDonnees(array $valide): array
+    public function preparerDonnees(array $valide, ?MembreFamille $membre = null): array
     {
         return $valide;
     }

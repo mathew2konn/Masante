@@ -84,6 +84,12 @@ class PortailRolesSeeder extends Seeder
         // C'est aussi ce qui rendrait impossible la question du §4.4 : « combien de services de
         // cardiologie dans ce district ? » — si « cardio » et « cardiologie » coexistent, aucune.
         'specialite.referentiel', // éditer le vocabulaire des spécialités et activités de service
+        // Vaccins et calendrier vaccinal (P6.8b, CDC_09 §8) — ATTRIBUÉE À AUCUN RÔLE, NEUVIÈME
+        // occurrence. Un centre de vaccination ne peut pas décider à quel âge une dose est due ni
+        // si elle est obligatoire : il serait juge et partie sur ce qu'il administre. Et un
+        // calendrier vaccinal n'est pas une donnée d'exploitation — c'est une politique de santé
+        // publique, dont le caractère obligatoire engage l'État.
+        'vaccin.referentiel',     // éditer le référentiel des vaccins et le calendrier vaccinal
         // Signature électronique (P6.5b, CDC_09 §5.3). Portée par le rôle `medecin` : signer ses
         // propres prescriptions relève du soin, pas d'une habilitation exceptionnelle. Elle ne
         // donne à elle seule AUCUN pouvoir — les cinq contrôles du §5.4 restent devant, et sans

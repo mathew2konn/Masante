@@ -364,6 +364,26 @@ export default function DetailMembreScreen() {
         ) : null}
       </Card>
 
+      {/* P6.8b — LE CALENDRIER VACCINAL. Même audience que la fiche de parcours et pour la même
+          raison : il met en regard ce que le lecteur peut DÉJÀ lire (les vaccinations du carnet) et
+          un référentiel PUBLIC. Il ne révèle rien de neuf, donc la barrière de l'incrément A n'est
+          ni élargie ni déplacée. */}
+      <Card style={styles.bloc}>
+        <Text style={styles.blocTitre}>Calendrier vaccinal</Text>
+        <Text style={styles.blocAide}>
+          Ce qui est dû, fait, en retard ou encore à venir, d'après le calendrier national.
+        </Text>
+        <SecondaryButton
+          label="Voir le calendrier"
+          onPress={() =>
+            router.push({
+              pathname: '/(app)/membres/calendrier-vaccinal/[id]',
+              params: { id: membreId, prenom: membre.prenom, nom: membre.nom },
+            })
+          }
+        />
+      </Card>
+
       {/* D2 — LA FICHE DE PARCOURS EST OUVERTE À TOUTE LA FAMILLE (décision propriétaire) :
           propriétaire, délégué en lecture, second responsable. Elle est donc HORS du bloc de
           gouvernance ci-dessous, qui reste au seul propriétaire. Voir n'est pas décider. */}
