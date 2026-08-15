@@ -3,6 +3,7 @@
 namespace App\Support;
 
 use App\Services\Referentiel\SourceAnalyses;
+use App\Services\Referentiel\SourceAssurances;
 use App\Services\Referentiel\SourceEtablissements;
 use App\Services\Referentiel\SourceMaladies;
 use App\Services\Referentiel\SourceMedicaments;
@@ -80,6 +81,14 @@ final class RegistreReferentiels
         // maladie ou la retirer change le sens des alertes et des antécédents déjà rattachés.
         // Voir `SourceMaladies` et ADR-037.
         SourceMaladies::CODE         => SourceMaladies::class,
+        // P6.8d — le premier référentiel dont le contenu engage une AUTORITÉ ADMINISTRATIVE plutôt
+        // que sanitaire : un agrément est délivré, suspendu et retiré par un État. Il entre sous
+        // gouvernance parce que retirer l'agrément d'un organisme, ou le renommer, change le sens de
+        // toutes les couvertures déjà déclarées — et de ce qu'un agent d'accueil lit à un guichet.
+        // Ce que les citoyens déclarent, en revanche, reste hors gouvernance : `couvertures_membre`
+        // porte des faits individuels, comme `alertes_epidemiques` en P6.8c.
+        // Voir `SourceAssurances`.
+        SourceAssurances::CODE       => SourceAssurances::class,
     ];
 
     /** @return array<int, string> */

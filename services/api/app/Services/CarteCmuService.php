@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\CouvertureMembre;
 use App\Models\MembreFamille;
 use Illuminate\Support\Str;
 
@@ -15,6 +16,24 @@ use Illuminate\Support\Str;
  *
  * La vérification par un agent d'accueil (contrôle de signature côté structure) relève du
  * Module 3 (les `agents_garde` n'existent pas encore) : ici on ne fait qu'ÉMETTRE la carte.
+ *
+ * ═══ P6.8d — CE QUI CHANGE, ET CE QUI NE CHANGE PAS ═══
+ *
+ * Les valeurs viennent désormais de la COUVERTURE CNAM du membre ({@see CouvertureMembre}) et non
+ * plus des trois colonnes `cmu_*` — mais par les mêmes accesseurs, donc **le contrat de cet endpoint
+ * ne bouge pas d'une clé**. S'y ajoutent le nom de l'organisme et une mention de provenance.
+ *
+ * ═══ POURQUOI LA MENTION EST LE CŒUR DE L'INCRÉMENT, ICI ═══
+ *
+ * Le G0 de P6.8d a trouvé que l'écran mobile annonçait « Il **confirme** votre statut CMU » et
+ * « présentable comme **justificatif** » — d'une case remplie par l'intéressé lui-même. La signature
+ * prouve que le message vient de MaSanté ; elle ne prouve **rien** sur le statut.
+ *
+ * *La conception, elle, était honnête depuis F2.3* (« restitue le statut DÉCLARÉ ») : c'est l'écran
+ * qui promettait plus que le code ne savait. Et contrairement à P6.8b, on ne peut pas remplacer la
+ * déclaration par un calcul — l'étape 2 du §8.1 du CDC_06 (« le système vérifie son éligibilité, API
+ * CNAM ») n'existe pas dans ce projet, et rien ici ne peut l'inventer. Le seul correctif honnête
+ * porte donc sur le MOT, et il est servi comme une donnée pour qu'aucun écran ne l'oublie.
  */
 class CarteCmuService
 {
@@ -27,6 +46,8 @@ class CarteCmuService
     {
         $disponible = $this->carteDisponible($membre);
 
+        $couverture = $membre->couvertureCmu();
+
         return [
             'titulaire'         => trim($membre->prenom.' '.$membre->nom),
             'cmu_numero_masque' => $membre->cmu_numero_masque,
@@ -34,6 +55,13 @@ class CarteCmuService
             'cmu_validite'      => optional($membre->cmu_validite)->toDateString(),
             'expiration_proche' => $this->expirationProche($membre),
             'disponible'        => $disponible,
+            // P6.8d — l'organisme, lu au référentiel À LA LECTURE (jamais figé sur la couverture) :
+            // s'il est renommé, l'assuré présente le nom que le guichet reconnaît.
+            'organisme'         => $couverture?->organisme?->nom,
+            'organisme_sigle'   => $couverture?->organisme?->sigle,
+            // P6.8d — servie comme une DONNÉE et non laissée à la bonne volonté de chaque écran :
+            // c'est la correction du seul défaut corrigeable ici (voir l'en-tête).
+            'mention_provenance' => CouvertureMembre::MENTION_PROVENANCE,
             // Code présentable uniquement au palier requis (sinon null : carte non justificative, §3.3).
             'code_presentation' => $disponible ? $this->genererCode($membre) : null,
             'code_expire_dans'  => $disponible ? $this->ttl() * 60 : null,

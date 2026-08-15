@@ -35,9 +35,15 @@ class StoreMembreRequest extends FormRequest
             'sexe'           => ['required', 'in:M,F'],
             'groupe_sanguin' => ['nullable', 'in:A+,A-,B+,B-,AB+,AB-,O+,O-'],
             // `photo_url` n'est PAS accepté du client : la photo se gère via l'endpoint dédié (chemin interne serveur).
-            'cmu_numero'     => ['nullable', 'string', 'max:50'],
-            'cmu_statut'     => ['nullable', 'in:actif,expire,non_inscrit'],
-            'cmu_validite'   => ['nullable', 'date'],
+            //
+            // P6.8d — `cmu_numero`, `cmu_statut` et `cmu_validite` NE SONT PLUS ACCEPTÉS ICI. Une
+            // couverture santé est un CONTRAT, pas un attribut de la personne : elle se déclare sur
+            // `POST /membres/{membre}/couvertures`, où elle nomme son organisme. Les trois valeurs
+            // restent EXPOSÉES en lecture (contrat P2, validé G5), mais dérivées de la couverture.
+            //
+            // Envoyées quand même, elles sont IGNORÉES en silence plutôt que refusées en 422 : un
+            // client mobile plus ancien continue de fonctionner, il ne crée simplement plus de
+            // donnée là où elle n'a plus de sens (même choix qu'en P6.8b pour `obligatoire`).
         ];
     }
 

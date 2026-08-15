@@ -2,7 +2,9 @@
 
 namespace Tests\Feature;
 
+use App\Models\CouvertureMembre;
 use App\Models\MembreFamille;
+use App\Models\OrganismeAssurance;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Sanctum\Sanctum;
@@ -19,13 +21,34 @@ class CarteCmuTest extends TestCase
 {
     use RefreshDatabase;
 
+    /**
+     * P6.8d — LE MEMBRE N'A PLUS DE COLONNES CMU, IL A UNE COUVERTURE.
+     *
+     * Les assertions des vecteurs ci-dessous n'ont PAS bougé d'une clé : c'est précisément ce qui
+     * prouve que le contrat de la carte F2.3 (module validé G5) survit à la bascule. Seule la façon
+     * de fabriquer l'état a changé — la couverture désigne un organisme du registre national, là où
+     * trois colonnes nommaient la CMU dans le schéma.
+     */
     private function membreCmu(User $user, array $attrs = []): MembreFamille
     {
-        return MembreFamille::factory()->for($user)->create(array_merge([
-            'cmu_numero'   => 'CMU-1234-5678-9012',
-            'cmu_statut'   => 'actif',
-            'cmu_validite' => now()->addYear()->toDateString(),
-        ], $attrs));
+        $membre = MembreFamille::factory()->for($user)->create(
+            array_diff_key($attrs, array_flip(['cmu_numero', 'cmu_statut', 'cmu_validite'])),
+        );
+
+        $organisme = OrganismeAssurance::query()->firstOrCreate(
+            ['pays_code' => 'CI', 'nom' => 'Caisse Nationale d\'Assurance Maladie'],
+            ['sigle' => 'CNAM', 'type' => 'cnam', 'source' => 'demonstration', 'actif' => true],
+        );
+
+        $couverture = new CouvertureMembre([
+            'organisme_assurance_id' => $organisme->id,
+            'numero_assure'          => $attrs['cmu_numero'] ?? 'CMU-1234-5678-9012',
+            'date_fin'               => $attrs['cmu_validite'] ?? now()->addYear()->toDateString(),
+        ]);
+        $couverture->membre_id = $membre->id;
+        $couverture->save();
+
+        return $membre->fresh();
     }
 
     public function test_le_numero_cmu_complet_n_est_jamais_serialise(): void

@@ -42,6 +42,7 @@
     ['perm' => 'specialite.referentiel', 'icone' => 'bi-diagram-3',      'titre' => 'Spécialités', 'desc' => 'Vocabulaire national des spécialités et activités de service.', 'route' => 'portail.specialites.index'],
     ['perm' => 'vaccin.referentiel',     'icone' => 'bi-shield-plus',    'titre' => 'Vaccins et calendrier', 'desc' => 'Vaccins disponibles et âges auxquels chaque dose est due.', 'route' => 'portail.vaccins.index'],
     ['perm' => 'maladie.referentiel',    'icone' => 'bi-virus',          'titre' => 'Maladies', 'desc' => 'Vocabulaire des maladies, libellés multilingues et surveillance nationale.', 'route' => 'portail.maladies.index'],
+    ['perm' => 'assurance.referentiel',  'icone' => 'bi-shield-check',   'titre' => 'Organismes d\'assurance', 'desc' => 'CNAM et assureurs privés agréés — registre national.', 'route' => 'portail.assurances.index'],
     ['perm' => 'urgence.bris_de_glace','icone' => 'bi-exclamation-octagon', 'titre' => 'Accès d\'urgence', 'desc' => 'Patient inconscient : ouvrir ses informations vitales.', 'route' => 'portail.urgence.bris', 'structure' => true, 'danger' => true],
   ];
 @endphp

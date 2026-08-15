@@ -16,6 +16,7 @@ use App\Http\Controllers\Portail\MesPatientsController;
 use App\Http\Controllers\Portail\ModerationController;
 use App\Http\Controllers\Portail\ReferentielAnalyseController;
 use App\Http\Controllers\Portail\ReferentielMedicamentController;
+use App\Http\Controllers\Portail\ReferentielAssuranceController;
 use App\Http\Controllers\Portail\ReferentielMaladieController;
 use App\Http\Controllers\Portail\ReferentielSpecialiteController;
 use App\Http\Controllers\Portail\ReferentielVaccinController;
@@ -300,6 +301,20 @@ Route::prefix('portail')->name('portail.')->group(function () {
                     ->name('surveillance.store');
                 Route::delete('{maladie}/surveillance/{surveillance}', [ReferentielMaladieController::class, 'supprimerSurveillance'])
                     ->name('surveillance.destroy');
+            });
+
+        // P6.8d — Registre NATIONAL des organismes d'assurance agréés (CDC_09 §8). Permission
+        // portée par AUCUN rôle : le rôle `assurance` désigne précisément les organismes que ce
+        // registre recense — la lui donner ferait décider de la liste des agréés par un assureur.
+        Route::middleware('permission:assurance.referentiel')
+            ->prefix('assurances')->name('assurances.')->group(function () {
+                Route::get('/', [ReferentielAssuranceController::class, 'index'])->name('index');
+                // Déclarée AVANT `{organisme}/editer` : sans cela, « nouveau » serait capté comme un
+                // identifiant (piège de P7-D0, puis P6.5b, P6.8a, P6.8b et P6.8c).
+                Route::get('nouveau', [ReferentielAssuranceController::class, 'create'])->name('create');
+                Route::post('/', [ReferentielAssuranceController::class, 'store'])->name('store');
+                Route::get('{organisme}/editer', [ReferentielAssuranceController::class, 'edit'])->name('edit');
+                Route::put('{organisme}', [ReferentielAssuranceController::class, 'update'])->name('update');
             });
 
         // 5.7 — Don de sang (FN6) : l'ÉTABLISSEMENT publie ses besoins — lui seul sait qu'il manque

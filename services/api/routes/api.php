@@ -17,9 +17,11 @@ use App\Http\Controllers\Api\V1\Carnet\RappelController;
 use App\Http\Controllers\Api\V1\Carnet\ResultatAnalyseController;
 use App\Http\Controllers\Api\V1\Carnet\VaccinationController;
 use App\Http\Controllers\Api\V1\AppareilPushController;
+use App\Http\Controllers\Api\V1\AssuranceController;
 use App\Http\Controllers\Api\V1\CarnetsPartagesController;
 use App\Http\Controllers\Api\V1\CarteCmuController;
 use App\Http\Controllers\Api\V1\ContributionCarnetController;
+use App\Http\Controllers\Api\V1\CouvertureMembreController;
 use App\Http\Controllers\Api\V1\DelegationController;
 use App\Http\Controllers\Api\V1\DonSangController;
 use App\Http\Controllers\Api\V1\DossierTitulaireController;
@@ -306,6 +308,18 @@ Route::middleware('throttle:api')->group(function () {
             // gated par le palier « vérifié » (stub dev). N'ouvre PAS le dossier (distinct du QR).
             Route::get('membres/{membre}/carte-cmu', [CarteCmuController::class, 'show']);
 
+            // P6.8d — Couvertures santé d'un membre (CDC_09 §8, CDC_06 §8). Ce qui remplace les
+            // trois colonnes `cmu_*` : une couverture est un CONTRAT entre une personne et un
+            // organisme, et il peut y en avoir plusieurs (« CNAM, PUIS assurances privées », §8).
+            //
+            // Lecture ouverte au délégué en lecture (Policy `view`, P7-A) ; écriture réservée au
+            // PROPRIÉTAIRE (Policy `update`) — un délégué lit le carnet, il ne souscrit pas au nom
+            // d'autrui.
+            Route::get('membres/{membre}/couvertures', [CouvertureMembreController::class, 'index']);
+            Route::post('membres/{membre}/couvertures', [CouvertureMembreController::class, 'store']);
+            Route::put('membres/{membre}/couvertures/{couverture}', [CouvertureMembreController::class, 'update']);
+            Route::delete('membres/{membre}/couvertures/{couverture}', [CouvertureMembreController::class, 'destroy']);
+
             // Module 5 / FN2 — Fiche vitale d'urgence : sous-ensemble vital minimal du membre,
             // destiné à être mis en cache chiffré sur le téléphone puis affiché hors connexion.
             Route::get('membres/{membre}/fiche-vitale', [FicheVitaleController::class, 'show']);
@@ -509,6 +523,15 @@ Route::middleware('throttle:api')->group(function () {
         // mesurée, aucune maladie n'est devinée : deviner serait un diagnostic posé par une machine
         // (CDC_00 §4). SERVI DEPUIS LA VERSION PUBLIÉE, 503 explicite tant qu'il n'y en a aucune.
         Route::get('/maladies', [MaladieController::class, 'index']);
+
+        // P6.8d — Registre national des organismes d'assurance agréés (CDC_09 §8), PUBLIC en
+        // lecture : c'est au moment de créer son dossier qu'on cherche le nom de sa mutuelle, et
+        // aucune donnée personnelle n'y figure. Sert aussi les LIBELLÉS des six familles du §8.2,
+        // pour qu'aucun client ne les recopie (4ᵉ récidive évitée du constat G-a de P6.4b).
+        //
+        // SERVI DEPUIS LA VERSION PUBLIÉE, 503 explicite tant qu'il n'y en a aucune. La réponse dit
+        // ce que cette liste NE prouve PAS : aucun agrément n'y a été vérifié.
+        Route::get('/assurances', [AssuranceController::class, 'index']);
 
         // Module 5 / FN6 — Groupes sanguins les plus demandés (public : un appel au don n'a de sens
         // que largement visible). Les urgences remontent en tête. Les donneurs INSCRITS reçoivent en

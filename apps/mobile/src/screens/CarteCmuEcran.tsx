@@ -116,9 +116,28 @@ export function CarteCmuEcran({ membreId, nomMembre }: { membreId: number; nomMe
             <Text style={styles.numero}>{carte.cmu_numero_masque ?? 'Numéro non renseigné'}</Text>
 
             <View style={styles.carteBas}>
-              <Text style={styles.validiteLabel}>Validité</Text>
+              {/* P6.8d — l'organisme vient du référentiel national, lu à l'affichage. */}
+              {carte.organisme ? (
+                <>
+                  <Text style={styles.validiteLabel}>Organisme</Text>
+                  <Text style={styles.validite}>{carte.organisme_sigle ?? carte.organisme}</Text>
+                </>
+              ) : null}
+              <Text style={[styles.validiteLabel, carte.organisme ? styles.espaceHaut : null]}>Validité</Text>
               <Text style={styles.validite}>{formatDateFr(carte.cmu_validite)}</Text>
             </View>
+
+            {/*
+              P6.8d — LA MENTION VIENT DU SERVEUR, elle n'est pas réécrite ici.
+
+              L'écran annonçait plus bas « Il CONFIRME votre statut CMU » d'une case remplie par
+              l'intéressé lui-même. Aucune vérification auprès de la CNAM n'existe dans ce projet
+              (l'étape 2 du §8.1 du CDC_06), donc rien ne peut le confirmer — ce qui pouvait être
+              corrigé, c'est le mot.
+            */}
+            {carte.mention_provenance ? (
+              <Text style={styles.provenance}>{carte.mention_provenance}</Text>
+            ) : null}
 
             {carte.expiration_proche ? (
               <View style={styles.alerte}>
@@ -138,8 +157,17 @@ export function CarteCmuEcran({ membreId, nomMembre }: { membreId: number; nomMe
                     {expire ? 'Code expiré' : `Valable encore ${formatChrono(restant)}`}
                   </Text>
                 </View>
+                {/*
+                  P6.8d — « il confirme votre statut CMU » disait faux : le code prouve que la
+                  carte vient de MaSanté, pas que la couverture est valide. Le verbe change, la
+                  fonction ne change pas.
+                */}
                 <Text style={styles.presentAide}>
-                  Présentez ce code à l'agent d'accueil. Il confirme votre statut CMU — sans donner accès à votre dossier.
+                  Présentez ce code à l'agent d'accueil. Il prouve que cette carte vient de MaSanté
+                  et restitue le statut que vous avez déclaré — sans donner accès à votre dossier.
+                </Text>
+                <Text style={styles.presentLimite}>
+                  {carte.mention_provenance ?? 'Statut déclaré par l\'assuré.'}
                 </Text>
                 {expire ? <PrimaryButton label="Régénérer le code" onPress={regenerer} /> : null}
               </Card>
@@ -149,9 +177,15 @@ export function CarteCmuEcran({ membreId, nomMembre }: { membreId: number; nomMe
           ) : (
             <Card style={styles.gate}>
               <Text style={styles.gateTitre}>Identité à confirmer</Text>
+              {/*
+                P6.8d — « présentable comme justificatif » promettait une valeur probante que la
+                carte n'a pas : elle restitue une déclaration. Ce que le palier vérifié change,
+                c'est que l'identité du porteur est confirmée — pas la couverture.
+              */}
               <Text style={styles.gateTxt}>
-                La carte devient présentable comme justificatif une fois votre identité confirmée (CMU ou CNI).
-                Vous pouvez déjà consulter vos informations ci-dessus.
+                Le code de présentation devient disponible une fois votre identité confirmée (CMU ou CNI) :
+                il atteste alors de votre identité, jamais de vos droits — ceux-ci restent une déclaration
+                que seul l'organisme peut confirmer. Vous pouvez déjà consulter vos informations ci-dessus.
               </Text>
             </Card>
           )}
@@ -177,6 +211,8 @@ const styles = StyleSheet.create({
   validite: { ...typography.bodyStrong, color: colors.surface, marginTop: 2 },
   alerte: { marginTop: spacing[4], backgroundColor: colors.warning.bg, borderRadius: radius.md, padding: spacing[3] },
   alerteTxt: { ...typography.caption, color: colors.warning.text, fontWeight: '700' },
+  espaceHaut: { marginTop: spacing[3] },
+  provenance: { ...typography.caption, color: colors.blue[200], marginTop: spacing[4] },
 
   presentation: { alignItems: 'center', marginBottom: spacing[5] },
   qrBoite: { padding: spacing[3], backgroundColor: colors.surface, borderRadius: radius.md },
@@ -184,6 +220,7 @@ const styles = StyleSheet.create({
   chrono: { marginTop: spacing[4], borderRadius: radius.pill, paddingHorizontal: spacing[4], paddingVertical: spacing[2] },
   chronoTxt: { ...typography.bodyStrong },
   presentAide: { ...typography.caption, color: colors.ink[700], textAlign: 'center', marginTop: spacing[3] },
+  presentLimite: { ...typography.caption, color: colors.ink[500], textAlign: 'center', marginTop: spacing[2], fontStyle: 'italic' },
 
   gate: { marginBottom: spacing[5] },
   gateTitre: { ...typography.h2, color: colors.blue[900], marginBottom: spacing[2] },

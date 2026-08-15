@@ -9,14 +9,12 @@ import { PrimaryButton } from '../components/PrimaryButton';
 import { colors, spacing, typography } from '../theme/theme';
 import {
   GROUPES_SANGUINS,
-  LIBELLE_CMU_STATUT,
-  type CmuStatut,
   type GroupeSanguin,
   type Membre,
   type MembrePayload,
   type Sexe,
 } from '../types/membre';
-import { isoVersDateInput, validerDateFacultative, validerDateNaissance } from '../utils/dates';
+import { isoVersDateInput, validerDateNaissance } from '../utils/dates';
 
 /** Bornes du sélecteur de date de naissance : pas de futur, plancher raisonnable (~120 ans). */
 const AUJOURDHUI = new Date();
@@ -46,12 +44,7 @@ export function MembreForm({
   const [dateNaissance, setDateNaissance] = useState(isoVersDateInput(initial?.date_naissance));
   const [sexe, setSexe] = useState<Sexe | null>(initial?.sexe ?? null);
   const [groupe, setGroupe] = useState<GroupeSanguin | null>(initial?.groupe_sanguin ?? null);
-  // F2.3 — le numéro complet n'est jamais renvoyé par l'API : en édition on part vide (masqué en
-  // placeholder) et on ne l'envoie QUE si l'utilisateur en saisit un nouveau (sinon on conserve).
   const estEdition = Boolean(initial);
-  const [cmuNumero, setCmuNumero] = useState('');
-  const [cmuStatut, setCmuStatut] = useState<CmuStatut | null>(initial?.cmu_statut ?? null);
-  const [cmuValidite, setCmuValidite] = useState(isoVersDateInput(initial?.cmu_validite));
 
   const [erreurs, setErreurs] = useState<Record<string, string | null>>({});
 
@@ -61,30 +54,19 @@ export function MembreForm({
     if (!prenom.trim()) e.prenom = 'Le prénom est obligatoire.';
     e.date_naissance = validerDateNaissance(dateNaissance);
     if (!sexe) e.sexe = 'Sélectionnez le sexe.';
-    e.cmu_validite = validerDateFacultative(cmuValidite);
 
     setErreurs(e);
     if (Object.values(e).some((v) => v)) return null;
 
-    const payload: MembrePayload = {
+    // P6.8d — plus aucun champ `cmu_*` : le serveur ne les accepte plus, et les envoyer donnerait
+    // l'illusion d'enregistrer une couverture là où plus rien ne l'écrit.
+    return {
       nom: nom.trim(),
       prenom: prenom.trim(),
       date_naissance: dateNaissance.trim(),
       sexe: sexe as Sexe,
       groupe_sanguin: groupe,
-      cmu_statut: cmuStatut,
-      cmu_validite: cmuValidite.trim() || null,
     };
-
-    const numero = cmuNumero.trim();
-    if (numero) {
-      payload.cmu_numero = numero; // nouvelle saisie → remplace le numéro chiffré côté serveur
-    } else if (!estEdition) {
-      payload.cmu_numero = null; // création sans numéro
-    }
-    // Édition + champ laissé vide → on n'envoie pas cmu_numero (conserve l'existant, F2.3).
-
-    return payload;
   };
 
   const soumettre = () => {
@@ -151,45 +133,27 @@ export function MembreForm({
         </View>
       </Card>
 
-      <Card style={styles.carte}>
-        <Text style={styles.section}>CMU (assurance santé)</Text>
-        <Text style={styles.aide}>Couverture Maladie Universelle — facultatif.</Text>
+      {/*
+        P6.8d — LE BLOC « CMU » A QUITTÉ CE FORMULAIRE.
 
-        <TextField
-          label="Numéro CMU"
-          value={cmuNumero}
-          onChangeText={setCmuNumero}
-          placeholder={initial?.cmu_numero_masque ?? "Numéro d'assuré"}
-          autoCapitalize="characters"
-          maxLength={50}
-        />
-        {initial?.cmu_numero_masque ? (
+        Il faisait déclarer un numéro, un STATUT (`actif` / `expiré` / `non inscrit`) et une date de
+        validité comme s'il s'agissait d'attributs de la personne, au même titre que le groupe
+        sanguin. Une couverture est un CONTRAT avec un organisme, et il peut y en avoir plusieurs
+        (« CNAM, PUIS assurances privées » — CDC_06 §8). Elle se déclare désormais dans l'écran
+        « Couvertures santé », où elle nomme son organisme au registre national.
+
+        Le `Segmented` de statut disparaît par la même occasion : le statut est CALCULÉ à partir des
+        dates du contrat, il ne se coche plus (même bascule que le statut vaccinal en P6.8b).
+      */}
+      {estEdition ? (
+        <Card style={styles.carte}>
+          <Text style={styles.section}>Couverture santé</Text>
           <Text style={styles.aide}>
-            Actuel : {initial.cmu_numero_masque} — laissez vide pour le conserver.
+            La CMU et les autres couvertures se gèrent maintenant depuis la fiche du membre, dans
+            « Couvertures santé » — une ligne par organisme.
           </Text>
-        ) : null}
-
-        <Text style={styles.label}>Statut</Text>
-        <Segmented
-          options={(Object.keys(LIBELLE_CMU_STATUT) as CmuStatut[]).map((s) => ({
-            value: s,
-            label: LIBELLE_CMU_STATUT[s],
-          }))}
-          value={cmuStatut}
-          onChange={(v) => setCmuStatut(v as CmuStatut)}
-          accessibilityLabel="Statut CMU"
-        />
-
-        <View style={styles.espaceHaut}>
-          <DateField
-            label="Validité (facultatif)"
-            value={cmuValidite || null}
-            onChange={(v) => setCmuValidite(v ?? '')}
-            placeholder="Sélectionner la date"
-            erreur={erreurs.cmu_validite}
-          />
-        </View>
-      </Card>
+        </Card>
+      ) : null}
 
       {erreurServeur ? <Text style={styles.erreur}>{erreurServeur}</Text> : null}
 

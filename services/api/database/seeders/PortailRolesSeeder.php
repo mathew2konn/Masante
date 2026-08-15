@@ -96,6 +96,14 @@ class PortailRolesSeeder extends Seeder
         // décide de ce qu'est une maladie — et de sa liste de surveillance nationale. Une
         // classification des maladies engage une autorité sanitaire, pas le rédacteur d'un bulletin.
         'maladie.referentiel',    // éditer le référentiel des maladies, leurs libellés et la surveillance
+        // Référentiel des organismes d'assurance (P6.8d, CDC_09 §8) — ATTRIBUÉE À AUCUN RÔLE,
+        // ONZIÈME occurrence, et sa raison est la plus littérale de toutes : le rôle `assurance`
+        // existe depuis P1 et désigne PRÉCISÉMENT les organismes que ce registre recense. La lui
+        // donner ferait décider de la liste des organismes agréés par un assureur — juge et partie
+        // sur son propre agrément. `gestionnaire_etablissement` non plus : il gère les conventions
+        // de SON établissement, et la liste nationale deviendrait la somme des conventions de
+        // chacun. Un agrément est délivré par un État.
+        'assurance.referentiel',  // éditer le registre national des organismes d'assurance agréés
         // Signature électronique (P6.5b, CDC_09 §5.3). Portée par le rôle `medecin` : signer ses
         // propres prescriptions relève du soin, pas d'une habilitation exceptionnelle. Elle ne
         // donne à elle seule AUCUN pouvoir — les cinq contrôles du §5.4 restent devant, et sans

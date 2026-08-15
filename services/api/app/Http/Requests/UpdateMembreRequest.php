@@ -28,9 +28,10 @@ class UpdateMembreRequest extends FormRequest
             'sexe'           => ['sometimes', 'required', 'in:M,F'],
             'groupe_sanguin' => ['nullable', 'in:A+,A-,B+,B-,AB+,AB-,O+,O-'],
             // `photo_url` n'est PAS accepté du client : la photo se gère via l'endpoint dédié (chemin interne serveur).
-            'cmu_numero'     => ['nullable', 'string', 'max:50'],
-            'cmu_statut'     => ['nullable', 'in:actif,expire,non_inscrit'],
-            'cmu_validite'   => ['nullable', 'date'],
+            //
+            // P6.8d — les trois champs `cmu_*` ne sont plus acceptés : la couverture se déclare sur
+            // `POST /membres/{membre}/couvertures`. Voir `StoreMembreRequest` pour la raison, et
+            // pour le choix d'ignorer en silence plutôt que de refuser en 422.
         ];
     }
 }

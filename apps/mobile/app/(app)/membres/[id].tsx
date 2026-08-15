@@ -233,6 +233,35 @@ export default function DetailMembreScreen() {
           <Text style={styles.sectionTxt}>Carte CMU numérique</Text>
           <Ionicons name="chevron-forward" size={20} color={colors.ink[500]} />
         </Pressable>
+
+        {/*
+          P6.8d — L'entrée vers les couvertures. Les trois lignes ci-dessus restent celles de la
+          CMU (contrat P2, validé G5) ; elles sont désormais DÉRIVÉES de la couverture CNAM. Ce
+          qu'elles ne peuvent pas montrer, c'est une seconde couverture — d'où cet écran.
+        */}
+        <Pressable
+          onPress={() =>
+            router.push({
+              pathname: '/(app)/membres/couvertures/[id]',
+              params: {
+                id: membreId,
+                nom: `${membre.prenom} ${membre.nom}`,
+                // Un délégué lit le carnet mais ne souscrit pas au nom d'autrui : l'écran masque
+                // les actions plutôt que de les proposer pour un 403 (correction F6 de P7-D2).
+                proprietaire: membre.est_proprietaire !== false ? '1' : '0',
+              },
+            })
+          }
+          accessibilityRole="button"
+          accessibilityLabel="Couvertures santé"
+          style={[styles.sectionRow, styles.sectionRowBordure]}
+        >
+          <View style={styles.sectionPastille}>
+            <Ionicons name="shield-checkmark-outline" size={18} color={colors.blue[600]} />
+          </View>
+          <Text style={styles.sectionTxt}>Couvertures santé</Text>
+          <Ionicons name="chevron-forward" size={20} color={colors.ink[500]} />
+        </Pressable>
       </Card>
 
       <Card style={styles.bloc}>

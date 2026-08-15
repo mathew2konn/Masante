@@ -24,6 +24,9 @@ class MembreFamilleTest extends TestCase
             'date_naissance' => '2000-01-15',
             'sexe'           => 'F',
             'groupe_sanguin' => 'O+',
+            // P6.8d — `cmu_numero` et `cmu_statut` sont ENVOYÉS EXPRÈS alors que le serveur ne les
+            // accepte plus : c'est ce qui fait de ce jeu de données le vecteur de la garde. Voir
+            // `test_les_champs_cmu_envoyes_sont_ignores`.
             'cmu_numero'     => 'CMU12345678',
             'cmu_statut'     => 'actif',
         ], $extra);
@@ -45,9 +48,40 @@ class MembreFamilleTest extends TestCase
         $membre = MembreFamille::first();
         $this->assertSame($user->id, $membre->user_id);
         $this->assertMatchesRegularExpression('/^IVS-\d{4}-[A-Z]{2}-\d{5}$/', $membre->matricule_ivs);
-        // Le numéro CMU est chiffré au repos : la valeur brute en base n'est pas le clair.
-        $this->assertNotSame('CMU12345678', $membre->getRawOriginal('cmu_numero'));
-        $this->assertSame('CMU12345678', $membre->cmu_numero);
+    }
+
+    /**
+     * P6.8d — VECTEUR HÉRITÉ RÉÉCRIT POUR DIRE LA GARANTIE NEUVE, pas corrigé pour passer.
+     *
+     * Il affirmait auparavant que `cmu_numero` était chiffré au repos par cet endpoint. Ce n'est
+     * plus vrai, et ce n'est pas une régression : **une couverture santé est un contrat, pas un
+     * attribut de la personne**, et elle se déclare sur `POST /membres/{id}/couvertures` — où le
+     * numéro est chiffré exactement de la même façon (vecteur dédié dans `ReferentielAssurancesTest`).
+     *
+     * Ce que ce vecteur tient désormais : les trois champs envoyés sont IGNORÉS EN SILENCE, et rien
+     * n'est écrit dans les colonnes héritées. Un client mobile plus ancien continue de créer des
+     * membres ; il ne fabrique simplement plus une couverture que plus rien ne lit.
+     */
+    public function test_les_champs_cmu_envoyes_sont_ignores(): void
+    {
+        $user = User::factory()->create();
+        Sanctum::actingAs($user);
+
+        $this->postJson('/api/v1/membres', $this->donneesMembre([
+            'cmu_validite' => '2030-01-01',
+        ]))->assertCreated()
+            // Aucune couverture n'existe → la valeur DÉRIVÉE est « non inscrit », quoi qu'ait
+            // envoyé le client.
+            ->assertJsonPath('membre.cmu_statut', 'non_inscrit')
+            ->assertJsonPath('membre.cmu_numero_masque', null);
+
+        $membre = MembreFamille::first();
+
+        // Et rien n'a été écrit dans les colonnes héritées : la garantie ne vient pas seulement des
+        // règles de validation, elle vient aussi de `$fillable` — chaque couche a son vecteur.
+        $this->assertNull($membre->getRawOriginal('cmu_numero'));
+        $this->assertNull($membre->getRawOriginal('cmu_validite'));
+        $this->assertSame(0, $membre->couvertures()->count());
     }
 
     public function test_le_compte_ne_peut_pas_depasser_quinze_membres(): void

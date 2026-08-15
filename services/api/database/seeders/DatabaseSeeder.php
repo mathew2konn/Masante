@@ -60,6 +60,12 @@ class DatabaseSeeder extends Seeder
         // charger sera de la donnée, zéro code. Ne publie rien : la mise en vigueur passe par le §10.
         $this->call(MaladieSeeder::class);
 
+        // P6.8d — Organismes d'assurance agréés (CDC_09 §8). JEU DE DÉMONSTRATION : la CNAM, que le
+        // CDC_06 §8.1 nomme, et cinq organismes explicitement FICTIFS — un par famille du §8.2.
+        // Aucun assureur privé réel n'est nommé : l'écrire dans un registre « d'organismes agréés »
+        // affirmerait un agrément que personne n'a vu. Ne publie rien (§10).
+        $this->call(OrganismeAssuranceSeeder::class);
+
         // P6.4b — Villes couvertes (Abidjan, Yamoussoukro, Bouaké) + rattachement des structures.
         $this->call(VilleSeeder::class);
 

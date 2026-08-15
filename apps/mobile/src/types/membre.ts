@@ -74,6 +74,19 @@ export type CarteCmu = {
   disponible: boolean; // palier « vérifié » atteint (stub dev) → carte présentable
   code_presentation: string | null; // contenu du QR CMU signé (null si non présentable)
   code_expire_dans: number | null; // secondes
+  /** P6.8d — l'organisme, lu au référentiel à la lecture (jamais figé sur la couverture). */
+  organisme?: string | null;
+  organisme_sigle?: string | null;
+  /**
+   * P6.8d — servie par le serveur, jamais réécrite ici.
+   *
+   * L'écran annonçait « Il **confirme** votre statut CMU » d'une case remplie par l'intéressé
+   * lui-même. La signature prouve que le message vient de MaSanté ; elle ne prouve rien sur le
+   * statut, et aucune vérification auprès de la CNAM n'existe dans ce projet.
+   *
+   * Optionnelle : une carte mise en cache avant P6.8d ne la porte pas.
+   */
+  mention_provenance?: string;
 };
 
 /** Champs acceptés à la création (le matricule est attribué côté serveur). */
@@ -83,9 +96,12 @@ export type MembrePayload = {
   date_naissance: string; // format AAAA-MM-JJ envoyé à l'API
   sexe: Sexe;
   groupe_sanguin?: GroupeSanguin | null;
-  cmu_numero?: string | null;
-  cmu_statut?: CmuStatut | null;
-  cmu_validite?: string | null;
+  /**
+   * P6.8d — les trois champs `cmu_*` ont disparu de ce contrat d'ÉCRITURE : une couverture santé
+   * est un contrat, pas un attribut de la personne, et elle se déclare sur
+   * `POST /membres/{id}/couvertures` (voir `types/assurance.ts`). Ils restent exposés en LECTURE
+   * sur `Membre`, dérivés de la couverture CNAM.
+   */
 };
 
 /** Plafond métier : 15 membres par compte (F2.2 révisé, miroir de StoreMembreRequest::MAX_MEMBRES). */

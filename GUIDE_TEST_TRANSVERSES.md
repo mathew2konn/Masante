@@ -8,7 +8,7 @@
 > | **1** | **P6.8a — Spécialités médicales** | à valider |
 > | 2 | P6.8b — Vaccins et calendrier vaccinal | non commencé |
 > | 3 | P6.8c — Maladies (CIM) | non commencé |
-> | 4 | P6.8d — Assurances et organismes agréés | non commencé |
+> | **4** | **P6.8d — Assurances et organismes agréés** | à valider |
 > | 5 | P6.8e — Numéros d'urgence et compléments du découpage | non commencé |
 
 ---
@@ -663,3 +663,251 @@ description. **Hors ligne, le champ se tait** — une recherche impossible n'est
 6. **`admin_ivoirsante` reçoit `maladie.referentiel`** comme toutes les autres, par
    `syncPermissions(Permission::all())`. « Portée par aucun rôle » veut dire **aucun rôle métier** —
    le filtrage réel se joue à l'attribution nominative. C'est dit depuis P6.3, et ça reste vrai ici.
+
+---
+
+# Partie 4 — P6.8d : Assurances et organismes agréés (CDC_09 §8)
+
+> Quatrième incrément de P6.8. Referme **T5** du G0 : la CMU était codée dans les **noms de
+> colonnes** de `membres_famille`, et aucun des six autres tiers payants du §8.2 du CDC_06 n'était
+> représentable.
+
+## 4.1 Ce qu'il faut comprendre avant de tester
+
+**Une couverture n'est pas un attribut de la personne : c'est un contrat entre une personne et un
+organisme.** Les trois colonnes `cmu_numero` / `cmu_statut` / `cmu_validite` disaient l'inverse —
+elles en faisaient une propriété du corps, comme le groupe sanguin, et nommaient la CMU dans le
+schéma. C'est ce qui rendait inexprimable la situation la plus banale qui soit : un fonctionnaire à
+la CMU **et** à la mutuelle de son ministère. Or le §8 du CDC_06 enchaîne « CNAM, **puis** assurances
+privées » sur la même facture.
+
+**Quatre choses ont changé de nature, et il faut les tester comme telles :**
+
+| Avant | Après |
+|---|---|
+| une couverture par personne, dans trois colonnes | **plusieurs**, dans `couvertures_membre` |
+| `statut` **déclaré** par le client (`actif`/`expire`/`non_inscrit`) | **calculé** à partir des dates de la ligne |
+| `non_inscrit` = un statut qui dit qu'il n'y a pas de couverture | **l'absence de ligne** |
+| la carte annonçait « il **confirme** votre statut CMU » | « statut **déclaré par l'assuré**, non vérifié » |
+
+**Le dernier point est le cœur de l'incrément, et il faut savoir ce qu'il n'est PAS.** Contrairement
+à P6.8b — où le statut vaccinal *pouvait* devenir un calcul (âge + calendrier publié) — le statut
+d'une couverture ne peut pas être vérifié : **l'étape 2 du §8.1 du CDC_06 (« le système vérifie son
+éligibilité, API CNAM ») n'existe pas dans ce projet**, et rien ici ne peut l'inventer. À la décharge
+du code existant, la conception de F2.3 était honnête (« restitue le statut **déclaré** ») : c'est
+l'écran qui promettait plus que le code ne savait. **Le seul correctif honnête porte donc sur le
+mot**, et il est servi comme une **donnée** (`mention_provenance`) pour qu'aucun écran ne l'oublie.
+
+## 4.2 Ce que cet incrément ne fait PAS
+
+1. **Aucune vérification auprès d'un organisme.** `provenance = verifie` est **réservé et
+   inatteignable** : aucun chemin d'écriture ne peut le poser, et un vecteur le prouve.
+2. **Le paiement continue de faire déclarer taux et plafond** par l'appelant : le registre dit *qui*
+   couvre, jamais *ce que* couvre un contrat. Aucune garantie, aucun plafond, aucune exclusion.
+3. **Le conventionnement établissement ↔ assureur reste en texte libre** (`agrements_json`, déjà
+   publié dans la projection des établissements — constat U6).
+4. **Le rôle `assurance` reste sans porte** : il existe depuis P1, il est soumis à MFA, et aucun
+   portail ne l'accepte. Lui en ouvrir un suppose l'authentification d'une **troisième population**,
+   ce qu'ADR-030 refuse d'étirer.
+5. **Le contenu est un jeu de démonstration** : la CNAM (que le corpus nomme) et **cinq organismes
+   explicitement fictifs**. Aucun assureur privé réel n'est nommé, aucun numéro d'agrément n'a été
+   chargé — écrire un nom de compagnie dans un registre intitulé « organismes agréés » affirmerait un
+   agrément que personne n'a vu.
+
+## 4.3 Préparation
+
+```bash
+cd services/api
+XDEBUG_MODE=off php artisan migrate
+XDEBUG_MODE=off php artisan db:seed --class=OrganismeAssuranceSeeder
+XDEBUG_MODE=off php artisan masante:assurances:backfill        # ASS000001 ... ASS000006
+XDEBUG_MODE=off php artisan db:seed --class=PortailRolesSeeder # cree assurance.referentiel
+```
+
+> **Piège** : la permission `assurance.referentiel` n'existe qu'**après** `PortailRolesSeeder`.
+
+**Puis la bascule des données existantes — c'est une ÉTAPE DE DÉPLOIEMENT, pas un détail :**
+
+```bash
+XDEBUG_MODE=off php artisan masante:couvertures:backfill --dry-run   # annonce, n'ecrit rien
+XDEBUG_MODE=off php artisan masante:couvertures:backfill
+XDEBUG_MODE=off php artisan masante:couvertures:backfill             # rejeu : rien a faire
+```
+
+**Tant qu'elle n'a pas tourné, un membre dont la colonne dit « actif » répond `non_inscrit`.** Ce
+n'est pas un bug : les accesseurs lisent la couverture et **ne se replient jamais sur la colonne** —
+un repli ressusciterait une valeur périmée le jour où un citoyen supprime sa couverture, et
+rétablirait les deux vérités que ce module supprime. Même nature que la publication de la v1 en
+L1+L2 : *une bascule se fait, elle ne se devine pas*.
+
+## 4.4 Les gardes du moteur
+
+```sql
+-- Un agrément qui finit avant de commencer
+UPDATE organismes_assurance SET agrement_debut='2026-12-31', agrement_fin='2026-01-01' WHERE id=1;
+-- attendu : ERROR 1644 (45000): ck_agrement_dates
+
+-- Une couverture qui ne nomme aucun organisme : « je suis assuré » sans dire chez qui
+INSERT INTO couvertures_membre (membre_id, provenance, created_at, updated_at)
+VALUES (1, 'declare', NOW(), NOW());
+-- attendu : ERROR 1644 (45000): ck_couverture_organisme
+
+-- Doublon de code national dans un pays
+UPDATE organismes_assurance SET code='ASS000001' WHERE id=2;
+-- attendu : ERROR 1062 ... 'uq_organisme_code_pays'
+
+-- Deux organismes indiscernables à l'écran (le nom, c'est ce que l'assuré lit et choisit)
+UPDATE organismes_assurance SET nom='Mutuelle de Démonstration' WHERE id=2;
+-- attendu : ERROR 1062 ... 'uq_organisme_nom_pays'
+
+-- CI et SN partagent ASS000001 (un agrément est NATIONAL — question reposée depuis P6.8c)
+INSERT INTO organismes_assurance (code, pays_code, nom, type, source, actif, created_at, updated_at)
+VALUES ('ASS000001','SN','Institution de Prevoyance Maladie','cnam','demonstration',1,NOW(),NOW());
+-- attendu : accepté
+
+-- Supprimer un organisme qui couvre des assurés
+DELETE FROM organismes_assurance WHERE id=1;
+-- attendu : ERROR 1451 (contrainte de clé étrangère) — on DÉSACTIVE, on ne supprime pas
+```
+
+> **Pourquoi des déclencheurs et non des `CHECK`** : la garde « une couverture nomme son organisme »
+> vise `organisme_assurance_id`, qui porte une action référentielle — le mur de P6.3 (MySQL 8.4,
+> **erreur 3823**), cousin du 1215 de P6.1. Et SQLite refuse `ALTER TABLE … ADD CONSTRAINT`, donc les
+> gardes de dates n'existeraient pas dans la suite de tests : *une garantie que les tests ne peuvent
+> pas éprouver n'en est pas une*.
+
+## 4.5 La gouvernance mord
+
+```bash
+# 503 tant qu'aucune version n'est en vigueur — jamais une liste vide
+curl -s http://127.0.0.1:8000/api/v1/assurances | head -3
+
+# A propose, B publie (quatre-yeux §10, motif >= 10 caracteres)
+curl -s -X POST .../referentiels/assurances/proposer -H "Authorization: Bearer $A" ...
+curl -s -X POST .../referentiels/assurances/publier   -H "Authorization: Bearer $A" ...   # 403
+curl -s -X POST .../referentiels/assurances/publier   -H "Authorization: Bearer $B" ...   # 200
+```
+
+**Vérifier le refus PAR SON MOTIF** (leçon P6.8a) : un 422 « motif trop court » ne prouve pas le
+quatre-yeux.
+
+```bash
+# UPDATE direct : sans effet sur ce qui est diffusé
+mysql> UPDATE organismes_assurance SET nom='Nom change en douce' WHERE id=1;
+curl -s .../v1/assurances | grep -o '"nom":"[^"]*"' | head -1
+# attendu : le nom PUBLIE, pas celui de la table
+```
+
+## 4.6 Les deux vecteurs en miroir — aucun ne suffit seul
+
+| # | Action | Empreinte du registre |
+|---|---|---|
+| 1 | un citoyen déclare une couverture | **inchangée** |
+| 2 | l'agrément d'un organisme passe à `suspendu` | **change** |
+
+Le premier prouve que la projection peut prendre la **ligne entière** : rien n'écrit automatiquement
+dans `organismes_assurance`. **Aucun compteur d'assurés n'y a été ajouté** — il aurait été utile à
+l'écran, il aurait rendu cette phrase fausse (précaution née de `note_moyenne` en P6.4a). Le second
+prouve que retirer un agrément est un **acte d'autorité**, soumis au quatre-yeux.
+
+## 4.7 Le contrat de P2 survit — par dérivation
+
+```bash
+curl -s .../v1/membres/1 -H "Authorization: Bearer $T" | python -m json.tool | grep cmu
+# attendu, a l'identique : cmu_statut, cmu_validite, cmu_numero_masque
+# et JAMAIS cmu_numero
+```
+
+- Couverture **CNAM active** → `cmu_statut: "actif"`.
+- Couverture **échue ou résiliée** → `"expire"` (la distinction existe sur la couverture ; l'inventer
+  dans un contrat qui ne l'a jamais portée casserait un client validé G5).
+- **Aucune couverture** → `"non_inscrit"` : c'est le seul endroit où cette valeur subsiste.
+- **Une mutuelle n'est pas une carte CMU** : le TYPE fait foi, jamais le nom.
+
+## 4.8 Ce que le client ne déclare pas
+
+```bash
+# provenance : reservee et INATTEIGNABLE
+curl -s -X POST .../v1/membres/1/couvertures -H "Authorization: Bearer $T" \
+  -d '{"organisme_assurance_id":1,"provenance":"verifie"}'
+# attendu : "provenance":"declare"
+
+# les champs cmu_* envoyes au membre sont IGNORES en silence
+curl -s -X POST .../v1/membres -H "Authorization: Bearer $T" \
+  -d '{"nom":"X","prenom":"Y","date_naissance":"1990-01-01","sexe":"M","cmu_statut":"actif"}'
+# attendu : "cmu_statut":"non_inscrit" et rien dans les colonnes heritees
+```
+
+## 4.9 L'écart hors référentiel (motif E4)
+
+- Un organisme **absent du registre** : la saisie libre est **acceptée**, la ligne porte
+  `hors_referentiel: true`, et un avertissement dit que MaSanté ne confirme rien.
+- Un organisme **en table mais non publié** : **422** qui le **nomme**.
+- L'écran portail affiche en permanence *« N couverture(s) nomment un organisme absent de ce
+  registre »*. **Ce nombre doit tendre vers zéro** — c'est ce qui distingue cet écart de celui des
+  alertes épidémiques, qui est structurel (une maladie émergente n'est dans aucune nomenclature ;
+  ici, c'est **notre** registre qui est incomplet).
+
+## 4.10 Le portail
+
+- `/portail/assurances` → **403** pour `gestionnaire_etablissement`, **200** pour
+  `assurance.referentiel`.
+- Le formulaire **ne propose ni le code national ni le numéro d'agrément** : envoyer
+  `code=ASS999999` et `numero_agrement=AGR-INVENTE-001` les laisse **NULL**.
+- **Trois bandeaux d'honnêteté** : entrées de démonstration · organismes sans numéro d'agrément ·
+  couvertures hors référentiel.
+- L'état d'agrément peut rester « **non renseigné** », et c'est une réponse légitime : *un organisme
+  sans agrément renseigné n'est pas « probablement agréé »*.
+
+## 4.11 Mobile (Expo Go)
+
+Carnet → un membre → bloc « CMU (assurance santé) » → **Couvertures santé**.
+
+- La liste montre une carte par couverture : organisme, famille, statut **calculé**, numéro masqué.
+- *Ajouter une couverture* → la recherche propose le registre national à partir de **2 caractères** ;
+  « Mon organisme n'est pas dans la liste » ouvre la saisie libre.
+- **Hors ligne, la recherche se tait** — une recherche impossible n'est pas une panne (motif P6.6b).
+- Le **formulaire de membre n'a plus de bloc CMU** : ni numéro, ni sélecteur de statut, ni date.
+- La **carte CMU** affiche l'organisme et la mention de provenance ; le texte du code de présentation
+  ne dit plus « il confirme votre statut CMU ».
+- Un **délégué en lecture** voit les couvertures et **n'a aucun bouton** (correction F6 de P7-D2).
+
+## 4.12 Checklist G4
+
+- [ ] `ASS000001…ASS000006` attribués, dry-run = réel, rejeu muet
+- [ ] `1644` sur les dates d'agrément **et** sur une couverture sans organisme
+- [ ] `1062` sur code et sur nom ; CI et SN partagent `ASS000001` ; `1451` sur suppression
+- [ ] **503** avant la v1 ; `UPDATE` direct sans effet ; quatre-yeux refusé **par son motif**
+- [ ] les **deux** vecteurs en miroir
+- [ ] `GET /membres` : `actif` / `expire` / `non_inscrit` dérivés ; mutuelle ≠ carte CMU
+- [ ] `provenance: verifie` envoyé → `declare` ; champs `cmu_*` envoyés → ignorés, colonnes vides
+- [ ] hors référentiel accepté et compté ; organisme non publié → 422 **nommant**
+- [ ] portail 403/200 · code et numéro d'agrément ignorés · trois bandeaux
+- [ ] mobile : liste, ajout, recherche, saisie libre, silence hors ligne, carte, délégué sans bouton
+- [ ] backfill des couvertures : `expire` sans date → approximation **annoncée** ; déclaration
+      contradictoire → **rien créé**
+- [ ] **base restaurée compte par compte**
+
+## 4.13 Pièges rencontrés
+
+1. **`$appends` est obligatoire pour une valeur dérivée d'une colonne que plus rien n'écrit.** Un
+   accesseur ne s'applique qu'aux clés **présentes** dans les attributs : une ligne fraîchement créée
+   n'en portait aucune, et la réponse d'une **création** de membre omettait `cmu_statut` alors que la
+   même fiche **relue** le portait. Trouvé par un vecteur, pas par relecture. Deuxième instance après
+   le statut vaccinal de P6.8b.
+2. **Une mutation peut s'appliquer AU MAUVAIS ENDROIT — raffinement du piège de P6.7b.** La mutation
+   « le lien est relu à la version publiée » remplaçait `if ($publie === null) {`… sauf que cette
+   ligne apparaît **deux fois** dans `ServiceCouvertures`, et `perl s///` remplace la **première** :
+   elle neutralisait le retour anticipé d'`avertissements()`, pas la garde visée. Le vecteur survivait
+   donc **pour une raison qui n'avait rien à voir avec lui**. P6.7b avait appris qu'une mutation doit
+   être *assertée appliquée* ; celle-ci apprend qu'il faut aussi **asserter le site** — ancre unique,
+   et contrôle que l'autre occurrence est restée intacte.
+3. **Publier un référentiel vide est refusé** — et c'est le contrôle qualité qui parle, pas le
+   harnais. Dans un vecteur, créer le contenu **avant** `publierReferentiel()`.
+4. **`Delegation` porte `titulaire_user_id` / `delegue_user_id` / `acceptee_at`**, pas
+   `proprietaire_id` / `statut`.
+5. **`EmpreinteReferentiel::duContenu()`**, jamais `calculer()`.
+6. **`assertSee` ne convient pas sur une réponse JSON accentuée** : les accents y sont échappés
+   (`é`). Vérifier le message par `json('errors.<champ>.0')`.
+7. **`admin_ivoirsante` reçoit `assurance.referentiel`** comme toutes les autres, par
+   `syncPermissions(Permission::all())`. « Portée par aucun rôle » veut dire **aucun rôle métier**.
