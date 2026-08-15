@@ -17,6 +17,7 @@ use App\Http\Controllers\Portail\ModerationController;
 use App\Http\Controllers\Portail\ReferentielAnalyseController;
 use App\Http\Controllers\Portail\ReferentielMedicamentController;
 use App\Http\Controllers\Portail\ReferentielAssuranceController;
+use App\Http\Controllers\Portail\ReferentielNumeroUrgenceController;
 use App\Http\Controllers\Portail\ReferentielMaladieController;
 use App\Http\Controllers\Portail\ReferentielSpecialiteController;
 use App\Http\Controllers\Portail\ReferentielVaccinController;
@@ -315,6 +316,21 @@ Route::prefix('portail')->name('portail.')->group(function () {
                 Route::post('/', [ReferentielAssuranceController::class, 'store'])->name('store');
                 Route::get('{organisme}/editer', [ReferentielAssuranceController::class, 'edit'])->name('edit');
                 Route::put('{organisme}', [ReferentielAssuranceController::class, 'update'])->name('update');
+            });
+
+        // P6.8e — Numéros d'urgence NATIONAUX (CDC_09 §8). Permission portée par AUCUN rôle : un
+        // numéro d'urgence est attribué par un plan national de numérotation, et l'erreur ne se
+        // rattrape pas — un code de spécialité faux produit une liste vide, un numéro d'urgence
+        // faux produit un appel qui n'aboutit nulle part, composé devant un blessé.
+        Route::middleware('permission:urgence.referentiel')
+            ->prefix('numeros-urgence')->name('numeros-urgence.')->group(function () {
+                Route::get('/', [ReferentielNumeroUrgenceController::class, 'index'])->name('index');
+                // Déclarée AVANT `{numero}/editer` : sans cela, « nouveau » serait capté comme un
+                // identifiant (piège de P7-D0, puis P6.5b, P6.8a, P6.8b, P6.8c et P6.8d).
+                Route::get('nouveau', [ReferentielNumeroUrgenceController::class, 'create'])->name('create');
+                Route::post('/', [ReferentielNumeroUrgenceController::class, 'store'])->name('store');
+                Route::get('{numero}/editer', [ReferentielNumeroUrgenceController::class, 'edit'])->name('edit');
+                Route::put('{numero}', [ReferentielNumeroUrgenceController::class, 'update'])->name('update');
             });
 
         // 5.7 — Don de sang (FN6) : l'ÉTABLISSEMENT publie ses besoins — lui seul sait qu'il manque

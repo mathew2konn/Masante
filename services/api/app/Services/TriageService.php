@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Symptome;
+use App\Services\Urgence\ServiceNumerosUrgence;
 use Illuminate\Support\Collection;
 
 /**
@@ -22,8 +23,17 @@ use Illuminate\Support\Collection;
  */
 class TriageService
 {
-    /** Numéro vert des urgences en Côte d'Ivoire (PAS le « 15 » français du CdC — correction). */
-    public const NUMERO_SAMU = '185';
+    /**
+     * P6.8e — LE NUMÉRO N'EST PLUS UNE CONSTANTE DE CE SERVICE.
+     *
+     * Il vivait ici depuis le Module 1 (`NUMERO_SAMU = '185'`), et en double dans le mobile. CDC_02
+     * §37 l'interdit nommément : « rien en dur — **y compris les numéros d'urgence** ». Il est
+     * désormais lu au référentiel national publié, avec un repli déclaré et journalisé
+     * ({@see ServiceNumerosUrgence}).
+     *
+     * Ce service ne décide toujours de rien sur ce point : il insère une donnée dans un texte.
+     */
+    public function __construct(private readonly ServiceNumerosUrgence $numeros) {}
 
     /** Plafond de l'impact des antécédents sur le score (prompt §7). */
     private const PLAFOND_ANTECEDENTS = 20;
@@ -208,8 +218,11 @@ class TriageService
                 . 'en cas d\'aggravation, refaites un triage.',
             'modere' => 'Niveau MODÉRÉ : consultez sans tarder un médecin généraliste, un Centre de '
                 . 'Santé Urbain (CSU) ou une clinique.',
+            // Le numéro vient du référentiel national (P6.8e). Le repli, s'il joue, est journalisé
+            // côté service — jamais affiché au patient : un avertissement sur la provenance d'un
+            // numéro, lu par quelqu'un qui doit appeler des secours, est du bruit au pire moment.
             'urgent' => 'Niveau URGENT : rendez-vous immédiatement au service des urgences d\'un CHU/CHR, '
-                . 'ou appelez le SAMU au ' . self::NUMERO_SAMU . ' (numéro vert, Côte d\'Ivoire).',
+                . 'ou appelez le SAMU au ' . $this->numeros->numero('samu') . ' (numéro vert, Côte d\'Ivoire).',
         };
 
         if ($specialite) {

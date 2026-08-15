@@ -17,7 +17,7 @@ import {
   obtenirGrossesse,
 } from '../api/grossesse';
 import { appelerSamu } from '../urgence/sos';
-import { SAMU_NUMERO } from '../config/constants';
+import { numeroSamu, useNumerosUrgence } from '../urgence/numerosUrgence';
 import { messageErreur } from '../utils/erreurs';
 import { dateInputVersDate, formatDateFr } from '../utils/dates';
 import type { EtapePrenatale, GrossesseVue, SuiviGrossesse } from '../types/grossesse';
@@ -48,6 +48,8 @@ const DUREE_MS = 24 * 3600 * 1000;
 
 export function GrossesseEcran({ membreId, nomMembre }: { membreId: number; nomMembre?: string }) {
   const [vue, setVue] = useState<GrossesseVue | null>(null);
+  // P6.8e — le numéro du secours médical vient du référentiel national, plus d'une constante.
+  const samu = numeroSamu(useNumerosUrgence());
   const [chargement, setChargement] = useState(true);
   const [erreur, setErreur] = useState<string | null>(null);
 
@@ -176,11 +178,11 @@ export function GrossesseEcran({ membreId, nomMembre }: { membreId: number; nomM
     }
   };
 
-  const appeler185 = async () => {
+  const appelerSecoursMedical = async () => {
     try {
       await appelerSamu();
     } catch {
-      Alert.alert('Appel impossible', `Composez vous-même le ${SAMU_NUMERO}.`);
+      Alert.alert('Appel impossible', `Composez vous-même le ${samu}.`);
     }
   };
 
@@ -223,13 +225,13 @@ export function GrossesseEcran({ membreId, nomMembre }: { membreId: number; nomM
               </View>
             ))}
             <Pressable
-              onPress={() => void appeler185()}
+              onPress={() => void appelerSecoursMedical()}
               accessibilityRole="button"
-              accessibilityLabel={`Appeler le SAMU au ${SAMU_NUMERO}`}
+              accessibilityLabel={`Appeler le SAMU au ${samu}`}
               style={({ pressed }) => [styles.samu, pressed && styles.samuPresse]}
             >
               <Ionicons name="call" size={18} color={colors.surface} />
-              <Text style={styles.samuTxt}>Appeler le SAMU — {SAMU_NUMERO}</Text>
+              <Text style={styles.samuTxt}>Appeler le SAMU — {samu}</Text>
             </Pressable>
           </Card>
 

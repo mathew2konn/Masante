@@ -1,12 +1,28 @@
 /**
  * config/constants.ts — constantes métier d'affichage du Module 1.
- *
- * Le numéro d'urgence est le SAMU 185 (numéro vert Côte d'Ivoire) — JAMAIS le « 15 »
- * français (cohérent avec TriageService::NUMERO_SAMU côté backend).
  */
 
-/** Numéro vert des urgences en Côte d'Ivoire (SAMU). */
-export const SAMU_NUMERO = '185';
+/**
+ * P6.8e — LE REPLI DE DERNIER RECOURS, ET RIEN D'AUTRE.
+ *
+ * Cette valeur était lue directement par cinq écrans, en double avec `TriageService::NUMERO_SAMU`
+ * côté backend et avec « SOS 185 » collé dans les traductions partagées. CDC_02 §37 l'interdit
+ * nommément : « rien en dur — **y compris les numéros d'urgence** ».
+ *
+ * Elle ne disparaît pas pour autant, et c'est délibéré : le consommateur de ce module n'a **ni
+ * réseau, ni session, ni compte** — la carte vitale d'urgence s'ouvre depuis l'écran de CONNEXION,
+ * pour un secouriste. Un refus, ici, signifierait « pas de numéro d'urgence, dans une urgence ».
+ *
+ * ELLE N'EST PLUS LUE PAR AUCUN ÉCRAN. Le seul appelant légitime est
+ * `src/urgence/numerosUrgence.ts`, qui la place au **troisième et dernier rang** derrière le
+ * référentiel publié et le cache `SecureStore`.
+ *
+ * **Un seul numéro y figure**, celui que le corpus nomme (CDC_00 §4 l'oppose explicitement au
+ * « 15 » français). Les autres numéros de secours vivent dans le référentiel et **n'ont pas été
+ * compilés ici** : les y mettre reviendrait à refaire, en plus discret, le défaut que ce module
+ * referme.
+ */
+export const SAMU_NUMERO_REPLI = '185';
 
 /**
  * Libellés lisibles + pictogramme (redondance icône + texte, §6 Accessibilité)

@@ -5,11 +5,17 @@
 >
 > | Partie | Incrément | Statut |
 > |---|---|---|
-> | **1** | **P6.8a — Spécialités médicales** | à valider |
-> | 2 | P6.8b — Vaccins et calendrier vaccinal | non commencé |
-> | 3 | P6.8c — Maladies (CIM) | non commencé |
-> | **4** | **P6.8d — Assurances et organismes agréés** | à valider |
-> | 5 | P6.8e — Numéros d'urgence et compléments du découpage | non commencé |
+> | **1** | **P6.8a — Spécialités médicales** | ✅ validé G5 (2026-08-14) |
+> | **2** | **P6.8b — Vaccins et calendrier vaccinal** | ✅ validé G5 (2026-08-15) |
+> | **3** | **P6.8c — Maladies (CIM)** | ✅ validé G5 (2026-08-15) |
+> | **4** | **P6.8d — Assurances et organismes agréés** | ✅ validé G5 (2026-08-15) |
+> | **5** | **P6.8e — Numéros d'urgence nationaux** | ✅ validé G5 (2026-08-15) |
+>
+> **P6.8 est COMPLET — l'étape 8 du §14 est terminée.** Ce guide devient la procédure de
+> non-régression des cinq incréments.
+>
+> *Les « compléments du découpage » annoncés au plan de P6.8 sont **hors périmètre** (décision
+> propriétaire C5) : ils sont de la donnée, pas du code, et restent à ADR-026.*
 
 ---
 
@@ -911,3 +917,216 @@ Carnet → un membre → bloc « CMU (assurance santé) » → **Couvertures san
    (`é`). Vérifier le message par `json('errors.<champ>.0')`.
 7. **`admin_ivoirsante` reçoit `assurance.referentiel`** comme toutes les autres, par
    `syncPermissions(Permission::all())`. « Portée par aucun rôle » veut dire **aucun rôle métier**.
+
+---
+
+# Partie 5 — P6.8e : Numéros d'urgence nationaux (CDC_09 §8)
+
+> Dernier incrément de **P6.8** → l'étape **8** du §14 est complète.
+> Referme **T4** du G0 de P6.8. Décisions propriétaire **C1** à **C5** (2026-08-15).
+
+## 5.1 Ce qu'il faut comprendre avant de tester
+
+**Ce référentiel n'est pas comme les neuf autres.** Tous les précédents répondent à « qu'est-ce qui
+fait autorité ? ». Celui-ci répond d'abord à « **que compose-t-on quand plus rien ne fonctionne ?** »
+
+Son consommateur central n'a **ni réseau, ni session, ni compte**, et c'est délibéré : la carte
+vitale d'urgence s'ouvre **depuis l'écran de connexion**, pour un secouriste qui ramasse le téléphone
+d'un inconscient (FN2). Les référentiels précédents pouvaient poser un **refus bruyant** avant leur
+v1 ; ici, un refus signifierait *pas de numéro d'urgence, dans une urgence*.
+
+**Le motif n'est pas abandonné, il est DÉPLACÉ.** Deux moitiés, et il faut tester les deux :
+
+| Côté | Comportement attendu | Ce que cela garantit |
+|---|---|---|
+| **Serveur** | 503 tant que rien n'est publié ; jamais la table de travail | l'honnêteté envers l'exploitant |
+| **Client** | référentiel → cache `SecureStore` → valeur livrée avec l'app | la disponibilité envers le secouriste |
+
+**Ce que l'écran ne fait PAS** : il n'affiche **aucun avertissement** sur la provenance du numéro.
+Un « numéro par défaut, non vérifié » lu par quelqu'un qui compose des secours est du bruit au pire
+moment. L'honnêteté est due à l'exploitant — journaux du serveur et écran du portail.
+
+### Ce que l'incrément ne fait PAS
+
+1. **Les six conseils cliniques seedés gardent le « 185 » en dur** (décision C4). Ce sont des
+   **données déjà publiées** sous gouvernance (`seuils_mesure`, depuis L1+L2) : réécrire le seeder
+   serait sans effet, et republier des conseils médicaux est un acte de gouvernance clinique.
+   Porteur : **P10**.
+2. **Les « compléments du découpage » sont hors périmètre** (décision C5) — ils restent à ADR-026.
+3. **Aucun des trois numéros livrés n'a été confronté à un arrêté.** Le SAMU 185 vient du corpus ;
+   le 100 et le 180 ont été déclarés par le propriétaire le 2026-08-15. C'est écrit **dans la
+   donnée** (`source = declaration_projet`) et compté à l'écran.
+
+## 5.2 Préparation
+
+```bash
+cd services/api
+XDEBUG_MODE=off "C:/wamp64/bin/php/php8.3.28/php.exe" artisan migrate
+XDEBUG_MODE=off "C:/wamp64/bin/php/php8.3.28/php.exe" artisan db:seed --class=NumeroUrgenceSeeder
+XDEBUG_MODE=off "C:/wamp64/bin/php/php8.3.28/php.exe" artisan db:seed --class=PortailRolesSeeder
+```
+
+Un agent habilité : il lui faut **`urgence.referentiel`** (portée par aucun rôle métier) **et** un
+rôle de portail (`admin_ivoirsante` / `gestionnaire_etablissement` / `agent_garde` — piège de P6.4d).
+
+## 5.3 Le serveur refuse honnêtement avant la v1
+
+```bash
+curl -s -o /dev/null -w "%{http_code}\n" http://localhost:8000/api/v1/numeros-urgence
+# attendu : 503  — et NON 200 avec le contenu de la table
+```
+
+Puis vérifier que la trace existe :
+
+```bash
+tail -n 20 storage/logs/laravel.log | grep -i repli
+# attendu : warning "Numéros d'urgence : repli sur la valeur livrée avec l'application."
+```
+
+**C'est ce warning qui rend le repli acceptable.** Sans lui, la disponibilité gagnerait contre la
+traçabilité en silence.
+
+## 5.4 Le triage reste utilisable, et il porte le numéro publié
+
+Avant publication, un triage URGENT doit quand même donner un numéro :
+
+```bash
+# POST /api/v1/triage/analyser avec un symptôme drapeau rouge
+# attendu AVANT publication : le texte contient « 185 » (repli), et le log porte le warning
+```
+
+Après publication d'une version où `samu` vaut `186` :
+
+```bash
+# attendu : le texte contient « 186 » et PLUS « 185 »
+```
+
+*C'est le vecteur qui prouve que CDC_02 §37 est tenu : « rien en dur, y compris les numéros
+d'urgence ».*
+
+## 5.5 La gouvernance mord — et le refus se vérifie PAR SON MOTIF
+
+```bash
+# A propose, A ne peut pas publier (quatre-yeux §10)
+# attendu : 409, et le motif doit dire « l'auteur ne peut pas valider lui-même »
+#           — un 422 « motif trop court » ne prouverait RIEN (leçon P6.8a)
+```
+
+Puis, une fois publié :
+
+```bash
+mysql -u root ivoirsante -e "UPDATE numeros_urgence SET numero='999' WHERE code='samu';"
+curl -s http://localhost:8000/api/v1/numeros-urgence | grep -o '"numero":"[^"]*"' | head -1
+# attendu : "numero":"185"  <- la version publiée, PAS la table
+```
+
+## 5.6 La garde du moteur
+
+```sql
+-- un numéro vide est un bouton qui ne compose rien
+UPDATE numeros_urgence SET numero='' WHERE code='samu';
+-- attendu : ERROR 1644 (45000) : ck_numero_urgence_vide
+
+-- doublon de code dans un pays
+INSERT INTO numeros_urgence (pays_code, code, numero, libelle, ordre, actif, source, created_at, updated_at)
+VALUES ('CI','samu','999','Doublon',10,1,'declaration_projet',NOW(),NOW());
+-- attendu : ERROR 1062 sur uq_numero_urgence_pays_code
+
+-- deux pays partagent un code : ACCEPTÉ (un numéro n'existe que dans un plan national)
+INSERT INTO numeros_urgence (pays_code, code, numero, libelle, ordre, actif, source, created_at, updated_at)
+VALUES ('SN','samu','1515','SAMU',10,1,'declaration_projet',NOW(),NOW());
+-- attendu : 1 row affected
+```
+
+**Ce que le moteur ne garde PAS, et c'est dit** : la *composabilité* (pas de lettres). MySQL 8 sait
+le faire en `REGEXP`, SQLite non — la garde serait **plus stricte en production qu'en test**, la
+divergence exacte relevée en P6.8c avec la collation. Ce contrôle vit dans
+`SourceNumerosUrgence::controlerQualite()`, où il est éprouvable dans les deux dialectes.
+
+## 5.7 Le contrôle central : une version sans secours joignable est refusée
+
+```bash
+mysql -u root ivoirsante -e "UPDATE numeros_urgence SET actif=0;"
+# attendu à la publication : refus, motif « Aucun numéro actif »
+```
+
+Pourquoi ce contrôle plutôt qu'un autre : publier une liste tout inactif **ne casserait rien de
+visible**. Les téléphones retomberaient sur la valeur compilée, en silence, sans que personne ne
+l'ait décidé.
+
+## 5.8 Les deux vecteurs en miroir — aucun ne suffit seul
+
+| Action | Empreinte de `numeros_urgence` |
+|---|---|
+| Déclencher un **SOS** (ligne dans `alertes_sos`) | **INCHANGÉE** |
+| Modifier le **numéro** du SAMU | **CHANGE** |
+
+Le premier n'est pas gratuit : la table est **construite** pour qu'il soit vrai — elle ne porte
+**aucun compteur d'appels**, alors qu'il serait facile d'en tenir un. *Le référentiel dirait qu'il a
+changé au moment précis où il compte le plus qu'il n'ait pas bougé.*
+
+## 5.9 Le portail
+
+- **403** pour un gestionnaire sans `urgence.referentiel` · **200** pour l'agent habilité.
+- Écran : bandeau **vert** « Version N en vigueur » **ou** bandeau **rouge** « Aucune version en
+  vigueur » disant explicitement ce que composent les téléphones et que c'est **voulu**.
+- Bandeau d'honnêteté : « **3 numéros sur 3** n'ont été confrontés à aucune publication officielle ».
+- `code` et `pays_code` envoyés au `PUT` → **ignorés** (hors `$fillable`).
+- Numéro non composable (`SAMU`) → **message d'écran**, rien enregistré.
+- Le **code est immuable** à l'édition (champ `disabled`, jamais soumis).
+
+## 5.10 Mobile (Expo Go)
+
+| Vecteur | Attendu |
+|---|---|
+| Écran d'accueil, en ligne | bouton « Urgence — SAMU 185 » (valeur du référentiel) |
+| Écran SOS | bouton SAMU **en tête**, puis « Autres secours » (pompiers, police) |
+| Publier `samu = 186`, rouvrir l'app | le bouton affiche **186** |
+| **Mode avion** après un passage en ligne | **186** toujours (cache `SecureStore`) |
+| **Se déconnecter** puis rouvrir la carte vitale | le numéro **survit** — c'est le piège évité |
+| **Installation neuve, jamais connectée** | **185**, écran pleinement utilisable |
+
+Le dernier vecteur est **le cœur du module** : c'est celui où un refus bruyant aurait laissé un
+secouriste sans numéro.
+
+## 5.11 Checklist G4
+
+- [ ] 503 avant la v1 sur `/api/v1/numeros-urgence` · warning « repli » dans `laravel.log`
+- [ ] triage utilisable **avant** publication (185) et **portant 186 après**
+- [ ] `UPDATE` direct sans effet · publication effective
+- [ ] `ERROR 1644` numéro vide · `ERROR 1062` doublon · deux pays acceptés
+- [ ] publication refusée si plus aucun numéro actif
+- [ ] quatre-yeux refusé **par son motif**
+- [ ] les **deux** vecteurs en miroir
+- [ ] API publique **sans jeton** · ordre `samu, pompiers, police` · inactif absent
+- [ ] portail 403/200 · `code` ignoré · numéro non composable refusé · bandeaux d'honnêteté
+- [ ] mobile : les six vecteurs du §5.10, dont **déconnexion** et **installation neuve**
+- [ ] **base restaurée compte par compte**
+
+## 5.12 Pièges rencontrés
+
+1. **`EmpreinteReferentiel::duContenu()`, jamais `calculer()`** — et ce piège était **déjà écrit à
+   la partie 4**. Je l'ai refait. Un piège consigné ne protège que si on relit la consigne ; la
+   suite de tests l'a rattrapé, mais au prix d'un cycle complet.
+2. **`Symptome` n'a pas de factory** et sa colonne est `drapeau_rouge`, pas `est_drapeau_rouge`.
+   Créer par `Symptome::create([...])` comme le fait `TriageAntecedentsTest`.
+3. **Le repli doit être journalisé UNE FOIS par requête.** Trois appels donneraient trois lignes
+   identiques, et le journal cesserait de dire « une version manque » pour dire « il s'est passé
+   beaucoup de choses ». C'est ainsi qu'un avertissement devient invisible.
+4. **Ne pas ranger les numéros d'urgence dans le cache chiffré P2.** `SessionContext` appelle
+   `viderDossierCache()` à la déconnexion : ils disparaîtraient **précisément** dans l'état du
+   téléphone que consulte un secouriste. `SecureStore` (celui de la carte vitale) survit.
+5. **`estEnVigueur()` ne doit ni replier ni journaliser** : c'est la méthode que lit le portail pour
+   annoncer l'absence de version. Si elle repliait, elle mentirait à l'exploitant exactement là où
+   il attend la vérité brute.
+6. **QUATRIÈME instance du piège « le vecteur prouve le validateur, pas la garde ».** La mutation
+   « `code` redevient `$fillable` » a **survécu** à toute la suite : `validate()` écarte déjà les
+   clés non déclarées, si bien que le vecteur HTTP ne touchait jamais le modèle. Parade identique à
+   P6.6b : **dédoubler — une couche, un vecteur**, le second appelant le modèle **directement**,
+   comme le ferait un import. Le vecteur ajouté meurt bien sous la mutation.
+7. **Le garde-fou de mutation lui-même peut mentir** — raffinement des pièges de P6.7b (asserter que
+   la mutation est appliquée) et de P6.8d (asserter le **site**). Ici, `grep -qF` avec un motif
+   **multi-lignes** ne matche jamais : le script a annoncé « mutation non appliquée » alors qu'elle
+   l'était parfaitement, s'est arrêté, et a laissé un fichier muté sur le disque. **L'ancre
+   d'assertion doit tenir sur UNE SEULE LIGNE**, et la restauration doit être vérifiée par `diff`,
+   pas supposée.

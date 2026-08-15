@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Alert, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Screen } from '../components/Screen';
 import { Card } from '../components/Card';
@@ -7,7 +7,7 @@ import { ScreenHeader } from '../components/ScreenHeader';
 import { lireCache } from '../urgence/carteVitale';
 import { appelerSamu, contactAAlerter, envoyerSmsUrgence, messageUrgence, tracerAlerte } from '../urgence/sos';
 import { obtenirPositionUrgence, type PositionUrgence } from '../utils/geoloc';
-import { SAMU_NUMERO } from '../config/constants';
+import { numeroSamu, useNumerosUrgence } from '../urgence/numerosUrgence';
 import type { FicheVitale } from '../types/urgence';
 import { colors, radius, spacing, typography } from '../theme/theme';
 
@@ -25,6 +25,16 @@ export function SosEcran({ onFermer }: { onFermer: () => void }) {
   const [index, setIndex] = useState(0);
   const [position, setPosition] = useState<PositionUrgence | null>(null);
   const [rechercheGps, setRechercheGps] = useState(true);
+
+  // P6.8e — les numéros viennent du référentiel national, plus d'une constante du client. L'état
+  // initial est le repli : ce bouton ne s'affiche jamais sans numéro, pas même en chargement.
+  const etatNumeros = useNumerosUrgence();
+  const samu = numeroSamu(etatNumeros);
+  // Le §8 dit « numéros » au PLURIEL. Les autres secours sont proposés en second — l'ordre est une
+  // donnée du référentiel, et il met le secours médical en tête parce que ceci est une application
+  // de santé. Aucun n'est compilé dans l'application : s'ils n'ont jamais été reçus, ils sont
+  // simplement absents, et le SAMU reste joignable.
+  const autres = etatNumeros.numeros.filter((n) => n.numero !== samu);
 
   useEffect(() => {
     void lireCache().then(setFiches);
@@ -44,9 +54,9 @@ export function SosEcran({ onFermer }: { onFermer: () => void }) {
     try {
       await appelerSamu();
     } catch {
-      Alert.alert('Appel impossible', `Composez vous-même le ${SAMU_NUMERO}.`);
+      Alert.alert('Appel impossible', `Composez vous-même le ${samu}.`);
     }
-  }, [fiche, position, contact]);
+  }, [fiche, position, contact, samu]);
 
   const alerterContact = useCallback(async () => {
     if (!contact) return;
@@ -86,12 +96,35 @@ export function SosEcran({ onFermer }: { onFermer: () => void }) {
       <Pressable
         onPress={() => void appeler()}
         accessibilityRole="button"
-        accessibilityLabel={`Appeler le SAMU au ${SAMU_NUMERO}`}
+        accessibilityLabel={`Appeler le SAMU au ${samu}`}
         style={({ pressed }) => [styles.samu, pressed && styles.samuPresse]}
       >
         <Ionicons name="call" size={24} color="#FFFFFF" />
-        <Text style={styles.samuTxt}>Appeler le SAMU — {SAMU_NUMERO}</Text>
+        <Text style={styles.samuTxt}>Appeler le SAMU — {samu}</Text>
       </Pressable>
+
+      {/* Les autres secours du référentiel (§8, « numéros » au pluriel). Volontairement en retrait :
+          sur une application de santé, le premier geste reste le secours médical. */}
+      {autres.length > 0 && (
+        <Card style={styles.bloc}>
+          <Text style={styles.label}>Autres secours</Text>
+          {autres.map((n) => (
+            <Pressable
+              key={n.code}
+              onPress={() => void Linking.openURL(`tel:${n.numero}`)}
+              accessibilityRole="button"
+              accessibilityLabel={`Appeler ${n.libelle} au ${n.numero}`}
+              style={({ pressed }) => [styles.autre, pressed && styles.smsPresse]}
+            >
+              <Ionicons name="call-outline" size={20} color={colors.blue[700]} />
+              <View style={styles.autreTxt}>
+                <Text style={styles.smsTxt}>{n.libelle} — {n.numero}</Text>
+                {n.description ? <Text style={styles.muted}>{n.description}</Text> : null}
+              </View>
+            </Pressable>
+          ))}
+        </Card>
+      )}
 
       <Card style={styles.bloc}>
         <Text style={styles.label}>Prévenir un proche</Text>
@@ -184,5 +217,17 @@ const styles = StyleSheet.create({
   },
   smsPresse: { backgroundColor: colors.surfaceMuted },
   smsTxt: { ...typography.bodyStrong, color: colors.blue[700] },
+  autre: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing[3],
+    minHeight: 48,
+    paddingHorizontal: spacing[3],
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.line,
+    marginTop: spacing[2],
+  },
+  autreTxt: { flex: 1, paddingVertical: spacing[2] },
   gps: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing[2] },
 });

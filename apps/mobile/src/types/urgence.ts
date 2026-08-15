@@ -58,3 +58,30 @@ export interface FicheVitale {
   /** Instant de génération côté serveur : sert à dater le cache hors connexion. */
   genere_le: string;
 }
+
+/**
+ * P6.8e — Un numéro d'urgence national, tel que le publie le référentiel (CDC_09 §8).
+ *
+ * `source` est exposée par l'API et transportée jusqu'ici, mais **l'écran SOS ne l'affiche pas** :
+ * un avertissement sur la provenance d'un numéro, lu par quelqu'un qui doit appeler des secours,
+ * est du bruit au pire moment (décision C1). Elle sert au diagnostic et aux écrans d'exploitation.
+ */
+export interface NumeroUrgence {
+  code: string;
+  numero: string;
+  libelle: string;
+  description: string | null;
+  ordre: number;
+  source: string | null;
+  source_detail: string | null;
+}
+
+/** D'où vient la liste actuellement affichée — jamais montré au citoyen, utile aux tests et au debug. */
+export type ProvenanceNumeros = 'referentiel' | 'cache' | 'repli';
+
+export interface NumerosUrgenceEtat {
+  numeros: NumeroUrgence[];
+  provenance: ProvenanceNumeros;
+  /** Version du référentiel publiée, si la liste en vient. */
+  version: number | null;
+}

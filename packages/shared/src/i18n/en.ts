@@ -35,7 +35,8 @@ export const en: Traductions = {
     },
   },
   urgence: {
-    sos: 'SOS 185',
+    // P6.8e — voir `fr.ts` : le numéro est sorti de la chaîne, il vient du référentiel national.
+    sos: 'SOS',
     mesAlertes: 'My emergency alerts',
   },
   roles: {

@@ -104,6 +104,13 @@ class PortailRolesSeeder extends Seeder
         // de SON établissement, et la liste nationale deviendrait la somme des conventions de
         // chacun. Un agrément est délivré par un État.
         'assurance.referentiel',  // éditer le registre national des organismes d'assurance agréés
+        // Numéros d'urgence nationaux (P6.8e, CDC_09 §8) — ATTRIBUÉE À AUCUN RÔLE, DOUZIÈME
+        // occurrence, et celle-ci porte l'enjeu le plus direct du projet. Un numéro d'urgence est
+        // attribué par un plan national de numérotation : aucun établissement, aucun opérateur,
+        // aucune caisse n'a qualité pour en décider. Et l'erreur ne se rattrape pas — un numéro
+        // faux ne produit pas une liste vide ou un filtre inopérant, il produit un appel qui
+        // n'aboutit nulle part, composé par quelqu'un devant un blessé.
+        'urgence.referentiel',    // éditer le référentiel national des numéros d'urgence
         // Signature électronique (P6.5b, CDC_09 §5.3). Portée par le rôle `medecin` : signer ses
         // propres prescriptions relève du soin, pas d'une habilitation exceptionnelle. Elle ne
         // donne à elle seule AUCUN pouvoir — les cinq contrôles du §5.4 restent devant, et sans

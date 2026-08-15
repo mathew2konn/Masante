@@ -36,7 +36,11 @@ export const fr = {
     },
   },
   urgence: {
-    sos: 'SOS 185',
+    // P6.8e — LE NUMÉRO EST SORTI DE LA CHAÎNE. Il y était collé (« SOS 185 »), dans le paquet même
+    // qui sert de source unique : une traduction qui porte une donnée a l'apparence d'une source
+    // unique et se périme en silence. Le numéro vient désormais du référentiel national et
+    // s'accole à ce libellé au moment de l'affichage.
+    sos: 'SOS',
     mesAlertes: "Mes alertes d'urgence",
   },
   // Libellés des rôles RBAC (clés = valeurs de l'enum Role). Fournis par le backend, AFFICHÉS ici.

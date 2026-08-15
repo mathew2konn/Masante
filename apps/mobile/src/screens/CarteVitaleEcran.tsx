@@ -5,7 +5,7 @@ import { Screen } from '../components/Screen';
 import { Card } from '../components/Card';
 import { ScreenHeader } from '../components/ScreenHeader';
 import { lireCache } from '../urgence/carteVitale';
-import { SAMU_NUMERO } from '../config/constants';
+import { numeroSamu, useNumerosUrgence } from '../urgence/numerosUrgence';
 import { formatDateFr } from '../utils/dates';
 import type { FicheVitale } from '../types/urgence';
 import { colors, radius, spacing, typography } from '../theme/theme';
@@ -24,6 +24,7 @@ export function CarteVitaleEcran({ onFermer }: { onFermer: () => void }) {
   const [fiches, setFiches] = useState<FicheVitale[]>([]);
   const [index, setIndex] = useState(0);
   const [chargement, setChargement] = useState(true);
+  const samu = numeroSamu(useNumerosUrgence());
 
   useEffect(() => {
     void lireCache().then((f) => {
@@ -160,13 +161,16 @@ export function CarteVitaleEcran({ onFermer }: { onFermer: () => void }) {
         </Bloc>
       )}
 
+      {/* P6.8e — le numéro vient du référentiel. CET ÉCRAN EST LE CAS LIMITE DU MODULE : il s'ouvre
+          sans compte, sans réseau et sans PIN, donc c'est ici que la chaîne de repli compte le plus.
+          Le cache vit dans `SecureStore` comme la fiche elle-même, et survit à la déconnexion. */}
       <Pressable
-        onPress={() => appeler(SAMU_NUMERO)}
+        onPress={() => appeler(samu)}
         accessibilityRole="button"
-        accessibilityLabel={`Appeler le SAMU au ${SAMU_NUMERO}`}
+        accessibilityLabel={`Appeler le SAMU au ${samu}`}
         style={({ pressed }) => [styles.samu, pressed && styles.samuPresse]}
       >
-        <Text style={styles.samuTxt}>Appeler le SAMU — {SAMU_NUMERO}</Text>
+        <Text style={styles.samuTxt}>Appeler le SAMU — {samu}</Text>
       </Pressable>
 
       <Text style={styles.pied}>

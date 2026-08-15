@@ -66,6 +66,13 @@ class DatabaseSeeder extends Seeder
         // affirmerait un agrément que personne n'a vu. Ne publie rien (§10).
         $this->call(OrganismeAssuranceSeeder::class);
 
+        // P6.8e — Numéros d'urgence nationaux (CDC_09 §8). Le SAMU 185 vient du corpus ; le 100 et
+        // le 180 sont DÉCLARÉS par le propriétaire et non confrontés à un arrêté — d'où leur
+        // provenance `declaration_projet`, que l'écran du portail compte et affiche. Ne publie rien
+        // (§10) : tant qu'aucune version n'est en vigueur, les téléphones composent la valeur livrée
+        // avec l'application, et le portail le dit.
+        $this->call(NumeroUrgenceSeeder::class);
+
         // P6.4b — Villes couvertes (Abidjan, Yamoussoukro, Bouaké) + rattachement des structures.
         $this->call(VilleSeeder::class);
 

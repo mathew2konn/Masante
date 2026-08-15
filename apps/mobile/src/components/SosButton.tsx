@@ -2,7 +2,7 @@ import React from 'react';
 import { Pressable, StyleSheet, Text } from 'react-native';
 import { router } from 'expo-router';
 import { colors, radius, spacing, typography } from '../theme/theme';
-import { SAMU_NUMERO } from '../config/constants';
+import { numeroSamu, useNumerosUrgence } from '../urgence/numerosUrgence';
 
 /**
  * SosButton — bouton SOS du Design System (§5.1).
@@ -15,14 +15,19 @@ import { SAMU_NUMERO } from '../config/constants';
  * pas partir du même geste : l'appel met l'application en arrière-plan.
  */
 export function SosButton() {
+  // P6.8e — le numéro vient du référentiel national. L'état initial est le repli, jamais une valeur
+  // vide : ce bouton ne doit à aucun instant s'afficher sans numéro, pas même le temps d'un
+  // chargement.
+  const samu = numeroSamu(useNumerosUrgence());
+
   return (
     <Pressable
       onPress={() => router.push('/(app)/sos')}
       accessibilityRole="button"
-      accessibilityLabel={`Urgence : appeler le SAMU au ${SAMU_NUMERO} et alerter un proche`}
+      accessibilityLabel={`Urgence : appeler le SAMU au ${samu} et alerter un proche`}
       style={({ pressed }) => [styles.btn, { backgroundColor: pressed ? '#B91C1C' : colors.danger.solid }]}
     >
-      <Text style={styles.txt}>🆘  Urgence — SAMU {SAMU_NUMERO}</Text>
+      <Text style={styles.txt}>🆘  Urgence — SAMU {samu}</Text>
     </Pressable>
   );
 }

@@ -7,6 +7,7 @@ use App\Services\Referentiel\SourceAssurances;
 use App\Services\Referentiel\SourceEtablissements;
 use App\Services\Referentiel\SourceMaladies;
 use App\Services\Referentiel\SourceMedicaments;
+use App\Services\Referentiel\SourceNumerosUrgence;
 use App\Services\Referentiel\SourceProfessionnels;
 use App\Services\Referentiel\SourceReferentiel;
 use App\Services\Referentiel\SourceSeuilsMesure;
@@ -89,6 +90,16 @@ final class RegistreReferentiels
         // porte des faits individuels, comme `alertes_epidemiques` en P6.8c.
         // Voir `SourceAssurances`.
         SourceAssurances::CODE       => SourceAssurances::class,
+        // P6.8e — le premier référentiel dont le consommateur central n'a **ni réseau, ni session,
+        // ni compte** : l'écran SOS et la carte vitale d'urgence sont atteignables depuis l'écran de
+        // connexion, pour un secouriste. Les neuf précédents pouvaient poser un refus bruyant avant
+        // leur v1 ; ici un refus signifierait « pas de numéro d'urgence, dans une urgence ».
+        //
+        // Le motif n'est pas abandonné, il est DÉPLACÉ : le serveur reste honnête (sans version
+        // publiée, l'API refuse comme les autres et ne sert jamais la table de travail), et la
+        // résilience vit chez le client — cache `SecureStore`, puis valeur livrée avec
+        // l'application. Voir `SourceNumerosUrgence` et ADR-039.
+        SourceNumerosUrgence::CODE   => SourceNumerosUrgence::class,
     ];
 
     /** @return array<int, string> */

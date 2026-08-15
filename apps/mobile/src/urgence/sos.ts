@@ -12,7 +12,8 @@
  * La journalisation côté serveur arrive APRÈS, en best-effort, et n'est jamais bloquante.
  */
 import { Linking, Platform } from 'react-native';
-import { SAMU_NUMERO } from '../config/constants';
+import { CODE_SAMU, numeroUrgence } from './numerosUrgence';
+import { SAMU_NUMERO_REPLI } from '../config/constants';
 import { journaliserSos, type CanalSos } from '../api/sos';
 import type { PositionUrgence } from '../utils/geoloc';
 import type { ContactUrgenceVital, FicheVitale } from '../types/urgence';
@@ -60,9 +61,18 @@ export function messageUrgence(fiche: FicheVitale | null, position: PositionUrge
   return lignes.join('\n');
 }
 
-/** Ouvre le composeur téléphonique sur le SAMU (numéro vert, Côte d'Ivoire). */
+/**
+ * Ouvre le composeur téléphonique sur le SAMU.
+ *
+ * P6.8e — le numéro vient du référentiel national (`numerosUrgence.ts`), plus d'une constante.
+ * `?? SAMU_NUMERO_REPLI` n'est pas une seconde chaîne de repli : `numeroUrgence` garantit déjà une
+ * valeur pour le SAMU. C'est la garde qui rend impossible d'ouvrir `tel:null` si ce module changeait
+ * un jour de contrat — *sur un écran d'urgence, l'invariant vaut mieux que la confiance*.
+ */
 export async function appelerSamu(): Promise<void> {
-  await Linking.openURL(`tel:${SAMU_NUMERO}`);
+  const numero = (await numeroUrgence(CODE_SAMU)) ?? SAMU_NUMERO_REPLI;
+
+  await Linking.openURL(`tel:${numero}`);
 }
 
 /**

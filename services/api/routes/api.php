@@ -36,6 +36,7 @@ use App\Http\Controllers\Api\V1\MembreController;
 use App\Http\Controllers\Api\V1\MfaController;
 use App\Http\Controllers\Api\V1\NisController;
 use App\Http\Controllers\Api\V1\NotificationController;
+use App\Http\Controllers\Api\V1\NumeroUrgenceController;
 use App\Http\Controllers\Api\V1\PasswordController;
 use App\Http\Controllers\Api\V1\ResponsableFamilleController;
 use App\Http\Controllers\Api\V1\RevendicationCarnetController;
@@ -468,6 +469,21 @@ Route::middleware('throttle:api')->group(function () {
         */
         Route::get('/villes', [VilleController::class, 'index']);
         Route::get('/villes/localiser', [VilleController::class, 'localiser']);
+
+        /*
+        |------------------------------------------------------------------
+        | P6.8e — Numéros d'urgence nationaux (CDC_09 §8).
+        |------------------------------------------------------------------
+        | PUBLIC PAR NÉCESSITÉ, non par confort : l'écran SOS et la carte vitale d'urgence
+        | sont atteignables DEPUIS L'ÉCRAN DE CONNEXION, pour un secouriste qui ramasse le
+        | téléphone d'un inconscient (FN2). Exiger un jeton reviendrait à demander ses
+        | identifiants à quelqu'un qui n'a pas de compte, devant un blessé.
+        |
+        | Répond 503 tant qu'aucune version n'est publiée : le serveur ne sert jamais la
+        | table de travail en se faisant passer pour le référentiel. C'est le CLIENT qui
+        | porte le repli (cache SecureStore, puis valeur livrée avec l'application).
+        */
+        Route::get('/numeros-urgence', [NumeroUrgenceController::class, 'index']);
 
         Route::get('/pharmacies-garde', [StructureController::class, 'pharmaciesGarde']); // F3.8
         Route::get('/structures', [StructureController::class, 'index']);                 // F3.1/F3.2/F3.3
