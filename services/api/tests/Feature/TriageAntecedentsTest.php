@@ -5,8 +5,10 @@ namespace Tests\Feature;
 use App\Models\MembreFamille;
 use App\Models\Symptome;
 use App\Models\User;
+use App\Services\Referentiel\SourceSymptomesTriage;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Sanctum\Sanctum;
+use Tests\Concerns\GouverneUnReferentiel;
 use Tests\TestCase;
 
 /**
@@ -14,14 +16,29 @@ use Tests\TestCase;
  */
 class TriageAntecedentsTest extends TestCase
 {
+    use GouverneUnReferentiel;
     use RefreshDatabase;
 
+    /**
+     * P10a — LE SYMPTÔME EST CRÉÉ **PUIS PUBLIÉ**, et ce n'est pas une lourdeur de harnais.
+     *
+     * Depuis la bascule, le triage lit la version en vigueur du référentiel : un symptôme qui
+     * n'existe qu'en table n'est proposable ni sélectionnable. Publier ici est donc exactement ce
+     * qu'un déploiement fera — deux agents habilités mettent la v1 en vigueur.
+     *
+     * Aucun vecteur de ce fichier n'a changé : ils prouvent toujours ce qu'ils prouvaient (le
+     * plafonnement des antécédents et l'anti-IDOR), sous la garantie neuve.
+     */
     private function symptome(int $poids = 10): Symptome
     {
-        return Symptome::create([
+        $symptome = Symptome::create([
             'nom_fr' => 'Toux', 'categorie' => 'general',
             'poids_severite' => $poids, 'drapeau_rouge' => false, 'actif' => true,
         ]);
+
+        $this->publierReferentiel(SourceSymptomesTriage::CODE);
+
+        return $symptome;
     }
 
     public function test_le_triage_d_un_membre_integre_ses_antecedents_plafonnes(): void

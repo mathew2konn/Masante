@@ -8,6 +8,7 @@ use App\Models\Symptome;
 use App\Models\User;
 use App\Services\Referentiel\EmpreinteReferentiel;
 use App\Services\Referentiel\SourceNumerosUrgence;
+use App\Services\Referentiel\SourceSymptomesTriage;
 use App\Services\TriageService;
 use App\Services\Urgence\ServiceNumerosUrgence;
 use App\Support\RegistreReferentiels;
@@ -425,6 +426,10 @@ class ReferentielNumerosUrgenceTest extends TestCase
             'poids_severite' => 90, 'drapeau_rouge' => true, 'actif' => true,
         ]);
 
+        // P10a — Le triage lit désormais SA propre version publiée. Ce vecteur ne porte pas sur ce
+        // point ; il faut seulement que le triage puisse s'exécuter pour observer son texte.
+        $this->publierReferentiel(SourceSymptomesTriage::CODE);
+
         $resultat = app(TriageService::class)->analyser([$symptome->id]);
 
         // Le numéro vient du référentiel, plus d'une constante du service (CDC_02 §37).
@@ -439,6 +444,13 @@ class ReferentielNumerosUrgenceTest extends TestCase
             'nom_fr' => 'Douleur thoracique', 'categorie' => 'cardiaque',
             'poids_severite' => 90, 'drapeau_rouge' => true, 'actif' => true,
         ]);
+
+        // « Sans version publiée » porte ici sur les NUMÉROS D'URGENCE — c'est le sujet du vecteur,
+        // et ils restent délibérément non publiés. Le référentiel des SYMPTÔMES, lui, est mis en
+        // vigueur : sans lui le triage refuse de s'exécuter (P10a) et on n'observerait aucun texte.
+        // Deux référentiels, deux politiques, et c'est exactement ce que P6.8e a décidé : le repli
+        // du numéro vit côté client, celui du triage n'existe pas.
+        $this->publierReferentiel(SourceSymptomesTriage::CODE);
 
         $resultat = app(TriageService::class)->analyser([$symptome->id]);
 

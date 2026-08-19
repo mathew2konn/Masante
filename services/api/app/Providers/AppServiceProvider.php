@@ -14,7 +14,20 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
+        // ═══ P10a — UNE SEULE VERSION DU RÉFÉRENTIEL DE TRIAGE PAR REQUÊTE ═══
         //
+        // Trois consommateurs le lisent dans la même requête : la validation
+        // (`AnalyserTriageRequest`, qui n'accepte que les symptômes de la version en vigueur), le
+        // contrôleur (qui estampille) et `TriageService` (qui calcule). En liaison ordinaire,
+        // chacun recevrait sa propre instance, donc sa propre lecture — et une publication survenant
+        // au milieu produirait un triage **jugé par une version et estampillé par une autre**.
+        //
+        // `scoped` fait vivre l'instance le temps d'une requête et pas plus : en `singleton`, un
+        // serveur applicatif persistant (Octane) servirait indéfiniment une version périmée.
+        //
+        // Précédent : la mémoïsation de `MesureSanteService` en L1+L2, qui pinne une version pour
+        // que les deux lignes d'une tension soient jugées par les mêmes seuils.
+        $this->app->scoped(\App\Services\Triage\ServiceSymptomesTriage::class);
     }
 
     /**

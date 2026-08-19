@@ -923,10 +923,37 @@ Il se teste depuis le **portail web** (compte agent), pas depuis le mobile.
 | **Téléphone en poche, application fermée** | **rien** |
 
 À l'entrée de la zone authentifiée, l'application tente d'obtenir un jeton Expo. Sous Expo Go
-Android, **l'appel échoue silencieusement** — c'est le chemin nominal. **L'application ne doit ni
-planter, ni afficher d'erreur.** C'est le seul point à vérifier au G4 :
+Android, elle **n'essaie même pas** : `enregistrerCetAppareil()` renvoie `null` d'emblée. **Ni
+plantage, ni erreur à l'écran.**
 
-- [ ] L'application démarre normalement après l'ajout d'`expo-notifications`
+> ### ⚠ Correction du 2026-08-19 — cette section affirmait quelque chose de faux
+>
+> Elle disait « l'appel échoue silencieusement ». **Il n'échouait pas silencieusement : il affichait
+> un écran rouge au démarrage**, avant qu'une ligne de notre code ne s'exécute.
+>
+> ```text
+> ERROR  expo-notifications: Android Push notifications … was removed from Expo Go with the
+>        release of SDK 53. Use a development build instead of Expo Go.
+> ```
+>
+> **La cause n'était pas dans un appel, elle était dans l'IMPORT.** `expo-notifications/index.js`
+> tire `DevicePushTokenAutoRegistration.fx.js`, un module à **effet de bord** qui pose un écouteur
+> de jeton *au chargement*, lequel appelle `warnOfExpoGoPushUsage()` → `console.error` sur Android.
+> Comme `app/(app)/_layout.tsx` importe `src/push/enregistrement.ts` au démarrage, la chaîne
+> s'exécutait avant tout garde-fou. *Garder les appels ne servait à rien : le mal était fait par la
+> seule présence de l'import.*
+>
+> **Correctif** : plus aucun import statique d'`expo-notifications` ; chargement par
+> `await import()`, derrière `isRunningInExpoGo()` — **la fonction exacte qu'`expo-notifications`
+> interroge lui-même**. Reproduire sa condition avec une autre (`Constants.appOwnership`, une
+> variable d'environnement) ferait dériver les deux tests le jour où Expo changera la sienne.
+>
+> **Ce que le correctif ne fait pas** : désactiver le push. En *development build*,
+> `isRunningInExpoGo()` est faux, le module se charge et D1 se comporte comme avant.
+
+C'est le seul point à vérifier au G4 :
+
+- [ ] L'application démarre normalement, **sans WARN ni ERROR `expo-notifications`** dans la console Metro
 - [ ] Aucune alerte d'erreur au premier écran
 - [ ] `npx expo-doctor` reste **18/18**
 

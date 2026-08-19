@@ -25,9 +25,25 @@ export async function analyserTriage(payload: AnalyserPayload): Promise<AnalyseR
   return data;
 }
 
-/** F1.8 — Fiche partageable (texte prêt pour WhatsApp). */
-export async function getFiche(triageId: number): Promise<FicheResponse> {
-  const { data } = await api.get<FicheResponse>(`/v1/triage/${triageId}/fiche`);
+/**
+ * F1.8 / §5.4 — Fiche de triage : réponses, hôpitaux proches, QR et mention obligatoire.
+ *
+ * ═══ LA POSITION EST FACULTATIVE, ET SON ABSENCE N'EST PAS UNE PANNE ═══
+ *
+ * Sans elle le serveur renvoie les mêmes établissements, simplement non triés par proximité. Un
+ * refus de localisation ne doit jamais priver un patient de la liste des hôpitaux qui proposent le
+ * service dont il a besoin.
+ *
+ * Le compte authentifié suffit à lire SA fiche ; `jeton` sert au médecin qui scanne le QR — le
+ * mobile n'a pas à le fournir pour lui-même.
+ */
+export async function getFiche(
+  triageId: number,
+  position?: { lat: number; lng: number } | null,
+): Promise<FicheResponse> {
+  const { data } = await api.get<FicheResponse>(`/v1/triage/${triageId}/fiche`, {
+    params: position ? { lat: position.lat, lng: position.lng } : undefined,
+  });
   return data;
 }
 

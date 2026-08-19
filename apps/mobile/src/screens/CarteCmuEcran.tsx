@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
-import QRCode from 'react-native-qrcode-svg';
+import { QrMasante } from '../components/QrMasante';
 import { Screen } from '../components/Screen';
 import { ScreenHeader } from '../components/ScreenHeader';
 import { Card } from '../components/Card';
@@ -150,7 +150,7 @@ export function CarteCmuEcran({ membreId, nomMembre }: { membreId: number; nomMe
             presenter && carte.code_presentation ? (
               <Card style={styles.presentation}>
                 <View style={[styles.qrBoite, expire && styles.qrExpire]}>
-                  <QRCode value={carte.code_presentation} size={220} color={colors.ink[900]} backgroundColor={colors.surface} />
+                  <QrMasante valeur={carte.code_presentation} size={220} />
                 </View>
                 <View style={[styles.chrono, { backgroundColor: expire ? colors.danger.bg : colors.success.bg }]}>
                   <Text style={[styles.chronoTxt, { color: expire ? colors.danger.text : colors.success.text }]}>

@@ -89,6 +89,13 @@ trait GouverneUnReferentiel
         foreach ($this->app['router']->getRoutes() as $route) {
             $route->flushController();
         }
+
+        // P10a — Les liaisons `scoped` vivent le temps d'une requête. `ServiceSymptomesTriage` en
+        // est une : la validation, le contrôleur et l'algorithme doivent voir la MÊME version, mais
+        // pas la même d'une requête à l'autre. Sans cet oubli, un vecteur qui publie puis rejoue
+        // continuerait de lire la version chargée avant la publication — la même famille de piège
+        // que la mémoïsation ci-dessus, et Octane fait exactement ceci entre deux requêtes.
+        $this->app->forgetScopedInstances();
     }
 
     protected function agentReferentiel(string ...$permissions): User

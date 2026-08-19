@@ -51,3 +51,8 @@ claude-skills-main/
 # Préférences locales Claude Code (personnelles)
 .claude/settings.local.json
 .claude/scheduled_tasks.lock
+
+# Miroir local de CLAUDE.md pour les outils qui lisent AGENTS.md (contenu identique,
+# seul le titre diffère). Ancré à la racine : apps/mobile/AGENTS.md est un VRAI fichier
+# du dépôt (consigne Expo SDK 54) et doit rester suivi.
+/AGENTS.md

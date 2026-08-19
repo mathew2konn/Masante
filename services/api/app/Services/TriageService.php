@@ -3,7 +3,9 @@
 namespace App\Services;
 
 use App\Models\Symptome;
+use App\Services\Triage\ServiceSymptomesTriage;
 use App\Services\Urgence\ServiceNumerosUrgence;
+use App\Support\ReglesOrientation;
 use Illuminate\Support\Collection;
 
 /**
@@ -33,7 +35,18 @@ class TriageService
      *
      * Ce service ne décide toujours de rien sur ce point : il insère une donnée dans un texte.
      */
-    public function __construct(private readonly ServiceNumerosUrgence $numeros) {}
+    /**
+     * P10a — LES SYMPTÔMES NE VIENNENT PLUS DE LA TABLE.
+     *
+     * `Symptome::actif()->whereIn(...)` lisait la table de travail : un `UPDATE` direct changeait le
+     * triage sans version, sans trace et sans relecture. C'est le constat F3 du G0 de P6.3, et la
+     * limite L1 d'ADR-025 dont L1+L2 avait refermé l'autre moitié. Le service ci-dessous lit la
+     * **version publiée** et refuse bruyamment tant qu'il n'y en a pas.
+     */
+    public function __construct(
+        private readonly ServiceNumerosUrgence $numeros,
+        private readonly ServiceSymptomesTriage $symptomes,
+    ) {}
 
     /** Plafond de l'impact des antécédents sur le score (prompt §7). */
     private const PLAFOND_ANTECEDENTS = 20;
@@ -55,7 +68,7 @@ class TriageService
         array $antecedents = []
     ): array {
         /** @var Collection<int,Symptome> $symptomes */
-        $symptomes = Symptome::actif()->whereIn('id', $symptomesIds)->get();
+        $symptomes = $this->symptomes->retenus($symptomesIds);
 
         // 1) Poids de base des symptômes + détection d'un drapeau rouge symptôme.
         $scoreSymptomes = (int) $symptomes->sum('poids_severite');
@@ -81,14 +94,34 @@ class TriageService
 
         $niveau = $this->niveauDepuisScore($score);
 
-        // 6) Déduction de la spécialité (§5.1.3) puis texte de recommandation.
-        $specialite = $this->deduireSpecialite($symptomes, $age, $sexe, $niveau);
+        // 6) Orientation (§5.1.3) puis texte de recommandation.
+        $codes = $this->orienter($symptomes, $age, $sexe);
+
+        // Les codes, accompagnés de leur libellé — c'est ce que le mobile affiche et ce dont il se
+        // sert pour chercher les établissements (D3 : le serveur renvoie les deux).
+        $specialites = array_map(fn (string $code): array => [
+            'code'    => $code,
+            'libelle' => $code === ServiceSymptomesTriage::CODE_PEDIATRIE
+                ? $this->symptomes->libellePediatrie()
+                : $this->symptomes->libelle($code),
+        ], $codes);
+
+        // ═══ `specialite_requise` SURVIT, ET CE N'EST PAS DE LA COMPLAISANCE ═══
+        //
+        // La colonne existe depuis le Module 1 et l'historique la porte : la réécrire changerait ce
+        // qu'un patient a réellement lu. Elle reste **l'affichage principal** — le libellé de la
+        // première orientation — pendant que `specialites_json` devient la donnée. Même partage
+        // qu'entre `vaccinations.statut` et le calcul (P6.8b) : la colonne dit ce qu'on a montré,
+        // la donnée dit ce qu'on a décidé.
+        $specialite = $specialites[0]['libelle'] ?? null;
         $recommandation = $this->construireRecommandation($niveau, $specialite);
 
         return [
             'score_severite'       => $score,
             'niveau'               => $niveau,
             'specialite_requise'   => $specialite,
+            'specialites'          => $specialites,
+            'referentiel_version'  => $this->symptomes->version(),
             'recommandation_texte' => $recommandation,
             'drapeau_rouge'        => $drapeauRouge,
             'symptomes'            => $symptomes->map(fn (Symptome $s) => [
@@ -179,34 +212,44 @@ class TriageService
     }
 
     /**
-     * Déduit la spécialité médicale (§5.1.3) à partir des indices des symptômes,
-     * de l'âge et du sexe.
+     * P10a — L'orientation (§5.1.3), agrégée à partir des ANNOTATIONS publiées des symptômes.
+     *
+     * ═══ CE QUE CETTE MÉTHODE FAISAIT AVANT, ET POURQUOI C'ÉTAIT UN DÉFAUT ═══
+     *
+     * Elle comparait des SOUS-CHAÎNES d'un libellé libre :
+     *
+     *     ->reject(fn ($h) => str_contains(mb_strtolower($h), 'gyn') && $sexe !== 'F')
+     *     $hints->first(fn ($h) => str_contains($h, 'urgenc') || str_contains($h, 'cardio'))
+     *     if ($age < 15) return 'Pédiatrie';
+     *
+     * Trois **règles médicales en dur** (CDC_00 §4) que personne n'avait vues parce qu'elles ne
+     * ressemblent pas à des règles — et qui portaient sur du texte modifiable : écrire « Urgence »
+     * au singulier aurait supprimé la priorité **sans que rien ne le signale**. Un libellé rendait
+     * du même coup impossible de représenter « Cardiologie / Urgences » autrement que par une
+     * chaîne dans laquelle il fallait ensuite chercher.
+     *
+     * Désormais : le `rang` porte la priorité, `sexe_requis` porte la restriction, et les deux sont
+     * des **données publiées** relues par deux agents (§10). Le repli pédiatrique reste une règle,
+     * mais son code et son seuil sont **fournis**, jamais enfouis.
+     *
+     * ═══ L'ORIENTATION N'EST PAS UNE DÉDUCTION ═══
+     *
+     * Le triage ne « trouve » pas la spécialité : chaque symptôme porte, en base, celles vers
+     * lesquelles il oriente. Ce service ne fait que fusionner et ordonner. C'est le bon niveau —
+     * CDC_05 §1 : *« le triage n'est jamais un diagnostic »*. D'où le renommage : on n'en **déduit**
+     * plus rien, on **agrège**.
+     *
+     * @return array<int, string> les codes retenus, du plus pertinent au moins pertinent
      */
-    private function deduireSpecialite(Collection $symptomes, ?int $age, ?string $sexe, string $niveau): ?string
+    private function orienter(Collection $symptomes, ?int $age, ?string $sexe): array
     {
-        $hints = $symptomes
-            ->pluck('specialite_hint')
-            ->filter()
-            ->unique()
-            // La gynécologie n'est pertinente que pour une patiente.
-            ->reject(fn ($h) => str_contains(mb_strtolower($h), 'gyn') && $sexe !== 'F')
-            ->values();
-
-        if ($hints->isNotEmpty()) {
-            // En cas d'urgence, on privilégie un indice « urgences/cardiologie ».
-            $prioritaire = $hints->first(
-                fn ($h) => str_contains(mb_strtolower($h), 'urgenc') || str_contains(mb_strtolower($h), 'cardio')
-            );
-
-            return $prioritaire ?? $hints->first();
-        }
-
-        // Enfant de moins de 15 ans sans indice spécifique => pédiatrie (§5.1.3).
-        if ($age !== null && $age < 15) {
-            return 'Pédiatrie';
-        }
-
-        return null; // Médecine générale par défaut.
+        return ReglesOrientation::agreger(
+            orientations: $this->symptomes->orientationsDe($symptomes),
+            sexe: $sexe,
+            age: $age,
+            codePediatrie: $this->symptomes->codePediatrie(),
+            agePediatrie: ServiceSymptomesTriage::AGE_PEDIATRIE,
+        );
     }
 
     /** Construit le texte de recommandation affiché au patient. */

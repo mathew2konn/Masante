@@ -2,6 +2,7 @@ import * as SecureStore from 'expo-secure-store';
 import { create } from 'zustand';
 import { chargerVilles, localiserVille } from '../api/villes';
 import { obtenirPosition } from '../utils/geoloc';
+import type { Coordonnees } from '../types/structure';
 import type { Localisation, SourceVille, TypeEtablissement, Ville, VilleProche } from '../types/ville';
 
 /**
@@ -33,6 +34,27 @@ import type { Localisation, SourceVille, TypeEtablissement, Ville, VilleProche }
 
 const CLE_MEMOIRE = 'masante.ville_connue';
 
+/**
+ * P10a — Durée pendant laquelle une position mesurée reste utilisable pour classer des hôpitaux.
+ *
+ * ═══ POURQUOI UNE FRAÎCHEUR, ET NON UN CACHE ═══
+ *
+ * ADR-027 avait délibérément REFUSÉ de retenir les coordonnées : « une seule mesure au moment du
+ * tap », parce qu'une position en cache dirait « vous êtes à Abidjan » à quelqu'un arrivé à Bouaké.
+ * Retenir les coordonnées sans précaution reviendrait donc sur cette décision.
+ *
+ * La fraîcheur est ce qui permet de faire les deux. Elle sépare deux questions que ce store
+ * traitait comme une seule :
+ *   · « dans quelle ville suis-je ? » — reste une AFFIRMATION, toujours servie par la règle des
+ *     trois sources (`position` / `choix` / `memoire`), inchangée ;
+ *   · « quels hôpitaux sont les plus proches ? » — un CLASSEMENT, qui tolère quelques minutes
+ *     d'ancienneté mais devient faux si l'on a roulé une heure.
+ *
+ * Au-delà du délai, la position n'est pas « approximative » : elle est **remesurée**. On ne
+ * dégrade jamais silencieusement une donnée de position.
+ */
+const FRAICHEUR_POSITION_MS = 5 * 60 * 1000;
+
 interface EtatLocalisation {
   /** Les villes couvertes, pour le sélecteur de repli. */
   villes: Ville[];
@@ -53,9 +75,28 @@ interface EtatLocalisation {
   choixRequis: boolean;
   enCours: boolean;
 
+  /**
+   * P10a — Les coordonnées de la DERNIÈRE mesure, et l'instant où elle a eu lieu.
+   *
+   * Elles ne servent jamais à dire où l'on est (voir `FRAICHEUR_POSITION_MS`) : elles servent à
+   * classer des établissements par proximité et à demander des temps de trajet. Elles ne sont
+   * volontairement PAS persistées — au prochain lancement, on remesure.
+   */
+  coords: Coordonnees | null;
+  mesureeA: number | null;
+
   initialiser: () => Promise<void>;
   demanderPosition: () => Promise<void>;
   choisirVille: (code: string) => Promise<void>;
+
+  /**
+   * Une position utilisable maintenant, ou `null`.
+   *
+   * Remesure si la précédente a dépassé la fraîcheur. Renvoie `null` sans jamais lever : un refus
+   * de localisation ne doit pas empêcher l'écran de s'afficher — il le prive seulement du tri par
+   * proximité, et l'écran le dit.
+   */
+  positionFraiche: () => Promise<Coordonnees | null>;
 }
 
 export const useLocalisation = create<EtatLocalisation>((set, get) => ({
@@ -68,6 +109,8 @@ export const useLocalisation = create<EtatLocalisation>((set, get) => ({
   villesParProximite: [],
   choixRequis: false,
   enCours: false,
+  coords: null,
+  mesureeA: null,
 
   /**
    * Au démarrage : charger les villes, puis tenter la position.
@@ -116,6 +159,11 @@ export const useLocalisation = create<EtatLocalisation>((set, get) => ({
       return;
     }
 
+    // La mesure est retenue AVANT l'appel réseau : elle est valable même si le serveur ne répond
+    // pas. Savoir où l'on est et savoir dans quelle ville cela tombe sont deux choses distinctes,
+    // et la seconde seule dépend du réseau.
+    set({ coords: resultat.coords, mesureeA: Date.now() });
+
     try {
       const localisation = await localiserVille(resultat.coords);
       set(depuisReponse(localisation));
@@ -148,6 +196,29 @@ export const useLocalisation = create<EtatLocalisation>((set, get) => ({
       communes: ville.communes,
       choixRequis: false,
     });
+  },
+
+  async positionFraiche() {
+    const { coords, mesureeA } = get();
+
+    if (coords !== null && mesureeA !== null && Date.now() - mesureeA < FRAICHEUR_POSITION_MS) {
+      return coords;
+    }
+
+    // Périmée ou absente : on REMESURE. Une position vieille d'une heure classerait les hôpitaux
+    // depuis un endroit où l'on n'est plus.
+    const resultat = await obtenirPosition();
+
+    if (!resultat.ok) {
+      // On efface ce qu'on avait : garder une position périmée après un refus reviendrait à
+      // continuer d'utiliser ce que l'utilisateur vient de refuser.
+      set({ coords: null, mesureeA: null });
+      return null;
+    }
+
+    set({ coords: resultat.coords, mesureeA: Date.now() });
+
+    return resultat.coords;
   },
 }));
 

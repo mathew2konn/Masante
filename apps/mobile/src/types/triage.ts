@@ -29,8 +29,19 @@ export interface Symptome {
   id: number;
   nom_fr: string;
   categorie: string;
-  specialite_hint: string | null;
   questions_complementaires_json: Question[] | null;
+}
+
+/**
+ * P10a — Une orientation renvoyée par le serveur : le CODE et son libellé.
+ *
+ * Le code sert à chercher les établissements (`?specialite=`), le libellé à l'afficher. Le mobile
+ * ne déduit ni l'un ni l'autre : `specialite_hint` a disparu de `Symptome` parce qu'elle ne
+ * gouverne plus rien, et rien ici ne remplace le calcul serveur (règle de frontière).
+ */
+export interface Orientation {
+  code: string;
+  libelle: string;
 }
 
 /** Réponse GET /v1/symptomes. */
@@ -38,6 +49,8 @@ export interface SymptomesResponse {
   total: number;
   par_categorie: Record<string, Symptome[]>;
   symptomes: Symptome[];
+  /** Version publiée du référentiel qui gouverne cette liste (CDC_09 §10). */
+  referentiel_version: number;
 }
 
 /** Valeur d'une réponse au questionnaire (selon le type de question). */
@@ -69,6 +82,9 @@ export interface AnalyseResultat {
   score_severite: number;
   niveau: Niveau;
   specialite_requise: string | null;
+  /** Les orientations, DANS L'ORDRE décidé par le référentiel publié (rang). */
+  specialites: Orientation[];
+  referentiel_version: number;
   recommandation_texte: string;
   drapeau_rouge: boolean;
   details_score: {
@@ -89,10 +105,42 @@ export interface FicheResponse {
     niveau_libelle: string;
     couleur: string;
     specialite_requise: string | null;
+    specialites: Orientation[];
+    /** Les réponses au questionnaire — exigées par le §5.4, jamais affichées avant P10a. */
+    reponses: Array<{ symptome_id: number; cle: string; valeur: ValeurReponse; valeur_impact: number }>;
+    etablissements: GroupeEtablissements[];
+    referentiel_version: number | null;
+    /** Texte IMPOSÉ par le §5.4. Affiché tel quel, jamais reformulé. */
+    mention_obligatoire: string;
     recommandation_texte: string;
     date: string;
   };
   texte_partage: string;
+  /** Charge utile du QR « permettant au médecin d'accéder au triage » (§5.4). */
+  qr_payload: string;
+}
+
+/** Les hôpitaux proposant UNE spécialité (§5.4), groupés pour qu'on sache lequel répond à quoi. */
+export interface GroupeEtablissements {
+  specialite: Orientation;
+  /** Vrai si l'annuaire en contient davantage : la troncature se dit, elle ne se devine pas. */
+  tronquee: boolean;
+  total: number;
+  etablissements: EtablissementProche[];
+}
+
+export interface EtablissementProche {
+  id: number;
+  nom: string;
+  type: string;
+  commune: string | null;
+  adresse: string | null;
+  telephone: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  /** Distance à vol d'oiseau, calculée par le serveur. `null` sans position. */
+  distance_km: number | null;
+  statut_jour: string | null;
 }
 
 /** Un élément de l'historique (F1.6). */

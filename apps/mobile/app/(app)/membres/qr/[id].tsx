@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
-import QRCode from 'react-native-qrcode-svg';
+import { QrMasante } from '../../../../src/components/QrMasante';
 import { Screen } from '../../../../src/components/Screen';
 import { ScreenHeader } from '../../../../src/components/ScreenHeader';
 import { Card } from '../../../../src/components/Card';
@@ -94,7 +94,7 @@ export default function QrMembreScreen() {
         ) : qr ? (
           <>
             <View style={[styles.qrBoite, expire && styles.qrExpire]}>
-              <QRCode value={qr.qr} size={220} color={colors.ink[900]} backgroundColor={colors.surface} />
+              <QrMasante valeur={qr.qr} size={220} />
             </View>
             <View style={[styles.chrono, { backgroundColor: expire ? colors.danger.bg : colors.success.bg }]}>
               <Text style={[styles.chronoTxt, { color: expire ? colors.danger.text : colors.success.text }]}>

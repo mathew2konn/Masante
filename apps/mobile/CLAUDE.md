@@ -5,7 +5,7 @@
 App citoyenne Expo SDK 54. Voir le `CLAUDE.md` racine pour l'architecture globale, la règle de frontière et les gates. Rappels spécifiques mobile :
 
 ## Stack verrouillée (versions installées)
-Expo `~54.0.36` · React Native `0.81.5` · React `19.1.0` · Expo Router `~6.0.24` · TypeScript `~5.9.2` strict · **NativeWind `^4.2.6` + Tailwind `^3.4.19`** (pas v4) · TanStack Query `^5.101.4` · Zustand `^5.0.14` · React Hook Form `^7.83.0` · Zod `^4.4.3` · FlashList `2.0.2` · reanimated `~4.1.1` · expo-sqlite `~16.0.10` · axios `^1.18.0`. Auth/verrou existants : SecureStore, expo-local-authentication (PIN/bio).
+Expo `~54.0.37` · React Native `0.81.5` · React `19.1.0` · Expo Router `~6.0.24` · TypeScript `~5.9.2` strict · **NativeWind `^4.2.6` + Tailwind `^3.4.19`** (pas v4) · TanStack Query `^5.101.4` · Zustand `^5.0.14` · React Hook Form `^7.83.0` · Zod `^4.4.3` · FlashList `2.0.2` · reanimated `~4.1.1` · expo-sqlite `~16.0.10` · axios `^1.18.0`. Auth/verrou existants : SecureStore, expo-local-authentication (PIN/bio).
 
 ## Règles
 - **Aucune règle médicale/tarifaire ici.** Le questionnaire de triage, les seuils, les états RDV viennent du backend.

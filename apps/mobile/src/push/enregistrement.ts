@@ -13,10 +13,28 @@
  *
  * Tant que ces trois conditions ne sont pas réunies, l'utilisateur garde TOUTES ses notifications
  * en application. Rien n'est perdu — seule l'alerte téléphone-en-poche manque.
+ *
+ * ═══ POURQUOI `expo-notifications` N'EST PAS IMPORTÉ EN HAUT DE CE FICHIER ═══
+ *
+ * Parce que le défaut n'est pas dans un APPEL, il est dans l'IMPORT. `expo-notifications/index.js`
+ * tire `DevicePushTokenAutoRegistration.fx.js`, un module à effet de bord qui pose un écouteur de
+ * jeton **au chargement**, lequel appelle `warnOfExpoGoPushUsage()` — et sous Expo Go Android
+ * celui-ci fait un `console.error`. Résultat : un écran rouge au démarrage de l'application, avant
+ * qu'une seule ligne de notre code ne s'exécute. Garder les appels ne servait donc à rien : le mal
+ * était fait par la seule présence de l'import, tiré au démarrage par `app/(app)/_layout.tsx`.
+ *
+ * D'où le chargement **dynamique**, sous la même condition qu'Expo emploie lui-même :
+ * `isRunningInExpoGo()`, la fonction exacte que `warnOfExpoGoPushUsage` interroge. Reproduire sa
+ * condition avec une autre (`Constants.appOwnership`, une variable d'environnement) ferait dériver
+ * les deux tests le jour où Expo changera la sienne — *un garde-fou qui n'est plus d'accord avec ce
+ * qu'il garde ne protège plus rien*.
+ *
+ * Ce que ce fichier NE fait pas : désactiver le push. En *development build*, `isRunningInExpoGo()`
+ * est faux, le module se charge normalement et le comportement de D1 est inchangé.
  */
-import Constants from 'expo-constants';
 import * as Device from 'expo-device';
-import * as Notifications from 'expo-notifications';
+import { isRunningInExpoGo } from 'expo';
+import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 import { enregistrerJetonPush, retirerJetonPush } from '../api/notifications';
 
@@ -31,10 +49,22 @@ let jetonCourant: string | null = null;
  */
 export async function enregistrerCetAppareil(): Promise<string | null> {
   try {
+    // ═══ EXPO GO : ON NE CHARGE MÊME PAS LE MODULE ═══
+    //
+    // Le push distant a été retiré d'Expo Go avec le SDK 53. C'est le cas NORMAL de ce projet
+    // aujourd'hui (le G4 se tient sur Expo Go), et il se traite en amont de tout le reste : charger
+    // le module ne servirait qu'à déclencher son effet de bord.
+    if (isRunningInExpoGo()) {
+      return null;
+    }
+
     // Un émulateur n'a pas de service de notification : inutile d'aller plus loin.
     if (!Device.isDevice) {
       return null;
     }
+
+    // Chargement différé : hors Expo Go seulement, donc jamais au démarrage de l'application.
+    const Notifications = await import('expo-notifications');
 
     if (Platform.OS === 'android') {
       // Android exige un canal déclaré, sinon la notification n'est pas affichée.
@@ -70,7 +100,9 @@ export async function enregistrerCetAppareil(): Promise<string | null> {
 
     return jeton;
   } catch {
-    // Sous Expo Go Android, `getExpoPushTokenAsync` lève. C'est le chemin nominal aujourd'hui.
+    // Filet de sécurité pour tout ce qui reste : service Google Play absent, jeton refusé par
+    // Expo, réseau coupé au moment de l'enregistrement. Le cas « Expo Go », lui, n'arrive plus
+    // jusqu'ici — il est traité en tête de fonction, avant même le chargement du module.
     return null;
   }
 }

@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import QRCode from 'react-native-qrcode-svg';
+import { QrMasante } from '../../../../src/components/QrMasante';
 import { Screen } from '../../../../src/components/Screen';
 import { Card } from '../../../../src/components/Card';
 import { Chip } from '../../../../src/components/Chip';
@@ -155,7 +155,7 @@ export default function RecuRdvEcran() {
       {/* QR de check-in */}
       <Card style={styles.qrCard}>
         <View style={styles.qrWrap}>
-          <QRCode value={recu.code} size={200} color={colors.ink[900]} backgroundColor="#FFFFFF" />
+          <QrMasante valeur={recu.code} size={200} backgroundColor="#FFFFFF" />
         </View>
         <Text style={styles.qrNote}>
           À présenter à l'accueil. Ce code ne donne pas accès à votre dossier médical.

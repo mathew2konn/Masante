@@ -12,8 +12,12 @@ use Illuminate\Database\Seeder;
  *
  * Chaque code ci-dessous EXISTE DÉJÀ dans ce projet — dix sont portés par les services seedés
  * (`services_etablissement.specialite`), `don_sang` est référencé par `DonSangController` et par le
- * mobile, `ophtalmologie` et `traumatologie` sont nommées par `symptomes.specialite_hint`. Rien
- * n'a été ajouté « pour faire complet ».
+ * mobile, `ophtalmologie`, `traumatologie` et `maternite` sont nommées par
+ * `symptomes.specialite_hint`. Rien n'a été ajouté « pour faire complet ».
+ *
+ * `maternite` a été ajouté en **P10a** : il manquait, et c'est le backfill de l'orientation qui l'a
+ * fait remarquer — non pas en le devinant, mais en le SIGNALANT comme part sans code. C'est le
+ * comportement attendu d'un référentiel gouverné : *un manque nommé ne s'oublie pas*.
  *
  * CE QUI N'Y EST PAS, ET POURQUOI. La nomenclature officielle des spécialités reconnues en Côte
  * d'Ivoire relève d'un arrêté que je n'ai pas vu. En inventer trente de plus produirait une liste
@@ -59,6 +63,22 @@ class SpecialiteMedicaleSeeder extends Seeder
         'traumatologie'      => ['Traumatologie',       'specialite_medicale', 'medecin_specialiste', 37],
 
         // — Activités de service —
+        //
+        // ═══ `maternite` — AJOUTÉ EN P10a, ET C'EST ENCORE UNE ADOPTION ═══
+        //
+        // Le terme était nommé par `symptomes.specialite_hint` (« Gynécologie / Maternité ») depuis
+        // le Module 1, exactement comme `ophtalmologie` et `traumatologie` — mais il avait été omis
+        // en P6.8a, et le backfill de P10a l'a fait ressortir en le SIGNALANT comme sans code. La
+        // décision d'ajouter le terme est du propriétaire (2026-08-15) ; ce commentaire dit
+        // seulement pourquoi il est rangé ICI et pas parmi les spécialités.
+        //
+        // POURQUOI `activite` ET NON `specialite_medicale` : la spécialité médicale correspondante
+        // s'appelle **gynécologie-obstétrique**, et elle est déjà au vocabulaire sous `gynecologie`.
+        // Une maternité est un SERVICE — une unité de soins tenue par des sages-femmes et des
+        // obstétriciens. La ranger parmi les « spécialités médicales reconnues » du §8 ferait
+        // affirmer au référentiel national quelque chose de faux, et rendrait insoluble la question
+        // du §4.4 en comptant deux fois la même compétence.
+        'maternite'          => ['Maternité',           'activite', 'sage_femme',  89],
         'biologie'           => ['Biologie médicale',   'activite', 'biologiste',  90],
         'pharmacie'          => ['Pharmacie',           'activite', 'pharmacien',  91],
         // Référencé par `DonSangController` et par le mobile, jamais seedé : aucun établissement de

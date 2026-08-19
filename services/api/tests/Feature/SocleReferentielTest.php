@@ -34,6 +34,7 @@ use Tests\TestCase;
  */
 class SocleReferentielTest extends TestCase
 {
+    use \Tests\Concerns\GouverneUnReferentiel;
     use RefreshDatabase;
 
     private const SEUILS = SourceSeuilsMesure::CODE;
@@ -787,15 +788,29 @@ class SocleReferentielTest extends TestCase
     // Non-régression : les modules validés G5 ne bougent pas
     // ─────────────────────────────────────────────────────────────────────────────
 
-    public function test_le_triage_continue_de_lire_sa_table_en_direct(): void
+    /**
+     * ═══ CE VECTEUR AFFIRMAIT L'INVERSE, ET IL EST RÉÉCRIT — PAS CORRIGÉ POUR PASSER ═══
+     *
+     * Il s'appelait `test_le_triage_continue_de_lire_sa_table_en_direct` et disait : « P6.3 n'a rien
+     * changé au chemin de lecture existant ; la bascule est un incrément ultérieur ». C'était vrai,
+     * et c'était la **limite L1** d'ADR-025 énoncée comme une garantie de non-régression.
+     *
+     * P10a est cet incrément ultérieur. Le vecteur doit donc dire la garantie NEUVE — précédent
+     * P6.4d, où un test hérité affirmait un comportement retiré et a été réécrit plutôt que rendu
+     * vert. Le supprimer aurait laissé la bascule sans témoin.
+     */
+    public function test_le_triage_ne_lit_plus_sa_table_en_direct(): void
     {
         $this->symptome();
 
-        // P6.3 n'a rien changé au chemin de lecture existant : `/symptomes` reste servi par la
-        // table métier, pas par la diffusion. La bascule est un incrément ultérieur, additif.
-        $this->getJson('/api/v1/symptomes')->assertOk();
+        // Avant toute publication : refus BRUYANT. Jamais un repli sur la table — un repli
+        // laisserait un oubli de publication passer inaperçu (décision reprise de L1+L2).
+        $this->getJson('/api/v1/symptomes')->assertStatus(503);
 
-        // Lire les symptômes ne doit rien créer dans le socle : le triage l'ignore complètement.
-        $this->assertDatabaseCount('referentiels', 0);
+        $this->publierReferentiel(SourceSymptomesTriage::CODE);
+
+        $this->getJson('/api/v1/symptomes')
+            ->assertOk()
+            ->assertJsonPath('referentiel_version', 1);
     }
 }

@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import QRCode from 'react-native-qrcode-svg';
+import { QrMasante } from '../../../src/components/QrMasante';
 import { Screen } from '../../../src/components/Screen';
 import { ScreenHeader } from '../../../src/components/ScreenHeader';
 import { Card } from '../../../src/components/Card';
@@ -129,7 +129,7 @@ export default function MfaScreen() {
 
         <Card style={styles.carteQr}>
           <View style={styles.qrBoite}>
-            <QRCode value={enrolement.otpauth_uri} size={200} color={colors.ink[900]} backgroundColor={colors.surface} />
+            <QrMasante valeur={enrolement.otpauth_uri} size={200} />
           </View>
           <Text style={styles.secretLabel}>Ou saisissez cette clé manuellement :</Text>
           <Text style={styles.secret} selectable>
