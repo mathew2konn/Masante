@@ -9,6 +9,7 @@ use App\Services\Referentiel\SourceSymptomesTriage;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Sanctum\Sanctum;
 use Tests\Concerns\GouverneUnReferentiel;
+use Tests\Concerns\PublieLeProtocoleDeTriage;
 use Tests\TestCase;
 
 /**
@@ -17,6 +18,7 @@ use Tests\TestCase;
 class TriageAntecedentsTest extends TestCase
 {
     use GouverneUnReferentiel;
+    use PublieLeProtocoleDeTriage;
     use RefreshDatabase;
 
     /**
@@ -36,6 +38,10 @@ class TriageAntecedentsTest extends TestCase
             'poids_severite' => $poids, 'drapeau_rouge' => false, 'actif' => true,
         ]);
 
+        // P10b-1 — Le niveau vient désormais d'un protocole publié : sans lui, l'analyse répond
+        // 503. Les deux vecteurs de ce fichier prouvent toujours ce qu'ils prouvaient (le
+        // plafonnement des antécédents et l'anti-IDOR), sous une garantie de plus.
+        $this->publierProtocoleDeTriage();
         $this->publierReferentiel(SourceSymptomesTriage::CODE);
 
         return $symptome;

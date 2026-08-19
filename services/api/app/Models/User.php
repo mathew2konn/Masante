@@ -57,6 +57,36 @@ class User extends Authenticatable
         ];
     }
 
+    /**
+     * Le nom lisible par un humain, pour les journaux d'audit — SOURCE UNIQUE.
+     *
+     * ═══ P10b-1 — CE QUE SON ABSENCE AVAIT PRODUIT ═══
+     *
+     * Ce modèle porte `nom` et `prenom` ; il n'a **jamais** eu d'attribut `name`. Or
+     * `JournalReferentiel` (P6.3) écrivait `$acteur?->name ?? 'Système'` : l'expression est
+     * silencieusement `null`, et la chaîne d'audit du socle référentiel a enregistré
+     * **« Système » pour chaque acteur humain depuis P6.3** — alors que son propre commentaire
+     * pose que `acteur_nom` entre dans l'empreinte « parce que c'est ce nom-là qu'un humain lit
+     * dans un audit ».
+     *
+     * Le défaut est sorti d'un vecteur de P10b-1, pas d'une relecture : la colonne
+     * `protocole_validations.validateur_nom` est `NOT NULL`, et l'insertion a échoué là où le
+     * journal, lui, se rabattait sans bruit sur un défaut.
+     *
+     * `JournalSignature` (P6.5b) avait résolu le problème correctement, mais **chez lui** : deux
+     * implémentations du même besoin, dont une fausse. La logique remonte donc ici, à l'endroit
+     * qui connaît l'identité — les trois journaux l'appellent, et ils ne peuvent plus diverger.
+     *
+     * Ne renvoie JAMAIS de chaîne vide : un journal d'audit qui ne désigne personne ne prouve
+     * rien. Repli en cascade sur l'e-mail puis sur l'identifiant technique.
+     */
+    public function nomLisible(): string
+    {
+        $nom = trim(($this->prenom ?? '').' '.($this->nom ?? ''));
+
+        return $nom !== '' ? $nom : ($this->email ?? 'Compte '.$this->id);
+    }
+
     /** Le téléphone est-il vérifié (compte au moins de niveau « base » utilisable) ? */
     public function telephoneEstVerifie(): bool
     {

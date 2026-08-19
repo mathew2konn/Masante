@@ -116,6 +116,32 @@ class PortailRolesSeeder extends Seeder
         // donne à elle seule AUCUN pouvoir — les cinq contrôles du §5.4 restent devant, et sans
         // certificat ni autorisation d'exercer valide, elle n'ouvre rien.
         'document.signer',        // demander son certificat et signer les documents qu'on rédige
+
+        // ═══════════════════════════════════════════════════════════════════════════════════════
+        // Protocoles médicaux (P10b-1, CDC_08 §10) — TREIZIÈME occurrence, et la seule qui se
+        // décline en SIX permissions plutôt qu'une.
+        // ═══════════════════════════════════════════════════════════════════════════════════════
+        //
+        // ATTRIBUÉES À AUCUN RÔLE MÉTIER. Le §10 réserve l'édition des protocoles au « comité
+        // scientifique » et aux « autorités » — deux instances qui n'existent comme rôles nulle
+        // part dans ce projet, et qu'on n'invente pas. Elles s'accordent nominativement.
+        //
+        // POURQUOI QUATRE PERMISSIONS DE VALIDATION ET NON UNE. Le §7 confie la validation
+        // clinique à des médecins spécialistes et la réglementaire au Ministère de la Santé : ce
+        // sont des instances différentes, et c'est tout l'objet d'une validation en quatre couches.
+        // Une permission unique laisserait un technicien signer les quatre — le §7 serait
+        // formellement respecté et matériellement vide.
+        //
+        // Ce qui n'est PAS ajouté : l'interdiction pour un même agent de porter plusieurs de ces
+        // permissions. Le §7 ne l'exige pas, et un garde-fou plus strict que sa propre règle est un
+        // défaut même quand il refuse par prudence (leçon de la collation, P6.8c). Le journal
+        // NOMME qui a signé quoi — c'est la transparence, pas l'interdiction, qui est due ici.
+        'protocole.rediger',      // créer un protocole et ouvrir/modifier un brouillon
+        'protocole.valider.clinique',      // §7.1 — médecins spécialistes, experts hospitaliers
+        'protocole.valider.reglementaire', // §7.2 — Ministère, programmes nationaux, autorités
+        'protocole.valider.scientifique',  // §7.3 — publications, essais, méta-analyses
+        'protocole.valider.technique',     // §7.4 — cohérence des règles, absence de conflits
+        'protocole.publier',      // mettre une version en vigueur (§10, double validation)
     ];
 
     /** Permissions par rôle (moindre privilège). L'admin reçoit tout. */

@@ -3,25 +3,35 @@
 namespace App\Services;
 
 use App\Models\Symptome;
+use App\Services\Protocole\MessagesProtocole;
+use App\Services\Triage\ServiceNiveauTriage;
 use App\Services\Triage\ServiceSymptomesTriage;
-use App\Services\Urgence\ServiceNumerosUrgence;
+use App\Support\NiveauTriage;
+use App\Support\RegistreActionsProtocole;
 use App\Support\ReglesOrientation;
 use Illuminate\Support\Collection;
 
 /**
- * TriageService — algorithme de triage médical (Module 1, F1.3 / §5.1.2 / §5.1.3).
+ * TriageService — assemblage du triage médical (Module 1, F1.3 / §5.1.3 ; CDC_08 §1.2).
  *
- * Arbre de décision pondéré produisant un score 0-100 puis un niveau de soin :
- *   - LÉGER   : 0 à 30
- *   - MODÉRÉ  : 31 à 65
- *   - URGENT  : 66 à 100
+ * ═══ CE COMMENTAIRE DISAIT AUTRE CHOSE JUSQU'À P10b-1, ET IL FAUT LE DIRE ═══
  *
- * Le score = poids des symptômes + impact des réponses au questionnaire + impact des
- * antécédents (plafonné à 20). RÈGLE DRAPEAU ROUGE : tout symptôme ou réponse critique
- * force immédiatement le niveau URGENT, quel que soit le score.
+ * Il annonçait trois niveaux et leurs bandes : « LÉGER : 0 à 30 · MODÉRÉ : 31 à 65 · URGENT :
+ * 66 à 100 », et « tout symptôme critique force immédiatement le niveau URGENT ». C'était exact,
+ * et c'était le problème : **ces seuils étaient dans ce fichier**. CDC_08 §1.2 les y interdit, et
+ * CDC_05 §5.3 en exige quatre, pas trois.
  *
- * Les règles (poids, questions, drapeaux) vivent en base (table symptomes) et sont donc
- * modifiables sans redéployer (F1.3).
+ * Ce service ne décide plus d'aucun niveau. Il **assemble des faits** — poids des symptômes,
+ * impact du questionnaire, impact des antécédents — et les remet au protocole en vigueur
+ * ({@see ServiceNiveauTriage}), qui rend le verdict. Même séparation que `ReglesOrientation`
+ * (P10a) et `ReglesCalendrierVaccinal` (P6.8b), poussée d'un cran : la règle ne vit même plus
+ * dans une classe PHP, elle vit en base, versionnée et signée par quatre validateurs (§7).
+ *
+ * Ce qui reste ici est de l'arithmétique — une somme et deux bornes — et le plafond des
+ * antécédents, seul seuil survivant, annoncé comme limite avec son porteur (P10b-3).
+ *
+ * Les poids, questions et drapeaux vivent dans le référentiel des symptômes, lu en version
+ * publiée depuis P10a ({@see ServiceSymptomesTriage}).
  */
 class TriageService
 {
@@ -43,12 +53,37 @@ class TriageService
      * limite L1 d'ADR-025 dont L1+L2 avait refermé l'autre moitié. Le service ci-dessous lit la
      * **version publiée** et refuse bruyamment tant qu'il n'y en a pas.
      */
+    /**
+     * P10b-1 — LE NIVEAU N'EST PLUS DÉCIDÉ ICI.
+     *
+     * Ce service portait `niveauDepuisScore()` — un `match` sur trois seuils — et
+     * `if ($drapeauRouge) { $score = max($score, 90); }`. CDC_08 §1.2 donne son contre-exemple
+     * littéral (`if temperature > 39: urgence = True`) : c'étaient des **règles médicales en dur**
+     * décidant du niveau d'urgence d'un citoyen. Elles vivent désormais dans le protocole
+     * `TRIAGE-NIVEAU`, relu et signé par quatre validateurs (§7).
+     *
+     * `ServiceNumerosUrgence` a disparu des dépendances : le numéro n'est plus inséré ici mais
+     * résolu dans le message du protocole ({@see MessagesProtocole}), pour que la consigne reste au
+     * protocole et le numéro au référentiel.
+     */
     public function __construct(
-        private readonly ServiceNumerosUrgence $numeros,
         private readonly ServiceSymptomesTriage $symptomes,
+        private readonly ServiceNiveauTriage $protocole,
+        private readonly MessagesProtocole $messages,
     ) {}
 
-    /** Plafond de l'impact des antécédents sur le score (prompt §7). */
+    /**
+     * Plafond de l'impact des antécédents sur le score.
+     *
+     * ═══ CE SEUIL RESTE DANS LE CODE, ET C'EST UNE LIMITE ANNONCÉE ═══
+     *
+     * Il ne décide d'aucun niveau — il borne la contribution d'une des trois parts du score, en
+     * amont du protocole. Le sortir proprement suppose que l'assemblage du score entier devienne
+     * lui-même protocolaire, ce qui se fera avec le questionnaire adaptatif de **P10b-3**, où les
+     * réponses changent de forme de toute façon.
+     *
+     * Nommer un manque ne le comble pas, mais un manque nommé ne s'oublie pas.
+     */
     private const PLAFOND_ANTECEDENTS = 20;
 
     /**
@@ -84,15 +119,34 @@ class TriageService
             self::PLAFOND_ANTECEDENTS
         );
 
-        // 4) Score total borné à [0, 100].
+        // 4) Score total borné à [0, 100]. Arithmétique, pas décision : le §1.2 vise les seuils
+        //    et les conclusions, pas l'addition de trois nombres.
         $score = max(0, min(100, $scoreSymptomes + $scoreReponses + $scoreAntecedents));
 
-        // 5) Drapeau rouge => URGENT immédiat (et score relevé pour rester cohérent).
-        if ($drapeauRouge) {
-            $score = max($score, 90);
-        }
+        // ═══ 5) LE PROTOCOLE DÉCIDE — CE SERVICE NE DÉCIDE PLUS ═══
+        //
+        // Les faits sont ASSEMBLÉS ici et JUGÉS ailleurs. C'est la même séparation que
+        // `ReglesOrientation` (P10a) et `ReglesCalendrierVaccinal` (P6.8b) : le service rassemble
+        // l'état, la règle rend le verdict. Ici la règle ne vit même plus dans une classe PHP —
+        // elle vit en base, versionnée et signée.
+        $decision = $this->protocole->appliquer([
+            'age'                => $age,
+            'sexe'               => $sexe,
+            'score'              => $score,
+            'score_symptomes'    => $scoreSymptomes,
+            'score_reponses'     => $scoreReponses,
+            'score_antecedents'  => $scoreAntecedents,
+            'drapeau_rouge'      => $drapeauRouge,
+            'nb_symptomes'       => $symptomes->count(),
+            'symptome_id'        => $symptomes->pluck('id')->map(fn ($id): int => (int) $id)->all(),
+            'symptome_categorie' => $symptomes->pluck('categorie')->unique()->values()->all(),
+        ]);
 
-        $niveau = $this->niveauDepuisScore($score);
+        $niveau = $decision['niveau'];
+
+        // Le score APRÈS chaînage avant : c'est celui que le protocole a réellement utilisé. Le
+        // plancher du drapeau rouge est désormais une action de règle, plus une ligne de PHP.
+        $score = $decision['score'];
 
         // 6) Orientation (§5.1.3) puis texte de recommandation.
         $codes = $this->orienter($symptomes, $age, $sexe);
@@ -114,14 +168,30 @@ class TriageService
         // qu'entre `vaccinations.statut` et le calcul (P6.8b) : la colonne dit ce qu'on a montré,
         // la donnée dit ce qu'on a décidé.
         $specialite = $specialites[0]['libelle'] ?? null;
-        $recommandation = $this->construireRecommandation($niveau, $specialite);
+        $recommandation = $this->construireRecommandation($niveau, $specialite, $decision['actions']);
 
         return [
             'score_severite'       => $score,
             'niveau'               => $niveau,
+            'niveau_libelle'       => NiveauTriage::libelle($niveau),
             'specialite_requise'   => $specialite,
             'specialites'          => $specialites,
             'referentiel_version'  => $this->symptomes->version(),
+
+            // ═══ L'ESTAMPILLE DU §6.1 — EXIGENCE MÉDICO-LÉGALE NON NÉGOCIABLE ═══
+            //
+            // « Chaque décision clinique conserve la version exacte du protocole utilisée ». Sans
+            // elle, corriger une bande de score rendrait tout triage antérieur inexplicable —
+            // c'était le constat F3 du G0 de P6.3 pour les référentiels, ici pour les protocoles.
+            'protocole_code'       => $decision['protocole']['code'],
+            'protocole_version'    => $decision['protocole']['numero'],
+            'protocole_libelle'    => $decision['protocole']['version'],
+
+            // Ce que le protocole a réellement déclenché. §9.1 attend une « justification » et §10
+            // « les recommandations affichées » : sans la trace des règles, une recommandation
+            // serait une affirmation sans origine.
+            'regles_declenchees'   => $decision['regles_declenchees'],
+
             'recommandation_texte' => $recommandation,
             'drapeau_rouge'        => $drapeauRouge,
             'symptomes'            => $symptomes->map(fn (Symptome $s) => [
@@ -201,16 +271,6 @@ class TriageService
         return [$total, $evaluees, $drapeau];
     }
 
-    /** Convertit un score en niveau de soin (§5.1.2). */
-    private function niveauDepuisScore(int $score): string
-    {
-        return match (true) {
-            $score <= 30 => 'leger',
-            $score <= 65 => 'modere',
-            default      => 'urgent',
-        };
-    }
-
     /**
      * P10a — L'orientation (§5.1.3), agrégée à partir des ANNOTATIONS publiées des symptômes.
      *
@@ -252,24 +312,45 @@ class TriageService
         );
     }
 
-    /** Construit le texte de recommandation affiché au patient. */
-    private function construireRecommandation(string $niveau, ?string $specialite): string
+    /**
+     * Le texte affiché au patient — VENU DU PROTOCOLE, plus d'un `match` PHP.
+     *
+     * ═══ CE QUI A CHANGÉ, ET POURQUOI CE N'ÉTAIT PAS COSMÉTIQUE ═══
+     *
+     * Ce texte disait « orientez-vous vers une pharmacie », « consultez sans tarder », « rendez-vous
+     * immédiatement aux urgences ». **C'est une consigne clinique**, et elle était écrite dans une
+     * méthode privée : la corriger demandait un déploiement, et personne ne l'avait relue au titre
+     * du §7. Elle vient maintenant de l'action `MESSAGE` du protocole.
+     *
+     * Le NUMÉRO, lui, reste au référentiel national (P6.8e, CDC_02 §37) : le protocole écrit
+     * `{urgence:samu}` et {@see MessagesProtocole} le résout. Les deux se corrigent chacun par leur
+     * porte — changer un numéro d'urgence n'a pas à repasser par quatre validations cliniques.
+     *
+     * ═══ LE REPLI EST UNE REFORMULATION, JAMAIS UN CONSEIL ═══
+     *
+     * Si le protocole ne dit rien, on énonce le niveau et on s'arrête. Inventer ici une consigne
+     * de repli — « consultez un médecin » — reviendrait à remettre dans le code exactement ce qu'on
+     * vient d'en sortir, et à le faire à l'endroit le moins visible. Le contrôle qualité exige de
+     * toute façon un message par règle de niveau.
+     *
+     * @param  array<int, array<string, mixed>>  $actions
+     */
+    private function construireRecommandation(string $niveau, ?string $specialite, array $actions): string
     {
-        $texte = match ($niveau) {
-            'leger' => 'Niveau LÉGER : vos symptômes semblent bénins. Orientez-vous vers une '
-                . 'pharmacie ou un médecin généraliste en consultation libre. Surveillez l\'évolution ; '
-                . 'en cas d\'aggravation, refaites un triage.',
-            'modere' => 'Niveau MODÉRÉ : consultez sans tarder un médecin généraliste, un Centre de '
-                . 'Santé Urbain (CSU) ou une clinique.',
-            // Le numéro vient du référentiel national (P6.8e). Le repli, s'il joue, est journalisé
-            // côté service — jamais affiché au patient : un avertissement sur la provenance d'un
-            // numéro, lu par quelqu'un qui doit appeler des secours, est du bruit au pire moment.
-            'urgent' => 'Niveau URGENT : rendez-vous immédiatement au service des urgences d\'un CHU/CHR, '
-                . 'ou appelez le SAMU au ' . $this->numeros->numero('samu') . ' (numéro vert, Côte d\'Ivoire).',
-        };
+        $messages = [];
+
+        foreach ($actions as $action) {
+            if ($action['type'] === RegistreActionsProtocole::MESSAGE && $action['valeur'] !== null) {
+                $messages[] = $this->messages->resoudre((string) $action['valeur']);
+            }
+        }
+
+        $texte = $messages === []
+            ? 'Niveau : '.NiveauTriage::libelle($niveau).'.'
+            : implode(' ', $messages);
 
         if ($specialite) {
-            $texte .= ' Spécialité recommandée : ' . $specialite . '.';
+            $texte .= ' Spécialité recommandée : '.$specialite.'.';
         }
 
         return $texte;

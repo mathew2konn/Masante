@@ -27,11 +27,16 @@ export const en: Traductions = {
   triage: {
     avertissement:
       'This document is a guidance aid and does not replace a medical diagnosis.',
+    // P10b-1 — voir `fr.ts` : les clés sont les valeurs de l'enum, et les trois niveaux hérités
+    // du Module 1 restent lisibles pour l'historique.
     niveau: {
-      FAIBLE: 'Low priority',
-      RECOMMANDEE: 'Consultation recommended',
-      RAPIDE: 'Prompt consultation (24 h)',
-      URGENCE: 'Emergency',
+      faible: 'Low priority',
+      recommandee: 'Consultation recommended',
+      rapide: 'Prompt consultation (24 h)',
+      urgence: 'Emergency',
+      leger: 'Mild',
+      modere: 'Moderate',
+      urgent: 'Urgent',
     },
   },
   urgence: {

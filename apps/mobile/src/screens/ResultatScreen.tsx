@@ -6,6 +6,7 @@ import { TriageBadge } from '../components/TriageBadge';
 import { PrimaryButton } from '../components/PrimaryButton';
 import { SecondaryButton } from '../components/SecondaryButton';
 import { SosButton } from '../components/SosButton';
+import { tokens } from '@masante/shared';
 import { colors, spacing, typography } from '../theme/theme';
 import { QrMasante } from '../components/QrMasante';
 import { getFiche } from '../api/triage';
@@ -13,11 +14,20 @@ import { dureesVers } from '../api/itineraire';
 import { useLocalisation } from '../store/localisation';
 import type { AnalyseResultat, FicheResponse, Niveau } from '../types/triage';
 
-/** Couleur sémantique du score selon le niveau (sens médical, jamais décoratif). */
-const COULEUR_NIVEAU: Record<Niveau, { solid: string; bg: string; text: string }> = {
-  leger: colors.success,
-  modere: colors.warning,
-  urgent: colors.danger,
+/**
+ * Couleur sémantique du score selon le niveau (sens médical, jamais décoratif).
+ *
+ * P10b-1 — Les quatre de CDC_05 §5.3 plus les trois hérités du Module 1, tirés des tokens
+ * `tokens.triage` qui dormaient dans `palette.json` depuis P0. Voir `TriageBadge`.
+ */
+const COULEUR_NIVEAU: Record<Niveau, string> = {
+  faible: tokens.triage.faible,
+  recommandee: tokens.triage.recommandee,
+  rapide: tokens.triage.rapide,
+  urgence: tokens.triage.urgence,
+  leger: tokens.triage.vert,
+  modere: tokens.triage.jaune,
+  urgent: tokens.triage.rouge,
 };
 
 /**
@@ -120,10 +130,11 @@ export function ResultatScreen({
 
       {/* Score + niveau */}
       <Card style={styles.scoreCard}>
-        <Text style={[styles.score, { color: sem.solid }]}>{resultat.score_severite}</Text>
+        <Text style={[styles.score, { color: sem }]}>{resultat.score_severite}</Text>
         <Text style={styles.scoreSur}>/ 100</Text>
         <View style={styles.badgeWrap}>
-          <TriageBadge niveau={resultat.niveau} grand />
+          {/* Le libellé vient du backend (§5.3) : le client affiche, il ne dérive pas. */}
+          <TriageBadge niveau={resultat.niveau} libelle={resultat.niveau_libelle} grand />
         </View>
         <Text style={styles.detailScore}>
           Symptômes {resultat.details_score.symptomes} · Questions {resultat.details_score.reponses}

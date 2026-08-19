@@ -32,6 +32,12 @@ class Triage extends Model
         // que la base porte la vraie version.
         'referentiel_version',
         'specialites_json',
+        // P10b-1 — L'estampille du protocole (§6.1, exigence médico-légale). Même statut que
+        // `referentiel_version` juste au-dessus : `$fillable` parce que le contrôleur écrit par
+        // assignation de masse, mais aucune valeur du client ne peut les atteindre —
+        // `AnalyserTriageRequest` ne les déclare pas et le contrôleur les reprend du résultat.
+        'protocole_code',
+        'protocole_version',
         'recommandation_texte',
         'fiche_generee',
         'structure_visitee_id',

@@ -28,6 +28,15 @@ class AppServiceProvider extends ServiceProvider
         // Précédent : la mémoïsation de `MesureSanteService` en L1+L2, qui pinne une version pour
         // que les deux lignes d'une tension soient jugées par les mêmes seuils.
         $this->app->scoped(\App\Services\Triage\ServiceSymptomesTriage::class);
+
+        // ═══ P10b-1 — MÊME RAISON, POUR LE PROTOCOLE QUI DÉCIDE DU NIVEAU ═══
+        //
+        // `TriageService` applique le protocole puis le contrôleur estampille le triage avec son
+        // numéro de version. En liaison ordinaire, une publication survenant entre les deux ferait
+        // écrire dans le dossier « version 3 » sous une décision rendue par la version 2 — c'est
+        // exactement l'inverse de ce que le §6.1 exige (« chaque décision conserve la version
+        // exacte du protocole utilisée », exigence médico-légale).
+        $this->app->scoped(\App\Services\Triage\ServiceNiveauTriage::class);
     }
 
     /**

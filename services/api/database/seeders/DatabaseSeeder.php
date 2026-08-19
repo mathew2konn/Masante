@@ -87,5 +87,14 @@ class DatabaseSeeder extends Seeder
         // contenu ci-dessus : le registre s'inscrit sur des tables déjà peuplées, faute de quoi la
         // première proposition figerait un instantané vide.
         $this->call(ReferentielRegistreSeeder::class);
+
+        // P10b-1 — Registre des protocoles médicaux (CDC_08 §4.4). APRÈS le vocabulaire des
+        // spécialités et les numéros d'urgence : le contrôle qualité d'une publication vérifie que
+        // les orientations et les marqueurs `{urgence:…}` résolvent réellement.
+        //
+        // CE SEEDER NE PUBLIE RIEN : il ouvre des brouillons. La mise en vigueur est une étape de
+        // DÉPLOIEMENT faite par deux agents habilités — publier ici contournerait le quatre-yeux du
+        // §10 dès le premier jour (précédent `ReferentielRegistreSeeder` et de la v1 en L1+L2).
+        $this->call(ProtocoleSeeder::class);
     }
 }

@@ -57,7 +57,7 @@ final class JournalReferentiel
             'version_numero'   => $versionNumero,
             'action'           => $action,
             'acteur_id'        => $acteur?->id,
-            'acteur_nom'       => $acteur?->name ?? 'Système',
+            'acteur_nom'       => $acteur?->nomLisible() ?? 'Système',
             'cree_le'          => $horodatage->toIso8601String(),
             'details'          => $details,
         ];
@@ -71,7 +71,7 @@ final class JournalReferentiel
             'acteur_id'            => $acteur?->id,
             // Dénormalisé à l'écriture : le compte peut être supprimé, la trace doit rester lisible.
             // « Système » couvre les écritures automatiques (enregistrement initial, commande).
-            'acteur_nom'           => $acteur?->name ?? 'Système',
+            'acteur_nom'           => $acteur?->nomLisible() ?? 'Système',
             'details_json'         => $details,
             'empreinte_precedente' => $precedent?->empreinte,
             'empreinte'            => EmpreinteReferentiel::duMaillon($precedent?->empreinte, $charge),

@@ -50,6 +50,7 @@ use App\Http\Controllers\Api\V1\RendezVousController;
 use App\Http\Controllers\Api\V1\SignalementController;
 use App\Http\Controllers\Api\V1\SpecialiteController;
 use App\Http\Controllers\Api\V1\StructureController;
+use App\Http\Controllers\Api\V1\ProtocoleController;
 use App\Http\Controllers\Api\V1\TriageController;
 use App\Http\Controllers\Api\V1\VaccinController;
 use App\Http\Controllers\Api\V1\VilleController;
@@ -180,6 +181,32 @@ Route::middleware('throttle:api')->group(function () {
             Route::post('referentiels/{code}/propositions', [GouvernanceReferentielController::class, 'proposer']);
             Route::post('referentiels/{code}/publication', [GouvernanceReferentielController::class, 'publier']);
             Route::post('referentiels/{code}/rejet', [GouvernanceReferentielController::class, 'rejeter']);
+        });
+
+        /*
+        |------------------------------------------------------------------
+        | P10b-1 — Registre des protocoles médicaux (CDC_08 §9.1, §10).
+        |------------------------------------------------------------------
+        | Même principe que la gouvernance des référentiels ci-dessus : l'habilitation est
+        | vérifiée dans le SERVICE et non par le middleware `permission:` de spatie (guard
+        | `web` contre Sanctum — piège P4).
+        |
+        | ORDRE DES DÉCLARATIONS : `protocoles/journal/integrite` est LITTÉRALE et doit précéder
+        | `protocoles/{code}` (déclarée plus bas, en public), sinon elle serait capturée comme un
+        | code de protocole nommé « journal ». Piège rencontré en P7-D0 sur `fermer`, en P6.5b sur
+        | `signature/{type}/{id}` et en P6.6b sur `medicaments/interactions`.
+        |
+        | §10 exige en plus « MFA obligatoire » sur ces routes : le MFA TOTP existe depuis P1
+        | derrière la porte `MFA_ENFORCE`, aujourd'hui fermée. Classé « prêt à activer », et dit
+        | comme tel plutôt que présenté comme une garantie active.
+        */
+        Route::middleware('auth:sanctum')->group(function () {
+            Route::get('protocoles/journal/integrite', [ProtocoleController::class, 'integrite']);
+            Route::post('protocoles', [ProtocoleController::class, 'store']);
+            Route::post('protocoles/{code}/versions', [ProtocoleController::class, 'ouvrirBrouillon']);
+            Route::post('protocoles/{code}/versions/{numero}/valider', [ProtocoleController::class, 'valider']);
+            Route::post('protocoles/{code}/versions/{numero}/publier', [ProtocoleController::class, 'publier']);
+            Route::get('protocoles/{code}/versions/{numero}/validations', [ProtocoleController::class, 'dossierValidation']);
         });
 
         /*
@@ -585,6 +612,27 @@ Route::middleware('throttle:api')->group(function () {
         Route::get('/referentiels', [ReferentielController::class, 'index']);
         Route::get('/referentiels/{code}', [ReferentielController::class, 'show']);
         Route::get('/referentiels/{code}/versions/{numero}', [ReferentielController::class, 'version'])
+            ->whereNumber('numero');
+
+        /*
+        |------------------------------------------------------------------
+        | P10b-1 — Consultation des protocoles médicaux (CDC_08 §9.1) : lecture PUBLIQUE.
+        |------------------------------------------------------------------
+        | Même raisonnement qu'au-dessus : un protocole publié est un texte de référence, pas une
+        | donnée personnelle. Le §1.1 en fait d'ailleurs un instrument d'harmonisation — le cacher
+        | derrière une authentification le priverait de son objet.
+        |
+        | SEULES LES VERSIONS `actif` ET `archive` SORTENT PAR ICI. Un brouillon n'est jamais
+        | servi : les protocoles thérapeutiques de démonstration (décision G1 N3) sont donc
+        | invisibles ET inapplicables, et le §1.6 tient par construction.
+        |
+        | `protocoles/journal/integrite` est déclarée PLUS HAUT, dans le groupe authentifié : sans
+        | cela `{code}` la capturerait. Le `whereNumber('numero')` joue le même rôle sur le second
+        | segment.
+        */
+        Route::get('/protocoles', [ProtocoleController::class, 'index']);
+        Route::get('/protocoles/{code}', [ProtocoleController::class, 'show']);
+        Route::get('/protocoles/{code}/versions/{numero}', [ProtocoleController::class, 'version'])
             ->whereNumber('numero');
 
         // Module 1 — Triage et orientation médicale (F1.1 → F1.8). Endpoints publics.

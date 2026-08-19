@@ -13,11 +13,13 @@ use App\Models\User;
 use App\Services\Referentiel\ServiceGouvernanceReferentiel;
 use App\Services\Referentiel\SourceSymptomesTriage;
 use App\Services\Triage\ServiceSymptomesTriage;
+use App\Support\NiveauTriage;
 use App\Support\ReglesOrientation;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Laravel\Sanctum\Sanctum;
 use Tests\Concerns\GouverneUnReferentiel;
+use Tests\Concerns\PublieLeProtocoleDeTriage;
 use Tests\TestCase;
 
 /**
@@ -38,6 +40,7 @@ use Tests\TestCase;
 class OrientationTriageTest extends TestCase
 {
     use GouverneUnReferentiel;
+    use PublieLeProtocoleDeTriage;
     use RefreshDatabase;
 
     // ═════════════════════════════════════════════════════════════════════════════════════════
@@ -194,7 +197,18 @@ class OrientationTriageTest extends TestCase
 
         // 20 et non 95 : le triage lit la version publiée. C'est LE vecteur central de la bascule.
         $this->assertSame(20, $reponse->json('score_severite'));
-        $this->assertSame('leger', $reponse->json('niveau'));
+
+        // ═══ P10b-1 — CETTE ASSERTION DISAIT `'leger'`, ET ELLE A ÉTÉ RÉÉCRITE ═══
+        //
+        // Pas corrigée pour passer : réécrite pour énoncer la garantie NEUVE. Le vocabulaire de
+        // niveau est passé aux quatre valeurs de CDC_05 §5.3, et la bande est décidée par un
+        // protocole publié — un score de 20 tombe dans « faible ». Écrire la nouvelle valeur en
+        // dur ici referait, dans le test, le défaut que l'incrément vient de retirer du code :
+        // on demande donc au vocabulaire ce qu'il porte.
+        //
+        // Précédent explicite : le vecteur hérité réécrit en P6.4d, et celui de P6.8b.
+        $this->assertSame(NiveauTriage::FAIBLE, $reponse->json('niveau'));
+        $this->assertFalse(NiveauTriage::estHerite($reponse->json('niveau')));
     }
 
     public function test_une_republication_met_la_correction_en_vigueur(): void
@@ -652,8 +666,21 @@ class OrientationTriageTest extends TestCase
         }
     }
 
+    /**
+     * P10b-1 — LE PROTOCOLE DE NIVEAU EST PUBLIÉ EN MÊME TEMPS QUE LES SYMPTÔMES.
+     *
+     * Depuis P10b-1, l'analyse répond 503 tant qu'aucun protocole n'est en vigueur : le niveau ne
+     * vient plus du code. Les dix-sept vecteurs de ce fichier se sont donc mis à échouer d'un coup
+     * — **c'est la preuve que le refus bruyant fonctionne**, et ils sont complétés, pas affaiblis :
+     * aucune assertion n'a été retirée, aucun n'a été rendu tolérant au 503.
+     *
+     * Publier ici est exactement ce qu'un déploiement fera : deux agents habilités mettent la v1
+     * en vigueur, après les quatre validations du §7. Même geste qu'en P10a pour les symptômes.
+     */
     private function publier(): int
     {
+        $this->publierProtocoleDeTriage();
+
         return $this->publierReferentiel(SourceSymptomesTriage::CODE);
     }
 

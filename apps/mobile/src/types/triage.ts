@@ -7,8 +7,23 @@
  * logique d'impact ici (champ `impact` des questions volontairement ignoré côté app).
  */
 
-/** Niveau de soin renvoyé par le triage (§5.1.2). */
-export type Niveau = 'leger' | 'modere' | 'urgent';
+/**
+ * Niveau de priorité renvoyé par le triage (CDC_05 §5.3).
+ *
+ * ═══ P10b-1 — IL ÉTAIT REDÉFINI ICI, ET C'ÉTAIT UNE INFRACTION ═══
+ *
+ * Ce fichier portait `type Niveau = 'leger' | 'modere' | 'urgent'` — **trois** valeurs, alors que
+ * `@masante/shared` porte les **quatre** de CDC_05 §5.3 depuis P0 et que `palette.json` en peint
+ * les couleurs. La règle de source unique de CLAUDE.md l'interdit nommément : « aucune
+ * redéfinition locale ». Même famille que les communes d'Abidjan en dur (P6.4b) et les libellés
+ * de statut vaccinal (P6.8b) — à ceci près que la copie locale était **la mauvaise version**.
+ *
+ * `TriageNiveau` couvre les quatre actuels ET les trois hérités : plus rien ne produit ces
+ * derniers, mais l'historique les porte, et les convertir changerait ce qu'un patient a lu.
+ */
+import type { TriageNiveau } from '@masante/shared';
+
+export type Niveau = TriageNiveau;
 
 /** Type d'une question complémentaire (F1.2). */
 export type TypeQuestion = 'nombre' | 'echelle' | 'booleen' | 'choix';
@@ -81,10 +96,24 @@ export interface AnalyseResultat {
   triage_id: number;
   score_severite: number;
   niveau: Niveau;
+  /** Le libellé citoyen, FOURNI par le backend (CDC_05 §5.3) — jamais dérivé côté client. */
+  niveau_libelle: string;
   specialite_requise: string | null;
   /** Les orientations, DANS L'ORDRE décidé par le référentiel publié (rang). */
   specialites: Orientation[];
   referentiel_version: number;
+
+  /**
+   * P10b-1 — Le protocole qui a rendu la décision et sa version exacte (CDC_08 §6.1, §9.1).
+   *
+   * Affiché, jamais interprété : le client ne relit aucune règle. C'est l'exigence médico-légale
+   * du §6.1 rendue visible — « chaque décision conserve la version exacte du protocole utilisée ».
+   */
+  protocole: { code: string; version: string; numero: number };
+
+  /** Les règles effectivement déclenchées (§9.1 « justification »). */
+  regles_declenchees: Array<{ ordre: number; libelle: string }>;
+
   recommandation_texte: string;
   drapeau_rouge: boolean;
   details_score: {

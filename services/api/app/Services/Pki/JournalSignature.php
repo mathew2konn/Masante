@@ -124,12 +124,19 @@ final class JournalSignature
     }
 
     /** « Système » quand l'acte n'a pas d'auteur humain (tâche planifiée, commande). */
+    /**
+     * P10b-1 — LA LOGIQUE A REMONTÉ SUR `User`, ET CE N'EST PAS UN RANGEMENT.
+     *
+     * Elle était juste ici et fausse ailleurs : `JournalReferentiel` (P6.3) lisait un attribut
+     * `name` que ce modèle n'a jamais porté, et inscrivait donc « Système » pour chaque acteur
+     * humain. Deux implémentations du même besoin, dont une silencieusement inopérante — c'est
+     * exactement la divergence que la règle de source unique existe pour empêcher.
+     *
+     * Le comportement de ce journal ne change pas d'un caractère : `User::nomLisible()` reprend
+     * la cascade prénom+nom → e-mail → identifiant, et le `null` reste traité ici.
+     */
     private function nomLisible(?User $acteur): string
     {
-        if ($acteur === null) {
-            return 'Système';
-        }
-
-        return trim(($acteur->prenom ?? '').' '.($acteur->nom ?? '')) ?: ($acteur->email ?? 'Compte '.$acteur->id);
+        return $acteur?->nomLisible() ?? 'Système';
     }
 }

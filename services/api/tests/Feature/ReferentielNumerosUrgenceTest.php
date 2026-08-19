@@ -19,6 +19,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Spatie\Permission\PermissionRegistrar;
 use Tests\Concerns\GouverneUnReferentiel;
+use Tests\Concerns\PublieLeProtocoleDeTriage;
 use Tests\TestCase;
 
 /**
@@ -46,6 +47,7 @@ class ReferentielNumerosUrgenceTest extends TestCase
 {
     use RefreshDatabase;
     use GouverneUnReferentiel;
+    use PublieLeProtocoleDeTriage;
 
     private function source(): SourceNumerosUrgence
     {
@@ -426,8 +428,15 @@ class ReferentielNumerosUrgenceTest extends TestCase
             'poids_severite' => 90, 'drapeau_rouge' => true, 'actif' => true,
         ]);
 
-        // P10a — Le triage lit désormais SA propre version publiée. Ce vecteur ne porte pas sur ce
-        // point ; il faut seulement que le triage puisse s'exécuter pour observer son texte.
+        // P10a — Le triage lit désormais SA propre version publiée. P10b-1 y ajoute le protocole
+        // qui décide du niveau. Ce vecteur ne porte sur aucun des deux ; il faut seulement que le
+        // triage puisse s'exécuter pour observer son texte.
+        //
+        // ET C'EST LE MARQUEUR QUI EST ÉPROUVÉ ICI : le texte URGENT vient maintenant de l'action
+        // `MESSAGE` du protocole, qui écrit `{urgence:samu}` — le numéro est résolu au référentiel
+        // au moment de l'affichage. La garantie de P6.8e survit donc au passage du texte en base,
+        // et ce vecteur le prouve sans avoir changé d'assertion.
+        $this->publierProtocoleDeTriage();
         $this->publierReferentiel(SourceSymptomesTriage::CODE);
 
         $resultat = app(TriageService::class)->analyser([$symptome->id]);
@@ -450,6 +459,12 @@ class ReferentielNumerosUrgenceTest extends TestCase
         // vigueur : sans lui le triage refuse de s'exécuter (P10a) et on n'observerait aucun texte.
         // Deux référentiels, deux politiques, et c'est exactement ce que P6.8e a décidé : le repli
         // du numéro vit côté client, celui du triage n'existe pas.
+        //
+        // P10b-1 — Le protocole de niveau est publié pour la même raison, et il ÉPROUVE le repli :
+        // son message porte `{urgence:samu}`, résolu au référentiel des numéros… qui n'a ici
+        // aucune version en vigueur. C'est donc le repli compilé de P6.8e qui répond, à travers le
+        // texte d'un protocole. La garantie tient sur le nouveau chemin comme sur l'ancien.
+        $this->publierProtocoleDeTriage();
         $this->publierReferentiel(SourceSymptomesTriage::CODE);
 
         $resultat = app(TriageService::class)->analyser([$symptome->id]);

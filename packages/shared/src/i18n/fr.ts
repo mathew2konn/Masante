@@ -28,11 +28,18 @@ export const fr = {
   triage: {
     avertissement:
       "Ce document constitue une aide à l'orientation et ne remplace pas un diagnostic médical.",
+    // P10b-1 — LES CLÉS SONT LES VALEURS DE L'ENUM, pas ses noms de constante.
+    // Un écran reçoit `niveau: 'faible'` du backend et cherche son libellé : indexer par
+    // `FAIBLE` l'obligerait à convertir, donc à porter une table de correspondance de plus.
     niveau: {
-      FAIBLE: 'Faible priorité',
-      RECOMMANDEE: 'Consultation recommandée',
-      RAPIDE: 'Consultation rapide (24 h)',
-      URGENCE: 'Urgence',
+      faible: 'Faible priorité',
+      recommandee: 'Consultation recommandée',
+      rapide: 'Consultation rapide (24 h)',
+      urgence: 'Urgence',
+      // Les trois du Module 1 : plus rien ne les produit, l'historique les porte encore.
+      leger: 'Léger',
+      modere: 'Modéré',
+      urgent: 'Urgent',
     },
   },
   urgence: {

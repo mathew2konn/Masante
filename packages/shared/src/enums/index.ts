@@ -45,14 +45,50 @@ export const WalletStatut = {
 } as const;
 export type WalletStatut = (typeof WalletStatut)[keyof typeof WalletStatut];
 
-/** Niveaux de triage côté patient (4) — couleur + texte + icône obligatoires. */
+/**
+ * Niveaux de triage côté patient (4, CDC_05 §5.3) — couleur + texte + icône obligatoires.
+ *
+ * ═══ P10b-1 — CET ENUM EXISTAIT DEPUIS P0 ET N'ÉTAIT CONSOMMÉ PAR PERSONNE ═══
+ *
+ * Le backend rendait trois niveaux (`leger`/`modere`/`urgent`) et le mobile les REDÉFINISSAIT
+ * localement dans `types/triage.ts` — une infraction à la règle de source unique, de la même
+ * famille que les communes d'Abidjan en dur (P6.4b) et les libellés de statut vaccinal (P6.8b).
+ *
+ * C'est **la première clé dormante du projet dont la version endormie était la JUSTE** : `loinc`,
+ * les codes CIM, `numero_agrement` ou `specialites_json` étaient vides ou morts, alors qu'ici la
+ * bonne réponse attendait dans la source unique pendant que le code en appliquait une autre.
+ *
+ * ═══ LES VALEURS SONT EN MINUSCULES ═══
+ *
+ * Comme `Role` ci-dessous (« valeurs = noms spatie côté backend »). La colonne `triages.niveau`
+ * porte déjà `leger`/`modere`/`urgent` en minuscules depuis le Module 1 : y ajouter `FAIBLE` en
+ * majuscules ferait cohabiter deux conventions dans la MÊME colonne, et rendrait toute comparaison
+ * dépendante de la collation — le défaut trouvé au G2 de P6.8c.
+ */
 export const TriageNiveauPatient = {
-  FAIBLE: 'FAIBLE',
-  RECOMMANDEE: 'RECOMMANDEE',
-  RAPIDE: 'RAPIDE',
-  URGENCE: 'URGENCE',
+  FAIBLE: 'faible',
+  RECOMMANDEE: 'recommandee',
+  RAPIDE: 'rapide',
+  URGENCE: 'urgence',
 } as const;
 export type TriageNiveauPatient = (typeof TriageNiveauPatient)[keyof typeof TriageNiveauPatient];
+
+/**
+ * Les trois niveaux du Module 1, CONSERVÉS pour l'historique (P10b-1).
+ *
+ * Plus rien ne les produit ; tout doit encore savoir les lire. Convertir les triages passés
+ * changerait ce qu'un patient a réellement lu sur son écran — un mensonge d'archive, refusé pour
+ * la même raison que `mesures_sante.referentiel_version` laissée `NULL` en L1+L2.
+ */
+export const TriageNiveauHerite = {
+  LEGER: 'leger',
+  MODERE: 'modere',
+  URGENT: 'urgent',
+} as const;
+export type TriageNiveauHerite = (typeof TriageNiveauHerite)[keyof typeof TriageNiveauHerite];
+
+/** Ce que la colonne `triages.niveau` peut porter : les quatre actuels et les trois hérités. */
+export type TriageNiveau = TriageNiveauPatient | TriageNiveauHerite;
 
 /** Niveaux de triage hospitalier (5) — Manchester / ESI, paramétrables par pays. */
 export const TriageNiveauHospitalier = {

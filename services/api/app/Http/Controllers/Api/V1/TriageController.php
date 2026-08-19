@@ -102,6 +102,18 @@ class TriageController extends Controller
             'referentiel_version'  => $resultat['referentiel_version'],
             'specialites_json'     => $resultat['specialites'],
 
+            // ═══ P10b-1 — L'ESTAMPILLE DU PROTOCOLE (CDC_08 §6.1, CDC_04 §115) ═══
+            //
+            // « Chaque décision clinique conserve la version exacte du protocole utilisée » —
+            // exigence médico-légale non négociable. Le CODE est dénormalisé à côté du numéro pour
+            // que la trace reste lisible si le protocole disparaît du registre (motif de
+            // l'établissement copié sur `acces_dossier` en P7-D2).
+            //
+            // NULLABLE ET JAMAIS RÉTROACTIVE : les triages d'avant P10b n'ont été jugés par aucun
+            // protocole, leur en attribuer un serait un mensonge d'archive (précédent L1+L2).
+            'protocole_code'       => $resultat['protocole_code'],
+            'protocole_version'    => $resultat['protocole_version'],
+
             'recommandation_texte' => $resultat['recommandation_texte'],
             'fiche_generee'        => false,
         ]);
@@ -110,7 +122,19 @@ class TriageController extends Controller
             'triage_id'            => $triage->id,
             'score_severite'       => $resultat['score_severite'],
             'niveau'               => $resultat['niveau'],
+            // Le libellé citoyen vient du backend (CDC_05 §5.3), il n'est plus dérivé côté client.
+            // Le mobile portait la table `leger|modere|urgent` en dur : trois valeurs là où le
+            // corpus en exige quatre (constat W3 du G0).
+            'niveau_libelle'       => $resultat['niveau_libelle'],
             'specialite_requise'   => $resultat['specialite_requise'],
+
+            // §9.1 — le protocole appliqué et sa version, à côté de la décision qu'il a rendue.
+            'protocole'            => [
+                'code'    => $resultat['protocole_code'],
+                'version' => $resultat['protocole_libelle'],
+                'numero'  => $resultat['protocole_version'],
+            ],
+            'regles_declenchees'   => $resultat['regles_declenchees'],
             // D3 — le serveur renvoie les CODES, pas seulement un libellé : c'est avec eux que le
             // mobile ira chercher les établissements, sans jamais en déduire un lui-même.
             'specialites'          => $resultat['specialites'],

@@ -6,7 +6,9 @@ non-régression (règle propriétaire, CDC_01 §2.4).
 | Partie | Incrément | Objet |
 |--------|-----------|-------|
 | **1** | **P10a** | Orientation après triage + gouvernance du triage + fiche §5.4 |
-| *(à venir)* | P10b | Protocoles cliniques (CDC_08) |
+| **2** | **P10b-1** | Registre des protocoles médicaux + moteur de règles + le niveau de triage |
+| *(à venir)* | P10b-2 | Sélecteur, ordre de priorité §3, conflits §8 |
+| *(à venir)* | P10b-3 | Questionnaire adaptatif §4.3b + écran d'authoring |
 | *(à venir)* | P10c | Microservice `triage-service` (CDC_05 §5) |
 
 ---
@@ -375,3 +377,285 @@ expo-doctor **18/18**.
 6. **`ServiceSymptomesTriage` est lié en `scoped`.** Dans les tests, il faut oublier les instances de
    portée entre deux requêtes (`simulerNouvelleRequete()`), sinon un vecteur qui publie puis rejoue
    lit encore la version d'avant — et prouve la mémoïsation, pas la bascule (piège de L1+L2).
+
+---
+
+# Partie 2 — P10b-1 : registre des protocoles, moteur de règles, niveau de triage
+
+> **Ajoutée le 2026-08-19.** Écrite avant le G4, conservée après le G5 comme procédure de
+> non-régression. Elle **ne remplace pas la partie 1** : P10a reste en vigueur, et ses scénarios
+> continuent de s'appliquer — avec une étape de déploiement de plus (§2.2 ci-dessous).
+
+## 1. Périmètre — et ce que ce module ne fait PAS
+
+### Ce qu'il livre
+
+- Le **registre des protocoles médicaux** (CDC_08 §4.4) : 8 tables, versionnage par protocole,
+  cycle de vie `brouillon → actif → archive` (§6.1), dossier de validation à quatre couches (§7),
+  chaîne d'audit à hachage (§10).
+- Le **moteur d'inférence** (§4.3a) : règles « SI … ALORS … » interprétées, avec trois listes
+  blanches fermées (faits, opérateurs, actions) et un chaînage avant.
+- **Le niveau de priorité du triage quitte le code.** `TriageService::niveauDepuisScore()` — un
+  `match` sur trois seuils — et le relèvement du score sur drapeau rouge n'existent plus en PHP.
+  Les seuils vivent dans le protocole `TRIAGE-NIVEAU`, relu et signé par quatre validateurs.
+- **Les quatre niveaux patient de CDC_05 §5.3** entrent en vigueur (`faible`, `recommandee`,
+  `rapide`, `urgence`), là où le projet en rendait trois.
+
+### Ce qu'il ne fait pas — à lire avant de tester
+
+| Attendu du corpus | État | Où |
+|---|---|---|
+| Sélecteur, ordre de priorité §3, conflits §8 | **non livré** | P10b-2 |
+| Questionnaire adaptatif §4.3b | **non livré** | P10b-3 |
+| Écran d'authoring §2.1 | **non livré** — la gouvernance passe par l'API | P10b-3 / migration du portail |
+| Protocoles thérapeutiques applicables (§5.1) | **délibérément aucun** | voir §4 |
+| Journal d'exécution `protocole_applications` (§10) | **non livré** | P10b-2 |
+| Évaluation sous 100 ms P95 (§11) | **non déclaré atteint** — cache `database`, pas Redis | — |
+| IA (§9) | **non livré** | P10c |
+
+**Un seuil clinique subsiste dans le code** : `TriageService::PLAFOND_ANTECEDENTS = 20`. Il ne
+décide d'aucun niveau — il borne la contribution d'une des trois parts du score. Son porteur est
+**P10b-3**, où l'assemblage du score devient lui-même protocolaire. C'est dit plutôt que déguisé.
+
+---
+
+## 2. Prérequis
+
+### 2.1 Migration et jeu de démonstration
+
+```bash
+cd services/api
+XDEBUG_MODE=off "C:/wamp64/bin/php/php8.3.28/php.exe" artisan migrate
+XDEBUG_MODE=off "C:/wamp64/bin/php/php8.3.28/php.exe" artisan db:seed --class=ProtocoleSeeder
+XDEBUG_MODE=off "C:/wamp64/bin/php/php8.3.28/php.exe" artisan serve --host=0.0.0.0 --port=8000
+```
+
+Le seeder ouvre **trois brouillons** et n'en publie **aucun** : publier depuis un seeder
+contournerait le quatre-yeux du §10 dès le premier jour.
+
+### 2.2 SECONDE ÉTAPE DE DÉPLOIEMENT — sans elle, le triage répond 503
+
+La partie 1 en imposait déjà une (le référentiel des symptômes). **Il y en a maintenant deux**, et
+la seconde exige les quatre validations du §7. Voir le script complet en fin de guide (§7).
+
+**Le 503 n'est pas une panne, c'est la garantie.** Un repli sur des seuils par défaut laisserait un
+oubli de publication passer inaperçu : le triage rendrait des niveaux que personne n'a validés, en
+croyant appliquer un protocole.
+
+---
+
+## 3. Scénarios backend (curl reproductibles)
+
+```bash
+BASE=http://localhost:8000/api/v1
+curl -s "$BASE/symptomes" | grep -o '"id":[0-9]*,"nom_fr":"[^"]*"'
+```
+
+### V1 — Le refus bruyant, sur les trois surfaces
+
+**À jouer AVANT l'étape 2.2.**
+
+```bash
+curl -i "$BASE/protocoles/TRIAGE-NIVEAU"
+curl -i -X POST "$BASE/triage/analyser" -H "Content-Type: application/json" -d '{"symptomes":[1]}'
+curl -s "$BASE/protocoles"
+```
+
+Attendu : **404** avec son motif · **503** sur l'analyse · le registre reste lisible et annonce
+`"version_en_vigueur": null`.
+
+Le 404 **nomme sa raison** (« aucune version n'a franchi les quatre validations du §7 »). Un 404
+muet ne prouverait rien : il pourrait venir d'un protocole introuvable.
+
+### V2 — Les quatre niveaux patient sortent du protocole
+
+Après l'étape 2.2, avec le jeu de symptômes seedé :
+
+| Symptômes | Score | Niveau attendu |
+|---|---|---|
+| Courbatures | 8 | `faible` |
+| Fièvre élevée + Douleur abdominale | 40 | `recommandee` |
+| Fièvre + abdo + courbatures + dent | 56 | `rapide` |
+
+Chaque réponse porte `niveau`, `niveau_libelle`, `protocole` (code + version) et
+`regles_declenchees`.
+
+### V3 — LE DRAPEAU ROUGE PRIME, ET SA PRIORITÉ EST UNE DONNÉE
+
+Douleur dentaire (poids 8) **+** Convulsions (drapeau rouge) :
+
+Attendu : `score_severite: 90`, `niveau: "urgence"`, et surtout `regles_declenchees` montre
+**deux** règles enchaînées :
+
+```
+ordre 1 — Un signe critique relève le score au niveau d'urgence
+ordre 5 — Score de 76 à 100 : Urgence
+```
+
+C'est le chaînage avant : la règle d'ordre 1 relève le score, la bande suivante le lit relevé.
+**Aucune priorité n'est codée** — c'est l'ordre d'une règle, en base.
+
+### V4 — LE VECTEUR CENTRAL : modifier le protocole change la conclusion
+
+Ouvrir une v2, recopier les règles, changer la bande haute de `urgence` à `faible`, faire signer
+les quatre relecteurs, publier — puis rejouer V3.
+
+La **même entrée** (score 90) rend `urgence` sous la v1 et `faible` sous la v2, **sans qu'une
+ligne de code ait bougé**. Si un repli subsistait dans `TriageService`, ce vecteur ne bougerait pas.
+
+### V5 — Les quatre validations du §7, et le refus qui NOMME la manquante
+
+Publier avec trois validations sur quatre → **409** : « il manque la validation **technique** ».
+Un refus « validation incomplète » obligerait le rédacteur à deviner laquelle des quatre.
+
+### V6 — Le quatre-yeux (§10), refusé par son motif
+
+Faire publier la version par **son propre rédacteur** → **409** : « Le rédacteur d'une version ne
+peut pas la publier lui-même ». Vérifier le **motif**, pas seulement le code : un 403
+d'habilitation passerait pour un quatre-yeux qui fonctionne.
+
+### V7 — L'ANTI-SUBSTITUTION, la garde la plus importante
+
+Après les quatre signatures, modifier le contenu **sans le rendre invalide** (changer le niveau
+d'une bande, pas ses bornes), puis tenter de publier.
+
+Attendu : **409** — « Le contenu du protocole a été modifié depuis sa relecture : les validations …
+ne portent plus sur ce texte. Publier maintenant mettrait en vigueur des règles cliniques que
+personne n'a relues. »
+
+`GET /protocoles/TRIAGE-NIVEAU/versions/2/validations` affiche `porte_sur_le_contenu_actuel: false`
+sur les quatre. Re-signer les quatre puis publier → **200** : la garde exige la **fraîcheur**, pas
+l'immobilité.
+
+**La modification de test doit rester VALIDE.** Élargir une bande créerait un recouvrement, et le
+contrôle qualité refuserait *avant* l'anti-substitution : le vecteur passerait pour la mauvaise
+raison. (Défaut réel de la première rédaction de ce test.)
+
+### V8 — Les contrôles techniques du §7.4
+
+| Manipulation sur le brouillon | Attendu |
+|---|---|
+| Un trou entre deux bandes (0-20 puis 26-50) | **422** « Trou dans les bandes de score » |
+| Un recouvrement (20-50 sur 0-25) | **422** « Recouvrement des bandes » |
+| Retirer le `MESSAGE` d'une règle de niveau | **422** « fixe un niveau sans dire au patient quoi faire » |
+| Un fait inconnu (`temperature`) | **422**, avec la liste des faits connus |
+| Supprimer toutes les références | **422** « une recommandation clinique sans source » |
+
+Le **trou** est le contrôle central : c'est le seul défaut de cette famille qui **ne fait aucun
+bruit**. Il se publierait sans erreur et n'apparaîtrait qu'au premier patient tombant dedans.
+
+### V9 — L'estampille médico-légale (§6.1)
+
+```sql
+SELECT id, niveau, protocole_code, protocole_version, referentiel_version FROM triages ORDER BY id;
+```
+
+Les triages neufs portent `TRIAGE-NIVEAU` et son numéro de version. Les triages **antérieurs à
+P10b restent à `NULL`** — leur attribuer une version serait un mensonge d'archive. Envoyer
+`"protocole_version": 999` dans la requête : la base porte la **vraie** version.
+
+### V10 — Le message vient du protocole, le numéro du référentiel
+
+Le texte de recommandation d'un cas urgent contient **185** et **aucun `{urgence:…}`**. La consigne
+est dans le protocole, le numéro dans le référentiel national (P6.8e) : chacun se corrige par sa
+propre porte — changer un numéro d'urgence n'a pas à repasser par quatre validations cliniques.
+
+### V11 — La chaîne d'audit (§10)
+
+`GET /protocoles/journal/integrite` (authentifié) → `intacte: true`.
+
+Réécrire un `acteur_nom` en base → `intacte: false`, rupture **CONTENU**. Rétablir →
+`intacte: true`. Le journal **nomme** les acteurs (« Awa Relectrice », pas « Système ») et ne
+contient **aucun contenu clinique** : ni « SAMU », ni « urgences », ni posologie.
+
+### V12 — §6.1 : une version archivée reste consultable indéfiniment
+
+`GET /protocoles/TRIAGE-NIVEAU/versions/1` → `etat: "archive"`, contenu complet, empreinte
+inchangée. C'est ce qui rend une décision passée explicable.
+
+---
+
+## 4. LE POINT LE PLUS IMPORTANT À VÉRIFIER — aucun traitement n'est applicable
+
+**Décision propriétaire N3 du 2026-08-19.**
+
+```bash
+curl -i "$BASE/protocoles/PROT-CI-PALU-SIMPLE"
+curl -i "$BASE/protocoles/PROT-CI-HTA-SUIVI"
+```
+
+```sql
+SELECT p.code, v.etat,
+       (SELECT COUNT(*) FROM protocole_validations x WHERE x.version_id = v.id) AS validations
+FROM protocole_versions v JOIN protocoles p ON p.id = v.protocole_id;
+```
+
+Attendu : **404** sur les deux · état `brouillon` · **zéro validation** · `organisme` vaut
+« Source non fournie — aucun document d'autorité consulté » · `auteur` est `NULL`.
+
+Le moteur ne sait pas lire un brouillon — ce n'est pas une politique, c'est une incapacité.
+
+**Pourquoi c'est la vérification la plus importante.** Publier un protocole thérapeutique
+exigerait de seeder ses quatre validations, donc d'inscrire dans une chaîne d'audit **immuable**
+qu'un médecin spécialiste et le Ministère de la Santé ont validé une posologie. Le §7 dit
+« opposable » : c'est la pièce qu'on produirait devant un tribunal. Partout ailleurs dans ce
+projet, un jeu de démonstration fabrique une donnée fausse ; **ici il fabriquerait une validation
+clinique fausse.**
+
+---
+
+## 5. Mobile (Expo Go SDK 54)
+
+| # | Écran | Vérifier |
+|---|---|---|
+| M1 | Triage → résultat | Le badge affiche l'un des **quatre** niveaux, avec sa couleur du design system |
+| M2 | Triage → résultat | Le libellé vient du serveur (« Consultation recommandée », pas « MODÉRÉ ») |
+| M3 | Résultat d'un cas à drapeau rouge | Badge **Urgence** en rouge, bouton SOS proéminent |
+| M4 | Historique | Un triage **antérieur à P10b** s'affiche encore, avec son ancien libellé |
+| M5 | Protocole non publié | Message d'erreur, **jamais** un niveau inventé |
+
+**M4 est le vecteur de non-régression du vocabulaire** : les trois valeurs héritées
+(`leger`/`modere`/`urgent`) doivent rester lisibles. Les convertir changerait ce qu'un patient a
+réellement lu sur son écran.
+
+---
+
+## 6. Limites annoncées (à ne pas signaler comme des défauts)
+
+1. **Aucun protocole thérapeutique applicable** — décision N3, vérifiée au §4.
+2. **Le contenu du protocole de triage est un jeu de démonstration**, et il l'était déjà : les
+   bandes reprennent les seuils du Module 1, redécoupés en quatre. `niveau_preuve = 'D'`, le plus
+   bas, et c'est la vérité. Le gain n'est pas qu'ils soient justes — c'est qu'ils soient
+   **relisibles, signés et corrigibles sans déploiement**.
+3. **Aucun écran d'authoring** : la gouvernance passe par l'API, comme les dix référentiels de P6.
+4. **MFA non exigé** sur ces routes (§10 le demande) : `MFA_ENFORCE` est fermé depuis P1 —
+   « prêt à activer », pas actif.
+5. **Évaluation sous 100 ms P95 non déclarée atteinte** : le cache est `database` et non Redis.
+6. `PLAFOND_ANTECEDENTS = 20` reste dans le code (voir §1).
+7. **Deux étapes de déploiement** sont désormais nécessaires avant qu'un triage fonctionne.
+
+---
+
+## 7. Script de mise en vigueur (étape 2.2)
+
+À exécuter une fois, après la migration et le seeder. Il exige **deux comptes** : le quatre-yeux
+du §10 ne se contourne pas.
+
+```
+artisan tinker --execute="
+$g = app(App\Services\Protocole\ServiceGouvernanceProtocole::class);
+$v = App\Models\Protocole::where('code','TRIAGE-NIVEAU')->firstOrFail()
+        ->versions()->where('etat','brouillon')->firstOrFail();
+$r = App\Models\User::find(4);
+$r->syncPermissions(array_values(App\Services\Protocole\ServiceGouvernanceProtocole::PERMISSIONS_VALIDATION));
+$d = App\Models\User::find(6); $d->givePermissionTo('protocole.publier');
+app(Spatie\Permission\PermissionRegistrar::class)->forgetCachedPermissions();
+foreach (array_keys(App\Services\Protocole\ServiceGouvernanceProtocole::PERMISSIONS_VALIDATION) as $t) {
+    $g->valider($v, $r->fresh(), $t, 'favorable', 'Relecteur '.$t);
+}
+echo 'v'.$g->publier($v->fresh(), $d->fresh())->numero;
+"
+```
+
+Adapter les identifiants `find(4)` / `find(6)` aux comptes réels : ils doivent être **distincts**,
+sans quoi la publication est refusée par le quatre-yeux — ce qui est le comportement attendu.
