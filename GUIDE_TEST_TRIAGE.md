@@ -7,7 +7,7 @@ non-régression (règle propriétaire, CDC_01 §2.4).
 |--------|-----------|-------|
 | **1** | **P10a** | Orientation après triage + gouvernance du triage + fiche §5.4 |
 | **2** | **P10b-1** | Registre des protocoles médicaux + moteur de règles + le niveau de triage |
-| *(à venir)* | P10b-2 | Sélecteur, ordre de priorité §3, conflits §8 |
+| **3** | **P10b-2** | Sélecteur, ordre de priorité §3, conflits §8, journal d'exécution §10 |
 | *(à venir)* | P10b-3 | Questionnaire adaptatif §4.3b + écran d'authoring |
 | *(à venir)* | P10c | Microservice `triage-service` (CDC_05 §5) |
 
@@ -659,3 +659,274 @@ echo 'v'.$g->publier($v->fresh(), $d->fresh())->numero;
 
 Adapter les identifiants `find(4)` / `find(6)` aux comptes réels : ils doivent être **distincts**,
 sans quoi la publication est refusée par le quatre-yeux — ce qui est le comportement attendu.
+
+---
+
+# Partie 3 — P10b-2 : sélecteur, ordre de priorité §3, conflits §8, journal d'exécution §10
+
+> **Ajoutée le 2026-08-20.** Écrite avant le G4, conservée après le G5 comme procédure de
+> non-régression. Elle **ne remplace ni la partie 1 ni la partie 2** : P10a et P10b-1 restent en
+> vigueur, et leurs scénarios continuent de s'appliquer tels quels.
+
+## 1. Ce que cet incrément change, en une phrase
+
+Le triage n'applique plus **un** protocole désigné par son code : il applique **tous** ceux qui sont
+en vigueur pour le contexte `triage`, et quand deux d'entre eux divergent, c'est l'ordre du §3 qui
+tranche — pas le code.
+
+### Ce qu'il livre
+
+- un **sélecteur** : quels protocoles s'appliquent (pays, contexte déclaré, version en vigueur, non
+  périmée) ;
+- la **cascade §3/§8** : rang national > régional > OMS > société savante > hospitalier, puis le
+  plus récent, puis le meilleur niveau de preuve ;
+- le **journal d'exécution §10**, chaîné et append-only, avec les divergences consignées ;
+- `POST /protocoles/evaluer`, le contrat du §9.1 ;
+- un **second protocole de démonstration** (`TRIAGE-NIVEAU-REGIONAL`), sans lequel rien de tout cela
+  ne serait exercé par du contenu réel.
+
+### Ce qu'il ne livre PAS, et qu'il ne faut pas chercher
+
+- **aucun écran** : ni pour l'évaluation, ni pour le journal, ni pour les divergences ;
+- **aucun protocole thérapeutique applicable** — ils restent des brouillons non validés (décision
+  N3, inchangée) ;
+- les critères **4 et 5** du §8 (avis de la spécialité, validation du médecin) : ce sont des actes
+  humains, ils ne sont pas automatisés et ne le seront pas ;
+- le **questionnaire adaptatif** (P10b-3).
+
+---
+
+## 2. Préparation — TROIS étapes de déploiement, désormais
+
+La partie 2 en annonçait deux. Il y en a trois si l'on veut voir la cascade fonctionner ; les deux
+premières restent obligatoires pour que le triage réponde tout court.
+
+| # | Ce qu'il faut publier | Sans quoi |
+|---|---|---|
+| 1 | le référentiel `seuils_mesure` (L1+L2) et `symptomes_triage` (P10a) | `GET /symptomes` et `POST /triage/analyser` répondent **503** |
+| 2 | le protocole `TRIAGE-NIVEAU` (P10b-1) | `POST /triage/analyser` répond **503** |
+| 3 | *(facultatif)* le protocole `TRIAGE-NIVEAU-REGIONAL` | la cascade §3 n'a rien à départager |
+
+### 2.0 — ATTENTION : les protocoles publiés AVANT P10b-2 doivent être republiés
+
+Une version publiée avant cet incrément ne déclare **aucun contexte** dans son instantané. Le
+sélecteur lit l'instantané, jamais la table : elle cesse donc d'être sélectionnée, et
+`POST /triage/analyser` répond **503** au lendemain du déploiement.
+
+Ce n'est pas un défaut : c'est la même bascule que L1+L2 pour `seuils_mesure`. Renseigner
+`protocoles.contextes_json` **ne suffit pas** — il faut ouvrir une nouvelle version et la publier
+par le cycle §7 complet. *Un champ d'application qu'un `UPDATE` suffirait à élargir serait un
+champ d'application que personne n'a relu.*
+
+
+Les étapes 1 et 2 sont décrites dans les parties 1 et 2 — ne les refaites pas si elles sont déjà
+faites sur cette base.
+
+### 2.1 Publier le protocole régional (étape 3)
+
+Comme toujours : **deux comptes distincts**, l'un qui valide, l'autre qui publie. Le quatre-yeux du
+§10 ne se contourne pas, et un raccourci ici prouverait le contraire de ce que la gouvernance
+garantit.
+
+```
+# 1. les quatre validations du §7 (compte A)
+POST /api/v1/protocoles/TRIAGE-NIVEAU-REGIONAL/versions/1/valider
+     { "type": "clinique",      "avis": "favorable", "validateur_nom": "Dr …" }
+     { "type": "reglementaire", "avis": "favorable", "validateur_nom": "…" }
+     { "type": "scientifique",  "avis": "favorable", "validateur_nom": "…" }
+     { "type": "technique",     "avis": "favorable", "validateur_nom": "…" }
+
+# 2. la publication (compte B, différent du rédacteur)
+POST /api/v1/protocoles/TRIAGE-NIVEAU-REGIONAL/versions/1/publier
+```
+
+---
+
+## 3. Les vecteurs
+
+### V1 — Avec un seul protocole, rien ne change
+
+Refaites **n'importe quel scénario de la partie 2**. Le résultat doit être identique : mêmes
+niveaux, même estampille, même message.
+
+*C'est le vecteur le plus important de cette partie.* Le sélecteur s'intercale entre le triage et le
+moteur ; s'il changeait quoi que ce soit quand il n'y a rien à sélectionner, il changerait des
+décisions de santé sans qu'aucune décision humaine ne l'ait voulu.
+
+### V2 — Le national l'emporte sur le régional
+
+Une fois `TRIAGE-NIVEAU-REGIONAL` publié, faites un triage pour **un enfant de moins de 5 ans** dont
+le score tombe entre 26 et 50.
+
+Attendu :
+- le niveau rendu est celui du **national** (`recommandee`), pas celui du régional (`rapide`) ;
+- `protocole.code` dans la réponse vaut **`TRIAGE-NIVEAU`** ;
+- le régional apparaît quand même dans le journal comme **évalué**.
+
+### V3 — Le protocole écarté garde ses autres recommandations
+
+Sur le même triage, l'orientation vers la **pédiatrie** doit être présente.
+
+*Le §3 est un ordre de départage, pas d'exclusion.* Un protocole qui perd sur le niveau n'est pas
+mis à la poubelle : ce qu'il dit d'autre reste. Si l'orientation pédiatrique disparaissait, la
+cascade se comporterait comme un filtre, et la moitié du contenu régional deviendrait inutile.
+
+### V4 — La divergence est consignée, avec les DEUX valeurs
+
+```
+GET /api/v1/protocoles/applications
+GET /api/v1/protocoles/applications/{trace_id}
+```
+
+Attendu dans le détail :
+- un conflit sur `DEFINIR_NIVEAU` ;
+- `retenu` : valeur `recommandee`, protocole `TRIAGE-NIVEAU`, source `national` ;
+- `ecarte` : valeur `rapide`, protocole `TRIAGE-NIVEAU-REGIONAL`, source `regional` ;
+- `critere` : **`rang`**.
+
+Les deux côtés sont conservés : le §8 exige de pouvoir présenter *les deux* recommandations et leurs
+sources. Ne garder que la gagnante rendrait le départage incontestable — au mauvais sens du mot.
+
+### V5 — Un enfant hors de la bande : aucun conflit
+
+Refaites le même triage avec un **adulte**. La règle régionale ne se déclenche pas :
+
+- aucun conflit consigné ;
+- le régional apparaît dans le journal avec `a_contribue: false`.
+
+Ce n'est **pas** une anomalie : un protocole sélectionné qui ne dit rien sur ce cas-là ne dit rien,
+voilà tout.
+
+### V6 — On ne peut pas publier une version que seule la date départagerait
+
+Tentez de publier un second protocole **national**, de même niveau de preuve, qui fixe lui aussi le
+niveau. Attendu : **refus 422**, avec un détail qui **nomme** le protocole concurrent.
+
+*C'est le contrôle central de cet incrément.* Les quatre validateurs du §7 ont relu ce protocole
+**isolément** ; personne ne leur a montré celui qui était déjà en vigueur. Laisser passer ferait
+basculer des décisions au moment de la publication, pour des cas que personne n'a examinés — et le
+départage se ferait sur le **calendrier**.
+
+Vérifiez ensuite que le **même** protocole est publiable :
+- déclaré `regional` → **accepté** (le rang départage) ;
+- déclaré `national` avec un niveau de preuve **A** → **accepté** (la preuve départage).
+
+### V7 — Un protocole sans contexte déclaré est refusé à la publication
+
+Attendu : **422**, avec la liste des contextes admis.
+
+Un protocole publié qui ne déclare aucun contexte serait en vigueur et pourtant **muet** : le
+sélecteur ne le retiendrait jamais. C'est le genre de panne qui ne fait aucun bruit.
+
+### V8 — La couverture des niveaux est vérifiée sur l'ENSEMBLE, plus protocole par protocole
+
+Tentez de publier un protocole de triage **complet** dont les bandes laissent un trou (par exemple
+0-25, 51-100). Attendu : **refus 422** nommant l'intervalle non couvert.
+
+Puis vérifiez l'inverse : le **régional**, qui ne couvre qu'un cas particulier et laisse donc
+« des trous » partout, se publie sans difficulté.
+
+*C'est un défaut de b-1 corrigé ici.* La couverture y était vérifiée protocole par protocole — exact
+tant qu'un seul protocole existait, et **interdisant toute surcouche** dès qu'il y en a deux.
+
+### V8-bis — Un `UPDATE` sur `contextes_json` reste sans effet
+
+```sql
+UPDATE protocoles SET contextes_json = '["consultation"]' WHERE code = 'TRIAGE-NIVEAU';
+```
+
+Refaites un triage : il fonctionne toujours. La colonne est une table de **travail** ; c'est
+l'instantané publié qui décide. Elle ne prendra effet qu'à la publication suivante.
+
+N'oubliez pas de remettre la valeur d'origine.
+
+### V9 — Le journal d'exécution est immuable, et ça se vérifie
+
+```
+GET /api/v1/protocoles/applications/integrite   → { "intacte": true, "entrees": N }
+```
+
+Puis, en SQL direct sur la base :
+
+```sql
+UPDATE protocole_applications SET contexte = 'consultation' WHERE id = 1;
+-- attendu : ERROR 1644 (45000) : protocole_applications_append_only
+DELETE FROM protocole_applications WHERE id = 1;
+-- attendu : ERROR 1644 (45000)
+```
+
+Le déclencheur rend l'altération **impossible** par les voies ordinaires ; la chaîne la rend
+**détectable** si quelqu'un retire le déclencheur. Aucune des deux ne rattrape l'autre.
+
+### V10 — Le journal ne porte ni nom ni symptôme en clair
+
+```sql
+SELECT * FROM protocole_applications\G
+```
+
+Le patient est désigné par ses **identifiants** (`membre_id`, `user_id`, `triage_id`), jamais par
+son nom ; aucun libellé de symptôme n'apparaît.
+
+Ce journal contient en revanche les **recommandations** — c'est le §10 qui l'exige, et c'est sa
+raison d'être : un journal d'exécution qui tairait ce qui a été recommandé ne servirait à rien le
+jour d'un litige.
+
+### V11 — La décision finale reste vide sur un triage citoyen
+
+Dans le détail d'une évaluation issue d'un triage :
+
+```
+"professionnel_id": null,
+"decision_finale": null,
+"ecart_justification": null
+```
+
+**C'est voulu, et c'est une limite écrite.** Le §10 nomme ces trois champs ; le triage citoyen n'a
+personne pour décider. Les rendre explicitement nuls, plutôt que de les omettre, évite de faire
+passer une absence structurelle pour un défaut d'affichage.
+
+### V12 — `POST /protocoles/evaluer` est gardé
+
+Sans la permission `protocole.evaluer` : **403**. Avec : **201**, et la réponse porte les clés du
+§9.1 — `recommandations`, `conflits`, `trace_id`, `questions_suivantes` (vide jusqu'à P10b-3).
+
+Un professionnel peut consigner sa décision **dans le même appel** (`decision_finale`,
+`ecart_justification`). Elle ne se rattrape pas ensuite : le journal est append-only, et compléter
+après coup serait réécrire le passé.
+
+---
+
+## 4. Ce qu'il faut vérifier même si tout semble marcher
+
+1. **`GET /api/v1/protocoles/applications/integrite` répond, et n'est pas prise pour un `trace_id`.**
+   Sans le bon ordre de déclaration des routes, elle répondrait 404 — un défaut qui ne casse rien et
+   ne se voit pas.
+2. **Un triage écrit exactement UNE entrée au journal.** Deux entrées signifieraient qu'un chemin
+   d'écriture a été dupliqué ; zéro, qu'une décision de santé a été rendue sans trace.
+3. **`triages.protocole_code` désigne le protocole qui a EMPORTÉ le niveau**, pas le premier évalué.
+
+---
+
+## 5. Limites de cet incrément, à ne pas prendre pour des défauts
+
+1. Le rang **`hospitalier`** du §3 n'a **aucune portée réelle** : aucun protocole ne peut être
+   rattaché à un établissement, faute d'écran où un hôpital rédigerait le sien.
+2. Les critères **4 et 5** du §8 ne sont pas implémentés — actes humains.
+3. La **présentation d'un conflit à un médecin** est conçue, pas activée : le champ `conflits` est
+   rendu par l'API, aucun écran ne l'affiche.
+4. **Contenu de démonstration** : `TRIAGE-NIVEAU-REGIONAL` est **inventé**, `niveau_preuve = 'D'`,
+   organisme « source non fournie ». Il n'a été fourni par aucune direction régionale. Il existe
+   pour que la sélection et le départage soient exercés par du contenu réel plutôt que par des
+   tests seuls.
+5. Le **§11 (< 100 ms)** n'est toujours pas déclaré atteint, et la chaîne du journal ajoute une
+   écriture sérialisée par évaluation.
+6. **La chaîne de GOUVERNANCE (`/protocoles/journal/integrite`) répond aujourd'hui
+   `intacte: false`**, et ce n'est pas P10b-2 qui l'a rompue : `protocole_journal.acteur_id` est
+   une clé étrangère `nullOnDelete` **prise dans l'empreinte**, et la restauration du G2 de
+   P10b-1 a supprimé ses comptes temporaires. Seize entrées portent `acteur_id = NULL`.
+
+   *On ne répare pas une chaîne de hachage* : recalculer les empreintes reviendrait à réécrire
+   l'histoire, ce que la chaîne existe pour rendre impossible. Le journal d'**exécution** de
+   P10b-2 ne reproduit pas le défaut — ses identifiants ne sont pas des clés étrangères.
+   La décision (vivre avec une rupture datée, ou repartir d'une chaîne neuve en archivant
+   l'ancienne) appartient au propriétaire.

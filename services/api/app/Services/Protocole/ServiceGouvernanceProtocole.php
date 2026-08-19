@@ -17,7 +17,7 @@ use Illuminate\Support\Facades\DB;
  *     → Utilisation → Surveillance → Révision → Nouvelle version
  *
  * ═══════════════════════════════════════════════════════════════════════════════════════════════
- * LES QUATRE GARDES DE PUBLICATION — AUCUNE NE RATTRAPE LES AUTRES
+ * LES SIX GARDES DE PUBLICATION — AUCUNE NE RATTRAPE LES AUTRES
  * ═══════════════════════════════════════════════════════════════════════════════════════════════
  *
  *  1. **Les quatre validations du §7**, présentes et favorables. Le refus NOMME celle qui manque :
@@ -32,6 +32,13 @@ use Illuminate\Support\Facades\DB;
  *     Transposition du contrôle central de P6.3 et du « destination révoquée depuis le figeage »
  *     de P5.5b-2 — là il s'agissait d'argent, ici de conduites à tenir.
  *  4. **Les contrôles techniques du §7.4** ({@see ControleQualiteProtocole}), bloquants.
+ *  5. **Le conflit non arbitré** ({@see ControleConflitsPublication}, P10b-2) : une version
+ *     que **seule la date** départagerait d'un protocole déjà en vigueur est refusée. Les
+ *     quatre validateurs ont relu ce protocole ISOLÉMENT ; personne ne leur a montré celui
+ *     qui s'applique déjà. Laisser passer ferait décider le calendrier.
+ *  6. **La couverture des niveaux** ({@see ControleCouvertureNiveau}, P10b-2) : après cette
+ *     publication, l'ensemble des protocoles en vigueur doit encore couvrir toute la plage de
+ *     score. Seul défaut de la famille qui ne fait aucun bruit.
  *
  * ═══ L'HABILITATION EST VÉRIFIÉE ICI, DANS LE SERVICE ═══
  *
@@ -52,6 +59,16 @@ final class ServiceGouvernanceProtocole
     public const PERMISSION_REDIGER = 'protocole.rediger';
 
     public const PERMISSION_PUBLIER = 'protocole.publier';
+
+    /**
+     * P10b-2 — Faire évaluer des protocoles hors triage citoyen (§9.1).
+     *
+     * Elle ne garde pas une ÉDITION mais une LECTURE — une lecture qui rend des conduites à
+     * tenir et inscrit une ligne au journal médico-légal du §10 à chaque appel. D'où une
+     * permission propre : la confondre avec `protocole.rediger` ferait de tout rédacteur un
+     * consommateur du moteur, et de tout consommateur un rédacteur.
+     */
+    public const PERMISSION_EVALUER = 'protocole.evaluer';
 
     /**
      * Une permission PAR TYPE DE VALIDATION du §7, et c'est la raison d'être de la découpe.
@@ -76,6 +93,8 @@ final class ServiceGouvernanceProtocole
     public function __construct(
         private readonly CompilateurProtocole $compilateur,
         private readonly ControleQualiteProtocole $qualite,
+        private readonly ControleConflitsPublication $conflits,
+        private readonly ControleCouvertureNiveau $couverture,
         private readonly JournalProtocole $journal,
     ) {}
 
@@ -280,6 +299,35 @@ final class ServiceGouvernanceProtocole
                 throw ProtocoleException::qualite($anomalies);
             }
 
+            // ═══ GARDE 5 — LE PROTOCOLE NE DOIT PAS SE DISPUTER UNE DÉCISION AVEC UN AUTRE ═══
+            //
+            // P10b-2. Les quatre validateurs du §7 ont relu CE protocole, isolément. Personne ne
+            // leur a montré celui qui est déjà en vigueur. Publier une version que seule la date
+            // départagerait ferait basculer des décisions au moment de la mise en vigueur, sans
+            // qu'aucun humain n'ait choisi laquelle doit primer.
+            //
+            // Après les contrôles §7.4 : un contenu mal formé doit être signalé pour ce qu'il est
+            // (même raison que l'ordre choisi en b-1 entre qualité et anti-substitution).
+            $disputes = $this->conflits->controler($protocole, $contenu);
+
+            if ($disputes !== []) {
+                throw ProtocoleException::qualite($disputes);
+            }
+
+            // ═══ GARDE 6 — TOUT PATIENT REÇOIT-IL ENCORE UN NIVEAU ? ═══
+            //
+            // P10b-2. La question était posée protocole par protocole en b-1 ; elle porte
+            // désormais sur l'ENSEMBLE des protocoles en vigueur — sans quoi aucune surcouche
+            // régionale ne serait publiable ({@see ControleCouvertureNiveau}).
+            //
+            // C'est le seul défaut de cette famille qui ne fait AUCUN bruit : un trou entre 51 et
+            // 55 se publierait sans erreur et n'apparaîtrait qu'au premier patient qui y tombe.
+            $trous = $this->couverture->controler($protocole, $contenu);
+
+            if ($trous !== []) {
+                throw ProtocoleException::qualite($trous);
+            }
+
             // ═══ GARDES 1 ET 3 — LES QUATRE VALIDATIONS, ET LEUR FRAÎCHEUR ═══
             $this->exigerValidationsCompletes($version, $empreinte);
 
@@ -379,6 +427,28 @@ final class ServiceGouvernanceProtocole
                 .implode(', ', $caduques).' ne portent plus sur ce texte. Publier maintenant '
                 .'mettrait en vigueur des règles cliniques que personne n\'a relues. Faites '
                 .'re-signer les relecteurs concernés.',
+            );
+        }
+    }
+
+    /**
+     * L'habilitation à faire évaluer (§9.1), vérifiée DANS LE SERVICE.
+     *
+     * Et non par le middleware `permission:` de spatie : ces routes sont authentifiées par
+     * Sanctum alors que les permissions vivent sur le guard `web` — le middleware refuserait
+     * sur un désaccord de guard plutôt que sur un défaut de droit (piège P4, `rdv.validate`).
+     *
+     * Message distinct de celui de l'édition : dire « édition des protocoles » à quelqu'un qui
+     * demandait une évaluation l'enverrait chercher le mauvais droit.
+     */
+    public function exigerEvaluation(?User $utilisateur): void
+    {
+        if ($utilisateur === null || ! $utilisateur->can(self::PERMISSION_EVALUER)) {
+            throw new ProtocoleException(
+                "Cette action exige l'habilitation « ".self::PERMISSION_EVALUER." », accordée "
+                .'nominativement : une évaluation rend des recommandations de conduite à tenir '
+                .'et laisse une trace au journal d\'exécution (CDC_08 §9.1, §10).',
+                403,
             );
         }
     }

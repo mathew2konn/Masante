@@ -43,6 +43,7 @@ class Protocole extends Model
         'specialite_code',
         'langue',
         'mots_cles_json',
+        'contextes_json',
         'actif',
     ];
 
@@ -50,6 +51,7 @@ class Protocole extends Model
     {
         return [
             'mots_cles_json' => 'array',
+            'contextes_json' => 'array',
             'actif'          => 'boolean',
         ];
     }

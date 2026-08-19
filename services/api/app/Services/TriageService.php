@@ -192,6 +192,13 @@ class TriageService
             // serait une affirmation sans origine.
             'regles_declenchees'   => $decision['regles_declenchees'],
 
+            // P10b-2 — L'ÉVALUATION COMPLÈTE, transmise telle quelle au journal du §10 :
+            // protocoles évalués, protocoles écartés et leur motif, divergences et le critère
+            // qui les a départagées. Ce service ne l'interprète pas — il ne saurait pas quoi en
+            // faire, et lui donner un sens ici mettrait une décision de gouvernance dans un
+            // assembleur de score.
+            'evaluation'           => $decision['evaluation'],
+
             'recommandation_texte' => $recommandation,
             'drapeau_rouge'        => $drapeauRouge,
             'symptomes'            => $symptomes->map(fn (Symptome $s) => [

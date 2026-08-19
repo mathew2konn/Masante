@@ -7,11 +7,14 @@ use App\Http\Requests\AnalyserTriageRequest;
 use App\Models\MembreFamille;
 use App\Models\Symptome;
 use App\Models\Triage;
+use App\Services\Protocole\JournalApplicationProtocole;
 use App\Services\Triage\ServiceFicheTriage;
 use App\Services\Triage\ServiceSymptomesTriage;
 use App\Services\TriageService;
+use App\Support\RegistreContextesProtocole;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 /**
  * Module 1 — Triage et orientation médicale (F1.1 à F1.8).
@@ -22,6 +25,7 @@ class TriageController extends Controller
         private readonly TriageService $triage,
         private readonly ServiceSymptomesTriage $referentiel,
         private readonly ServiceFicheTriage $fiches,
+        private readonly JournalApplicationProtocole $journal,
     ) {
     }
 
@@ -78,45 +82,69 @@ class TriageController extends Controller
             antecedents: $antecedents, // carnet du membre (2A.4) : alimente le score (F1.3)
         );
 
-        $triage = Triage::create([
-            'user_id'              => $utilisateur?->id,
-            'membre_id'            => $membreId,
-            'patient_nom'          => $data['patient_nom'] ?? null,
-            'patient_age'          => $data['patient_age'] ?? null,
-            'patient_sexe'         => $data['patient_sexe'] ?? null,
-            'symptomes_json'       => $resultat['symptomes'],
-            'reponses_json'        => $resultat['reponses'],
-            'score_severite'       => $resultat['score_severite'],
-            'niveau'               => $resultat['niveau'],
-            'specialite_requise'   => $resultat['specialite_requise'],
+        // La trace d'exécution et le triage vivent ou meurent ENSEMBLE : un triage rendu au
+        // patient sans trace archivée laisserait une décision de santé sans explication, et une
+        // trace sans triage désignerait une décision qui n'a jamais eu lieu.
+        $triage = DB::transaction(function () use ($resultat, $data, $utilisateur, $membreId): Triage {
+            $triage = Triage::create([
+                'user_id'              => $utilisateur?->id,
+                'membre_id'            => $membreId,
+                'patient_nom'          => $data['patient_nom'] ?? null,
+                'patient_age'          => $data['patient_age'] ?? null,
+                'patient_sexe'         => $data['patient_sexe'] ?? null,
+                'symptomes_json'       => $resultat['symptomes'],
+                'reponses_json'        => $resultat['reponses'],
+                'score_severite'       => $resultat['score_severite'],
+                'niveau'               => $resultat['niveau'],
+                'specialite_requise'   => $resultat['specialite_requise'],
 
-            // ═══ P10a — L'ESTAMPILLE (CDC_04 §115, CDC_09 §10) ═══
-            //
-            // « Toute décision conserve la version du référentiel utilisée ». Sans elle, corriger un
-            // `poids_severite` rendait tout triage antérieur inexplicable — c'était le constat F3
-            // du G0 de P6.3, resté ouvert jusqu'ici.
-            //
-            // NULLABLE ET JAMAIS RÉTROACTIVE : les triages d'avant n'ont eu aucune version en
-            // vigueur ; leur en attribuer une après coup serait un mensonge d'archive (précédent
-            // exact de `mesures_sante.referentiel_version` en L1+L2).
-            'referentiel_version'  => $resultat['referentiel_version'],
-            'specialites_json'     => $resultat['specialites'],
+                // ═══ P10a — L'ESTAMPILLE (CDC_04 §115, CDC_09 §10) ═══
+                //
+                // « Toute décision conserve la version du référentiel utilisée ». Sans elle, corriger un
+                // `poids_severite` rendait tout triage antérieur inexplicable — c'était le constat F3
+                // du G0 de P6.3, resté ouvert jusqu'ici.
+                //
+                // NULLABLE ET JAMAIS RÉTROACTIVE : les triages d'avant n'ont eu aucune version en
+                // vigueur ; leur en attribuer une après coup serait un mensonge d'archive (précédent
+                // exact de `mesures_sante.referentiel_version` en L1+L2).
+                'referentiel_version'  => $resultat['referentiel_version'],
+                'specialites_json'     => $resultat['specialites'],
 
-            // ═══ P10b-1 — L'ESTAMPILLE DU PROTOCOLE (CDC_08 §6.1, CDC_04 §115) ═══
-            //
-            // « Chaque décision clinique conserve la version exacte du protocole utilisée » —
-            // exigence médico-légale non négociable. Le CODE est dénormalisé à côté du numéro pour
-            // que la trace reste lisible si le protocole disparaît du registre (motif de
-            // l'établissement copié sur `acces_dossier` en P7-D2).
-            //
-            // NULLABLE ET JAMAIS RÉTROACTIVE : les triages d'avant P10b n'ont été jugés par aucun
-            // protocole, leur en attribuer un serait un mensonge d'archive (précédent L1+L2).
-            'protocole_code'       => $resultat['protocole_code'],
-            'protocole_version'    => $resultat['protocole_version'],
+                // ═══ P10b-1 — L'ESTAMPILLE DU PROTOCOLE (CDC_08 §6.1, CDC_04 §115) ═══
+                //
+                // « Chaque décision clinique conserve la version exacte du protocole utilisée » —
+                // exigence médico-légale non négociable. Le CODE est dénormalisé à côté du numéro pour
+                // que la trace reste lisible si le protocole disparaît du registre (motif de
+                // l'établissement copié sur `acces_dossier` en P7-D2).
+                //
+                // NULLABLE ET JAMAIS RÉTROACTIVE : les triages d'avant P10b n'ont été jugés par aucun
+                // protocole, leur en attribuer un serait un mensonge d'archive (précédent L1+L2).
+                'protocole_code'       => $resultat['protocole_code'],
+                'protocole_version'    => $resultat['protocole_version'],
 
-            'recommandation_texte' => $resultat['recommandation_texte'],
-            'fiche_generee'        => false,
-        ]);
+                'recommandation_texte' => $resultat['recommandation_texte'],
+                'fiche_generee'        => false,
+            ]);
+
+            // ═══ P10b-2 — LE JOURNAL D'EXÉCUTION DU §10 ═══
+            //
+            // L'estampille ci-dessus nomme le protocole qui a EMPORTÉ le niveau. Elle est muette sur
+            // les autres protocoles évalués, sur ceux qui ont été écartés et pourquoi, sur les
+            // divergences et sur ce qui a été recommandé. Le §10 exige tout cela pour l'audit
+            // médico-légal — ce sont deux faits distincts, pas la même vérité écrite deux fois.
+            $this->journal->inscrire($resultat['evaluation'], [
+                'contexte'  => RegistreContextesProtocole::TRIAGE,
+                'pays_code' => config('referentiels.pays_defaut', 'CI'),
+                'membre_id' => $membreId,
+                'user_id'   => $utilisateur?->id,
+                // `professionnel_id`, `decision_finale` et `ecart_justification` restent NULS : le
+                // triage citoyen n'a pas de soignant dans la boucle. Le §10 les nomme, ils existent,
+                // et le fait qu'ils soient vides est une limite écrite — pas un oubli.
+                'triage_id' => $triage->id,
+            ]);
+
+            return $triage;
+        });
 
         return response()->json([
             'triage_id'            => $triage->id,

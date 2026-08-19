@@ -6,6 +6,7 @@ use App\Models\Protocole;
 use App\Models\ProtocoleVersion;
 use App\Support\NiveauTriage;
 use App\Support\RegistreActionsProtocole;
+use App\Support\RegistreContextesProtocole;
 use App\Services\Triage\ServiceNiveauTriage;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Carbon;
@@ -61,6 +62,7 @@ class ProtocoleSeeder extends Seeder
     public function run(): void
     {
         $this->protocoleDeNiveau();
+        $this->protocoleRegional();
         $this->brouillonsTherapeutiques();
     }
 
@@ -85,6 +87,7 @@ class ProtocoleSeeder extends Seeder
             'titre'         => 'Détermination du niveau de priorité du triage',
             'domaine'       => Protocole::DOMAINE_TRIAGE,
             'niveau_source' => 'national',
+            'contextes_json' => [RegistreContextesProtocole::TRIAGE],
             'organisme'     => self::SOURCE_ABSENTE,
             'langue'        => 'fr',
             'mots_cles_json' => ['triage', 'priorite', 'orientation'],
@@ -178,6 +181,120 @@ class ProtocoleSeeder extends Seeder
     }
 
     /**
+     * `TRIAGE-NIVEAU-REGIONAL` — P10b-2 : le second protocole, sans lequel le sélecteur et la
+     * cascade §3/§8 ne seraient exercés par rien (décision G1 O1).
+     *
+     * ═══════════════════════════════════════════════════════════════════════════════════════════
+     * POURQUOI CE CONTENU EXISTE, ET EN QUOI IL DIFFÈRE DE LA DÉCISION N3
+     * ═══════════════════════════════════════════════════════════════════════════════════════════
+     *
+     * `TRIAGE-NIVEAU` **transcrivait** des seuils qui existaient déjà dans le code. Celui-ci est du
+     * contenu **inventé** — il faut le dire, parce que c'est une différence réelle.
+     *
+     * Ce qui le rend acceptable, et qui manquait à un protocole thérapeutique :
+     *   - ce n'est **pas une posologie**. Le §7 dit « opposable » : la pièce qu'on produirait
+     *     devant un tribunal pour une dose de médicament n'est pas de même nature qu'une règle
+     *     d'orientation ;
+     *   - il porte les **mêmes étiquettes d'honnêteté** que `TRIAGE-NIVEAU` : `niveau_preuve = 'D'`,
+     *     organisme « source non fournie », auteur absent ;
+     *   - c'est le régime de **tous** les référentiels de P6 (18 médicaments, 21 maladies,
+     *     9 vaccins, 8 analyses) : contenu de démonstration, étiqueté comme tel, remplaçable sans
+     *     migration.
+     *
+     * Et sans lui, le sélecteur rendrait toujours le même protocole et le résolveur de conflits ne
+     * se déclencherait jamais : « un contrôle toujours vert ne prouve rien » (P5.3b-4), et une
+     * table de conflits vide serait le socle à vide refusé par la décision D3 de P6.3.
+     *
+     * ═══ CE QU'IL DÉMONTRE, EN DEUX ACTIONS DE NATURES OPPOSÉES ═══
+     *
+     * Sur le même cas — un enfant de moins de cinq ans dont le score tombe dans la bande médiane —
+     * il émet :
+     *   - un `DEFINIR_NIVEAU` **divergent** du national : action EXCLUSIVE, donc départagée. Le
+     *     national gagne par le RANG (§3-1), la divergence est consignée, et le régional
+     *     n'obtient rien ;
+     *   - un `ORIENTER` vers la pédiatrie : action CUMULATIVE, donc **conservée**. Elle s'ajoute
+     *     à ce que le national a produit.
+     *
+     * *C'est cette asymétrie qui rend le §8 vérifiable : un protocole écarté sur un point ne l'est
+     * pas sur les autres.* Un protocole entièrement ignoré dès qu'il perd une fois ferait du §3 un
+     * ordre d'exclusion, alors qu'il est un ordre de départage.
+     *
+     * ═══ CE PROTOCOLE N'EST PAS PUBLIÉ ICI ═══
+     *
+     * Comme les autres : le seeder ouvre un brouillon, la publication reste une étape de
+     * déploiement faite par deux agents habilités (§10). Il ne s'appliquera donc que le jour où
+     * quelqu'un décidera qu'il s'applique.
+     */
+    private function protocoleRegional(): void
+    {
+        $protocole = $this->enregistrer('TRIAGE-NIVEAU-REGIONAL', [
+            'titre'         => 'Adaptation régionale du triage — priorité de l\'enfant de moins de 5 ans',
+            'domaine'       => Protocole::DOMAINE_TRIAGE,
+            // §3 rang 2 : « protocoles ministériels régionaux ». C'est ce rang qui le fera perdre
+            // face au national — et qui rend sa publication possible, puisque le contrôle de
+            // conflits refuse une version que seule la DATE départagerait.
+            'niveau_source' => 'regional',
+            'contextes_json' => [RegistreContextesProtocole::TRIAGE],
+            'organisme'     => self::SOURCE_ABSENTE,
+            'langue'        => 'fr',
+            'mots_cles_json' => ['triage', 'pediatrie', 'adaptation regionale'],
+        ]);
+
+        if ($protocole->versions()->exists()) {
+            return; // Idempotent, comme les autres.
+        }
+
+        $version = ProtocoleVersion::create([
+            'protocole_id'   => $protocole->id,
+            'numero'         => 1,
+            'libelle'        => '2026.1',
+            'etat'           => ProtocoleVersion::BROUILLON,
+            'verrou_unicite' => ProtocoleVersion::verrouPour(ProtocoleVersion::BROUILLON, $protocole->id),
+            'niveau_preuve'  => 'D',
+            'population'     => 'Enfants de moins de 5 ans',
+            'conditions_utilisation' => 'Orientation uniquement, aucun diagnostic (CDC_05 §1). '
+                .'CONTENU DE DÉMONSTRATION : cette adaptation régionale n\'a été fournie par '
+                .'aucune direction régionale de la santé et n\'a été confrontée à aucun protocole '
+                .'national. Elle existe pour exercer la sélection et la résolution de conflits '
+                .'(CDC_08 §3, §8).',
+            'motif'          => 'Second protocole de triage — sans lui, l\'ordre de priorité du §3 '
+                .'et la résolution de conflits du §8 ne seraient exercés par aucun contenu réel.',
+            'redige_le'      => Carbon::now(),
+        ]);
+
+        $this->regle(
+            $version,
+            1,
+            'Enfant de moins de 5 ans en bande médiane : consultation rapide et orientation pédiatrique',
+            [
+                ['age', '<', 5],
+                ['score', 'entre', [26, 50]],
+            ],
+            [
+                // EXCLUSIVE — diverge du national, qui rend « recommandee » sur cette bande.
+                // Elle sera écartée par le rang, et la divergence consignée.
+                [RegistreActionsProtocole::DEFINIR_NIVEAU, NiveauTriage::RAPIDE,
+                    'Contenu de démonstration : aucune source d\'autorité.'],
+                // Le contrôle de b-1 l'exige toujours : un niveau sans consigne laisse le
+                // citoyen devant un mot et une couleur.
+                [RegistreActionsProtocole::MESSAGE,
+                    'Consultez un médecin dans les 24 heures ; un service de pédiatrie est '
+                    .'à privilégier pour un enfant de cet âge.', null],
+                // CUMULATIVE — conservée malgré la perte sur l'action ci-dessus.
+                [RegistreActionsProtocole::ORIENTER, 'pediatrie',
+                    'Un enfant de moins de 5 ans relève d\'une consultation pédiatrique.'],
+            ]
+        );
+
+        $version->references()->create([
+            'type'     => 'document',
+            'libelle'  => 'Contenu de démonstration — aucune direction régionale consultée',
+            'citation' => 'Rédigé pour exercer le sélecteur et la cascade §3/§8 de CDC_08. '
+                .'À remplacer par une adaptation régionale réelle lorsqu\'elle sera fournie.',
+        ]);
+    }
+
+    /**
      * Les protocoles thérapeutiques du §5.1 — BROUILLONS, sans validation, jamais applicables.
      *
      * Ils existent pour trois raisons, et aucune n'est de soigner :
@@ -193,6 +310,7 @@ class ProtocoleSeeder extends Seeder
             'titre'         => 'Paludisme simple — prise en charge de l\'adulte',
             'domaine'       => 'infectieux',
             'niveau_source' => 'national',
+            'contextes_json' => [RegistreContextesProtocole::CONSULTATION, RegistreContextesProtocole::URGENCE],
             'organisme'     => self::SOURCE_ABSENTE,
             'langue'        => 'fr',
             'mots_cles_json' => ['paludisme', 'TDR', 'ACT'],
@@ -240,6 +358,7 @@ class ProtocoleSeeder extends Seeder
             'titre'         => 'Hypertension artérielle — suivi du patient à risque',
             'domaine'       => 'chronique',
             'niveau_source' => 'national',
+            'contextes_json' => [RegistreContextesProtocole::CONSULTATION],
             'organisme'     => self::SOURCE_ABSENTE,
             'langue'        => 'fr',
             'mots_cles_json' => ['HTA', 'cardiovasculaire', 'suivi'],

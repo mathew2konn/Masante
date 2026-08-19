@@ -50,6 +50,10 @@ final class CompilateurProtocole
                 'pays_code'       => $protocole->pays_code,
                 'titre'           => $protocole->titre,
                 'domaine'         => $protocole->domaine,
+                // P10b-2 — les contextes du §9.1. Ils entrent dans l'instantané, donc dans
+                // l'empreinte : élargir le champ d'application d'un protocole en vigueur
+                // devient une PUBLICATION relue par deux agents, pas un UPDATE discret.
+                'contextes'       => $protocole->contextes_json ?? [],
                 'niveau_source'   => $protocole->niveau_source,
                 'organisme'       => $protocole->organisme,
                 'auteur'          => $protocole->auteur,

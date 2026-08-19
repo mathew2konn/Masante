@@ -142,6 +142,20 @@ class PortailRolesSeeder extends Seeder
         'protocole.valider.scientifique',  // §7.3 — publications, essais, méta-analyses
         'protocole.valider.technique',     // §7.4 — cohérence des règles, absence de conflits
         'protocole.publier',      // mettre une version en vigueur (§10, double validation)
+
+        // P10b-2 — Évaluer des protocoles hors triage citoyen (CDC_08 §9.1).
+        //
+        // ATTRIBUÉE À AUCUN RÔLE MÉTIER, elle aussi, et pour une raison différente des six
+        // ci-dessus : celles-là gardent l'ÉCRITURE des protocoles, celle-ci garde une LECTURE
+        // — mais une lecture qui rend des recommandations de conduite à tenir, et qui inscrit
+        // une ligne au journal médico-légal du §10 à chaque appel. L'ouvrir largement ferait
+        // d'un moteur d'aide à la décision clinique une API publique, et remplirait le journal
+        // d'évaluations qui ne concernent aucun patient.
+        //
+        // Le triage citoyen ne passe PAS par cette porte : il appelle le même service en
+        // interne, avec son contexte à lui. Deux portes, un seul moteur — l'inverse aurait
+        // laissé les deux chemins diverger.
+        'protocole.evaluer',
     ];
 
     /** Permissions par rôle (moindre privilège). L'admin reçoit tout. */

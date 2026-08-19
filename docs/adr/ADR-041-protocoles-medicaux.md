@@ -1,7 +1,8 @@
 # ADR-041 — Registre des protocoles médicaux et moteur de règles (CDC_08)
 
 - **Statut** : accepté — G1 validé par le propriétaire le 2026-08-19. **P10b-1 : VALIDÉ G5 le
-  2026-08-19** — G2 (live MySQL) et G3 (tests, typecheck, mutation) prouvés, G4 propriétaire OK.
+  2026-08-19** — G2 (live MySQL) et G3 prouvés, G4 propriétaire OK. **P10b-2 : VALIDÉ G5 le
+  2026-08-20** (§B2).
 - **Contexte** : P10b, premier incrément (`b-1`). Suit P10a (ADR-040), précède P10b-2 (sélecteur et
   conflits), P10b-3 (questionnaire adaptatif) et P10c (IA, CDC_05 §5).
 - **Corpus** : CDC_08 en entier ; CDC_05 §5.3 (niveaux) ; CDC_04 §115 ; CDC_09 §10 (gouvernance) ;
@@ -168,7 +169,7 @@ drapeau rouge devient simplement **l'ordre d'une règle**, donnée relue par deu
 
 ---
 
-## 6. Les quatre gardes de publication
+## 6. Les gardes de publication (quatre en b-1, six depuis b-2)
 
 Aucune ne rattrape les autres.
 
@@ -286,3 +287,179 @@ socle à vide refusé par D3 de P6.3.
    utilisée, ce qui présuppose une réponse unique.
 10. **Deux étapes de déploiement** sont désormais nécessaires avant qu'un triage fonctionne
     (le référentiel des symptômes depuis P10a, le protocole depuis P10b-1).
+
+---
+
+## B2 — Sélecteur, ordre de priorité §3, conflits §8, journal d'exécution §10 (P10b-2)
+
+- **Statut** : **VALIDÉ G5 le 2026-08-20** — G2 (live MySQL W2→W10) et G3 (1106 tests, typecheck
+  ×3, mutation 9/9) prouvés, G4 propriétaire OK. Décisions O1→O4 prises le 2026-08-19 ; plan G1 validé
+  (`docs/PLAN_G1_P10b2_Selecteur_Conflits.md`).
+- **Migration** : `2026_08_20_000001_protocoles_selecteur_conflits` — `protocoles.contextes_json`,
+  `protocole_applications`, `protocole_conflits`. Additive.
+
+### B2.1 — Le constat qui commandait tout : le sélecteur n'avait rien à sélectionner
+
+Un seul protocole était publiable ; les deux thérapeutiques sont des brouillons **par la décision
+N3** et doivent le rester. Un sélecteur qui rend toujours le même protocole et un résolveur de
+conflits qui ne se déclenche jamais auraient été le « socle à vide » refusé par D3 de P6.3, et
+« un contrôle toujours vert ne prouve rien » (P5.3b-4).
+
+**Décision O1** : un second protocole de triage de démonstration, publié par un **acte de
+gouvernance réel** (quatre validations §7 + quatre-yeux §10), jamais par un seeder.
+
+La différence avec N3 est réelle et dite : `TRIAGE-NIVEAU` **transcrivait** des seuils qui
+existaient déjà dans le code ; `TRIAGE-NIVEAU-REGIONAL` est du contenu **inventé**. Ce qui le rend
+acceptable, et qui manquait à un protocole thérapeutique : ce n'est pas une posologie — la pièce
+qu'on produirait devant un tribunal pour une dose n'est pas de même nature qu'une règle
+d'orientation ; il porte les mêmes étiquettes d'honnêteté (`D`, source non fournie, auteur absent) ;
+et c'est le régime de tous les référentiels de P6.
+
+### B2.2 — La sélection est grossière, l'applicabilité vient des règles
+
+Le sélecteur retient sur des **métadonnées de registre** (pays, contexte déclaré, version en
+vigueur, non périmée). Il ne juge jamais si un protocole convient *à ce patient-là* : c'est le
+moteur qui tranche, et un protocole sélectionné dont aucune règle ne se déclenche ne recommande
+rien.
+
+*L'alternative — un second langage d'applicabilité à côté du langage de règles — aurait créé deux
+façons d'écrire « ce protocole s'applique quand… », donc deux endroits où se tromper, et un
+protocole applicable selon l'un et pas selon l'autre.*
+
+Le **contexte** (§9.1) est une **donnée du protocole** (`contextes_json`), pas une correspondance
+`contexte → domaines` écrite en PHP : celle-ci aurait été une règle en dur de plus, à corriger par
+un déploiement. Colonne **nullable**, et l'absence a un sens précis — un protocole qui ne dit pas
+quand il s'applique n'est **jamais** sélectionné.
+
+### B2.3 — Chaque protocole est évalué indépendamment
+
+Le chaînage avant reste entier **à l'intérieur** d'un protocole ; il ne franchit jamais la frontière
+entre deux. *Sinon l'ordre d'évaluation changerait le résultat, et le §3 deviendrait un ordre de
+CALCUL alors qu'il est un ordre de DÉPARTAGE.*
+
+### B2.4 — Cumul par défaut, départage par exception
+
+Un conflit n'existe que sur une action dont **une seule valeur peut prévaloir**.
+`RegistreActionsProtocole` gagne `EXCLUSIVES` ; `DEFINIR_NIVEAU` seule y figure. Deux `ORIENTER`
+s'additionnent — c'est déjà ce que P10a fait. Sans cette distinction, le journal du §8 se
+remplirait de faux conflits et les vraies divergences y seraient noyées.
+
+Et deux protocoles **d'accord** ne sont pas en conflit : la divergence suppose des valeurs
+différentes, pas seulement deux émetteurs.
+
+### B2.5 — La cascade §8, et les deux critères qu'on n'automatise pas
+
+`ReglesResolutionConflit`, classe **pure**. Rang §3 → récence → niveau de preuve. Les critères 4
+(avis de la spécialité) et 5 (validation du médecin) **ne sont pas implémentés** : ce sont des actes
+humains devant un dilemme clinique, et prétendre les rendre donnerait à une machine l'apparence
+d'un avis médical.
+
+**L'ordre 2 avant 3 est celui du corpus et il surprend** — on aurait pu juger qu'un niveau de preuve
+A vaut mieux qu'un D publié le mois dernier. Le §0 fait du CDC_08 le document qui fait autorité ;
+corriger le corpus par préférence est ce que CLAUDE.md interdit.
+
+**L'ordre est total** : `publie_le`, puis le numéro, puis le code. Hors des critères du §8, ce n'est
+plus un arbitrage mais un **déterminisme** — la garantie que deux audits du même cas ne se
+contrediront pas. C'est le défaut de b-1 (deux signatures dans la même seconde) traité avant qu'il
+ne survienne.
+
+### B2.6 — L'interdiction de publication : ce qui est refusé n'est pas « l'insoluble »
+
+Avec la récence dans la cascade, un conflit *insoluble* est presque impossible : deux versions ne
+sont jamais publiées au même instant. Un contrôle qui refuserait « les conflits qu'on ne sait pas
+trancher » serait **toujours vert**.
+
+Ce qui est refusé est réel : **une version que seule la date départagerait**. Être départagé par le
+rang ou par la preuve reflète une propriété *écrite, relue, signée* ; être départagé par la date ne
+reflète **aucune décision** — le résultat bascule à la publication, pour des cas que les quatre
+validateurs n'ont pas examinés, puisqu'ils ont relu le protocole **isolément**.
+
+**Divergence assumée avec le §8** : on est plus strict à la publication qu'à l'exécution. Le §8 dit
+comment le moteur *résout*, le §7/§10 comment une version *entre en vigueur* ; le moteur, lui,
+implémente le §8 en entier. Précédent : P6.4d, région/district passé de la détection à
+l'interdiction.
+
+### B2.7 — Un défaut de conception de b-1, révélé par b-2
+
+**Le contrôle de couverture des bandes vérifiait 0-100 protocole par protocole.** Exact tant qu'un
+seul protocole existait ; **interdisant toute surcouche** dès qu'il y en a deux — un protocole
+régional traitant un cas particulier aurait été refusé parce qu'il « ne couvre pas 0-100 », alors
+que c'est le national qui couvre et que les faire cohabiter est l'objet même du §3.
+
+*Une garde plus stricte que sa propre règle est un défaut même quand elle refuse par prudence*
+(leçon de la collation, P6.8c).
+
+La question change de **portée**, elle ne disparaît pas : `ControleCouvertureNiveau` vérifie que
+**l'ensemble** des protocoles en vigueur pour le contexte `triage` couvre toute la plage. Le
+**recouvrement**, lui, ne change pas de camp : erreur à l'intérieur d'un protocole (il se contredit
+lui-même, aucune cascade ne peut aider), **cas normal** entre protocoles — c'est ce que le §8 existe
+pour trancher.
+
+Seul le contexte `triage` est concerné : c'est lui dont le consommateur ne peut pas rester sans
+réponse (`ServiceNiveauTriage` refuse d'inventer un niveau). En consultation, un protocole qui ne
+dit rien sur un cas est légitime — le professionnel décide.
+
+### B2.8 — Le journal d'exécution, et pourquoi l'estampille ne suffisait plus
+
+La migration de b-1 argumentait l'inverse : « le seul consommateur est le triage, dont `triages` EST
+déjà le registre ». C'était exact **tant qu'un seul protocole décidait**.
+
+`triages.protocole_code` porte **un** code : il nomme celui qui a emporté l'action exclusive, et
+reste muet sur les autres protocoles évalués, sur les divergences et sur ce qui a été recommandé.
+Deux faits distincts, deux endroits — pas la même vérité écrite deux fois.
+
+**Ce journal contient du contenu clinique, contrairement aux trois autres chaînes du projet.** Le
+§10 l'exige (« recommandations affichées »), et c'est sa raison d'être : un journal d'exécution qui
+tairait ce qui a été recommandé ne servirait à rien le jour d'un litige. Les recommandations entrent
+donc **dans l'empreinte** — hors d'elle, elles seraient le seul élément réécrivable sans rompre la
+chaîne, et c'est précisément l'élément qu'un litige discute (leçon d'`acteur_nom`, P6.3).
+
+**Append-only à deux niveaux** : garde Eloquent (message clair) et déclencheurs (résistants à un
+client MySQL). Conséquence assumée : la décision finale du §10 ne se « complète » pas après coup —
+un professionnel qui décide plus tard produira une **nouvelle entrée**, jamais une réécriture.
+
+
+### B2.9 — Défauts trouvés, et par quel moyen
+
+| # | Défaut | Trouvé par |
+|---|---|---|
+| 1 | **La couverture des bandes était vérifiée protocole par protocole** — exact avec un seul protocole, **interdisant toute surcouche** dès qu'il y en a deux (§B2.7). | un vecteur de b-2 : le protocole régional refusait de se publier |
+| 2 | **Le contrôle de publication dépendait de la granularité de l'horloge** : deux publications dans la même seconde donnaient une égalité de dates, la cascade descendait au niveau de preuve, et le contrôle laissait passer ce qu'il refusait une seconde plus tard. | la **suite complète**, plus lente que le run filtré — invisible autrement |
+| 3 | **La sélection lisait la table `protocoles`, pas l'instantané publié** : un `UPDATE` sur `contextes_json` aurait élargi le champ d'application d'un protocole en vigueur sans quatre-yeux ni relecture. C'est le défaut que L1+L2 a refermé pour `seuils_mesure` et P10a pour `symptomes_triage`. | le **G2 live**, en préparant la bascule |
+| 4 | **Deux vecteurs prouvaient autre chose** : celui de la couverture n'exerçait que la borne haute (la branche du trou intérieur lui survivait) ; celui de l'append-only Eloquent se laissait satisfaire par le **déclencheur de base**, `QueryException` héritant de `RuntimeException`. | la **mutation** — 4ᵉ et 5ᵉ instances de cette famille après P6.4c, P6.5b, P6.8e, P6.6b |
+| 5 | **Les identifiants du journal étaient des clés étrangères `nullOnDelete` ET dans l'empreinte** : supprimer un compte — acte ordinaire, et un droit (loi 2013-450) — aurait fait crier « entrée modifiée » sur un journal que personne n'a touché. Corrigé : ce sont des identifiants, pas des relations vivantes. | le G2 live, en constatant le défaut identique dans `protocole_journal` |
+
+### B2.10 — Un constat sur b-1 et P6.3, fait ici, non corrigé
+
+`protocole_journal.acteur_id` (b-1) et `referentiel_journal.acteur_id` (P6.3) sont **`nullOnDelete`
+et pris dans l'empreinte**. La restauration du G2 de b-1, qui a supprimé ses comptes temporaires, a
+donc **rompu la chaîne de gouvernance** : 16 entrées portent `acteur_id = NULL`, et
+`GET /protocoles/journal/integrite` répond `intacte: false`, rupture de type `CONTENU` sur
+l'entrée #1.
+
+*Le G5 de b-1 disait vrai au moment où il a été prononcé* — la chaîne était intacte quand elle a été
+vérifiée. C'est **l'étape de restauration**, jouée après, qui l'a rompue, sans que rien ne le
+signale.
+
+**Ce n'est pas corrigé ici, et c'est délibéré.** On ne « répare » pas une chaîne de hachage :
+recalculer les empreintes reviendrait à réécrire l'histoire, précisément ce que la chaîne existe
+pour rendre impossible. Le choix — vivre avec une rupture datée et documentée, ou repartir d'une
+chaîne neuve en archivant l'ancienne — appartient au propriétaire.
+
+Ce qui est fait ici : **le journal d'exécution de b-2 ne reproduit pas le défaut** (§B2.10-5), et le
+constat est écrit là où on le cherchera.
+
+### B2.11 — Ce qui reste ouvert
+
+- rang **`hospitalier`** sans portée réelle (décision O4 : pas de `structure_id` sans écran) ;
+- critères 4 et 5 du §8, actes humains ;
+- présentation d'un conflit à un médecin : **conçue, pas activée** (aucun écran soignant) ;
+- `decision_finale` / `ecart_justification` vides tant qu'aucun professionnel n'est dans la boucle ;
+- contenu de démonstration ; §11 (< 100 ms) toujours non déclaré atteint ;
+- questionnaire adaptatif et `PLAFOND_ANTECEDENTS` → **P10b-3**.
+
+Et une **conséquence de déploiement**, qui n'est pas une limite mais une étape : une version
+publiée avant b-2 ne déclare aucun contexte dans son instantané. Elle cesse d'être sélectionnée,
+et le triage répond **503** tant qu'une nouvelle version n'a pas été publiée. Le refus est
+bruyant — préférable à un protocole qui s'appliquerait sur la foi d'une colonne que personne
+n'a relue.

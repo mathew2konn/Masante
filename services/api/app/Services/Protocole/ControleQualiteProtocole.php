@@ -6,6 +6,7 @@ use App\Models\Protocole;
 use App\Models\SpecialiteMedicale;
 use App\Support\NiveauTriage;
 use App\Support\RegistreActionsProtocole;
+use App\Support\RegistreContextesProtocole;
 use App\Support\RegistreFaitsProtocole;
 use App\Support\RegistreOperateursProtocole;
 
@@ -89,6 +90,24 @@ final class ControleQualiteProtocole
         if (trim((string) ($meta['population'] ?? '')) === '') {
             $erreurs[] = 'Population concernée absente (§4.1) : sans elle, le protocole '
                 .'s\'appliquerait implicitement à tout le monde.';
+        }
+
+        // ═══ P10b-2 — SANS CONTEXTE DÉCLARÉ, UN PROTOCOLE N'EST JAMAIS APPLIQUÉ ═══
+        //
+        // Le §9.1 fait porter chaque évaluation par un contexte (`triage|consultation|urgence`).
+        // Un protocole qui n'en déclare aucun serait publié, en vigueur, et pourtant muet : le
+        // sélecteur ne le retiendrait jamais. Publier un texte qui ne s'appliquera nulle part est
+        // le genre de panne qui ne fait AUCUN bruit — tout fonctionne, et la recommandation
+        // n'arrive simplement jamais.
+        //
+        // Refuser à la publication plutôt que de laisser un défaut muet : même famille que le
+        // contrôle de couverture des bandes, livré en b-1.
+        $contextes = RegistreContextesProtocole::filtrer($meta['contextes'] ?? null);
+
+        if ($contextes === []) {
+            $erreurs[] = 'Aucun contexte d\'application déclaré (§9.1) : ce protocole serait publié '
+                .'sans jamais être sélectionné. Contextes admis : '
+                .implode(', ', RegistreContextesProtocole::codes()).'.';
         }
 
         if (trim((string) ($meta['organisme'] ?? '')) === '') {
@@ -347,9 +366,17 @@ final class ControleQualiteProtocole
             }
         }
 
+        // ═══ P10b-2 — UN PROTOCOLE SANS BANDE N'EST PLUS UNE ANOMALIE ═══
+        //
+        // b-1 refusait ce cas : avec un seul protocole en vigueur, ne définir aucun niveau
+        // signifiait n'orienter personne. Depuis b-2 plusieurs protocoles cohabitent, et une
+        // SURCOUCHE — un protocole régional qui ne traite qu'un cas particulier — est parfaitement
+        // légitime. La question « tout patient reçoit-il un niveau ? » a changé de portée : elle
+        // ne concerne plus un protocole, mais l'ENSEMBLE de ceux en vigueur.
+        //
+        // Elle est posée par {@see ControleCouvertureNiveau}, à la publication.
         if ($bandes === []) {
-            return ['Aucune bande de score ne définit de niveau : un protocole de triage qui ne '
-                .'produit aucun niveau laisserait chaque patient sans orientation.'];
+            return $this->controlerMessagesDeNiveau($regles);
         }
 
         $erreursMessage = $this->controlerMessagesDeNiveau($regles);
@@ -360,23 +387,12 @@ final class ControleQualiteProtocole
         $attendu = self::SCORE_MIN;
 
         foreach ($bandes as $bande) {
-            if ($bande['min'] > $attendu) {
-                $erreurs[] = "Trou dans les bandes de score : rien ne couvre {$attendu} à "
-                    .($bande['min'] - 1).'. Un patient dont le score tombe dans cet intervalle '
-                    .'ne recevrait aucun niveau, sans qu\'aucune erreur ne soit levée.';
-            }
-
             if ($bande['min'] < $attendu) {
                 $erreurs[] = "Recouvrement des bandes de score autour de {$bande['min']} "
                     ."(« {$bande['libelle']} ») : deux règles décideraient du même score.";
             }
 
             $attendu = max($attendu, $bande['max'] + 1);
-        }
-
-        if ($attendu <= self::SCORE_MAX) {
-            $erreurs[] = "Les bandes de score s'arrêtent à ".($attendu - 1).' : rien ne couvre '
-                ."{$attendu} à ".self::SCORE_MAX.'.';
         }
 
         return $erreurs;

@@ -115,6 +115,33 @@ final class RegistreActionsProtocole
         ],
     ];
 
+    /**
+     * P10b-2 — Les actions dont UNE SEULE valeur peut prévaloir (CDC_08 §8).
+     *
+     * ═══ SANS CETTE DISTINCTION, LE §8 SE DÉCLENCHERAIT SUR DES FAUX CONFLITS ═══
+     *
+     * Deux protocoles qui orientent vers deux spécialités ne se contredisent pas : ils
+     * s'additionnent — c'est exactement ce que P10a fait déjà en agrégeant les orientations d'un
+     * même symptôme. Deux `MESSAGE` non plus. Traiter ces cas comme des divergences ferait
+     * consigner des conflits là où il n'y a qu'un cumul, et le journal du §8 deviendrait
+     * illisible pour les vraies divergences.
+     *
+     * `DEFINIR_NIVEAU` seul y figure aujourd'hui : un patient a UN niveau de priorité, pas deux.
+     *
+     * `DEFINIR_SCORE_MINIMUM` reste CUMULATIF, et ce n'est pas un oubli : deux planchers ne se
+     * contredisent pas, le plus haut s'applique. Deux protocoles qui relèvent le score, l'un à 70
+     * l'autre à 90, disent la même chose avec des forces différentes.
+     *
+     * @var array<int, string>
+     */
+    public const EXCLUSIVES = [self::DEFINIR_NIVEAU];
+
+    /** Une seule valeur peut-elle prévaloir pour ce type d'action ? */
+    public static function estExclusive(string $type): bool
+    {
+        return in_array($type, self::EXCLUSIVES, true);
+    }
+
     public static function existe(string $type): bool
     {
         return isset(self::ACTIONS[$type]);

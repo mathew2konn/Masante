@@ -202,6 +202,18 @@ Route::middleware('throttle:api')->group(function () {
         */
         Route::middleware('auth:sanctum')->group(function () {
             Route::get('protocoles/journal/integrite', [ProtocoleController::class, 'integrite']);
+
+            // P10b-2 — Évaluation (§9.1) et journal d'exécution (§10).
+            //
+            // MÊME PIÈGE D'ORDRE, DEUX FOIS : `protocoles/applications` est littérale et doit
+            // précéder `protocoles/{code}` (publique, déclarée plus bas), sinon « applications »
+            // serait lu comme un code de protocole ; et `applications/integrite` doit précéder
+            // `applications/{trace}`, sinon « integrite » serait lu comme un identifiant de
+            // trace. Le second cas est le plus sournois : il ne casse pas, il répond 404.
+            Route::get('protocoles/applications/integrite', [ProtocoleController::class, 'integriteApplications']);
+            Route::get('protocoles/applications/{trace}', [ProtocoleController::class, 'application']);
+            Route::get('protocoles/applications', [ProtocoleController::class, 'applications']);
+            Route::post('protocoles/evaluer', [ProtocoleController::class, 'evaluer']);
             Route::post('protocoles', [ProtocoleController::class, 'store']);
             Route::post('protocoles/{code}/versions', [ProtocoleController::class, 'ouvrirBrouillon']);
             Route::post('protocoles/{code}/versions/{numero}/valider', [ProtocoleController::class, 'valider']);
