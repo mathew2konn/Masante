@@ -7,6 +7,7 @@ use App\Models\ProtocoleVersion;
 use App\Models\User;
 use App\Services\Protocole\ServiceGouvernanceProtocole;
 use App\Services\Triage\ServiceNiveauTriage;
+use App\Services\Triage\ServiceQuestionnaire;
 use Database\Seeders\PortailRolesSeeder;
 use Database\Seeders\ProtocoleSeeder;
 use Spatie\Permission\PermissionRegistrar;
@@ -41,17 +42,62 @@ use Spatie\Permission\PermissionRegistrar;
  */
 trait PublieLeProtocoleDeTriage
 {
-    /** @return int le numéro de la version mise en vigueur */
+    /**
+     * Met en vigueur les DEUX protocoles sans lesquels un triage ne peut pas aboutir.
+     *
+     * @return int le numéro de la version du protocole de NIVEAU (contrat historique du helper)
+     */
     protected function publierProtocoleDeTriage(): int
     {
         $this->seed(PortailRolesSeeder::class);
         $this->seed(ProtocoleSeeder::class);
         app(PermissionRegistrar::class)->forgetCachedPermissions();
 
+        $numero = $this->publierProtocole(ServiceNiveauTriage::CODE);
+
+        // ═══ P10b-3-i — LE DÉPLOIEMENT A UNE TROISIÈME ÉTAPE ═══
+        //
+        // `POST /triage/analyser` répond désormais 503 tant que le QUESTIONNAIRE n'est pas publié,
+        // en plus du référentiel des symptômes (P10a) et du protocole de niveau (P10b-1). Trente
+        // vecteurs antérieurs se sont mis à échouer d'un coup lors de la bascule.
+        //
+        // **C'est la preuve que le refus bruyant fonctionne, pas une régression** — et c'est
+        // exactement ce qui s'était produit en P10b-1 et, avant lui, en L1+L2. Les vecteurs sont
+        // complétés ici, en un seul endroit ; aucun n'a été rendu tolérant au 503, aucune
+        // assertion n'a été retirée.
+        //
+        // Le refus vaut même quand le patient ne répond à aucune question. Sans lui, un oubli de
+        // publication ferait trier des patients **sans jamais les interroger**, avec un score
+        // systématiquement plus bas et rien pour le signaler : la panne muette que ce projet
+        // ferme depuis P6.3.
+        $this->publierProtocole(ServiceQuestionnaire::CODE);
+
+        // `ServiceNiveauTriage` est lié en `scoped` : il pinne une version pour la durée d'une
+        // requête. Sans cet oubli, une requête postérieure à la publication continuerait de lire
+        // l'état d'avant — le piège attrapé en L1+L2 et documenté dans `GouverneUnReferentiel`.
+        if (method_exists($this, 'simulerNouvelleRequete')) {
+            $this->simulerNouvelleRequete();
+        } else {
+            $this->app->forgetScopedInstances();
+        }
+
+        return $numero;
+    }
+
+    /**
+     * Fait franchir à un protocole les quatre validations du §7 puis le publie, à deux comptes.
+     *
+     * Le helper ne prend aucun raccourci par la base : il appelle le service, donc il traverse
+     * l'habilitation, l'anti-substitution et les contrôles du §7.4.
+     *
+     * @return int le numéro de la version mise en vigueur
+     */
+    protected function publierProtocole(string $code): int
+    {
         $gouvernance = app(ServiceGouvernanceProtocole::class);
 
         $version = Protocole::query()
-            ->where('code', ServiceNiveauTriage::CODE)
+            ->where('code', $code)
             ->firstOrFail()
             ->versions()
             ->where('etat', ProtocoleVersion::BROUILLON)
@@ -63,21 +109,10 @@ trait PublieLeProtocoleDeTriage
             $gouvernance->valider($version, $relecteur, $type, 'favorable', 'Relecteur '.$type);
         }
 
-        $numero = $gouvernance->publier(
+        return (int) $gouvernance->publier(
             $version->refresh(),
             $this->agentProtocole(ServiceGouvernanceProtocole::PERMISSION_PUBLIER),
         )->numero;
-
-        // `ServiceNiveauTriage` est lié en `scoped` : il pinne une version pour la durée d'une
-        // requête. Sans cet oubli, une requête postérieure à la publication continuerait de lire
-        // l'état d'avant — le piège attrapé en L1+L2 et documenté dans `GouverneUnReferentiel`.
-        if (method_exists($this, 'simulerNouvelleRequete')) {
-            $this->simulerNouvelleRequete();
-        } else {
-            $this->app->forgetScopedInstances();
-        }
-
-        return (int) $numero;
     }
 
     protected function agentProtocole(string ...$permissions): User

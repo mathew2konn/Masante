@@ -4,11 +4,14 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\AnalyserTriageRequest;
+use App\Http\Requests\QuestionsTriageRequest;
 use App\Models\MembreFamille;
 use App\Models\Symptome;
 use App\Models\Triage;
+use App\Models\TriageReponse;
 use App\Services\Protocole\JournalApplicationProtocole;
 use App\Services\Triage\ServiceFicheTriage;
+use App\Services\Triage\ServiceQuestionnaire;
 use App\Services\Triage\ServiceSymptomesTriage;
 use App\Services\TriageService;
 use App\Support\RegistreContextesProtocole;
@@ -26,7 +29,23 @@ class TriageController extends Controller
         private readonly ServiceSymptomesTriage $referentiel,
         private readonly ServiceFicheTriage $fiches,
         private readonly JournalApplicationProtocole $journal,
-    ) {
+        private readonly ServiceQuestionnaire $questionnaire,
+    ) {}
+
+    /**
+     * La valeur d'une réponse, telle qu'elle doit se LIRE dans un dossier de santé.
+     *
+     * `(string) false` vaut chaîne vide : sans cette conversion, un « non » explicite serait
+     * indistinguable d'une absence de réponse — deux faits cliniques différents. Le patient qui a
+     * répondu « non, pas de gêne au repos » a dit quelque chose ; celui qui n'a pas répondu, non.
+     */
+    private function valeurLisible(mixed $valeur): string
+    {
+        if (is_bool($valeur)) {
+            return $valeur ? 'oui' : 'non';
+        }
+
+        return (string) $valeur;
     }
 
     /**
@@ -42,22 +61,83 @@ class TriageController extends Controller
      * `specialite_hint` DISPARAÎT de la réponse. Le type mobile la déclarait, aucun écran ne
      * l'affichait, et depuis P10a elle ne gouverne plus l'orientation : la servir encore
      * publierait une orientation périmée à côté de la vraie.
+     *
+     * ═══ P10b-3-i — `questions_complementaires_json` DISPARAÎT AUSSI ═══
+     *
+     * Les questions ne sont plus une propriété du symptôme : elles vivent dans le protocole
+     * `TRIAGE-QUESTIONNAIRE`, et l'on ne sait **lesquelles poser** qu'après avoir su quels
+     * symptômes sont cochés — c'est tout l'objet de l'adaptativité du §4.3b. Les servir ici
+     * reviendrait à les rendre toutes, ce que cet incrément supprime.
+     *
+     * Le client les obtient désormais par {@see questions()}, un tour à la fois.
      */
     public function symptomes(): JsonResponse
     {
         $symptomes = $this->referentiel->actifs()->map(fn (Symptome $s): array => [
-            'id'                             => $s->id,
-            'nom_fr'                         => $s->nom_fr,
-            'categorie'                      => $s->categorie,
-            'questions_complementaires_json' => $s->questions_complementaires_json,
+            'id' => $s->id,
+            'nom_fr' => $s->nom_fr,
+            'categorie' => $s->categorie,
         ]);
 
         return response()->json([
-            'total'               => $symptomes->count(),
-            'par_categorie'       => $symptomes->groupBy('categorie'),
-            'symptomes'           => $symptomes,
+            'total' => $symptomes->count(),
+            'par_categorie' => $symptomes->groupBy('categorie'),
+            'symptomes' => $symptomes,
             // La version qui gouverne cette liste — la même que celle qui estampillera le triage.
             'referentiel_version' => $this->referentiel->version(),
+        ]);
+    }
+
+    /**
+     * P10b-3-i — Un tour de questionnaire adaptatif (CDC_08 §4.3b, §13 étape 4).
+     *
+     * Le client envoie les symptômes cochés et les réponses déjà données ; le serveur répond avec
+     * les questions **actuellement débloquées et pas encore répondues**. Quand la liste est vide,
+     * `termine` vaut `true` et le client peut lancer l'analyse.
+     *
+     * ═══ POURQUOI LA BOUCLE VIT CHEZ LE CLIENT, ET CE QU'ELLE COÛTE ═══
+     *
+     * Chaque tour est un aller-retour réseau. Compiler l'arbre côté client l'éviterait — et
+     * mettrait une **règle médicale dans le front**, ce que la règle de frontière interdit
+     * (CDC_01 §0.1) : la condition « pose cette question si le patient a de la fièvre depuis plus
+     * de trois jours » est une décision clinique, pas de l'affichage.
+     *
+     * L'atténuation est de rendre **toutes** les questions débloquées à chaque tour et non une
+     * seule : l'arbre du §4.3b converge alors en quelques tours au lieu d'un par question. Le coût
+     * est réduit, pas déguisé — il figure aux limites du G5.
+     *
+     * ═══ AUCUNE PERSISTANCE ═══
+     *
+     * Ce tour ne crée pas de triage et n'écrit rien. Un patient qui abandonne au milieu du
+     * questionnaire ne laisse aucune trace — il n'a pris aucune décision de santé, et enregistrer
+     * son interrogatoire inachevé constituerait une donnée médicale que personne n'a demandée.
+     */
+    public function questions(QuestionsTriageRequest $request): JsonResponse
+    {
+        $data = $request->validated();
+
+        // Le fond des réponses est confronté à la version publiée AVANT d'être transformé en
+        // faits : sans cela, une valeur hors plage entrerait dans le moteur et débloquerait
+        // peut-être une question qu'elle n'aurait pas dû déclencher.
+        $reponses = $this->questionnaire->normaliser($data['reponses'] ?? []);
+
+        $symptomes = $this->referentiel->retenus($data['symptomes']);
+
+        $tour = $this->questionnaire->prochainesQuestions([
+            'age' => $data['patient_age'] ?? null,
+            'sexe' => $data['patient_sexe'] ?? null,
+            'score_symptomes' => (int) $symptomes->sum('poids_severite'),
+            'drapeau_rouge' => $symptomes->contains(fn (Symptome $s) => $s->drapeau_rouge === true),
+            'nb_symptomes' => $symptomes->count(),
+            'symptome_id' => $symptomes->pluck('id')->map(fn ($id): int => (int) $id)->all(),
+            'symptome_categorie' => $symptomes->pluck('categorie')->unique()->values()->all(),
+        ], $reponses);
+
+        return response()->json([
+            'questions' => $tour['questions'],
+            'termine' => $tour['termine'],
+            // §9.1 — le protocole appliqué et sa version, à côté de ce qu'il a produit.
+            'protocoles' => $tour['protocoles'],
         ]);
     }
 
@@ -74,9 +154,14 @@ class TriageController extends Controller
         $membreId = $data['membre_id'] ?? null;
         $antecedents = $this->antecedentsDuMembre($membreId, $utilisateur);
 
+        // P10b-3-i — Les réponses sont confrontées à la version PUBLIÉE avant tout calcul : une
+        // échelle 1-10 refuse 100 au lieu de le multiplier par un coefficient (constat X4), et une
+        // clé inconnue est refusée au lieu de valoir 0 point en silence.
+        $reponses = $this->questionnaire->normaliser($data['reponses'] ?? []);
+
         $resultat = $this->triage->analyser(
             symptomesIds: $data['symptomes'],
-            reponses: $data['reponses'] ?? [],
+            reponses: $reponses,
             age: $data['patient_age'] ?? null,
             sexe: $data['patient_sexe'] ?? null,
             antecedents: $antecedents, // carnet du membre (2A.4) : alimente le score (F1.3)
@@ -87,16 +172,27 @@ class TriageController extends Controller
         // trace sans triage désignerait une décision qui n'a jamais eu lieu.
         $triage = DB::transaction(function () use ($resultat, $data, $utilisateur, $membreId): Triage {
             $triage = Triage::create([
-                'user_id'              => $utilisateur?->id,
-                'membre_id'            => $membreId,
-                'patient_nom'          => $data['patient_nom'] ?? null,
-                'patient_age'          => $data['patient_age'] ?? null,
-                'patient_sexe'         => $data['patient_sexe'] ?? null,
-                'symptomes_json'       => $resultat['symptomes'],
-                'reponses_json'        => $resultat['reponses'],
-                'score_severite'       => $resultat['score_severite'],
-                'niveau'               => $resultat['niveau'],
-                'specialite_requise'   => $resultat['specialite_requise'],
+                'user_id' => $utilisateur?->id,
+                'membre_id' => $membreId,
+                'patient_nom' => $data['patient_nom'] ?? null,
+                'patient_age' => $data['patient_age'] ?? null,
+                'patient_sexe' => $data['patient_sexe'] ?? null,
+                'symptomes_json' => $resultat['symptomes'],
+
+                // ═══ P10b-3-i — `reponses_json` N'EST PLUS ÉCRITE (CDC_04 §115) ═══
+                //
+                // Les réponses vivent dans `triage_reponses`, que le §115 exige par ailleurs.
+                // Écrire les deux ferait deux vérités sur le même fait, capables de diverger dès
+                // qu'un chemin d'écriture oublierait l'une des deux.
+                //
+                // La colonne est laissée VIDE et non supprimée : les triages antérieurs la
+                // portent, et la fiche §5.4 la lit encore pour eux. Leur fabriquer des lignes ici
+                // serait un mensonge d'archive — précédent L2, où les mesures antérieures restent
+                // sans version de référentiel plutôt que d'en recevoir une fausse.
+                'reponses_json' => [],
+                'score_severite' => $resultat['score_severite'],
+                'niveau' => $resultat['niveau'],
+                'specialite_requise' => $resultat['specialite_requise'],
 
                 // ═══ P10a — L'ESTAMPILLE (CDC_04 §115, CDC_09 §10) ═══
                 //
@@ -107,8 +203,8 @@ class TriageController extends Controller
                 // NULLABLE ET JAMAIS RÉTROACTIVE : les triages d'avant n'ont eu aucune version en
                 // vigueur ; leur en attribuer une après coup serait un mensonge d'archive (précédent
                 // exact de `mesures_sante.referentiel_version` en L1+L2).
-                'referentiel_version'  => $resultat['referentiel_version'],
-                'specialites_json'     => $resultat['specialites'],
+                'referentiel_version' => $resultat['referentiel_version'],
+                'specialites_json' => $resultat['specialites'],
 
                 // ═══ P10b-1 — L'ESTAMPILLE DU PROTOCOLE (CDC_08 §6.1, CDC_04 §115) ═══
                 //
@@ -119,12 +215,39 @@ class TriageController extends Controller
                 //
                 // NULLABLE ET JAMAIS RÉTROACTIVE : les triages d'avant P10b n'ont été jugés par aucun
                 // protocole, leur en attribuer un serait un mensonge d'archive (précédent L1+L2).
-                'protocole_code'       => $resultat['protocole_code'],
-                'protocole_version'    => $resultat['protocole_version'],
+                'protocole_code' => $resultat['protocole_code'],
+                'protocole_version' => $resultat['protocole_version'],
 
                 'recommandation_texte' => $resultat['recommandation_texte'],
-                'fiche_generee'        => false,
+                'fiche_generee' => false,
             ]);
+
+            // ═══ P10b-3-i — LES RÉPONSES, AVEC LEUR ÉNONCÉ FIGÉ (CDC_04 §115) ═══
+            //
+            // `question_libelle` est copié tel que la version publiée le portait AU MOMENT du
+            // triage. Le résoudre plus tard afficherait, dans un dossier de santé, une question
+            // que ce patient n'a jamais lue — motif de la DCI figée dans une ordonnance (P6.6b),
+            // de l'établissement copié dans le journal d'accès (P7-D2) et du libellé d'orientation
+            // figé dans l'instantané (P10a).
+            //
+            // `protocole_code`/`protocole_version` désignent le protocole de QUESTIONNAIRE, qui
+            // n'est pas celui du niveau porté par `triages` : deux protocoles, deux cycles de
+            // validation, deux estampilles. Les confondre rendrait le triage inexplicable dès que
+            // l'un des deux évolue.
+            $questionnaire = $resultat['questionnaire'][0] ?? null;
+
+            foreach ($resultat['reponses'] as $ligne) {
+                TriageReponse::create([
+                    'triage_id' => $triage->id,
+                    'question_cle' => $ligne['cle'],
+                    'question_libelle' => $ligne['libelle'],
+                    // Le booléen est stocké lisiblement : `(string) false` vaut '' et rendrait un
+                    // « non » indistinguable d'une absence de réponse dans le dossier.
+                    'valeur' => $this->valeurLisible($ligne['valeur']),
+                    'protocole_code' => $questionnaire['code'] ?? null,
+                    'protocole_version' => $questionnaire['numero'] ?? null,
+                ]);
+            }
 
             // ═══ P10b-2 — LE JOURNAL D'EXÉCUTION DU §10 ═══
             //
@@ -133,10 +256,10 @@ class TriageController extends Controller
             // divergences et sur ce qui a été recommandé. Le §10 exige tout cela pour l'audit
             // médico-légal — ce sont deux faits distincts, pas la même vérité écrite deux fois.
             $this->journal->inscrire($resultat['evaluation'], [
-                'contexte'  => RegistreContextesProtocole::TRIAGE,
+                'contexte' => RegistreContextesProtocole::TRIAGE,
                 'pays_code' => config('referentiels.pays_defaut', 'CI'),
                 'membre_id' => $membreId,
-                'user_id'   => $utilisateur?->id,
+                'user_id' => $utilisateur?->id,
                 // `professionnel_id`, `decision_finale` et `ecart_justification` restent NULS : le
                 // triage citoyen n'a pas de soignant dans la boucle. Le §10 les nomme, ils existent,
                 // et le fait qu'ils soient vides est une limite écrite — pas un oubli.
@@ -147,29 +270,29 @@ class TriageController extends Controller
         });
 
         return response()->json([
-            'triage_id'            => $triage->id,
-            'score_severite'       => $resultat['score_severite'],
-            'niveau'               => $resultat['niveau'],
+            'triage_id' => $triage->id,
+            'score_severite' => $resultat['score_severite'],
+            'niveau' => $resultat['niveau'],
             // Le libellé citoyen vient du backend (CDC_05 §5.3), il n'est plus dérivé côté client.
             // Le mobile portait la table `leger|modere|urgent` en dur : trois valeurs là où le
             // corpus en exige quatre (constat W3 du G0).
-            'niveau_libelle'       => $resultat['niveau_libelle'],
-            'specialite_requise'   => $resultat['specialite_requise'],
+            'niveau_libelle' => $resultat['niveau_libelle'],
+            'specialite_requise' => $resultat['specialite_requise'],
 
             // §9.1 — le protocole appliqué et sa version, à côté de la décision qu'il a rendue.
-            'protocole'            => [
-                'code'    => $resultat['protocole_code'],
+            'protocole' => [
+                'code' => $resultat['protocole_code'],
                 'version' => $resultat['protocole_libelle'],
-                'numero'  => $resultat['protocole_version'],
+                'numero' => $resultat['protocole_version'],
             ],
-            'regles_declenchees'   => $resultat['regles_declenchees'],
+            'regles_declenchees' => $resultat['regles_declenchees'],
             // D3 — le serveur renvoie les CODES, pas seulement un libellé : c'est avec eux que le
             // mobile ira chercher les établissements, sans jamais en déduire un lui-même.
-            'specialites'          => $resultat['specialites'],
-            'referentiel_version'  => $resultat['referentiel_version'],
+            'specialites' => $resultat['specialites'],
+            'referentiel_version' => $resultat['referentiel_version'],
             'recommandation_texte' => $resultat['recommandation_texte'],
-            'drapeau_rouge'        => $resultat['drapeau_rouge'],
-            'details_score'        => $resultat['details_score'],
+            'drapeau_rouge' => $resultat['drapeau_rouge'],
+            'details_score' => $resultat['details_score'],
         ], 201);
     }
 
@@ -217,8 +340,8 @@ class TriageController extends Controller
     public function fiche(Triage $triage, Request $request): JsonResponse
     {
         $position = $request->validate([
-            'lat'   => ['nullable', 'numeric', 'between:-90,90', 'required_with:lng'],
-            'lng'   => ['nullable', 'numeric', 'between:-180,180', 'required_with:lat'],
+            'lat' => ['nullable', 'numeric', 'between:-90,90', 'required_with:lng'],
+            'lng' => ['nullable', 'numeric', 'between:-180,180', 'required_with:lat'],
             'jeton' => ['nullable', 'string', 'max:64'],
         ]);
 
@@ -239,7 +362,7 @@ class TriageController extends Controller
         ]);
 
         return response()->json([
-            'fiche'         => $fiche,
+            'fiche' => $fiche,
             'texte_partage' => $this->fiches->textePartage($fiche),
 
             // ═══ LE QR DU §5.4 : « permettant au médecin d'accéder au triage » ═══
@@ -251,7 +374,7 @@ class TriageController extends Controller
             // La charge utile est une URL absolue et non un identifiant nu : scannée par n'importe
             // quel lecteur, elle doit mener quelque part. Elle porte le jeton — c'est bien lui qu'on
             // remet au médecin, et c'est tout ce qu'on lui remet.
-            'qr_payload'    => url('/api/v1/triage/'.$triage->id.'/fiche?jeton='.$triage->jeton_partage),
+            'qr_payload' => url('/api/v1/triage/'.$triage->id.'/fiche?jeton='.$triage->jeton_partage),
         ]);
     }
 
@@ -300,7 +423,7 @@ class TriageController extends Controller
             ]);
 
         return response()->json([
-            'total'   => $triages->count(),
+            'total' => $triages->count(),
             'triages' => $triages,
         ]);
     }

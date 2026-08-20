@@ -56,7 +56,7 @@ final class ServiceFicheTriage
     public function composer(Triage $triage, array $position = []): array
     {
         $niveaux = [
-            'leger'  => ['libelle' => 'LÉGER',  'couleur' => 'vert'],
+            'leger' => ['libelle' => 'LÉGER',  'couleur' => 'vert'],
             'modere' => ['libelle' => 'MODÉRÉ', 'couleur' => 'orange'],
             'urgent' => ['libelle' => 'URGENT', 'couleur' => 'rouge'],
         ];
@@ -66,16 +66,16 @@ final class ServiceFicheTriage
         $orientations = $this->orientations($triage);
 
         return [
-            'triage_id'      => $triage->id,
-            'date'           => $triage->created_at->toIso8601String(),
+            'triage_id' => $triage->id,
+            'date' => $triage->created_at->toIso8601String(),
 
             'patient' => [
-                'nom'  => $triage->patient_nom,
-                'age'  => $triage->patient_age,
+                'nom' => $triage->patient_nom,
+                'age' => $triage->patient_age,
                 'sexe' => $triage->patient_sexe,
             ],
 
-            'symptomes'      => $triage->symptomes_json,
+            'symptomes' => $triage->symptomes_json,
 
             // ═══ LES RÉPONSES AU QUESTIONNAIRE — EXIGÉES PAR LE §5.4, JAMAIS AFFICHÉES JUSQU'ICI ═══
             //
@@ -83,22 +83,35 @@ final class ServiceFicheTriage
             // part. Or c'est ce qui permet à un soignant de comprendre POURQUOI le score est ce
             // qu'il est : sans elles, la fiche affirme un niveau sans montrer sur quoi il repose.
             //
-            // `valeur_impact` est portée telle quelle : elle vient du référentiel publié, elle est
-            // donc explicable et rejouable. On ne la recalcule pas ici — ce serait un second
-            // calcul, donc une seconde vérité.
-            'reponses'       => $triage->reponses_json ?? [],
+            // ═══ P10b-3-i — DEUX FORMES D'ARCHIVE, ET CE N'EST PAS UN REPLI SUR UNE RÈGLE ═══
+            //
+            // Les triages postérieurs à cette bascule ont leurs réponses dans `triage_reponses`
+            // (CDC_04 §115), avec l'énoncé FIGÉ tel que le patient l'a lu. Les antérieurs les ont
+            // dans `reponses_json`. On lit la table quand elle a des lignes, la colonne sinon.
+            //
+            // La distinction avec le repli refusé en L1+L2 est nette : là-bas, lire la table de
+            // travail masquait un **oubli de publication** et faisait appliquer une règle que
+            // personne n'avait validée. Ici on lit des **archives** dans la forme où elles ont été
+            // écrites. Leur fabriquer rétroactivement des lignes serait un mensonge d'archive
+            // (précédent L2, `mesures_sante.referentiel_version` laissée NULL).
+            //
+            // `valeur_impact` a disparu des réponses neuves : depuis que l'impact est une règle,
+            // une seule règle peut porter sur plusieurs réponses et ses points ne se répartissent
+            // entre elles par aucun partage défendable. Ce qui explique le score est la liste des
+            // règles déclenchées, portée par le journal d'exécution du §10 (P10b-2).
+            'reponses' => $this->reponsesDe($triage),
 
             'score_severite' => $triage->score_severite,
-            'niveau'         => $triage->niveau,
+            'niveau' => $triage->niveau,
             'niveau_libelle' => $niveau['libelle'],
-            'couleur'        => $niveau['couleur'],
+            'couleur' => $niveau['couleur'],
 
             'recommandation_texte' => $triage->recommandation_texte,
 
             // Le service recommandé. `specialite_requise` reste l'affichage hérité ; `specialites`
             // porte les codes, dans l'ordre décidé par le référentiel publié.
             'specialite_requise' => $triage->specialite_requise,
-            'specialites'        => $orientations,
+            'specialites' => $orientations,
 
             'etablissements' => $this->etablissementsProches($orientations, $position),
 
@@ -152,12 +165,39 @@ final class ServiceFicheTriage
      *
      * @return array<int, array{code: string, libelle: string}>
      */
+    /**
+     * P10b-3-i — Les réponses au questionnaire, dans la forme où elles ont été archivées.
+     *
+     * Voir le commentaire de `reponses` ci-dessus : `triage_reponses` pour les triages postérieurs
+     * à la bascule, `reponses_json` pour les antérieurs. Aucune conversion rétroactive.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    private function reponsesDe(Triage $triage): array
+    {
+        $lignes = $triage->reponses()
+            ->orderBy('id')
+            ->get(['question_cle', 'question_libelle', 'valeur']);
+
+        if ($lignes->isNotEmpty()) {
+            return $lignes->map(fn ($r): array => [
+                'cle' => $r->question_cle,
+                // L'énoncé FIGÉ au moment du triage. C'est ce que le patient a lu, et c'est ce
+                // qu'un soignant doit voir pour comprendre la réponse — pas l'énoncé courant.
+                'libelle' => $r->question_libelle,
+                'valeur' => $r->valeur,
+            ])->all();
+        }
+
+        return $triage->reponses_json ?? [];
+    }
+
     private function orientations(Triage $triage): array
     {
         return collect($triage->specialites_json ?? [])
             ->filter(fn ($o): bool => is_array($o) && ! empty($o['code']))
             ->map(fn (array $o): array => [
-                'code'    => (string) $o['code'],
+                'code' => (string) $o['code'],
                 'libelle' => (string) ($o['libelle'] ?? $o['code']),
             ])
             ->values()
@@ -201,19 +241,19 @@ final class ServiceFicheTriage
 
             $groupes[] = [
                 'specialite' => $orientation,
-                'tronquee'   => $trouves->count() > self::MAX_PAR_SPECIALITE,
-                'total'      => $trouves->count(),
+                'tronquee' => $trouves->count() > self::MAX_PAR_SPECIALITE,
+                'total' => $trouves->count(),
                 'etablissements' => $trouves
                     ->take(self::MAX_PAR_SPECIALITE)
                     ->map(fn (StructureSanitaire $s): array => [
-                        'id'          => $s->id,
-                        'nom'         => $s->nom,
-                        'type'        => $s->type,
-                        'commune'     => $s->commune,
-                        'adresse'     => $s->adresse,
-                        'telephone'   => $s->telephone,
-                        'latitude'    => $s->latitude,
-                        'longitude'   => $s->longitude,
+                        'id' => $s->id,
+                        'nom' => $s->nom,
+                        'type' => $s->type,
+                        'commune' => $s->commune,
+                        'adresse' => $s->adresse,
+                        'telephone' => $s->telephone,
+                        'latitude' => $s->latitude,
+                        'longitude' => $s->longitude,
                         'distance_km' => $s->getAttribute('distance_km'),
                         'statut_jour' => $s->getAttribute('statut_jour'),
                     ])

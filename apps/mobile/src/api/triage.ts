@@ -10,12 +10,32 @@ import type {
   AnalyseResultat,
   FicheResponse,
   HistoriqueResponse,
+  QuestionsPayload,
+  QuestionsResultat,
   SymptomesResponse,
 } from '../types/triage';
 
 /** F1.1 — Liste des symptômes actifs, groupés par catégorie. */
 export async function getSymptomes(): Promise<SymptomesResponse> {
   const { data } = await api.get<SymptomesResponse>('/v1/symptomes');
+  return data;
+}
+
+/**
+ * P10b-3-i — F1.2 : un tour de questionnaire adaptatif (CDC_08 §4.3b).
+ *
+ * ═══ POURQUOI PLUSIEURS APPELS PLUTÔT QU'UN SEUL ═══
+ *
+ * Le serveur ne rend que les questions actuellement débloquées ; y répondre peut en débloquer
+ * d'autres. Compiler l'arbre ici l'éviterait, et mettrait une **règle médicale dans le front** —
+ * ce que la règle de frontière interdit (CDC_01 §0.1) : « pose cette question si le patient a de
+ * la fièvre depuis plus de trois jours » est une décision clinique, pas de l'affichage.
+ *
+ * Le coût est atténué côté serveur, qui rend TOUT ce qui est déblocable à chaque tour et non une
+ * question à la fois : l'arbre converge en quelques allers-retours.
+ */
+export async function getQuestionsTriage(payload: QuestionsPayload): Promise<QuestionsResultat> {
+  const { data } = await api.post<QuestionsResultat>('/v1/triage/questions', payload);
   return data;
 }
 

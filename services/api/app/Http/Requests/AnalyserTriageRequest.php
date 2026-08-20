@@ -37,19 +37,28 @@ class AnalyserTriageRequest extends FormRequest
     {
         return [
             // Symptômes sélectionnés : 1 à 20, devant appartenir à la VERSION EN VIGUEUR.
-            'symptomes'      => ['required', 'array', 'min:1', 'max:20'],
-            'symptomes.*'    => ['integer', 'distinct', Rule::in($this->idsEnVigueur())],
+            'symptomes' => ['required', 'array', 'min:1', 'max:20'],
+            'symptomes.*' => ['integer', 'distinct', Rule::in($this->idsEnVigueur())],
 
-            // Réponses au questionnaire complémentaire (optionnelles).
-            'reponses'                 => ['sometimes', 'array', 'max:100'],
-            'reponses.*.symptome_id'   => ['required_with:reponses', 'integer'],
-            'reponses.*.cle'           => ['required_with:reponses', 'string', 'max:100'],
-            'reponses.*.valeur'        => ['present'],
+            // ═══ P10b-3-i — `symptome_id` DISPARAÎT DE LA RÉPONSE ═══
+            //
+            // Une question n'appartient plus à un symptôme : elle appartient à la version du
+            // protocole `TRIAGE-QUESTIONNAIRE`, et sa clé y est unique. Garder `symptome_id`
+            // laisserait croire qu'une même clé peut avoir deux sens selon le symptôme — ce que la
+            // contrainte `uq_protocole_question_cle` rend précisément impossible.
+            //
+            // La FORME seulement est validée ici. Le fond — type, plage d'une échelle,
+            // appartenance aux réponses possibles — est confronté à l'instantané publié par
+            // {@see \App\Services\Triage\ServiceQuestionnaire::normaliser()}, seul endroit qui
+            // connaisse la version en vigueur.
+            'reponses' => ['sometimes', 'array', 'max:100'],
+            'reponses.*.cle' => ['required_with:reponses', 'string', 'max:60'],
+            'reponses.*.valeur' => ['present'],
 
             // Contexte patient (en attendant le membre du Module 2).
-            'membre_id'    => ['nullable', 'integer', 'min:1'],
-            'patient_nom'  => ['nullable', 'string', 'max:200'],
-            'patient_age'  => ['nullable', 'integer', 'min:0', 'max:120'],
+            'membre_id' => ['nullable', 'integer', 'min:1'],
+            'patient_nom' => ['nullable', 'string', 'max:200'],
+            'patient_age' => ['nullable', 'integer', 'min:0', 'max:120'],
             'patient_sexe' => ['nullable', 'in:M,F'],
         ];
     }
@@ -75,8 +84,8 @@ class AnalyserTriageRequest extends FormRequest
     {
         return [
             'symptomes.required' => 'Veuillez sélectionner au moins un symptôme.',
-            'symptomes.max'      => 'Vous ne pouvez pas sélectionner plus de 20 symptômes.',
-            'symptomes.*.in'     => 'Un des symptômes sélectionnés ne fait pas partie de la version '
+            'symptomes.max' => 'Vous ne pouvez pas sélectionner plus de 20 symptômes.',
+            'symptomes.*.in' => 'Un des symptômes sélectionnés ne fait pas partie de la version '
                 .'en vigueur du référentiel de triage.',
         ];
     }

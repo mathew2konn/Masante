@@ -4,6 +4,8 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Str;
 
 /**
  * Session de triage enregistrée (Module 1, F1.6 historique / F1.8 fiche).
@@ -78,7 +80,7 @@ class Triage extends Model
     protected static function booted(): void
     {
         static::creating(function (self $triage): void {
-            $triage->jeton_partage ??= \Illuminate\Support\Str::random(48);
+            $triage->jeton_partage ??= Str::random(48);
         });
     }
 
@@ -91,6 +93,18 @@ class Triage extends Model
         'referentiel_version' => 'integer',
         'fiche_generee' => 'boolean',
     ];
+
+    /**
+     * P10b-3-i — Les réponses au questionnaire (CDC_04 §115).
+     *
+     * VIDE pour les triages antérieurs à la bascule : leurs réponses vivent dans `reponses_json`,
+     * et leur en fabriquer ici serait un mensonge d'archive (précédent L2). La fiche §5.4 lit
+     * l'une ou l'autre selon ce qui existe.
+     */
+    public function reponses(): HasMany
+    {
+        return $this->hasMany(TriageReponse::class, 'triage_id');
+    }
 
     public function user(): BelongsTo
     {

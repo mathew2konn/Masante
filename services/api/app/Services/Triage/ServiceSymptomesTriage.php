@@ -39,9 +39,14 @@ use Illuminate\Support\Collection;
  *
  * ═══ LES MODÈLES SONT HYDRATÉS SANS EXISTER EN BASE ═══
  *
- * Motif exact de `MesureSanteService::charger()` : les casts, `questions_complementaires_json` et
- * la forme attendue par l'algorithme vivent sur le modèle, donc `TriageService` garde son contrat.
- * Ces instances n'ont pas d'`id` autogénéré et **ne doivent jamais être sauvegardées**.
+ * Motif exact de `MesureSanteService::charger()` : les casts et la forme attendue par l'algorithme
+ * vivent sur le modèle, donc `TriageService` garde son contrat. Ces instances n'ont pas d'`id`
+ * autogénéré et **ne doivent jamais être sauvegardées**.
+ *
+ * P10b-3-i — Ce commentaire citait `questions_complementaires_json` parmi les colonnes hydratées.
+ * Elle ne l'est plus : les questions ont quitté l'instantané pour le protocole
+ * `TRIAGE-QUESTIONNAIRE`. La laisser ici la remplirait depuis la TABLE de travail via le modèle
+ * Eloquent — c'est-à-dire la lecture non gouvernée que P10a a précisément supprimée.
  *
  * ═══ LA MÉMOÏSATION PINNE UNE VERSION PAR REQUÊTE, ET C'EST VOULU ═══
  *
@@ -270,13 +275,16 @@ final class ServiceSymptomesTriage
             // `forceFill` : `id` n'est pas `$fillable`, et il doit l'être ici — c'est par lui que
             // le citoyen désigne ses symptômes et que le triage archivé les retrouve.
             $symptome->forceFill([
-                'id'                             => (int) $ligne['id'],
-                'nom_fr'                         => $ligne['nom_fr'],
-                'categorie'                      => $ligne['categorie'],
-                'poids_severite'                 => (int) $ligne['poids_severite'],
-                'drapeau_rouge'                  => (bool) $ligne['drapeau_rouge'],
-                'questions_complementaires_json' => $ligne['questions_complementaires_json'],
-                'actif'                          => (bool) $ligne['actif'],
+                'id' => (int) $ligne['id'],
+                'nom_fr' => $ligne['nom_fr'],
+                'categorie' => $ligne['categorie'],
+                'poids_severite' => (int) $ligne['poids_severite'],
+                'drapeau_rouge' => (bool) $ligne['drapeau_rouge'],
+                // P10b-3-i — `questions_complementaires_json` n'est plus hydratée : elle a quitté
+                // l'instantané avec les questions, parties au protocole `TRIAGE-QUESTIONNAIRE`.
+                // La laisser ici la remplirait depuis la TABLE de travail via le modèle Eloquent,
+                // c'est-à-dire précisément la lecture non gouvernée que P10a a supprimée.
+                'actif' => (bool) $ligne['actif'],
             ]);
 
             // Ces instances ne correspondent à aucune ligne écrite : `exists = false` fait échouer
@@ -291,8 +299,8 @@ final class ServiceSymptomesTriage
                 $code = (string) $o['code'];
 
                 $orientations[] = [
-                    'code'        => $code,
-                    'rang'        => (int) $o['rang'],
+                    'code' => $code,
+                    'rang' => (int) $o['rang'],
                     'sexe_requis' => $o['sexe_requis'] ?? null,
                 ];
 

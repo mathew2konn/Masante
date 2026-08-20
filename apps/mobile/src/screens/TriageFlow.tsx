@@ -40,36 +40,34 @@ export function TriageFlow() {
     setResultat(null);
   }, []);
 
-  const selectedSymptomes = useMemo(
-    () => (symptomesCache ?? []).filter((s) => selectedIds.includes(s.id)),
-    [symptomesCache, selectedIds],
-  );
-  const symptomesAvecQuestions = useMemo(
-    () => selectedSymptomes.filter((s) => (s.questions_complementaires_json?.length ?? 0) > 0),
-    [selectedSymptomes],
-  );
-
   const toggleSymptome = useCallback((id: number) => {
     setSelectedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
   }, []);
 
-  const setReponse = useCallback((key: string, valeur: ValeurReponse) => {
-    setReponses((prev) => ({ ...prev, [key]: valeur }));
+  const setReponse = useCallback((cle: string, valeur: ValeurReponse) => {
+    setReponses((prev) => ({ ...prev, [cle]: valeur }));
   }, []);
+
+  /**
+   * P10b-3-i — Les réponses déjà données, sous la forme que l'API attend.
+   *
+   * Les valeurs vides sont écartées : le questionnaire est facultatif depuis le Module 1, et
+   * envoyer une chaîne vide ferait refuser la requête pour une question que le patient a
+   * simplement passée.
+   */
+  const reponsesEnvoyees = useMemo<Reponse[]>(
+    () =>
+      Object.entries(reponses)
+        .filter(([, v]) => v !== '' && v !== null && v !== undefined)
+        .map(([cle, valeur]) => ({ cle, valeur })),
+    [reponses],
+  );
 
   // F1.3 — Construit le payload et lance l'analyse côté serveur.
   const analyser = useCallback(async () => {
-    const reponsesArr: Reponse[] = Object.entries(reponses)
-      .filter(([, v]) => v !== '' && v !== null && v !== undefined)
-      .map(([key, valeur]) => {
-        const sep = key.indexOf(':');
-        return { symptome_id: Number(key.slice(0, sep)), cle: key.slice(sep + 1), valeur };
-      })
-      .filter((r) => selectedIds.includes(r.symptome_id));
-
     const payload: AnalyserPayload = {
       symptomes: selectedIds,
-      ...(reponsesArr.length ? { reponses: reponsesArr } : {}),
+      ...(reponsesEnvoyees.length ? { reponses: reponsesEnvoyees } : {}),
       patient_nom: patient.patient_nom ?? null,
       patient_age: patient.patient_age ?? null,
       patient_sexe: patient.patient_sexe ?? null,
@@ -78,7 +76,7 @@ export function TriageFlow() {
     const res = await analyserTriage(payload);
     setResultat(res);
     setRoute('resultat');
-  }, [reponses, selectedIds, patient]);
+  }, [reponsesEnvoyees, selectedIds, patient]);
 
   // Retour logique au sein de l'assistant (bouton matériel Android).
   const retour = useCallback((): boolean => {
@@ -121,8 +119,10 @@ export function TriageFlow() {
     case 'questions':
       return (
         <QuestionsScreen
-          symptomesAvecQuestions={symptomesAvecQuestions}
+          symptomes={selectedIds}
+          patient={patient}
           reponses={reponses}
+          reponsesEnvoyees={reponsesEnvoyees}
           onSetReponse={setReponse}
           onBack={() => setRoute('symptomes')}
           onAnalyser={analyser}

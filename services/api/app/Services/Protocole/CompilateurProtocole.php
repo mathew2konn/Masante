@@ -4,7 +4,9 @@ namespace App\Services\Protocole;
 
 use App\Models\ProtocoleAction;
 use App\Models\ProtocoleCondition;
+use App\Models\ProtocoleQuestion;
 use App\Models\ProtocoleRegle;
+use App\Models\ProtocoleReponse;
 use App\Models\ProtocoleVersion;
 use App\Services\Referentiel\EmpreinteReferentiel;
 
@@ -37,7 +39,7 @@ final class CompilateurProtocole
     /**
      * Extrait le contenu d'une version depuis les tables de travail.
      *
-     * @return array{metadonnees: array<string, mixed>, regles: array<int, array<string, mixed>>, references: array<int, array<string, mixed>>}
+     * @return array{metadonnees: array<string, mixed>, regles: array<int, array<string, mixed>>, questions: array<int, array<string, mixed>>, references: array<int, array<string, mixed>>}
      */
     public function extraire(ProtocoleVersion $version): array
     {
@@ -46,23 +48,23 @@ final class CompilateurProtocole
         return [
             // §4.1 — les métadonnées obligatoires, figées avec le reste.
             'metadonnees' => [
-                'code'            => $protocole->code,
-                'pays_code'       => $protocole->pays_code,
-                'titre'           => $protocole->titre,
-                'domaine'         => $protocole->domaine,
+                'code' => $protocole->code,
+                'pays_code' => $protocole->pays_code,
+                'titre' => $protocole->titre,
+                'domaine' => $protocole->domaine,
                 // P10b-2 — les contextes du §9.1. Ils entrent dans l'instantané, donc dans
                 // l'empreinte : élargir le champ d'application d'un protocole en vigueur
                 // devient une PUBLICATION relue par deux agents, pas un UPDATE discret.
-                'contextes'       => $protocole->contextes_json ?? [],
-                'niveau_source'   => $protocole->niveau_source,
-                'organisme'       => $protocole->organisme,
-                'auteur'          => $protocole->auteur,
+                'contextes' => $protocole->contextes_json ?? [],
+                'niveau_source' => $protocole->niveau_source,
+                'organisme' => $protocole->organisme,
+                'auteur' => $protocole->auteur,
                 'specialite_code' => $protocole->specialite_code,
-                'langue'          => $protocole->langue,
-                'version'         => $version->libelle,
-                'numero'          => (int) $version->numero,
-                'niveau_preuve'   => $version->niveau_preuve,
-                'population'      => $version->population,
+                'langue' => $protocole->langue,
+                'version' => $version->libelle,
+                'numero' => (int) $version->numero,
+                'niveau_preuve' => $version->niveau_preuve,
+                'population' => $version->population,
                 'conditions_utilisation' => $version->conditions_utilisation,
                 'date_expiration' => $version->date_expiration?->toDateString(),
             ],
@@ -75,26 +77,58 @@ final class CompilateurProtocole
                 ->orderBy('id')
                 ->get()
                 ->map(fn (ProtocoleRegle $regle): array => [
-                    'ordre'      => (int) $regle->ordre,
-                    'libelle'    => $regle->libelle,
+                    'ordre' => (int) $regle->ordre,
+                    'libelle' => $regle->libelle,
                     'conditions' => $regle->conditions
                         ->sortBy([['ordre', 'asc'], ['id', 'asc']])
                         ->map(fn (ProtocoleCondition $c): array => [
-                            'fait'      => $c->fait,
+                            'fait' => $c->fait,
                             'operateur' => $c->operateur,
-                            'valeur'    => $c->valeur(),
+                            'valeur' => $c->valeur(),
                             // La phrase que lit un relecteur clinique du §7. Elle est FIGÉE :
                             // c'est ce qu'il a signé, pas ce que le code saurait regénérer plus
                             // tard avec des libellés de faits qui auraient changé.
-                            'phrase'    => $c->enFrancais(),
+                            'phrase' => $c->enFrancais(),
                         ])->values()->all(),
                     'actions' => $regle->actions
                         ->sortBy([['ordre', 'asc'], ['id', 'asc']])
                         ->map(fn (ProtocoleAction $a): array => [
-                            'type'          => $a->type,
-                            'valeur'        => $a->valeur(),
+                            'type' => $a->type,
+                            'valeur' => $a->valeur(),
                             'justification' => $a->justification,
-                            'phrase'        => $a->enFrancais(),
+                            'phrase' => $a->enFrancais(),
+                        ])->values()->all(),
+                ])->values()->all(),
+
+            // ═══ P10b-3-i — LES QUESTIONS ENTRENT DANS L'INSTANTANÉ, DONC DANS L'EMPREINTE ═══
+            //
+            // Conséquence directe et voulue : modifier un énoncé, une borne d'échelle ou une
+            // réponse possible après signature rend les quatre validations du §7 **caduques**
+            // (anti-substitution). Sans cela il suffirait de faire signer un questionnaire anodin
+            // puis d'en changer les bornes — le contrôle transposé de « destination révoquée
+            // depuis le figeage » de P5.5b-2, ici sur ce qu'on demande à un patient.
+            //
+            // C'est aussi ce qui rend les bornes OPPOSABLES (R7) : le service qui refuse
+            // `intensite = 100` lit l'instantané publié, pas la table de travail.
+            'questions' => $version->questions()
+                ->with(['reponses' => fn ($q) => $q->orderBy('ordre')->orderBy('id')])
+                ->get()
+                ->map(fn (ProtocoleQuestion $question): array => [
+                    'cle' => $question->cle,
+                    'libelle' => $question->libelle,
+                    'type' => $question->type,
+                    'unite' => $question->unite,
+                    // Le type de FAIT, figé ici plutôt que redéduit à la lecture : c'est lui que
+                    // le contrôle de compatibilité fait/opérateur utilise, et il doit rester celui
+                    // qui a été signé même si la correspondance type-de-question → type-de-fait
+                    // évoluait un jour.
+                    'type_fait' => $question->typeDeFait(),
+                    'valeur_min' => $question->valeur_min,
+                    'valeur_max' => $question->valeur_max,
+                    'reponses' => $question->reponses
+                        ->map(fn (ProtocoleReponse $r): array => [
+                            'valeur' => $r->valeur,
+                            'libelle' => $r->libelle,
                         ])->values()->all(),
                 ])->values()->all(),
 
@@ -104,9 +138,9 @@ final class CompilateurProtocole
                 ->orderBy('id')
                 ->get()
                 ->map(fn ($r): array => [
-                    'type'     => $r->type,
-                    'libelle'  => $r->libelle,
-                    'url'      => $r->url,
+                    'type' => $r->type,
+                    'libelle' => $r->libelle,
+                    'url' => $r->url,
                     'citation' => $r->citation,
                 ])->values()->all(),
         ];
@@ -134,5 +168,35 @@ final class CompilateurProtocole
     public function reglesDe(array $instantane): array
     {
         return $instantane['regles'] ?? [];
+    }
+
+    /**
+     * P10b-3-i — Les questions d'un instantané publié, indexées par clé.
+     *
+     * Comme `reglesDe`, on lit `contenu_json` et **jamais** les tables : c'est ce qui rend les
+     * bornes opposables sans être révisables en douce. Un `UPDATE` direct sur
+     * `protocole_questions` ne change donc pas ce que le serveur accepte d'un patient — il faut
+     * republier, et la publication passe par les quatre validations et le quatre-yeux.
+     *
+     * Une version publiée sans aucune question rend un tableau vide, pas `null` : l'absence de
+     * questionnaire est un état légitime (un protocole de niveau n'en a aucune), et distinguer
+     * « pas de questions » de « clé absente » ferait porter à l'appelant une nuance sans objet.
+     *
+     * @param  array<string, mixed>  $instantane
+     * @return array<string, array<string, mixed>>
+     */
+    public function questionsDe(array $instantane): array
+    {
+        $indexees = [];
+
+        foreach ($instantane['questions'] ?? [] as $question) {
+            $cle = (string) ($question['cle'] ?? '');
+
+            if ($cle !== '') {
+                $indexees[$cle] = $question;
+            }
+        }
+
+        return $indexees;
     }
 }

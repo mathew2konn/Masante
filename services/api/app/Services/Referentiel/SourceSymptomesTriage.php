@@ -4,6 +4,7 @@ namespace App\Services\Referentiel;
 
 use App\Models\Symptome;
 use App\Models\SymptomeSpecialite;
+use App\Services\Triage\ServiceSymptomesTriage;
 
 /**
  * Référentiel national des symptômes de triage (table `symptomes`, Module 1).
@@ -32,8 +33,34 @@ use App\Models\SymptomeSpecialite;
  * l'écrit encore. La colonne reste, plus personne ne l'écrit — même énoncé honnête que
  * `vaccinations.statut` (P6.8b) et les colonnes `cmu_*` (P6.8d).
  *
- * POURQUOI CELUI-CI : `poids_severite`, `drapeau_rouge` et les questions complémentaires ne sont
- * pas de la donnée d'annuaire, ce sont les RÈGLES qui décident du niveau d'urgence d'un citoyen.
+ * ═══════════════════════════════════════════════════════════════════════════════════════════════
+ * P10b-3-i — UNE TROISIÈME COLONNE SORT : `questions_complementaires_json`
+ * ═══════════════════════════════════════════════════════════════════════════════════════════════
+ *
+ * Et pour une raison encore différente des deux précédentes : elle n'est ni sans lecteur
+ * (`maladies_probables_json`) ni contredite par une autre (`specialite_hint`). **Elle a changé de
+ * gouvernance.**
+ *
+ * Elle portait, en donnée, l'impact d'une réponse sur le score :
+ *
+ *     'impact' => ['points_si_vrai' => 15, 'drapeau_rouge_si_vrai' => true]
+ *
+ * C'est le contre-exemple littéral du §1.2 (`if temperature > 39: urgence = True`). Publiée ici,
+ * cette règle était relue par **deux agents habilités** (le quatre-yeux du §10) — un contrôle
+ * administratif. CDC_08 §7 en exige **quatre**, dont la clinique et la réglementaire, pour toute
+ * règle qui décide d'une conduite. P10b-1 y avait soumis les seuils de niveau et laissé celle-ci
+ * derrière : c'est cette asymétrie que P10b-3-i referme, en déménageant les questions dans le
+ * protocole `TRIAGE-QUESTIONNAIRE`.
+ *
+ * **Ce référentiel ne peut pas les garder en parallèle** : deux endroits publiant la même règle
+ * pourraient diverger, et un patient serait interrogé selon l'un et scoré selon l'autre. C'est la
+ * « deux vérités » refusée en P6.6a et P6.8c.
+ *
+ * La colonne et ses données sont CONSERVÉES (ADR-024), comme les deux précédentes. Elle cesse
+ * seulement d'être publiée — et plus personne ne l'écrit.
+ *
+ * POURQUOI CELUI-CI : `poids_severite` et `drapeau_rouge` ne sont pas de la donnée d'annuaire, ce
+ * sont les RÈGLES qui décident du niveau d'urgence d'un citoyen.
  * Aujourd'hui, corriger un poids de sévérité rend inexplicable tout triage antérieur — le G0 a
  * confirmé que `triages` ne stocke aucune version de protocole. Versionner ce référentiel est le
  * préalable à l'estampille des décisions.
@@ -45,7 +72,7 @@ use App\Models\SymptomeSpecialite;
  * personne ne lisait. Un `UPDATE` direct sur `symptomes` changeait le triage sans version, sans
  * trace et sans relecture — le versionnage était outillé, pas en vigueur.
  *
- * Depuis P10a, `TriageService` lit la **version publiée** ({@see \App\Services\Triage\ServiceSymptomesTriage}).
+ * Depuis P10a, `TriageService` lit la **version publiée** ({@see ServiceSymptomesTriage}).
  * C'est la seconde moitié du défaut du G0 de P6.3, dont L1+L2 avait refermé la première
  * (`seuils_mesure`) le 2026-08-14 en laissant celle-ci à son foyer nommé : **P10**.
  *
@@ -102,7 +129,7 @@ final class SourceSymptomesTriage implements SourceReferentiel
             ])
             ->groupBy('symptome_id')
             ->map(fn ($lignes): array => $lignes->map(fn ($l): array => [
-                'code'              => $l->code,
+                'code' => $l->code,
                 // ═══ LE LIBELLÉ EST FIGÉ ICI, IL N'EST PAS RÉSOLU À LA LECTURE ═══
                 //
                 // Il appartient à un AUTRE référentiel (`specialites`). Le résoudre au moment du
@@ -114,9 +141,9 @@ final class SourceSymptomesTriage implements SourceReferentiel
                 // P7-D2 copie l'établissement dans le journal d'accès. Republier le référentiel des
                 // symptômes relit les libellés courants ; c'est le geste de gouvernance qui les
                 // rafraîchit, et il est visible.
-                'libelle'           => $l->libelle,
-                'rang'              => (int) $l->rang,
-                'sexe_requis'       => $l->sexe_requis,
+                'libelle' => $l->libelle,
+                'rang' => (int) $l->rang,
+                'sexe_requis' => $l->sexe_requis,
                 // Portée dans l'instantané pour que le contrôle qualité puisse REFUSER la
                 // publication. Sans elle, il faudrait interroger la base au moment du contrôle,
                 // alors que le §10 juge un CONTENU proposé, pas l'état courant du monde.
@@ -133,12 +160,11 @@ final class SourceSymptomesTriage implements SourceReferentiel
                 // `id` fait partie de l'instantané : c'est par lui qu'un triage archivé désigne
                 // les symptômes qu'il a retenus. Un instantané sans identifiant serait lisible,
                 // mais pas rattachable à une décision passée.
-                'id'                             => (int) $s->id,
-                'nom_fr'                         => $s->nom_fr,
-                'categorie'                      => $s->categorie,
-                'poids_severite'                 => (int) $s->poids_severite,
-                'drapeau_rouge'                  => (bool) $s->drapeau_rouge,
-                'questions_complementaires_json' => $s->questions_complementaires_json,
+                'id' => (int) $s->id,
+                'nom_fr' => $s->nom_fr,
+                'categorie' => $s->categorie,
+                'poids_severite' => (int) $s->poids_severite,
+                'drapeau_rouge' => (bool) $s->drapeau_rouge,
 
                 // ═══ P10a — L'ORIENTATION ENTRE DANS L'INSTANTANÉ, ET C'EST TOUT L'ENJEU ═══
                 //
@@ -151,9 +177,9 @@ final class SourceSymptomesTriage implements SourceReferentiel
                 // Un symptôme sans orientation porte une liste VIDE, pas `null` : l'absence
                 // d'orientation est un fait du référentiel (« ce symptôme n'oriente vers rien de
                 // particulier »), et neuf des vingt symptômes du jeu sont dans ce cas.
-                'orientations'                   => $orientations->get($s->id, []),
+                'orientations' => $orientations->get($s->id, []),
 
-                'actif'                          => (bool) $s->actif,
+                'actif' => (bool) $s->actif,
             ])
             ->all();
     }
@@ -179,6 +205,7 @@ final class SourceSymptomesTriage implements SourceReferentiel
 
             if ($nom === '') {
                 $erreurs[] = "Symptôme n°{$ligne['id']} : libellé absent.";
+
                 continue;
             }
 
@@ -204,11 +231,10 @@ final class SourceSymptomesTriage implements SourceReferentiel
                     .'la règle se contredit elle-même.';
             }
 
-            // Format des questions complémentaires : le triage les parcourt comme une liste.
-            $questions = $ligne['questions_complementaires_json'];
-            if ($questions !== null && ! array_is_list($questions)) {
-                $erreurs[] = "« {$nom} » : les questions complémentaires ne forment pas une liste.";
-            }
+            // Le contrôle de format des questions complémentaires a disparu avec la colonne
+            // (P10b-3-i). Les questions sont désormais contrôlées à la publication du protocole
+            // `TRIAGE-QUESTIONNAIRE` — et plus sévèrement qu'ici : un choix sans réponse possible
+            // ou une échelle sans bornes y sont refusés, ce que ce contrôle-ci ne savait pas voir.
 
             foreach ($this->erreursDOrientation($nom, $ligne['orientations'] ?? []) as $erreur) {
                 $erreurs[] = $erreur;

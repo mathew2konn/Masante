@@ -10,10 +10,13 @@ use App\Models\Symptome;
 use App\Models\Triage;
 use App\Models\User;
 use App\Services\Protocole\CompilateurProtocole;
+use App\Services\Protocole\DiffusionProtocole;
+use App\Services\Protocole\JournalProtocole;
 use App\Services\Protocole\ProtocoleException;
 use App\Services\Protocole\ServiceGouvernanceProtocole;
 use App\Services\Referentiel\SourceSymptomesTriage;
 use App\Services\Triage\ServiceNiveauTriage;
+use App\Services\Triage\ServiceQuestionnaire;
 use App\Support\NiveauTriage;
 use App\Support\RegistreActionsProtocole;
 use Database\Seeders\PortailRolesSeeder;
@@ -22,7 +25,9 @@ use Database\Seeders\SpecialiteMedicaleSeeder;
 use Database\Seeders\SymptomeSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Testing\TestResponse;
 use Spatie\Permission\PermissionRegistrar;
+use Tests\Concerns\GouverneUnReferentiel;
 use Tests\TestCase;
 
 /**
@@ -45,7 +50,7 @@ use Tests\TestCase;
  */
 class ProtocoleMedicalTest extends TestCase
 {
-    use \Tests\Concerns\GouverneUnReferentiel;
+    use GouverneUnReferentiel;
     use RefreshDatabase;
 
     protected function setUp(): void
@@ -124,15 +129,43 @@ class ProtocoleMedicalTest extends TestCase
             ->firstOrFail();
     }
 
-    /** Le triage complet exige aussi le référentiel des symptômes en vigueur (P10a). */
+    /**
+     * Le triage complet exige TROIS mises en vigueur, et ce nombre a augmenté à chaque bascule.
+     *
+     * P10a a ajouté le référentiel des symptômes, P10b-1 le protocole de niveau, **P10b-3-i le
+     * questionnaire**. Chaque fois, les vecteurs antérieurs se sont mis à répondre 503 d'un coup :
+     * c'est la preuve que le refus bruyant fonctionne, pas une régression. Ils sont complétés ici,
+     * jamais rendus tolérants au 503.
+     */
     private function preparerTriageComplet(): void
     {
         $this->seed(SymptomeSeeder::class);
         $this->publierReferentiel(SourceSymptomesTriage::CODE);
         $this->publierProtocoleDeTriage();
+        $this->publierQuestionnaire();
     }
 
-    private function analyser(array $charge): \Illuminate\Testing\TestResponse
+    /**
+     * P10b-3-i — Met en vigueur le questionnaire, par le même chemin nominal que le niveau.
+     *
+     * Aucun raccourci par la base : quatre validations puis publication, à deux comptes distincts.
+     */
+    private function publierQuestionnaire(): void
+    {
+        $version = Protocole::query()
+            ->where('code', ServiceQuestionnaire::CODE)
+            ->firstOrFail()
+            ->versions()
+            ->where('etat', ProtocoleVersion::BROUILLON)
+            ->firstOrFail();
+
+        $this->validerQuatreFois($version);
+        $this->gouvernance()->publier($version, $this->agent(ServiceGouvernanceProtocole::PERMISSION_PUBLIER));
+
+        $this->simulerNouvelleRequete();
+    }
+
+    private function analyser(array $charge): TestResponse
     {
         return $this->postJson('/api/v1/triage/analyser', $charge);
     }
@@ -169,7 +202,7 @@ class ProtocoleMedicalTest extends TestCase
 
         $v2 = $this->gouvernance()->ouvrirBrouillon($protocole, $auteur, '2026.2', 'Reclassement de la bande basse.', [
             'niveau_preuve' => 'D',
-            'population'    => 'Tous publics',
+            'population' => 'Tous publics',
         ]);
 
         $this->recopierRegles($protocole->versionActive(), $v2, function (array $regle): array {
@@ -224,7 +257,7 @@ class ProtocoleMedicalTest extends TestCase
     {
         $this->preparerTriageComplet();
 
-        $protocole = app(\App\Services\Protocole\DiffusionProtocole::class)->lire(ServiceNiveauTriage::CODE);
+        $protocole = app(DiffusionProtocole::class)->lire(ServiceNiveauTriage::CODE);
 
         $niveaux = collect($protocole['contenu']['regles'])
             ->flatMap(fn (array $r): array => $r['actions'])
@@ -253,8 +286,8 @@ class ProtocoleMedicalTest extends TestCase
         // La colonne accepte encore l'ancien vocabulaire : un triage d'avant P10b n'est pas
         // réécrit et reste relisible.
         $ancien = Triage::create([
-            'symptomes_json'       => [], 'reponses_json' => [],
-            'score_severite'       => 40, 'niveau' => 'modere',
+            'symptomes_json' => [], 'reponses_json' => [],
+            'score_severite' => 40, 'niveau' => 'modere',
             'recommandation_texte' => 'Triage antérieur à P10b.',
         ]);
 
@@ -307,10 +340,10 @@ class ProtocoleMedicalTest extends TestCase
         $this->preparerTriageComplet();
 
         $reponse = $this->analyser([
-            'symptomes'         => [$this->symptome('Frissons')->id],
+            'symptomes' => [$this->symptome('Frissons')->id],
             'protocole_version' => 999,
-            'protocole_code'    => 'PROT-INVENTE',
-            'niveau'            => NiveauTriage::URGENCE,
+            'protocole_code' => 'PROT-INVENTE',
+            'niveau' => NiveauTriage::URGENCE,
         ]);
 
         $triage = Triage::findOrFail($reponse->json('triage_id'));
@@ -680,7 +713,7 @@ class ProtocoleMedicalTest extends TestCase
     {
         $this->publierProtocoleDeTriage();
 
-        $journal = app(\App\Services\Protocole\JournalProtocole::class);
+        $journal = app(JournalProtocole::class);
 
         $this->assertTrue($journal->verifierChaine()['intacte']);
 
@@ -839,24 +872,24 @@ class ProtocoleMedicalTest extends TestCase
             $regle = $transformer !== null ? $transformer($regle) : $regle;
 
             $nouvelle = $cible->regles()->create([
-                'ordre'   => $regle['ordre'],
+                'ordre' => $regle['ordre'],
                 'libelle' => $regle['libelle'],
             ]);
 
             foreach ($regle['conditions'] as $i => $condition) {
                 $nouvelle->conditions()->create([
-                    'ordre'       => $i + 1,
-                    'fait'        => $condition['fait'],
-                    'operateur'   => $condition['operateur'],
+                    'ordre' => $i + 1,
+                    'fait' => $condition['fait'],
+                    'operateur' => $condition['operateur'],
                     'valeur_json' => is_array($condition['valeur']) ? $condition['valeur'] : [$condition['valeur']],
                 ]);
             }
 
             foreach ($regle['actions'] as $i => $action) {
                 $nouvelle->actions()->create([
-                    'ordre'         => $i + 1,
-                    'type'          => $action['type'],
-                    'valeur_json'   => is_array($action['valeur']) ? $action['valeur'] : [$action['valeur']],
+                    'ordre' => $i + 1,
+                    'type' => $action['type'],
+                    'valeur_json' => is_array($action['valeur']) ? $action['valeur'] : [$action['valeur']],
                     'justification' => $action['justification'] ?? null,
                 ]);
             }
@@ -864,9 +897,9 @@ class ProtocoleMedicalTest extends TestCase
 
         foreach ($contenu['references'] as $reference) {
             $cible->references()->create([
-                'type'     => $reference['type'],
-                'libelle'  => $reference['libelle'],
-                'url'      => $reference['url'] ?? null,
+                'type' => $reference['type'],
+                'libelle' => $reference['libelle'],
+                'url' => $reference['url'] ?? null,
                 'citation' => $reference['citation'] ?? null,
             ]);
         }

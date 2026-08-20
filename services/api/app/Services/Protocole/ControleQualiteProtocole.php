@@ -52,14 +52,24 @@ final class ControleQualiteProtocole
 
     /**
      * @param  array{metadonnees: array<string, mixed>, regles: array<int, array<string, mixed>>, references: array<int, array<string, mixed>>}  $contenu
-     * @return array<int, string>  Les anomalies bloquantes. Vide = publiable.
+     * @return array<int, string> Les anomalies bloquantes. Vide = publiable.
      */
     public function controler(array $contenu): array
     {
+        // P10b-3-i — Les questions sont résolues AVANT les règles : c'est contre elles que le
+        // suffixe d'un `reponse.<cle>` est confronté, et c'est la condition que P10b-1 posait pour
+        // ouvrir ce fait (« l'ajouter ouvrirait un suffixe libre sans rien pour le vérifier »).
+        $questions = $this->indexerQuestions($contenu['questions'] ?? []);
+
         $erreurs = array_merge(
             $this->controlerMetadonnees($contenu['metadonnees'] ?? []),
             $this->controlerReferences($contenu['references'] ?? []),
-            $this->controlerRegles($contenu['regles'] ?? []),
+            $this->controlerQuestions($contenu['questions'] ?? []),
+            $this->controlerRegles($contenu['regles'] ?? [], $questions),
+            $this->controlerScoreDansQuestionnaire(
+                $contenu['metadonnees']['contextes'] ?? [],
+                $contenu['regles'] ?? [],
+            ),
         );
 
         // La couverture n'a de sens que si les règles sont déjà bien formées : la contrôler sur
@@ -159,8 +169,165 @@ final class ControleQualiteProtocole
         return $erreurs;
     }
 
-    /** §7.4 — cohérence des règles : faits, opérateurs, actions, arités, valeurs. */
-    private function controlerRegles(array $regles): array
+    /**
+     * P10b-3-i — UN PROTOCOLE DE QUESTIONNAIRE NE PEUT PAS CONDITIONNER SUR `score`.
+     *
+     * ═══ POURQUOI CE REFUS N'EST PAS UNE COQUETTERIE ═══
+     *
+     * Au moment où le patient est interrogé, le score **n'est pas encore clos** : c'est le
+     * questionnaire lui-même qui l'alimente, réponse après réponse. Une règle qui lirait `score`
+     * y verrait un total partiel, différent selon le tour où elle s'évalue — donc une règle dont
+     * le résultat dépend du **moment** de l'évaluation et non des faits. C'est la même famille de
+     * défaut que celle refermée par R5 sur le nombre d'allers-retours.
+     *
+     * Le refus NOMME les deux faits utilisables : `score_symptomes` et `score_antecedents` sont
+     * clos avant le questionnaire, eux. Refuser sans dire par quoi remplacer ramènerait la faute
+     * qu'on ferme (précédent P6.8a, où le message nomme les termes admis).
+     *
+     * @param  array<int, string>  $contextes
+     * @param  array<int, array<string, mixed>>  $regles
+     * @return array<int, string>
+     */
+    private function controlerScoreDansQuestionnaire(array $contextes, array $regles): array
+    {
+        if (! in_array(RegistreContextesProtocole::TRIAGE_QUESTIONNAIRE, $contextes, true)) {
+            return [];
+        }
+
+        $erreurs = [];
+
+        foreach ($regles as $regle) {
+            foreach ($regle['conditions'] ?? [] as $condition) {
+                if (($condition['fait'] ?? null) !== 'score') {
+                    continue;
+                }
+
+                $nom = trim((string) ($regle['libelle'] ?? ''));
+                $reference = $nom !== '' ? "« {$nom} »" : 'Règle n°'.($regle['ordre'] ?? '?');
+
+                $erreurs[] = "{$reference} : un protocole de questionnaire ne peut pas conditionner "
+                    ."sur « score », qui n'est pas encore clos au moment où l'on interroge le "
+                    .'patient — la règle répondrait différemment selon le tour. Utilisez '
+                    .'« score_symptomes » ou « score_antecedents », qui le sont.';
+            }
+        }
+
+        return $erreurs;
+    }
+
+    /**
+     * P10b-3-i — Les questions, indexées par clé, pour confronter les `reponse.<cle>`.
+     *
+     * @param  array<int, array<string, mixed>>  $questions
+     * @return array<string, array<string, mixed>>
+     */
+    private function indexerQuestions(array $questions): array
+    {
+        $indexees = [];
+
+        foreach ($questions as $question) {
+            $cle = (string) ($question['cle'] ?? '');
+
+            if ($cle !== '') {
+                $indexees[$cle] = $question;
+            }
+        }
+
+        return $indexees;
+    }
+
+    /**
+     * P10b-3-i — Les questions elles-mêmes (§4.3b).
+     *
+     * ═══ LE CONTRÔLE CENTRAL : UN CHOIX SANS RÉPONSE POSSIBLE ═══
+     *
+     * Il ne casse rien de visible. La question s'affiche, aucun bouton n'apparaît, le patient
+     * passe à la suivante et **rien ne le signale** — la famille de défaut muet que ce projet
+     * ferme depuis P10a (« orienter vers un terme désactivé ») et P6.8e (« plus aucun numéro
+     * actif »). C'est aussi le seul cas où l'ancien modèle échouait en silence : `options` vide et
+     * `points_par_option` rempli donnaient exactement cela.
+     *
+     * ═══ CE QUI N'EST DÉLIBÉRÉMENT PAS CONTRÔLÉ ═══
+     *
+     * **Une question que rien ne pose.** Elle est inerte, pas dangereuse, et le rédacteur peut
+     * préparer un énoncé avant d'écrire la règle qui le déclenche. La refuser rendrait le travail
+     * en deux temps impossible ; l'inverse — poser une question qui n'existe pas — est arrêté par
+     * `erreursDAction`, et c'est celui-là qui produirait un tour de questionnaire vide.
+     *
+     * @param  array<int, array<string, mixed>>  $questions
+     * @return array<int, string>
+     */
+    private function controlerQuestions(array $questions): array
+    {
+        $erreurs = [];
+        $clesVues = [];
+
+        foreach ($questions as $question) {
+            $cle = (string) ($question['cle'] ?? '');
+            $reference = $cle !== '' ? "Question « {$cle} »" : 'Question sans clé';
+
+            if ($cle === '') {
+                $erreurs[] = 'Une question sans clé : aucune règle ne pourrait la désigner.';
+
+                continue;
+            }
+
+            // L'unicité est déjà déclarative en base (`uq_protocole_question_cle`). On la
+            // re-vérifie ici parce que le contrôle juge un CONTENU proposé, qui peut venir d'un
+            // import et non d'une écriture Eloquent — même raison qu'en P6.3, où le contrôle
+            // qualité ne fait pas confiance au chemin qui a produit le contenu.
+            if (isset($clesVues[$cle])) {
+                $erreurs[] = "{$reference} : clé en double — `reponse.{$cle}` désignerait deux "
+                    .'énoncés, et une règle ne saurait plus lequel elle interroge.';
+            }
+            $clesVues[$cle] = true;
+
+            if (trim((string) ($question['libelle'] ?? '')) === '') {
+                $erreurs[] = "{$reference} : énoncé absent — le patient verrait un champ sans question.";
+            }
+
+            $type = (string) ($question['type'] ?? '');
+            $reponses = $question['reponses'] ?? [];
+
+            if ($type === 'choix' && $reponses === []) {
+                $erreurs[] = "{$reference} : question à choix sans aucune réponse possible. "
+                    ."L'écran afficherait l'énoncé et aucun bouton, et rien ne le signalerait.";
+            }
+
+            // Symétrique : des réponses possibles sur un type qui n'en prend pas seraient
+            // silencieusement ignorées à l'affichage. Le rédacteur croirait les avoir publiées.
+            if ($type !== 'choix' && $reponses !== []) {
+                $erreurs[] = "{$reference} : des réponses possibles sont déclarées alors que le "
+                    ."type « {$type} » n'en affiche aucune — elles ne seraient jamais proposées.";
+            }
+
+            if ($type === 'echelle') {
+                $min = $question['valeur_min'] ?? null;
+                $max = $question['valeur_max'] ?? null;
+
+                if ($min === null || $max === null) {
+                    // Sans bornes publiées, il n'y a rien à opposer à une valeur aberrante : c'est
+                    // exactement l'état d'avant cet incrément (constat X4), où `intensite = 100`
+                    // sur une échelle de 1 à 10 saturait le score.
+                    $erreurs[] = "{$reference} : échelle sans bornes — aucune valeur ne pourrait "
+                        .'être refusée, si aberrante soit-elle.';
+                } elseif ((int) $min >= (int) $max) {
+                    $erreurs[] = "{$reference} : bornes d'échelle incohérentes ({$min} ≥ {$max}).";
+                }
+            }
+        }
+
+        return $erreurs;
+    }
+
+    /**
+     * §7.4 — cohérence des règles : faits, opérateurs, actions, arités, valeurs.
+     *
+     * @param  array<int, array<string, mixed>>  $regles
+     * @param  array<string, array<string, mixed>>  $questions
+     * @return array<int, string>
+     */
+    private function controlerRegles(array $regles, array $questions = []): array
     {
         if ($regles === []) {
             return ['Le protocole ne porte aucune règle : il serait publié sans rien pouvoir décider.'];
@@ -185,13 +352,13 @@ final class ControleQualiteProtocole
             }
 
             foreach ($regle['conditions'] ?? [] as $condition) {
-                foreach ($this->erreursDeCondition($reference, $condition) as $erreur) {
+                foreach ($this->erreursDeCondition($reference, $condition, $questions) as $erreur) {
                     $erreurs[] = $erreur;
                 }
             }
 
             foreach ($actions as $action) {
-                foreach ($this->erreursDAction($reference, $action) as $erreur) {
+                foreach ($this->erreursDAction($reference, $action, $questions) as $erreur) {
                     $erreurs[] = $erreur;
                 }
             }
@@ -202,13 +369,32 @@ final class ControleQualiteProtocole
 
     /**
      * @param  array<string, mixed>  $condition
+     * @param  array<string, array<string, mixed>>  $questions
      * @return array<int, string>
      */
-    private function erreursDeCondition(string $reference, array $condition): array
+    private function erreursDeCondition(string $reference, array $condition, array $questions = []): array
     {
         $fait = (string) ($condition['fait'] ?? '');
         $operateur = (string) ($condition['operateur'] ?? '');
         $valeur = $condition['valeur'] ?? null;
+
+        // ═══ P10b-3-i — LE SUFFIXE D'UN `reponse.<cle>` EST CONFRONTÉ ICI, ET NULLE PART AILLEURS ═══
+        //
+        // C'est la condition que P10b-1 posait pour ouvrir ce fait. `RegistreFaitsProtocole` ne
+        // valide que la FORME (il ne connaît aucun protocole) ; le fond se vérifie ici, où la
+        // version est sous les yeux. Sans ce contrôle, `reponse.duree` au lieu de
+        // `reponse.duree_jours` produirait une règle qui ne se déclenche JAMAIS — et rien ne le
+        // signalerait, ce qui est exactement le défaut que le moteur refuse de commettre en levant.
+        if (RegistreFaitsProtocole::estReponse($fait)) {
+            $cle = RegistreFaitsProtocole::cleReponse($fait);
+
+            if (! isset($questions[$cle])) {
+                return ["{$reference} : la condition interroge la réponse à « {$cle} », qui n'est "
+                    .'pas une question de cette version. La règle ne se déclencherait jamais, et '
+                    .'rien ne le signalerait. Questions de cette version : '
+                    .($questions === [] ? 'aucune' : implode(', ', array_keys($questions))).'.'];
+            }
+        }
 
         // ═══ C'EST ICI QUE « LE FAIT INCONNU » EST ARRÊTÉ ═══
         //
@@ -227,7 +413,14 @@ final class ControleQualiteProtocole
         }
 
         $erreurs = [];
-        $type = RegistreFaitsProtocole::type($fait);
+
+        // Le type d'un `reponse.<cle>` est déclaré par la QUESTION, pas par le registre — qui ne
+        // connaît aucun protocole et renvoie `null`. Le résoudre ici rend le contrôle de
+        // compatibilité fait/opérateur applicable sans le modifier : `>=` sur une question
+        // booléenne est refusé exactement comme `>=` sur `drapeau_rouge` l'était déjà.
+        $type = RegistreFaitsProtocole::estReponse($fait)
+            ? (string) ($questions[RegistreFaitsProtocole::cleReponse($fait)]['type_fait'] ?? '')
+            : RegistreFaitsProtocole::type($fait);
 
         // L'erreur la plus banale et la plus muette de ce modèle : une comparaison numérique sur
         // une liste (`symptome_id >= 5`). Elle ne veut rien dire, et sans ce contrôle elle se
@@ -264,9 +457,10 @@ final class ControleQualiteProtocole
 
     /**
      * @param  array<string, mixed>  $action
+     * @param  array<string, array<string, mixed>>  $questions
      * @return array<int, string>
      */
-    private function erreursDAction(string $reference, array $action): array
+    private function erreursDAction(string $reference, array $action, array $questions = []): array
     {
         $type = (string) ($action['type'] ?? '');
         $valeur = $action['valeur'] ?? null;
@@ -307,6 +501,34 @@ final class ControleQualiteProtocole
                 $erreurs[] = "{$reference} : le message cite le numéro d'urgence « {$code} », "
                     .'qui n\'est pas publié au référentiel national.';
             }
+        }
+
+        // ═══ P10b-3-i — POSER UNE QUESTION QUI N'EXISTE PAS ═══
+        //
+        // Le symétrique du contrôle sur `reponse.<cle>`, et le plus muet des deux : le tour de
+        // questionnaire renverrait une clé que l'écran ne sait pas rendre, donc **aucune question**,
+        // et le patient passerait directement au résultat sans que rien ne signale qu'on avait
+        // prévu de l'interroger. Même famille que « orienter vers un terme désactivé » (P10a).
+        if ($type === RegistreActionsProtocole::POSER_QUESTION && ! isset($questions[(string) $valeur])) {
+            $erreurs[] = "{$reference} : la règle pose la question « {$valeur} », qui n'existe pas "
+                .'dans cette version. Aucune question ne serait affichée et rien ne le signalerait. '
+                .'Questions de cette version : '
+                .($questions === [] ? 'aucune' : implode(', ', array_keys($questions))).'.';
+        }
+
+        // Le score s'ajoute, il ne se substitue pas : une valeur non numérique produirait un
+        // `(int) 'beaucoup' = 0` silencieux. Les valeurs négatives sont ADMISES — une réponse peut
+        // rassurer autant qu'alerter, et l'interdire serait un arbitrage clinique que le §7
+        // confie aux validateurs, pas au socle technique.
+        if ($type === RegistreActionsProtocole::AJOUTER_SCORE && ! is_numeric($valeur)) {
+            $erreurs[] = "{$reference} : « {$valeur} » n'est pas un nombre de points.";
+        }
+
+        if ($type === RegistreActionsProtocole::AJOUTER_SCORE
+            && is_numeric($valeur)
+            && abs((int) $valeur) > self::SCORE_MAX) {
+            $erreurs[] = "{$reference} : ajout au score aberrant « {$valeur} » "
+                .'(le score se lit sur '.self::SCORE_MAX.').';
         }
 
         if ($type === RegistreActionsProtocole::ORIENTER && ! $this->specialiteVivante((string) $valeur, 'CI')) {
@@ -359,8 +581,8 @@ final class ControleQualiteProtocole
 
             if (is_array($valeur) && count($valeur) === 2) {
                 $bandes[] = [
-                    'min'     => (int) $valeur[0],
-                    'max'     => (int) $valeur[1],
+                    'min' => (int) $valeur[0],
+                    'max' => (int) $valeur[1],
                     'libelle' => (string) ($regle['libelle'] ?? ''),
                 ];
             }

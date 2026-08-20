@@ -2,7 +2,7 @@
 
 - **Statut** : accepté — G1 validé par le propriétaire le 2026-08-19. **P10b-1 : VALIDÉ G5 le
   2026-08-19** — G2 (live MySQL) et G3 prouvés, G4 propriétaire OK. **P10b-2 : VALIDÉ G5 le
-  2026-08-20** (§B2).
+  2026-08-20** (§B2). **P10b-3-i : VALIDÉ G5 le 2026-08-20** (§B3).
 - **Contexte** : P10b, premier incrément (`b-1`). Suit P10a (ADR-040), précède P10b-2 (sélecteur et
   conflits), P10b-3 (questionnaire adaptatif) et P10c (IA, CDC_05 §5).
 - **Corpus** : CDC_08 en entier ; CDC_05 §5.3 (niveaux) ; CDC_04 §115 ; CDC_09 §10 (gouvernance) ;
@@ -463,3 +463,262 @@ publiée avant b-2 ne déclare aucun contexte dans son instantané. Elle cesse d
 et le triage répond **503** tant qu'une nouvelle version n'a pas été publiée. Le refus est
 bruyant — préférable à un protocole qui s'appliquerait sur la foi d'une colonne que personne
 n'a relue.
+
+---
+
+# B3 — Questionnaire adaptatif, bornes opposables, `triage_reponses` (P10b-3-i)
+
+- **Statut** : **VALIDÉ G5 le 2026-08-20** — G2 (live MySQL W1→W15, base restaurée compte pour
+  compte) et G3 (1138 tests / 16 313 assertions, typecheck ×3, expo-doctor 18/18, Pint, mutation
+  9/9) prouvés, **G4 propriétaire OK**. Plan G1 : `docs/PLAN_G1_P10b3_Questionnaire_Adaptatif.md`
+  (décisions Q1-Q3 puis R1-R9, validées le 2026-08-19).
+- **Migration** : `2026_08_20_000002_protocoles_questionnaire` — `protocole_questions`,
+  `protocole_reponses`, `triage_reponses` + un déclencheur de bornes dans les deux dialectes.
+  Additive.
+
+## B3.1 — Ce que cet incrément referme, et pourquoi ce n'est pas cosmétique
+
+P10b-1 a sorti du code les **seuils de niveau** et les a soumis aux quatre validations du §7. Il a
+laissé derrière lui, dans le référentiel des symptômes, une règle **de même nature et de même
+gravité** :
+
+```php
+['cle' => 'fievre_sup_40', 'type' => 'booleen',
+ 'impact' => ['points_si_vrai' => 15, 'drapeau_rouge_si_vrai' => true]]
+```
+
+C'est **mot pour mot** le contre-exemple du §1.2 (`if temperature > 39: urgence = True`), exprimé
+en donnée. Un drapeau rouge force le niveau `urgence` : cette ligne décidait autant que la bande de
+score qu'on venait d'extraire du code. Elle était gouvernée par le quatre-yeux du §10 — **deux
+signatures administratives** — mais jamais validée au sens du §7, qui en exige **quatre** dont la
+clinique et la réglementaire.
+
+**Cette asymétrie n'avait pas été vue au G1 de P10b.** Elle est le constat X3 du G0 de b-3, et c'est
+elle qui justifie l'incrément — pas l'adaptativité, qui à l'échelle actuelle (8 questions) ne
+produisait aucune des « 100 questions inutiles » de CDC_05 §5.5.2.
+
+## B3.2 — Le point de conception : question, condition et impact voyagent ensemble
+
+Les questions vivaient dans l'instantané publié de `symptomes_triage`. Le §4.4 les nomme, lui, dans
+le registre des protocoles.
+
+On a cherché à les y laisser en ne déplaçant que l'arborescence. **Cela ne tient pas** :
+
+> Les deux artefacts ont des cycles de publication **indépendants**. Ajouter une question au
+> référentiel puis son nœud d'arbre au protocole ne peut jamais se faire atomiquement : chaque
+> contrôle qualité bloquerait l'autre, dans les deux sens, sans ordre qui débloque.
+
+C'est l'argument déjà retenu trois fois — interactions + produits dans un seul instantané (P6.6a),
+strates + analyses (P6.7a), vaccins + échéances (P6.8b) : *les publier séparément laisserait une
+référence irrésoluble.*
+
+## B3.3 — R1 : la conditionnalité est une RÈGLE, pas une colonne
+
+```
+SI symptome_id contient 6         ALORS POSER_QUESTION(au_repos)
+SI reponse.au_repos = vrai        ALORS POSER_QUESTION(intensite)
+```
+
+Aucune table de conditions nouvelle : les règles, conditions et actions de b-1 portent
+l'arborescence telle quelle. L'arbre hérite donc **des trois listes blanches fermées**, du contrôle
+qualité, du quatre-yeux, de l'anti-substitution et de la chaîne d'audit — **sans une ligne de moteur
+nouvelle**.
+
+C'est aussi la lecture juste du §4.3, qui présente les règles déclaratives (a) et le graphe
+décisionnel (b) comme *« deux représentations complémentaires »*, pas comme deux moteurs.
+
+**Test de la conception, posé au G1 et tenu : `MoteurProtocole` n'est pas modifié.** S'il avait dû
+bouger, c'est que l'arborescence n'était pas une règle.
+
+**Écarté** : une colonne `condition_json` sur la question (un second chemin d'évaluation, donc une
+seconde façon d'écrire une condition, capable de diverger). **Écarté aussi** : `question_id` nullable
+sur `protocole_conditions` avec un `CHECK` d'exclusivité — **impossible sous MySQL 8.4** (erreur
+3823, colonne en `cascadeOnDelete` : le mur de P6.3, cousin du 1215 de P6.1).
+
+## B3.4 — R2/R3 : deux tables, et l'impact devient une règle
+
+`protocole_reponses` porte les réponses **possibles** (le §4.4 nomme la table sans dire ce qu'elle
+contient ; les réponses **données** vivent dans `triage_reponses`, exigée par CDC_04 §115 — deux
+tables pour le même fait auraient été la « deux vérités » refusée depuis P6.6a).
+
+Elle referme le constat X5 **par construction**. Le référentiel portait :
+
+```php
+'options' => ['seche', 'grasse'],
+'impact'  => ['points_par_option' => ['seche' => 3, 'grasse' => 5]]
+```
+
+**Deux listes du même fait.** Elles coïncidaient ; rien ne l'imposait. `UNIQUE(question_id, valeur)`
+rend la divergence **inexprimable** plutôt qu'interdite — le geste de P6.8c.
+
+L'impact **non énumérable** (coefficient d'échelle, seuil d'un nombre) devient une règle via
+l'action neuve `AJOUTER_SCORE`. Deux gains, le second non cherché :
+
+1. Tout impact passe sous les quatre validations du §7.
+2. **`drapeau_rouge_si_vrai` disparaît comme mécanisme** : faire primer une réponse se dit déjà avec
+   `DEFINIR_SCORE_MINIMUM`, créée en b-1 pour le drapeau rouge des symptômes. Une seule façon
+   d'écrire « ceci prime », au lieu de deux qui pouvaient diverger.
+
+## B3.5 — R5 : le piège central, et sa parade
+
+Le questionnaire est itératif : une réponse débloque la suivante. **Une même règle peut donc se
+déclencher au tour 1 et au tour 3.** Cumuler les `AJOUTER_SCORE` de chaque tour ferait dépendre le
+score du **nombre d'allers-retours** — c'est-à-dire de la façon dont le patient a répondu, pas de ce
+qu'il a répondu.
+
+Parade : les tours intermédiaires servent **uniquement** à savoir quoi demander ; le score vient
+d'**une évaluation finale unique** sur le jeu de faits complet. Le moteur reste pur — c'est
+l'appelant qui décide ce qu'il consomme.
+
+Vecteur obligatoire : *mêmes réponses en 1 tour ou en 4 → même score, même niveau.*
+
+## B3.6 — Un contexte neuf, et le plan G1 disait le contraire
+
+Le plan annonçait `RegistreContextesProtocole` **inchangé**. L'implémentation a montré que c'était
+faux, pour une raison de fond : **le questionnaire et le niveau ne s'évaluent pas au même moment.**
+Les règles de bande *lisent* `score` ; les règles de questionnaire l'*alimentent*. Les évaluer
+ensemble ferait lire aux bandes un score auquel les réponses n'ont pas encore été ajoutées —
+circularité qu'aucun ordre de règles ne résout, puisque les deux jeux vivent dans des protocoles
+différents.
+
+**Pourquoi deux protocoles et non un seul** (qui supprimerait la circularité par chaînage avant) :
+un protocole unique ferait re-signer les seuils de niveau par quatre validateurs à chaque correction
+d'un énoncé de question, et l'inverse. C'est **exactement** ce que W5 du G0 de P10b a refusé pour le
+socle P6.3 : la version et le dossier de validation appartiennent AU protocole (§6.1, §7).
+
+**Pourquoi un contexte et non une constante de code** : lire `TRIAGE-QUESTIONNAIRE` par son code
+régresserait l'acquis de b-2 (« ajouter un protocole régional ne demande plus aucune ligne de
+code »). Le contexte est une **donnée de l'instantané publié**, relue par deux agents.
+
+Corollaire : **un protocole de questionnaire ne peut pas conditionner sur `score`** — il n'est pas
+encore clos. Le contrôle qualité le refuse en nommant `score_symptomes` et `score_antecedents`, qui
+le sont. Refuser sans dire par quoi remplacer ramènerait la faute qu'on ferme (précédent P6.8a).
+
+## B3.7 — R7 : les bornes publiées deviennent opposables
+
+Le référentiel publiait `min:1 max:10` et le serveur ne les regardait pas :
+
+```php
+$points = (int) round(((float) $valeur) * $coef);   // aucun contrôle de plage
+```
+
+`intensite = 100` × `coef 1.2` = 120 points, score saturé à 100, **niveau le plus urgent obtenu avec
+une valeur hors de la plage publiée**. Une clé inconnue, elle, valait 0 point en silence.
+
+**On refuse, on n'écrête pas.** Ramener 100 à 10 accepterait une saisie fausse en la corrigeant sans
+le dire : le patient croirait avoir répondu 100 et son dossier porterait 10.
+
+Le contrôle vit dans le **service**, pas dans la `FormRequest` — un vecteur qui ne passerait que par
+HTTP prouverait le validateur et non la garde (parade établie en P6.6b, après quatre occurrences du
+piège). Les vecteurs sont dédoublés : un par la requête, un appelant le service directement.
+
+## B3.8 — Ce que l'implémentation a fait tomber du plan
+
+**`triage_reponses` n'a pas de colonne `points`.** Le plan en prévoyait une (« l'impact réellement
+retenu »). Cette valeur **n'existe plus** : depuis que l'impact est une règle, une seule règle peut
+porter sur plusieurs réponses — `SI reponse.a = x ET reponse.b = y ALORS AJOUTER_SCORE 10` — et ces
+10 points ne se répartissent entre `a` et `b` par aucun partage défendable.
+
+Y écrire 0 serait une colonne qui ment par omission ; y écrire une part inventée serait pire.
+L'explication du score vit là où le §10 l'a mise en b-2 : le journal d'exécution, qui nomme les
+**règles déclenchées** — le vrai grain de la décision.
+
+*C'est le prix de la bascule, et il est cohérent : on ne peut pas à la fois sortir la règle du code
+et continuer d'attribuer ses points réponse par réponse.*
+
+## B3.9 — Écarts de transcription, annoncés plutôt que découverts
+
+**1. Le coefficient linéaire devient trois bandes.** L'ancien impact était `round(valeur × 1,2)` —
+une formule. Un moteur à liste blanche fermée n'en exprime pas, et lui ajouter une action
+« multiplier » ouvrirait dans la donnée une arithmétique que personne ne relirait. **Certains scores
+diffèrent d'un ou deux points de ceux du Module 1.** En contrepartie, « douleur forte → +11 » se
+relit et se signe.
+
+**2. Les conditions de déclenchement sont neuves.** Il n'en existait aucune. Contenu de démonstration
+au même titre que les bandes de niveau — `niveau_preuve = 'D'`, source non fournie, **aucun
+validateur forgé** (décision N3, inchangée).
+
+**3. Le protocole désigne les symptômes par `symptome_id`.** C'est la transcription exacte (la
+question appartenait à un symptôme précis, pas à sa famille : conditionner sur la catégorie
+demanderait « depuis combien de jours ? » à qui déclare une perte de connaissance). Le prix est réel
+et dit : un identifiant technique ne veut rien dire hors de cette base — le reproche que P10a faisait
+à `specialite_id` avant de porter les orientations par code. Les symptômes n'ont pas de code
+national.
+
+## B3.10 — Conséquence de déploiement
+
+Le triage exige désormais **quatre** mises en vigueur : `seuils_mesure`, `symptomes_triage`,
+`TRIAGE-NIVEAU`, `TRIAGE-QUESTIONNAIRE`. Trente vecteurs antérieurs se sont mis à répondre 503 d'un
+coup lors de la bascule.
+
+**C'est la preuve que le refus bruyant fonctionne, pas une régression** — même effet qu'en b-1 et,
+avant lui, en L1+L2. Les vecteurs ont été complétés en un seul endroit (le trait
+`PublieLeProtocoleDeTriage`) ; aucun n'a été rendu tolérant au 503, aucune assertion n'a été retirée.
+
+Le refus vaut **même quand le patient ne répond à aucune question** : sans lui, un oubli de
+publication ferait trier des patients sans jamais les interroger, avec un score systématiquement plus
+bas et rien pour le signaler.
+
+## B3.11 — Défauts trouvés APRÈS le premier vert, et par quel moyen
+
+### (1) Le plancher d'une réponse était perdu en silence — trouvé par la SUITE COMPLÈTE
+
+`ServiceQuestionnaire` lisait le plancher dans les faits que rend `SelecteurProtocoles::evaluer()`.
+Or ce sélecteur ne restitue les faits issus du chaînage avant que **du protocole RETENU**, et
+« retenu » veut dire *celui qui a emporté une action exclusive*. Un questionnaire n'en produit
+aucune — ni `POSER_QUESTION` ni `AJOUTER_SCORE` ne sont exclusives, et c'est voulu. Il n'y avait
+donc **jamais** de protocole retenu, le sélecteur rendait les faits **initiaux**, et
+`DEFINIR_SCORE_MINIMUM` valait toujours 0.
+
+Conséquence : **le drapeau rouge d'une réponse ne primait plus**, c'est-à-dire exactement la
+garantie que cet incrément était censé reprendre à `drapeau_rouge_si_vrai`.
+
+**Ce n'est pas un défaut de P10b-2** : son comportement est juste pour son consommateur, qui affiche
+un score à côté du niveau que ce même protocole a décidé — *« prendre ceux d'un autre protocole
+afficherait un score qui contredit la décision »*. Le défaut est d'avoir supposé que ce contrat
+convenait à un consommateur d'une autre nature.
+
+Correction locale, sans toucher un module G5 : `ServiceQuestionnaire` évalue les protocoles
+lui-même, sur les mêmes instantanés publiés (cache partagé), et prend le **maximum** des planchers.
+Ce maximum n'invente rien — c'est la sémantique que b-2 déclare en excluant `DEFINIR_SCORE_MINIMUM`
+des actions exclusives : *« deux planchers ne se contredisent pas, le plus haut s'applique »*. Rien
+n'est perdu de la cascade §3, qui sert à **départager des actions exclusives** ; un questionnaire
+n'en a pas.
+
+### (2) Une mutation qui « tuait » un vecteur déjà rouge — SIXIÈME leçon du harnais
+
+Le vecteur du plancher avait été **ajouté après** le dernier run vert de la suite. La campagne de
+mutation l'a vu échouer et l'a compté comme « mort », alors qu'il était **rouge avant la mutation**.
+La mutation n'a donc rien prouvé, et le défaut (1) est passé sous son nez.
+
+> **Vérifier qu'un vecteur est VERT avant de le muter.** Un vecteur rouge meurt sous n'importe
+> quelle mutation, y compris sous une mutation sans rapport avec lui.
+
+C'est la sixième leçon accumulée sur ce harnais, après :
+
+| # | Leçon | Incrément |
+|---|---|---|
+| 1 | asserter que la mutation est **appliquée** | P6.7b |
+| 2 | asserter le **site** (`s///` remplace la première occurrence) | P6.8d |
+| 3 | ancre sur **une seule ligne**, restauration vérifiée | P6.8e |
+| 4 | la restauration se vérifie contre la **copie pré-mutation**, jamais contre `git diff` — le travail n'est pas commité, donc `git diff` n'est jamais vide et criait « non restauré » sur huit mutations parfaitement restaurées ; *un garde-fou qui alerte à tort finit par être ignoré* | **P10b-3-i** |
+| 5 | l'ancre ne doit **jamais être un préfixe du remplacement**, sinon le contrôle « appliquée » la retrouve dans le texte muté et abandonne à tort | **P10b-3-i** |
+| 6 | **vérifier le vert avant de muter** | **P10b-3-i** |
+
+### (3) Un vecteur qui prouvait autre chose — cinquième occurrence de la famille
+
+Le vecteur de la condition sur une question inexistante survivait à la neutralisation de sa garde :
+sans elle, le contrôle tombe plus bas sur la compatibilité fait/opérateur (le type d'une question
+inconnue vaut chaîne vide, donc aucun opérateur ne l'accepte) et refuse **quand même**, en parlant
+d'un type au lieu d'une question absente.
+
+Après les `expectExceptionCode` de P6.4c, le contrôle de révocation de P6.5b, le quatre-yeux de
+P6.8e et celui de P10b-1 : **un refus se vérifie par son MOTIF.** Le vecteur a été réécrit pour
+exiger la phrase exacte *et* la liste des questions disponibles.
+
+## B3.12 — Limites
+
+Voir `GUIDE_TEST_TRIAGE.md` partie 4 §5. Les deux principales : **le poids des symptômes et
+`PLAFOND_ANTECEDENTS` restent dans le code** (X3 n'est refermé que pour les réponses), et **aucun
+écran §7** — un médecin spécialiste signe toujours par curl un document que le §7 qualifie
+d'*opposable*. Les deux sont le périmètre de **P10b-3-ii**.

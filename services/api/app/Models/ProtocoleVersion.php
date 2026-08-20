@@ -59,11 +59,11 @@ class ProtocoleVersion extends Model
     protected function casts(): array
     {
         return [
-            'contenu_json'    => 'array',
-            'numero'          => 'integer',
+            'contenu_json' => 'array',
+            'numero' => 'integer',
             'date_expiration' => 'date',
-            'redige_le'       => 'datetime',
-            'publie_le'       => 'datetime',
+            'redige_le' => 'datetime',
+            'publie_le' => 'datetime',
         ];
     }
 
@@ -111,6 +111,21 @@ class ProtocoleVersion extends Model
     public function references(): HasMany
     {
         return $this->hasMany(ProtocoleReference::class, 'version_id');
+    }
+
+    /**
+     * P10b-3-i — Les questions du questionnaire adaptatif (§4.3b).
+     *
+     * Elles appartiennent à la VERSION : corriger un énoncé produit une nouvelle version relue et
+     * signée, jamais un `UPDATE` sur une version en vigueur. `ordre` puis `id` — l'ordre doit
+     * rester total, sinon deux questions posées au même tour s'afficheraient dans un ordre qui
+     * dépend du moteur de base (leçon `ReglesOrientation` en P10a, `validations()` ci-dessous).
+     */
+    public function questions(): HasMany
+    {
+        return $this->hasMany(ProtocoleQuestion::class, 'version_id')
+            ->orderBy('ordre')
+            ->orderBy('id');
     }
 
     /**
@@ -172,8 +187,8 @@ class ProtocoleVersion extends Model
     {
         return match ($etat) {
             self::BROUILLON => "B:{$protocoleId}",
-            self::ACTIF     => "A:{$protocoleId}",
-            default         => null,
+            self::ACTIF => "A:{$protocoleId}",
+            default => null,
         };
     }
 

@@ -68,50 +68,109 @@ final class RegistreActionsProtocole
     public const MESSAGE = 'MESSAGE';
 
     /**
+     * P10b-3-i — Pose une question du questionnaire. Valeur = la clé d'une `protocole_questions`.
+     *
+     * ═══ C'EST ELLE QUI PORTE L'ARBORESCENCE DU §4.3b ═══
+     *
+     *     SI symptome_categorie contient « respiratoire »  ALORS POSER_QUESTION(au_repos)
+     *     SI reponse.fievre_sup_40 = vrai                  ALORS POSER_QUESTION(convulsions)
+     *
+     * L'arborescence n'est donc **pas** une structure de données à part : c'est le chaînage des
+     * règles de P10b-1, qui produit `Fièvre → Durée ? → Difficulté respiratoire ? → …` sans que
+     * `MoteurProtocole` ait à connaître la notion de question. Décision R1 du plan G1 — et c'est
+     * ce qui explique que ce moteur ne soit pas modifié par cet incrément.
+     */
+    public const POSER_QUESTION = 'POSER_QUESTION';
+
+    /**
+     * P10b-3-i — Ajoute des points au score. Valeur = un entier (négatif accepté).
+     *
+     * ═══ ELLE SORT DU RÉFÉRENTIEL LA DERNIÈRE RÈGLE MÉDICALE QUI Y RESTAIT (constat X3) ═══
+     *
+     * L'impact d'une réponse vivait en JSON dans le référentiel des symptômes :
+     * `['points_si_vrai' => 15, 'drapeau_rouge_si_vrai' => true]` — le contre-exemple littéral du
+     * §1.2, gouverné par deux signatures administratives (§10) mais **jamais validé** par les
+     * quatre du §7. Il devient une règle :
+     *
+     *     SI reponse.fievre_sup_40 = vrai  ALORS AJOUTER_SCORE 15
+     *                                       ET  DEFINIR_SCORE_MINIMUM 90
+     *
+     * ═══ ET LE DRAPEAU ROUGE CESSE D'ÊTRE UN BOOLÉEN CACHÉ ═══
+     *
+     * `drapeau_rouge_si_vrai` disparaît : ce qu'il faisait — faire primer une réponse — est déjà
+     * dit par `DEFINIR_SCORE_MINIMUM`, créée en P10b-1 pour le drapeau rouge des symptômes. Une
+     * seule façon d'écrire « ceci prime », au lieu de deux qui pouvaient diverger.
+     *
+     * ═══ CUMULATIVE, ET LE PIÈGE QUE CELA OUVRE ═══
+     *
+     * Les valeurs s'additionnent au sein d'UNE évaluation. Comme le questionnaire est itératif,
+     * une même règle peut se déclencher au tour 1 **et** au tour 3 : cumuler les tours ferait
+     * dépendre le score du **nombre d'allers-retours**, c'est-à-dire de la façon dont le client a
+     * répondu et non de ce qu'il a répondu. D'où la décision R5 — les tours intermédiaires ne
+     * servent qu'à savoir quoi demander, et **une seule évaluation finale fait autorité**.
+     */
+    public const AJOUTER_SCORE = 'AJOUTER_SCORE';
+
+    /**
      * type => [valeur attendue ?, famille, libellé lisible]
      *
      * @var array<string, array{valeur: bool, famille: string, libelle: string}>
      */
     public const ACTIONS = [
         self::DEFINIR_NIVEAU => [
-            'valeur'  => true,
+            'valeur' => true,
             'famille' => 'orientation',
             'libelle' => 'Définir le niveau de priorité',
         ],
         self::DEFINIR_SCORE_MINIMUM => [
-            'valeur'  => true,
+            'valeur' => true,
             'famille' => 'orientation',
             'libelle' => 'Relever le score au minimum à',
         ],
         self::ORIENTER => [
-            'valeur'  => true,
+            'valeur' => true,
             'famille' => 'orientation',
             'libelle' => 'Orienter vers la spécialité',
         ],
         self::HOSPITALISATION => [
-            'valeur'  => false,
+            'valeur' => false,
             'famille' => 'conduite',
             'libelle' => 'Hospitalisation',
         ],
         self::EXAMEN => [
-            'valeur'  => true,
+            'valeur' => true,
             'famille' => 'conduite',
             'libelle' => 'Examen à réaliser',
         ],
         self::TRAITEMENT => [
-            'valeur'  => true,
+            'valeur' => true,
             'famille' => 'conduite',
             'libelle' => 'Traitement',
         ],
         self::SURVEILLANCE => [
-            'valeur'  => true,
+            'valeur' => true,
             'famille' => 'conduite',
             'libelle' => 'Surveillance',
         ],
         self::MESSAGE => [
-            'valeur'  => true,
+            'valeur' => true,
             'famille' => 'conduite',
             'libelle' => 'Message',
+        ],
+
+        // P10b-3-i — famille `questionnaire` : ni orientation ni conduite à tenir. Ces deux
+        // actions ne disent rien au patient et ne prescrivent rien ; elles construisent
+        // l'interrogatoire et le score. Les ranger dans « conduite » les ferait apparaître parmi
+        // les recommandations affichées (§10), ce qu'elles ne sont pas.
+        self::POSER_QUESTION => [
+            'valeur' => true,
+            'famille' => 'questionnaire',
+            'libelle' => 'Poser la question',
+        ],
+        self::AJOUTER_SCORE => [
+            'valeur' => true,
+            'famille' => 'questionnaire',
+            'libelle' => 'Ajouter au score',
         ],
     ];
 
@@ -131,6 +190,12 @@ final class RegistreActionsProtocole
      * `DEFINIR_SCORE_MINIMUM` reste CUMULATIF, et ce n'est pas un oubli : deux planchers ne se
      * contredisent pas, le plus haut s'applique. Deux protocoles qui relèvent le score, l'un à 70
      * l'autre à 90, disent la même chose avec des forces différentes.
+     *
+     * P10b-3-i — `POSER_QUESTION` et `AJOUTER_SCORE` n'y figurent pas non plus, pour la même
+     * raison qu'`ORIENTER` : deux protocoles qui posent la même question ne se contredisent pas,
+     * la question est posée une fois ; deux qui ajoutent des points ne se contredisent pas
+     * davantage, les points s'additionnent. Les déclarer exclusives remplirait le journal du §8 de
+     * divergences imaginaires — le défaut que cette liste existe pour éviter.
      *
      * @var array<int, string>
      */

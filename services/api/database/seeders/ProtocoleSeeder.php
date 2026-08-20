@@ -4,10 +4,12 @@ namespace Database\Seeders;
 
 use App\Models\Protocole;
 use App\Models\ProtocoleVersion;
+use App\Services\Protocole\DiffusionProtocole;
+use App\Services\Triage\ServiceNiveauTriage;
+use App\Services\Triage\ServiceQuestionnaire;
 use App\Support\NiveauTriage;
 use App\Support\RegistreActionsProtocole;
 use App\Support\RegistreContextesProtocole;
-use App\Services\Triage\ServiceNiveauTriage;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Carbon;
 
@@ -25,7 +27,7 @@ use Illuminate\Support\Carbon;
  *
  * **Les protocoles THÉRAPEUTIQUES (§5.1)** sont rédigés en brouillon **sans aucune validation**.
  * Ils démontrent la structure §4.1/§4.3 et l'écran d'authoring, et le moteur **refuse de les
- * appliquer** — {@see \App\Services\Protocole\DiffusionProtocole} ne sait pas lire un brouillon.
+ * appliquer** — {@see DiffusionProtocole} ne sait pas lire un brouillon.
  * Le §1.6 (« aucun protocole utilisable sans validation ») devient ainsi un **comportement
  * prouvable** au lieu d'une promesse.
  *
@@ -62,8 +64,103 @@ class ProtocoleSeeder extends Seeder
     public function run(): void
     {
         $this->protocoleDeNiveau();
+        $this->protocoleQuestionnaire();
         $this->protocoleRegional();
         $this->brouillonsTherapeutiques();
+    }
+
+    /**
+     * P10b-3-i — `TRIAGE-QUESTIONNAIRE` : les questions et leur impact (§4.3b, §13 étape 4).
+     *
+     * ═══ CE QUE CE PROTOCOLE CONTIENT, ET D'OÙ ÇA VIENT ═══
+     *
+     * Les huit questions et leurs impacts sont **transcrits** de
+     * `symptomes.questions_complementaires_json`, où ils vivaient depuis le Module 1. Même régime
+     * qu'en P10b-1 pour les seuils de niveau : on ne les invente pas, on les sort d'un endroit où
+     * ils échappaient aux quatre validations du §7.
+     *
+     * ═══ DEUX ÉCARTS À LA TRANSCRIPTION, ANNONCÉS PLUTÔT QUE DÉCOUVERTS ═══
+     *
+     * **1. Le coefficient linéaire de l'échelle devient des bandes.** L'ancien impact était
+     * `round(valeur × 1,2)` — une formule. Un moteur à liste blanche fermée n'en exprime pas, et
+     * lui ajouter une action « multiplier » ouvrirait dans la donnée une arithmétique que personne
+     * ne relirait. Trois bandes le remplacent, ce qui décale certains scores d'un ou deux points.
+     * C'est un écart réel ; il est ici plutôt qu'ignoré. En contrepartie « douleur forte → +11 »
+     * se relit et se signe, ce qu'un coefficient ne permettait pas.
+     *
+     * **2. Les conditions de déclenchement sont NEUVES.** Il n'en existait aucune : l'écran posait
+     * toutes les questions de tous les symptômes cochés. Elles sont donc du contenu de
+     * démonstration au même titre que les bandes de niveau — `niveau_preuve = 'D'`, source non
+     * fournie, aucun validateur forgé.
+     *
+     * ═══ POURQUOI `symptome_id` ET NON `symptome_categorie` ═══
+     *
+     * Parce que c'est la transcription EXACTE : la question appartenait à un symptôme précis, pas
+     * à sa famille. Conditionner sur la catégorie demanderait « depuis combien de jours ? » à qui
+     * déclare une perte de connaissance, parce qu'elle est rangée en « neurologique » avec les
+     * maux de tête.
+     *
+     * Le prix est réel et il est dit : un identifiant technique ne veut rien dire hors de cette
+     * base — c'est ce que P10a reprochait à `specialite_id` avant de porter les orientations par
+     * code. Les symptômes n'ont pas de code national ; tant qu'ils n'en auront pas, un protocole
+     * qui les désigne est lié à cette installation. C'est une limite du G5, pas une élégance.
+     */
+    private function protocoleQuestionnaire(): void
+    {
+        $protocole = $this->enregistrer(ServiceQuestionnaire::CODE, [
+            'titre' => 'Questionnaire adaptatif de triage',
+            'domaine' => Protocole::DOMAINE_TRIAGE,
+            'niveau_source' => 'national',
+            'contextes_json' => [RegistreContextesProtocole::TRIAGE_QUESTIONNAIRE],
+            'organisme' => self::SOURCE_ABSENTE,
+            'langue' => 'fr',
+            'mots_cles_json' => ['triage', 'questionnaire', 'interrogatoire'],
+        ]);
+
+        if ($protocole->versions()->exists()) {
+            return; // Idempotent : re-seeder ne rouvre pas un brouillon ni n'en crée un second.
+        }
+
+        $version = ProtocoleVersion::create([
+            'protocole_id' => $protocole->id,
+            'numero' => 1,
+            'libelle' => '2026.1',
+            'etat' => ProtocoleVersion::BROUILLON,
+            'verrou_unicite' => ProtocoleVersion::verrouPour(ProtocoleVersion::BROUILLON, $protocole->id),
+            'niveau_preuve' => 'D',
+            'population' => 'Tous publics — adultes et enfants, triage déclaratif',
+            'conditions_utilisation' => 'Interrogatoire d\'orientation uniquement. Ces questions ne '
+                .'posent aucun diagnostic et ne remplacent pas l\'examen d\'un professionnel de '
+                .'santé (CDC_05 §1). Les impacts sont transcrits du Module 1 ; ils n\'ont été '
+                .'confrontés à aucun protocole national, et les conditions de déclenchement sont '
+                .'neuves.',
+            'motif' => 'Mise en forme protocolaire du questionnaire, jusqu\'ici décrit en '
+                .'JSON dans le référentiel des symptômes et calculé dans TriageService '
+                .'(CDC_08 §1.2, §4.3b).',
+            'redige_le' => Carbon::now(),
+        ]);
+
+        $this->questions($version);
+        $this->reglesDePose($version);
+        $this->reglesDImpact($version);
+
+        // Le §4.1 exige une source, et le contrôle qualité refuse de publier sans elle. On cite ce
+        // qu'on a réellement : le corpus pour l'exigence, et le Module 1 pour les impacts. Aucune
+        // autorité sanitaire n'est nommée — c'est la ligne que ce seeder ne franchit pas.
+        $version->references()->create([
+            'type' => 'recommandation',
+            'libelle' => 'CDC_08 §4.3b — Questionnaire arborescent ; CDC_05 §5.5.2 — questionnaire adaptatif',
+            'citation' => 'Corpus MaSanté, cahiers des charges n°8 section 4.3b et n°5 section 5.5.2.',
+        ]);
+
+        $version->references()->create([
+            'type' => 'document',
+            'libelle' => 'Impacts transcrits du Module 1 — aucune validation clinique',
+            'citation' => 'Questions et impacts repris de symptomes.questions_complementaires_json, '
+                .'à ceci près que le coefficient linéaire de l\'échelle d\'intensité est remplacé '
+                .'par trois bandes. Les conditions de déclenchement sont neuves. À remplacer par '
+                .'un questionnaire national lorsqu\'il sera fourni.',
+        ]);
     }
 
     /**
@@ -84,12 +181,12 @@ class ProtocoleSeeder extends Seeder
     private function protocoleDeNiveau(): void
     {
         $protocole = $this->enregistrer(ServiceNiveauTriage::CODE, [
-            'titre'         => 'Détermination du niveau de priorité du triage',
-            'domaine'       => Protocole::DOMAINE_TRIAGE,
+            'titre' => 'Détermination du niveau de priorité du triage',
+            'domaine' => Protocole::DOMAINE_TRIAGE,
             'niveau_source' => 'national',
             'contextes_json' => [RegistreContextesProtocole::TRIAGE],
-            'organisme'     => self::SOURCE_ABSENTE,
-            'langue'        => 'fr',
+            'organisme' => self::SOURCE_ABSENTE,
+            'langue' => 'fr',
             'mots_cles_json' => ['triage', 'priorite', 'orientation'],
         ]);
 
@@ -98,20 +195,20 @@ class ProtocoleSeeder extends Seeder
         }
 
         $version = ProtocoleVersion::create([
-            'protocole_id'   => $protocole->id,
-            'numero'         => 1,
-            'libelle'        => '2026.1',
-            'etat'           => ProtocoleVersion::BROUILLON,
+            'protocole_id' => $protocole->id,
+            'numero' => 1,
+            'libelle' => '2026.1',
+            'etat' => ProtocoleVersion::BROUILLON,
             'verrou_unicite' => ProtocoleVersion::verrouPour(ProtocoleVersion::BROUILLON, $protocole->id),
-            'niveau_preuve'  => 'D',
-            'population'     => 'Tous publics — adultes et enfants, triage déclaratif',
+            'niveau_preuve' => 'D',
+            'population' => 'Tous publics — adultes et enfants, triage déclaratif',
             'conditions_utilisation' => 'Orientation uniquement. Ce protocole ne pose aucun '
                 .'diagnostic et ne remplace pas l\'examen d\'un professionnel de santé '
                 .'(CDC_05 §1). Les bandes de score sont une base de démonstration reprise du '
                 .'Module 1 ; elles n\'ont été confrontées à aucun protocole national.',
-            'motif'          => 'Première mise en forme protocolaire des règles de niveau, '
+            'motif' => 'Première mise en forme protocolaire des règles de niveau, '
                 .'jusqu\'ici codées dans TriageService (CDC_08 §1.2).',
-            'redige_le'      => Carbon::now(),
+            'redige_le' => Carbon::now(),
         ]);
 
         // ═══ ORDRE 1 — LE DRAPEAU ROUGE, QUI ÉTAIT `max($score, 90)` DANS LE CODE ═══
@@ -166,13 +263,13 @@ class ProtocoleSeeder extends Seeder
         }
 
         $version->references()->create([
-            'type'    => 'recommandation',
+            'type' => 'recommandation',
             'libelle' => 'CDC_05 §5.3 — Niveaux de priorité côté patient (4 niveaux)',
             'citation' => 'Corpus MaSanté, cahier des charges n°5, section 5.3.',
         ]);
 
         $version->references()->create([
-            'type'    => 'document',
+            'type' => 'document',
             'libelle' => 'Base de démonstration héritée du Module 1 — aucune validation clinique',
             'citation' => 'Seuils repris de TriageService::niveauDepuisScore(), redécoupés en '
                 .'quatre bandes. À remplacer par le protocole national de triage lorsqu\'il sera '
@@ -228,15 +325,15 @@ class ProtocoleSeeder extends Seeder
     private function protocoleRegional(): void
     {
         $protocole = $this->enregistrer('TRIAGE-NIVEAU-REGIONAL', [
-            'titre'         => 'Adaptation régionale du triage — priorité de l\'enfant de moins de 5 ans',
-            'domaine'       => Protocole::DOMAINE_TRIAGE,
+            'titre' => 'Adaptation régionale du triage — priorité de l\'enfant de moins de 5 ans',
+            'domaine' => Protocole::DOMAINE_TRIAGE,
             // §3 rang 2 : « protocoles ministériels régionaux ». C'est ce rang qui le fera perdre
             // face au national — et qui rend sa publication possible, puisque le contrôle de
             // conflits refuse une version que seule la DATE départagerait.
             'niveau_source' => 'regional',
             'contextes_json' => [RegistreContextesProtocole::TRIAGE],
-            'organisme'     => self::SOURCE_ABSENTE,
-            'langue'        => 'fr',
+            'organisme' => self::SOURCE_ABSENTE,
+            'langue' => 'fr',
             'mots_cles_json' => ['triage', 'pediatrie', 'adaptation regionale'],
         ]);
 
@@ -245,21 +342,21 @@ class ProtocoleSeeder extends Seeder
         }
 
         $version = ProtocoleVersion::create([
-            'protocole_id'   => $protocole->id,
-            'numero'         => 1,
-            'libelle'        => '2026.1',
-            'etat'           => ProtocoleVersion::BROUILLON,
+            'protocole_id' => $protocole->id,
+            'numero' => 1,
+            'libelle' => '2026.1',
+            'etat' => ProtocoleVersion::BROUILLON,
             'verrou_unicite' => ProtocoleVersion::verrouPour(ProtocoleVersion::BROUILLON, $protocole->id),
-            'niveau_preuve'  => 'D',
-            'population'     => 'Enfants de moins de 5 ans',
+            'niveau_preuve' => 'D',
+            'population' => 'Enfants de moins de 5 ans',
             'conditions_utilisation' => 'Orientation uniquement, aucun diagnostic (CDC_05 §1). '
                 .'CONTENU DE DÉMONSTRATION : cette adaptation régionale n\'a été fournie par '
                 .'aucune direction régionale de la santé et n\'a été confrontée à aucun protocole '
                 .'national. Elle existe pour exercer la sélection et la résolution de conflits '
                 .'(CDC_08 §3, §8).',
-            'motif'          => 'Second protocole de triage — sans lui, l\'ordre de priorité du §3 '
+            'motif' => 'Second protocole de triage — sans lui, l\'ordre de priorité du §3 '
                 .'et la résolution de conflits du §8 ne seraient exercés par aucun contenu réel.',
-            'redige_le'      => Carbon::now(),
+            'redige_le' => Carbon::now(),
         ]);
 
         $this->regle(
@@ -287,8 +384,8 @@ class ProtocoleSeeder extends Seeder
         );
 
         $version->references()->create([
-            'type'     => 'document',
-            'libelle'  => 'Contenu de démonstration — aucune direction régionale consultée',
+            'type' => 'document',
+            'libelle' => 'Contenu de démonstration — aucune direction régionale consultée',
             'citation' => 'Rédigé pour exercer le sélecteur et la cascade §3/§8 de CDC_08. '
                 .'À remplacer par une adaptation régionale réelle lorsqu\'elle sera fournie.',
         ]);
@@ -307,30 +404,30 @@ class ProtocoleSeeder extends Seeder
         // L'exemple imposé du §4.2. Sa STRUCTURE est reproduite fidèlement ; son ATTRIBUTION ne
         // l'est pas, et c'est délibéré — voir l'en-tête de la classe.
         $palu = $this->enregistrer('PROT-CI-PALU-SIMPLE', [
-            'titre'         => 'Paludisme simple — prise en charge de l\'adulte',
-            'domaine'       => 'infectieux',
+            'titre' => 'Paludisme simple — prise en charge de l\'adulte',
+            'domaine' => 'infectieux',
             'niveau_source' => 'national',
             'contextes_json' => [RegistreContextesProtocole::CONSULTATION, RegistreContextesProtocole::URGENCE],
-            'organisme'     => self::SOURCE_ABSENTE,
-            'langue'        => 'fr',
+            'organisme' => self::SOURCE_ABSENTE,
+            'langue' => 'fr',
             'mots_cles_json' => ['paludisme', 'TDR', 'ACT'],
         ]);
 
         if (! $palu->versions()->exists()) {
             $version = ProtocoleVersion::create([
-                'protocole_id'   => $palu->id,
-                'numero'         => 1,
-                'libelle'        => '2026.2',
-                'etat'           => ProtocoleVersion::BROUILLON,
+                'protocole_id' => $palu->id,
+                'numero' => 1,
+                'libelle' => '2026.2',
+                'etat' => ProtocoleVersion::BROUILLON,
                 'verrou_unicite' => ProtocoleVersion::verrouPour(ProtocoleVersion::BROUILLON, $palu->id),
-                'population'     => 'Adultes',
+                'population' => 'Adultes',
                 'conditions_utilisation' => 'BROUILLON NON VALIDÉ — ne doit être appliqué à aucun '
                     .'patient. Le document source du programme national n\'a pas été fourni ; '
                     .'les conduites ci-dessous reproduisent la forme de l\'exemple du CDC_08 §4.2 '
                     .'et non une recommandation thérapeutique vérifiée.',
-                'motif'          => 'Démonstration de la structure §4.1/§4.3 — en attente du '
+                'motif' => 'Démonstration de la structure §4.1/§4.3 — en attente du '
                     .'document source et des quatre validations du §7.',
-                'redige_le'      => Carbon::now(),
+                'redige_le' => Carbon::now(),
             ]);
 
             $this->regle($version, 1, 'Fièvre avec TDR positif et sans signe de gravité', [
@@ -345,8 +442,8 @@ class ProtocoleSeeder extends Seeder
             ]);
 
             $version->references()->create([
-                'type'     => 'document',
-                'libelle'  => 'CDC_08 §4.2 — exemple imposé (format, non recommandation)',
+                'type' => 'document',
+                'libelle' => 'CDC_08 §4.2 — exemple imposé (format, non recommandation)',
                 'citation' => 'Aucun document du Programme National de Lutte contre le Paludisme '
                     .'n\'a été consulté.',
             ]);
@@ -355,12 +452,12 @@ class ProtocoleSeeder extends Seeder
         // Un second brouillon, d'un autre domaine, pour montrer que la structure ne dépend pas du
         // sujet — §4.3a en donne l'exemple (« Âge > 60 ans ET Diabète ET HTA »).
         $hta = $this->enregistrer('PROT-CI-HTA-SUIVI', [
-            'titre'         => 'Hypertension artérielle — suivi du patient à risque',
-            'domaine'       => 'chronique',
+            'titre' => 'Hypertension artérielle — suivi du patient à risque',
+            'domaine' => 'chronique',
             'niveau_source' => 'national',
             'contextes_json' => [RegistreContextesProtocole::CONSULTATION],
-            'organisme'     => self::SOURCE_ABSENTE,
-            'langue'        => 'fr',
+            'organisme' => self::SOURCE_ABSENTE,
+            'langue' => 'fr',
             'mots_cles_json' => ['HTA', 'cardiovasculaire', 'suivi'],
         ]);
 
@@ -369,17 +466,17 @@ class ProtocoleSeeder extends Seeder
         }
 
         $version = ProtocoleVersion::create([
-            'protocole_id'   => $hta->id,
-            'numero'         => 1,
-            'libelle'        => '2026.1',
-            'etat'           => ProtocoleVersion::BROUILLON,
+            'protocole_id' => $hta->id,
+            'numero' => 1,
+            'libelle' => '2026.1',
+            'etat' => ProtocoleVersion::BROUILLON,
             'verrou_unicite' => ProtocoleVersion::verrouPour(ProtocoleVersion::BROUILLON, $hta->id),
-            'population'     => 'Adultes de plus de 60 ans',
+            'population' => 'Adultes de plus de 60 ans',
             'conditions_utilisation' => 'BROUILLON NON VALIDÉ — ne doit être appliqué à aucun '
                 .'patient. Aucun document d\'autorité n\'a été consulté.',
-            'motif'          => 'Démonstration de la structure §4.3a — en attente du document '
+            'motif' => 'Démonstration de la structure §4.3a — en attente du document '
                 .'source et des quatre validations du §7.',
-            'redige_le'      => Carbon::now(),
+            'redige_le' => Carbon::now(),
         ]);
 
         $this->regle($version, 1, 'Patient de plus de 60 ans présentant un signe cardiaque', [
@@ -391,10 +488,197 @@ class ProtocoleSeeder extends Seeder
         ]);
 
         $version->references()->create([
-            'type'     => 'document',
-            'libelle'  => 'CDC_08 §4.3a — exemple de règle déclarative (format, non recommandation)',
+            'type' => 'document',
+            'libelle' => 'CDC_08 §4.3a — exemple de règle déclarative (format, non recommandation)',
             'citation' => 'Aucun document d\'autorité n\'a été consulté.',
         ]);
+    }
+
+    /**
+     * P10b-3-i — Les huit questions, transcrites telles quelles du référentiel des symptômes.
+     *
+     * Les énoncés ne sont pas retouchés : ce sont ceux que les patients lisent depuis le Module 1,
+     * et les réécrire ferait passer une modification rédactionnelle pour une transcription.
+     */
+    private function questions(ProtocoleVersion $version): void
+    {
+        $questions = [
+            ['duree_jours', 'Depuis combien de jours ?', 'nombre', 'jours', null, null, []],
+            ['intensite', 'Intensité de 1 à 10 ?', 'echelle', null, 1, 10, []],
+            ['fievre_sup_40', 'Température supérieure à 40°C ?', 'booleen', null, null, null, []],
+            ['type_toux', 'Type de toux ?', 'choix', null, null, null, [
+                ['seche', 'Sèche'],
+                ['grasse', 'Grasse'],
+            ]],
+            ['au_repos', 'Gêne respiratoire même au repos ?', 'booleen', null, null, null, []],
+            ['selles_eau_de_riz', 'Selles liquides « eau de riz » très fréquentes ?', 'booleen', null, null, null, []],
+            ['photophobie', 'Gêne importante à la lumière ?', 'booleen', null, null, null, []],
+            ['deformation_visible', 'Déformation visible ou impossibilité de bouger ?', 'booleen', null, null, null, []],
+        ];
+
+        foreach ($questions as $ordre => [$cle, $libelle, $type, $unite, $min, $max, $reponses]) {
+            $question = $version->questions()->create([
+                'cle' => $cle,
+                'libelle' => $libelle,
+                'type' => $type,
+                'unite' => $unite,
+                'valeur_min' => $min,
+                'valeur_max' => $max,
+                'ordre' => $ordre + 1,
+            ]);
+
+            foreach ($reponses as $i => [$valeur, $etiquette]) {
+                $question->reponses()->create([
+                    'valeur' => $valeur,
+                    'libelle' => $etiquette,
+                    'ordre' => $i + 1,
+                ]);
+            }
+        }
+    }
+
+    /**
+     * P10b-3-i — QUAND poser chaque question (§4.3b).
+     *
+     * ═══ CE QUI CHANGE POUR LE PATIENT ═══
+     *
+     * Avant, l'écran posait toutes les questions de tous les symptômes cochés. Désormais une
+     * question n'apparaît que si une règle la déclenche — c'est tout l'objet du §4.3b et de
+     * l'« éviter 100 questions inutiles » de CDC_05 §5.5.2.
+     *
+     * La dernière règle est la seule à se déclencher sur une RÉPONSE et non sur un symptôme :
+     * c'est elle qui fait du questionnaire un arbre plutôt qu'une liste conditionnelle, et elle
+     * exerce le chaînage que le §4.3b décrit (`Fièvre → Durée ? → …`).
+     */
+    private function reglesDePose(ProtocoleVersion $version): void
+    {
+        // [id du symptôme, son nom (pour le libellé lisible du §7), clés des questions à poser]
+        $paires = [
+            [1, 'une fièvre élevée', ['duree_jours', 'fievre_sup_40']],
+            [2, 'des frissons', ['duree_jours']],
+            [3, 'des courbatures', ['duree_jours', 'intensite']],
+            [4, 'des maux de tête', ['duree_jours', 'intensite']],
+            [5, 'une toux', ['duree_jours', 'type_toux']],
+            [6, 'une difficulté respiratoire', ['au_repos']],
+            [7, 'une douleur thoracique', ['intensite']],
+            [8, 'une diarrhée', ['duree_jours', 'selles_eau_de_riz']],
+            [9, 'des vomissements', ['duree_jours']],
+            [10, 'une douleur abdominale', ['duree_jours', 'intensite']],
+            [13, 'une raideur de la nuque', ['photophobie']],
+            [14, 'une douleur dentaire', ['intensite']],
+            [15, 'une douleur auriculaire', ['duree_jours', 'intensite']],
+            [16, 'une douleur oculaire', ['duree_jours']],
+            [17, 'une éruption cutanée', ['duree_jours']],
+            [19, 'des douleurs pelviennes', ['duree_jours', 'intensite']],
+            [20, 'un traumatisme possible', ['deformation_visible']],
+        ];
+
+        $ordre = 1;
+
+        foreach ($paires as [$symptomeId, $nom, $cles]) {
+            $this->regle(
+                $version,
+                $ordre++,
+                'Si le patient déclare '.$nom.', préciser l\'interrogatoire',
+                [['symptome_id', 'contient', $symptomeId]],
+                array_map(
+                    fn (string $cle): array => [RegistreActionsProtocole::POSER_QUESTION, $cle, null],
+                    $cles,
+                ),
+            );
+        }
+
+        // ═══ LA SEULE RÈGLE CHAÎNÉE SUR UNE RÉPONSE — C'EST ELLE QUI FAIT L'ARBRE ═══
+        //
+        // Une gêne respiratoire au repos est un signe de gravité : on demande alors l'intensité,
+        // question qui n'aurait pas été posée pour ce symptôme. Sans au moins une règle de cette
+        // forme, le questionnaire resterait une liste conditionnelle et le §4.3b ne serait pas
+        // exercé — *un contrôle toujours vert ne prouve rien* (leçon P5.3b-4).
+        $this->regle(
+            $version,
+            $ordre,
+            'Si la gêne respiratoire persiste au repos, évaluer son intensité',
+            [['reponse.au_repos', '=', true]],
+            [[RegistreActionsProtocole::POSER_QUESTION, 'intensite', null]],
+        );
+    }
+
+    /**
+     * P10b-3-i — L'IMPACT de chaque réponse sur le score (§4.3a).
+     *
+     * ═══ CE QUI ÉTAIT UN BLOB JSON DEVIENT UNE RÈGLE RELUE ET SIGNÉE ═══
+     *
+     * `['points_si_vrai' => 15, 'drapeau_rouge_si_vrai' => true]` se lit désormais « si la
+     * température dépasse 40 °C, ajouter 15 points ET relever le score à 90 ». Un médecin
+     * spécialiste peut valider cela au sens du §7 ; il ne pouvait pas valider le JSON.
+     *
+     * `drapeau_rouge_si_vrai` disparaît comme mécanisme : il est remplacé par
+     * `DEFINIR_SCORE_MINIMUM`, l'action que P10b-1 a créée pour le drapeau rouge des symptômes.
+     * Une seule façon d'écrire « ceci prime », au lieu de deux qui pouvaient diverger.
+     *
+     * Les trois bandes d'intensité remplacent `round(valeur × 1,2)` — écart annoncé en tête de
+     * `protocoleQuestionnaire()`.
+     */
+    private function reglesDImpact(ProtocoleVersion $version): void
+    {
+        $ordre = 100;
+
+        $this->regle($version, $ordre++, 'Des symptômes qui durent plus de trois jours pèsent davantage',
+            [['reponse.duree_jours', '>', 3]],
+            [[RegistreActionsProtocole::AJOUTER_SCORE, 8, null]]);
+
+        $this->regle($version, $ordre++, 'Douleur légère (1 à 3 sur 10)',
+            [['reponse.intensite', 'entre', [1, 3]]],
+            [[RegistreActionsProtocole::AJOUTER_SCORE, 3, null]]);
+
+        $this->regle($version, $ordre++, 'Douleur modérée (4 à 7 sur 10)',
+            [['reponse.intensite', 'entre', [4, 7]]],
+            [[RegistreActionsProtocole::AJOUTER_SCORE, 7, null]]);
+
+        $this->regle($version, $ordre++, 'Douleur forte (8 à 10 sur 10)',
+            [['reponse.intensite', 'entre', [8, 10]]],
+            [[RegistreActionsProtocole::AJOUTER_SCORE, 11, null]]);
+
+        $this->regle($version, $ordre++, 'Une température supérieure à 40 °C est un signe de gravité',
+            [['reponse.fievre_sup_40', '=', true]],
+            [
+                [RegistreActionsProtocole::AJOUTER_SCORE, 15, null],
+                [RegistreActionsProtocole::DEFINIR_SCORE_MINIMUM, 90,
+                    'Une hyperthermie majeure impose une prise en charge urgente quel que soit le '
+                    .'total des autres points.'],
+            ]);
+
+        $this->regle($version, $ordre++, 'Toux sèche',
+            [['reponse.type_toux', '=', 'seche']],
+            [[RegistreActionsProtocole::AJOUTER_SCORE, 3, null]]);
+
+        $this->regle($version, $ordre++, 'Toux grasse',
+            [['reponse.type_toux', '=', 'grasse']],
+            [[RegistreActionsProtocole::AJOUTER_SCORE, 5, null]]);
+
+        $this->regle($version, $ordre++, 'Une gêne respiratoire au repos est un signe de gravité',
+            [['reponse.au_repos', '=', true]],
+            [
+                [RegistreActionsProtocole::AJOUTER_SCORE, 10, null],
+                [RegistreActionsProtocole::DEFINIR_SCORE_MINIMUM, 90,
+                    'Une dyspnée de repos impose une prise en charge urgente.'],
+            ]);
+
+        $this->regle($version, $ordre++, 'Des selles « eau de riz » évoquent une déshydratation rapide',
+            [['reponse.selles_eau_de_riz', '=', true]],
+            [[RegistreActionsProtocole::AJOUTER_SCORE, 15, null]]);
+
+        $this->regle($version, $ordre++, 'Une photophobie associée à une raideur de nuque pèse davantage',
+            [['reponse.photophobie', '=', true]],
+            [[RegistreActionsProtocole::AJOUTER_SCORE, 12, null]]);
+
+        $this->regle($version, $ordre, 'Une déformation visible évoque une lésion à prendre en charge sans délai',
+            [['reponse.deformation_visible', '=', true]],
+            [
+                [RegistreActionsProtocole::AJOUTER_SCORE, 20, null],
+                [RegistreActionsProtocole::DEFINIR_SCORE_MINIMUM, 90,
+                    'Une déformation ou une impotence fonctionnelle impose un avis urgent.'],
+            ]);
     }
 
     /**
@@ -438,9 +722,9 @@ class ProtocoleSeeder extends Seeder
 
         foreach ($conditions as $i => [$fait, $operateur, $valeur]) {
             $regle->conditions()->create([
-                'ordre'       => $i + 1,
-                'fait'        => $fait,
-                'operateur'   => $operateur,
+                'ordre' => $i + 1,
+                'fait' => $fait,
+                'operateur' => $operateur,
                 // Une valeur simple est rangée comme `[x]`, un intervalle comme `[min, max]` —
                 // voir `ProtocoleCondition::valeur()`, qui déballe au même endroit pour tous.
                 'valeur_json' => is_array($valeur) ? $valeur : [$valeur],
@@ -449,9 +733,9 @@ class ProtocoleSeeder extends Seeder
 
         foreach ($actions as $i => [$type, $valeur, $justification]) {
             $regle->actions()->create([
-                'ordre'         => $i + 1,
-                'type'          => $type,
-                'valeur_json'   => is_array($valeur) ? $valeur : [$valeur],
+                'ordre' => $i + 1,
+                'type' => $type,
+                'valeur_json' => is_array($valeur) ? $valeur : [$valeur],
                 'justification' => $justification,
             ]);
         }

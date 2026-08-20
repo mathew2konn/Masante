@@ -930,3 +930,382 @@ après coup serait réécrire le passé.
    P10b-2 ne reproduit pas le défaut — ses identifiants ne sont pas des clés étrangères.
    La décision (vivre avec une rupture datée, ou repartir d'une chaîne neuve en archivant
    l'ancienne) appartient au propriétaire.
+
+---
+
+# Partie 4 — P10b-3-i : questionnaire adaptatif, bornes opposables, `triage_reponses`
+
+> Incrément livré le 2026-08-20. Il **referme le constat X3 du G0** : l'impact d'une réponse sur le
+> score était une règle médicale gouvernée par deux signatures administratives (§10) alors que
+> P10b-1 venait de soumettre les seuils de niveau, de même nature, aux **quatre validations du §7**.
+
+## 1. Ce que cet incrément change, en une phrase
+
+Les questions du triage ne sont plus une propriété des symptômes : elles vivent dans le protocole
+`TRIAGE-QUESTIONNAIRE`, elles sont posées **selon les réponses précédentes**, et les bornes qu'elles
+publient sont désormais **opposables**.
+
+### Ce qui se voit tout de suite
+
+| Avant | Après |
+|---|---|
+| toutes les questions de tous les symptômes cochés, d'un bloc | seulement celles qu'une règle déclenche, tour par tour |
+| `intensite = 100` sur une échelle 1-10 → acceptée, score saturé à 100 | **422** nommant la question, aucun triage enregistré |
+| une clé inconnue → 0 point **en silence** | **422** |
+| réponses dans `triages.reponses_json` | table `triage_reponses` (CDC_04 §115), énoncé **figé** |
+| `GET /symptomes` servait `questions_complementaires_json` | la clé a disparu de la réponse |
+
+---
+
+## 2. Préparation — QUATRE étapes de déploiement, désormais
+
+La partie 3 en annonçait trois.
+
+| # | Ce qu'il faut publier | Sans quoi |
+|---|---|---|
+| 1 | référentiels `seuils_mesure` et `symptomes_triage` | `GET /symptomes` et `POST /triage/analyser` → **503** |
+| 2 | protocole `TRIAGE-NIVEAU` | `POST /triage/analyser` → **503** |
+| 3 | **protocole `TRIAGE-QUESTIONNAIRE`** *(nouveau)* | `POST /triage/questions` **et** `/analyser` → **503** |
+| 4 | *(facultatif)* `TRIAGE-NIVEAU-REGIONAL` | la cascade §3 n'a rien à départager |
+
+### 2.1 Publier le questionnaire (étape 3)
+
+Comme toujours : **deux comptes distincts**. Le quatre-yeux du §10 ne se contourne pas.
+
+```
+# 1. les quatre validations du §7 (compte A)
+POST /api/v1/protocoles/TRIAGE-QUESTIONNAIRE/versions/1/valider
+     { "type": "clinique",      "avis": "favorable", "role": "Medecin specialiste" }
+     { "type": "reglementaire", "avis": "favorable", "role": "..." }
+     { "type": "scientifique",  "avis": "favorable", "role": "..." }
+     { "type": "technique",     "avis": "favorable", "role": "..." }
+
+# 2. la publication (compte B, différent du RÉDACTEUR)
+POST /api/v1/protocoles/TRIAGE-QUESTIONNAIRE/versions/1/publier
+```
+
+### 2.0 — ATTENTION : `symptomes_triage` doit être REPUBLIÉ
+
+Une version publiée **avant** cet incrément porte encore `questions_complementaires_json` dans son
+instantané. Rien ne la lit plus, mais le référentiel diffusé ne correspond alors plus à ce qu'une
+extraction fraîche produirait. Le G2 l'a mesuré : empreinte publiée `23558142…` contre extraction
+`d5209f33…`.
+
+Republier (proposition par un compte, publication par un **autre**) ; l'ancienne version est
+**archivée avec ses questions**, et c'est voulu — une archive ne se réécrit pas.
+
+### 2.2 — Quatre pièges de l'API de gouvernance, relevés au G2
+
+1. Le champ de rôle du validateur s'appelle **`role`**, pas `validateur_role` — sinon **422**.
+2. `POST /protocoles/{code}/versions` exige **`version`** (le libellé, ex. `"2026.2"`).
+3. Ce même appel crée un brouillon **VIDE** : il ne recopie ni les questions, ni les règles, ni
+   `niveau_preuve` / `population`. Sans ces deux dernières, la publication est refusée **422** par
+   les contrôles §4.1 — un refus juste, mais dont le motif surprend si on l'attribue au contenu.
+4. Le quatre-yeux du §10 côté **protocole** signifie **publieur ≠ RÉDACTEUR**, pas
+   publieur ≠ validateur : un relecteur qui porte `protocole.publier` **peut** publier ce qu'il a
+   signé. C'est le choix délibéré de P10b-1 (le §7 n'interdit pas le cumul). Côté **référentiel**,
+   la règle est l'inverse — l'auteur d'une proposition ne peut pas la valider lui-même.
+
+   *Conséquence pour ce guide : un 403 rendu à un relecteur qui tente de publier prouve
+   l'habilitation, PAS le quatre-yeux.*
+
+**Le refus vaut même quand le patient ne répond à aucune question.** Sans lui, un oubli de
+publication ferait trier des patients **sans jamais les interroger**, avec un score systématiquement
+plus bas et rien pour le signaler.
+
+---
+
+## 3. Les vecteurs
+
+### W1 — Le refus bruyant, avant publication
+
+Avec `symptomes_triage` et `TRIAGE-NIVEAU` publiés mais **pas** le questionnaire :
+
+```
+POST /api/v1/triage/questions   { "symptomes": [5] }      → 503
+POST /api/v1/triage/analyser    { "symptomes": [5] }      → 503
+```
+
+Le message doit parler du **questionnaire** et citer le §1.6. Un 503 rendu pour une autre raison ne
+prouverait rien.
+
+### W2 — L'arborescence du §4.3b
+
+Symptôme **Difficulté respiratoire (essoufflement)** :
+
+```
+POST /api/v1/triage/questions  { "symptomes": [6] }
+→ questions: [au_repos]        termine: false
+```
+
+Répondez **oui** :
+
+```
+POST /api/v1/triage/questions  { "symptomes": [6], "reponses": [{"cle":"au_repos","valeur":true}] }
+→ questions: [intensite]       termine: false
+```
+
+**C'est le cœur de l'incrément** : `intensite` n'est posée par aucun symptôme ici — elle est
+débloquée par la *réponse*. Répondez-y, et le tour suivant rend `termine: true`.
+
+### W3 — Une question déjà répondue n'est jamais reposée
+
+Rejouez le premier appel de W2 avec `au_repos` **et** `intensite` renseignées → `questions: []`,
+`termine: true`. Sans cette garde, la boucle ne convergerait jamais.
+
+### W4 — Le score ne dépend pas du nombre de tours *(vecteur obligatoire)*
+
+Prenez **Toux** (id 5) et les réponses `duree_jours = 5`, `type_toux = grasse`.
+
+1. Envoyez-les **d'un coup** à `/analyser` → notez `score_severite` et `niveau`.
+2. Recommencez en passant réellement par `/questions`, tour après tour, puis `/analyser`.
+
+**Les deux scores doivent être identiques.** S'ils diffèrent, une règle a été comptée deux fois :
+la décision R5 (« une seule évaluation finale fait autorité ») n'est plus tenue.
+
+### W4bis — Le drapeau rouge d'une RÉPONSE prime *(vecteur qui a trouvé un défaut réel)*
+
+Deux triages à comparer :
+
+```
+POST /api/v1/triage/analyser  { "symptomes": [2] }                       # Frissons seuls
+→ drapeau_rouge: false, niveau faible
+
+POST /api/v1/triage/analyser
+  { "symptomes": [2, 1], "reponses": [{"cle":"fievre_sup_40","valeur":true}] }
+→ drapeau_rouge: true, score >= 90, niveau: urgence
+```
+
+« Fièvre élevée » n'est **pas** un drapeau rouge de symptôme : le niveau `urgence` ne peut venir que
+du plancher posé par la **réponse**, via `DEFINIR_SCORE_MINIMUM`. C'est ce qui remplace
+`drapeau_rouge_si_vrai`.
+
+**Ce vecteur a trouvé un vrai défaut** : le service lisait le plancher dans les faits rendus par le
+sélecteur, qui ne restitue le chaînage avant que du protocole ayant emporté une action **exclusive**
+— un questionnaire n'en produit aucune, donc le plancher valait **toujours 0** et le drapeau rouge
+d'une réponse était perdu **en silence**. Si ce vecteur retombe, c'est que la régression est revenue.
+
+### W5 — Les bornes publiées sont opposables
+
+```
+POST /api/v1/triage/analyser
+  { "symptomes": [7], "reponses": [{"cle":"intensite","valeur":100}] }
+→ 422, message citant « Intensité de 1 à 10 ? »
+```
+
+Vérifiez ensuite `SELECT COUNT(*) FROM triages` : **aucun triage ne doit avoir été enregistré**.
+
+La valeur **n'est pas écrêtée à 10**, et c'est délibéré : le patient croirait avoir répondu 100 et
+son dossier porterait 10.
+
+### W6 — Une clé inconnue est refusée, pas ignorée
+
+```
+{ "reponses": [{"cle":"question_inventee","valeur":3}] }  → 422 citant la clé
+```
+
+Avant cet incrément, elle valait **0 point en silence**.
+
+### W7 — Une option hors catalogue est refusée
+
+```
+{ "reponses": [{"cle":"type_toux","valeur":"sifflante"}] }
+→ 422 listant les réponses proposées
+```
+
+### W8 — Un `UPDATE` direct sur les symptômes n'a plus aucun effet
+
+```sql
+UPDATE symptomes
+SET questions_complementaires_json = '[{"cle":"injectee","libelle":"Posée par UPDATE","type":"booleen"}]'
+WHERE nom_fr = 'Toux';
+```
+
+Rejouez `POST /triage/questions { "symptomes": [5] }` → `injectee` **n'apparaît pas**, `duree_jours`
+si. La règle ne se corrige plus qu'en republiant.
+
+**Restaurez ensuite la colonne** (elle reste en base, plus personne ne l'écrit).
+
+### W9 — Les questions ont quitté l'instantané des symptômes
+
+```
+GET /api/v1/referentiels/symptomes_triage
+```
+
+Aucune ligne ne doit porter `questions_complementaires_json`. Et l'**empreinte du référentiel a
+changé** par rapport à la partie 1 : ce n'est pas une dérive, c'est le déménagement.
+
+```
+GET /api/v1/symptomes
+```
+
+La clé a également disparu de la liste servie au mobile.
+
+### W10 — `triage_reponses` (CDC_04 §115)
+
+Après un triage avec réponses :
+
+```sql
+SELECT question_cle, question_libelle, valeur, protocole_code, protocole_version
+FROM triage_reponses WHERE triage_id = <id>;
+
+SELECT reponses_json FROM triages WHERE id = <id>;   -- doit valoir []
+```
+
+`protocole_code` doit dire **`TRIAGE-QUESTIONNAIRE`** — pas `TRIAGE-NIVEAU`. Deux protocoles, deux
+cycles de validation, deux estampilles.
+
+### W11 — L'énoncé est figé
+
+```sql
+UPDATE protocole_questions SET libelle = 'Énoncé réécrit' WHERE cle = 'duree_jours';
+SELECT question_libelle FROM triage_reponses WHERE question_cle = 'duree_jours';
+```
+
+Doit toujours dire **« Depuis combien de jours ? »**. Republier le questionnaire ne réécrit pas ce
+qu'un patient a lu. *(Restaurez le libellé.)*
+
+### W12 — Un triage antérieur reste lisible
+
+Ouvrez la fiche d'un triage créé **avant** cet incrément : ses réponses viennent encore de
+`reponses_json`, et `triage_reponses` est vide pour lui. Lui fabriquer des lignes serait un
+**mensonge d'archive**.
+
+### W13 — Le moteur refuse une échelle incohérente
+
+```sql
+INSERT INTO protocole_questions (version_id, cle, libelle, type, valeur_min, valeur_max, ordre,
+                                 created_at, updated_at)
+VALUES (<id>, 'absurde', 'Test', 'echelle', 10, 1, 99, NOW(), NOW());
+→ ERROR 1644 : ck_protocole_question_bornes
+```
+
+`CHECK` impossible (`version_id` est `cascadeOnDelete` → **erreur 3823**, le mur de P6.3) : c'est un
+déclencheur, dans les deux dialectes.
+
+### W14 — Les gardes de publication (§7.4)
+
+Sur un **brouillon**, vérifiez que chacune de ces modifications **bloque la publication** et que le
+message la nomme :
+
+| Modification | Message attendu |
+|---|---|
+| condition `reponse.duree` (au lieu de `duree_jours`) | cite `duree` et liste les questions de la version |
+| action `POSER_QUESTION('fantome')` | cite `fantome` |
+| `>=` sur `reponse.au_repos` (booléenne) | cite `au_repos` et le type |
+| supprimer les réponses possibles de `type_toux` | cite `type_toux` |
+| condition sur `score` | **nomme `score_symptomes`** comme alternative |
+
+### W15 — Quatre-yeux et anti-substitution
+
+- Le rédacteur ne peut pas publier lui-même → **409**, et **vérifiez le motif** : un refus rendu
+  pour l'habilitation au lieu du quatre-yeux ne prouve rien (piège rencontré en P6.8e et P10a).
+- Modifiez un **énoncé de question** après les quatre signatures, puis publiez → **409**, les
+  validations sont **caduques**. Sans cela, il suffirait de faire signer un questionnaire anodin
+  puis d'en changer les bornes.
+
+---
+
+## 4. Mobile (Expo Go SDK 54)
+
+1. Onglet **Triage** → **Commencer** → cochez **Toux** → **Continuer**.
+2. L'écran « Quelques précisions » affiche d'abord *Préparation du questionnaire…*, puis les
+   questions **débloquées**, dans une carte unique — elles ne sont plus groupées par symptôme,
+   parce qu'elles n'appartiennent plus à un symptôme.
+3. Le bouton dit **« Continuer »** tant qu'il reste des questions, puis **« Analyser mes
+   symptômes »**. C'est le **serveur** qui dit que l'interrogatoire est terminé.
+4. Cochez **Difficulté respiratoire**, répondez **Oui** à la gêne au repos, **Continuer** → une
+   question d'intensité apparaît, que rien n'avait annoncée. C'est l'arbre du §4.3b.
+5. Les libellés des boutons de choix viennent du protocole (« Sèche », « Grasse ») ; leur **valeur**
+   (`seche`, `grasse`) ne s'affiche jamais.
+
+---
+
+## 5. Limites de cet incrément, à ne pas prendre pour des défauts
+
+1. **Le poids des symptômes et `PLAFOND_ANTECEDENTS = 20` restent dans le code** → P10b-3-ii. X3
+   n'est refermé **que pour les réponses**.
+2. **Aucun écran §7** : les quatre validations s'obtiennent toujours en curl. Un médecin
+   spécialiste ne devrait pas signer par curl un document que le §7 qualifie d'*opposable* →
+   P10b-3-ii.
+3. **Un aller-retour réseau par tour.** Compiler l'arbre côté client l'éviterait et mettrait une
+   règle médicale dans le front (CDC_01 §0.1). Atténué : le serveur rend **toutes** les questions
+   déblocables à chaque tour, pas une seule.
+4. **Le coefficient linéaire de l'échelle est devenu trois bandes.** L'ancien impact était
+   `round(valeur × 1,2)` ; un moteur à liste blanche fermée n'exprime pas de formule, et ajouter une
+   action « multiplier » ouvrirait dans la donnée une arithmétique que personne ne relirait.
+   **Certains scores diffèrent d'un ou deux points de ceux du Module 1.** C'est un écart réel, dit
+   ici plutôt qu'ignoré.
+5. **Les conditions de déclenchement sont neuves** : il n'en existait aucune. Contenu de
+   démonstration comme le reste — `niveau_preuve = 'D'`, source non fournie, aucun validateur forgé.
+6. **Le protocole désigne les symptômes par leur `symptome_id`.** C'est la transcription exacte
+   (la question appartenait à un symptôme précis, pas à sa famille), mais un identifiant technique
+   ne veut rien dire hors de cette base — le reproche que P10a faisait à `specialite_id`. Les
+   symptômes n'ont pas de code national ; tant qu'ils n'en auront pas, ce protocole est lié à cette
+   installation.
+7. **`triage_reponses` ne porte pas de colonne `points`.** Le plan G1 en prévoyait une ; cette
+   valeur **n'existe plus** depuis que l'impact est une règle, car une règle peut porter sur
+   plusieurs réponses et ses points ne se répartissent entre elles par aucun partage défendable.
+   L'explication du score vit dans le journal d'exécution du §10 (P10b-2), qui nomme les règles
+   déclenchées.
+8. **§11 (< 100 ms)** toujours non déclaré atteint : cache `database`, et la boucle multiplie les
+   appels.
+9. **Aucune compréhension du langage naturel** (CDC_05 §5.5.1) → P10c. Le questionnaire adaptatif
+   est précisément ce qui « permet le triage **sans IA** » (§13 étape 4).
+
+---
+
+## 6. Checklist de clôture
+
+> **Clôturée le 2026-08-20 — G5.** Les cases **W** ont été prouvées au **G2 live** (base MySQL de
+> développement sauvegardée avant, restaurée compte pour compte après : triages 2, protocoles 4,
+> journal 34, users 8) ; les cases **M** relèvent du **G4, déclaré validé par le propriétaire**.
+> La distinction est maintenue plutôt que fondue en une seule liste : *celui qui rejouera ce guide
+> doit savoir lesquelles se rejouent en curl et lesquelles exigent un téléphone.*
+
+- [x] W1 — schéma : 3 tables, 3 index uniques, 2 déclencheurs, **aucune colonne `points`**
+- [x] W2 — **503 sur les deux endpoints** avant publication, message nommant le questionnaire
+- [x] W3 — publication du questionnaire par **deux comptes distincts** (§10)
+- [x] W4 — arborescence réelle : `au_repos=true` débloque `intensite`, `au_repos=false` ne débloque
+      rien — **c'est le contraste qui est la preuve**
+- [x] W5 — plancher live : 37 + 15 = 52 **relevé à 90** → `urgence` + drapeau ; `false` → 37
+- [x] W6 — **score identique** en 1 tour, en 2 tours et à ordre de réponses inversé (23)
+- [x] W7 — 5 refus **422 nommant chacun sa question** ; compteur de triages 9 → 10 (seul le valide
+      est enregistré : on refuse, on n'écrête pas)
+- [x] W8 — `UPDATE` direct sans effet ; le serveur pose toujours `duree_jours` / `type_toux`
+- [x] W9 — republication de `symptomes_triage` : empreinte `23558142…` → `d5209f33…`, **v1 archivée
+      gardant ses questions**
+- [x] W10 — `triage_reponses` peuplée : libellé **figé**, `TRIAGE-QUESTIONNAIRE` (et non
+      `TRIAGE-NIVEAU`), `reponses_json = []`
+- [x] W11 — renommage au protocole → **l'archive ne suit pas** ; les deux formes d'archive sont lues
+      (ancienne `valeur_impact`, neuve `libelle`)
+- [x] W12 — `ERROR 1644` sur bornes **inversées** *et* **égales**
+- [x] W13 — les **5 gardes §7.4** refusent chacune **par son motif** ; restauration → 0 erreur
+- [x] W14 — **anti-substitution déclenchée par le seul renommage d'une QUESTION** (409 nommant les
+      4 validations caduques) : la preuve que les questions sont dans l'empreinte
+- [x] W15 — estampille **par version** (réponses anciennes `v1`, neuve `v2`) · **0 contenu clinique**
+      au journal de gouvernance
+- [x] M1 — questions débloquées tour par tour, carte unique *(G4 propriétaire)*
+- [x] M2 — « Continuer » → « Analyser mes symptômes », décidé par le **serveur** *(G4 propriétaire)*
+- [x] M3 — gêne au repos → question d'intensité **que rien n'avait annoncée** *(G4 propriétaire)*
+- [x] M4 — libellés du protocole affichés, **valeurs jamais** *(G4 propriétaire)*
+- [x] G3 vert — **1138 tests / 16 313 assertions, 0 échec** · typecheck ×3 · expo-doctor **18/18** ·
+      Pint · **mutation 9/9**, arbre restauré et vérifié sans résidu
+
+### Quatre écarts guide ↔ API relevés au G2 et corrigés dans ce guide
+
+Ils sont consignés ici parce qu'ils feront trébucher quiconque rejouera la procédure :
+
+1. le champ de validation s'appelle **`role`**, pas `validateur_role` ;
+2. `POST /protocoles/{code}/versions` exige **`version`** ;
+3. **le brouillon naît vide** (ni questions, ni règles, ni `niveau_preuve`/`population`) — d'où un
+   422 §4.1 au motif déroutant si l'on publie trop tôt ;
+4. le quatre-yeux **côté protocole** est **publieur ≠ RÉDACTEUR**, pas ≠ validateur (choix délibéré
+   de P10b-1). Un 403 rendu à un relecteur prouve **l'habilitation**, pas le quatre-yeux — celui-ci
+   se prouve **par son motif côté référentiel** (409 « l'auteur d'une proposition ne peut pas la
+   valider lui-même », sur un compte qui *a* la permission).
+
+> **Constat, non causé par cet incrément.** `GET /protocoles/journal/integrite` répond
+> `intacte: false` sur l'entrée #1 : rupture déjà constatée en P10b-2 (`acteur_id` en `nullOnDelete`
+> pris dans l'empreinte, comptes supprimés lors de la restauration du G2 de P10b-1). *On ne répare
+> pas une chaîne de hachage* — la décision appartient au propriétaire.

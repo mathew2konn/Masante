@@ -24,6 +24,33 @@ final class RegistreContextesProtocole
     /** Auto-évaluation du citoyen (CDC_05 §5) — le seul consommateur réel aujourd'hui. */
     public const TRIAGE = 'triage';
 
+    /**
+     * P10b-3-i — L'INTERROGATOIRE, moment distinct du triage (CDC_08 §4.3b).
+     *
+     * ═══ POURQUOI UN CONTEXTE ET NON LE MÊME QUE `TRIAGE` ═══
+     *
+     * Le plan G1 annonçait ce registre inchangé. L'implémentation a montré que c'était faux, et
+     * pour une raison de fond : **le questionnaire et le niveau ne s'évaluent pas au même moment**.
+     * Les règles de bande lisent `score` ; les règles de questionnaire l'ALIMENTENT. Les évaluer
+     * ensemble ferait lire aux bandes un score auquel les réponses n'ont pas encore été ajoutées —
+     * circularité qu'aucun ordre de règles ne résout, puisque les deux jeux vivent dans des
+     * protocoles différents.
+     *
+     * ═══ POURQUOI DEUX PROTOCOLES ET NON UN SEUL ═══
+     *
+     * Un protocole unique supprimerait la circularité (le chaînage avant de P10b-1 suffirait), mais
+     * il ferait re-signer les seuils de niveau par quatre validateurs à chaque correction d'un
+     * énoncé de question — et l'inverse. C'est **exactement** ce que W5 du G0 de P10b a refusé pour
+     * le socle P6.3 : la version et le dossier de validation appartiennent AU protocole (§6.1, §7).
+     *
+     * ═══ POURQUOI UN CONTEXTE ET NON UNE CONSTANTE DE CODE ═══
+     *
+     * Lire `TRIAGE-QUESTIONNAIRE` par son code marcherait, et régresserait le gain de P10b-2 : un
+     * questionnaire régional exigerait alors une ligne de code. Le contexte est une DONNÉE de
+     * l'instantané publié, relue par deux agents — ajouter un questionnaire reste une publication.
+     */
+    public const TRIAGE_QUESTIONNAIRE = 'triage_questionnaire';
+
     /** Consultation menée par un professionnel. Aucun écran ne l'émet encore (limite N6). */
     public const CONSULTATION = 'consultation';
 
@@ -32,9 +59,10 @@ final class RegistreContextesProtocole
 
     /** @var array<string, string> code => libellé lisible */
     public const CONTEXTES = [
-        self::TRIAGE       => 'Triage / auto-évaluation',
+        self::TRIAGE => 'Triage / auto-évaluation',
+        self::TRIAGE_QUESTIONNAIRE => 'Triage / interrogatoire',
         self::CONSULTATION => 'Consultation',
-        self::URGENCE      => 'Urgence',
+        self::URGENCE => 'Urgence',
     ];
 
     public static function existe(string $contexte): bool
@@ -60,7 +88,6 @@ final class RegistreContextesProtocole
      * contenu déjà relu et signé. Le refuser rendrait un protocole en vigueur inapplicable après
      * un simple renommage de constante — le contrôle qualité, lui, refuse à la PUBLICATION.
      *
-     * @param  mixed  $valeurs
      * @return array<int, string>
      */
     public static function filtrer(mixed $valeurs): array

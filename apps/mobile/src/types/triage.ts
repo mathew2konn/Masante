@@ -25,26 +25,48 @@ import type { TriageNiveau } from '@masante/shared';
 
 export type Niveau = TriageNiveau;
 
-/** Type d'une question complémentaire (F1.2). */
+/** Type d'une question du questionnaire (F1.2). */
 export type TypeQuestion = 'nombre' | 'echelle' | 'booleen' | 'choix';
 
-/** Une question complémentaire d'un symptôme (questions_complementaires_json). */
+/** Une réponse POSSIBLE d'une question à choix — sa valeur et ce que le patient lit. */
+export interface ReponsePossible {
+  valeur: string;
+  libelle: string;
+}
+
+/**
+ * Une question du questionnaire adaptatif (CDC_08 §4.3b).
+ *
+ * ═══ P10b-3-i — ELLE N'APPARTIENT PLUS À UN SYMPTÔME ═══
+ *
+ * Elle vient d'un PROTOCOLE versionné et signé, servie un tour à la fois par
+ * `POST /v1/triage/questions`. Le client ne sait jamais POURQUOI elle est posée — la condition est
+ * une règle clinique, elle reste au serveur (règle de frontière, CDC_01 §0.1).
+ *
+ * `valeur_min`/`valeur_max` sont AFFICHÉS et non appliqués : le serveur refuse lui-même une valeur
+ * hors plage, et il le fait sur la version publiée. Les répliquer ici comme garde ferait du client
+ * une seconde autorité — la borne sert à dessiner l'échelle, pas à juger.
+ */
 export interface Question {
   cle: string;
   libelle: string;
   type: TypeQuestion;
-  unite?: string;
-  min?: number;
-  max?: number;
-  options?: string[];
+  unite?: string | null;
+  valeur_min?: number | null;
+  valeur_max?: number | null;
+  reponses: ReponsePossible[];
 }
 
-/** Un symptôme sélectionnable (F1.1). */
+/**
+ * Un symptôme sélectionnable (F1.1).
+ *
+ * P10b-3-i — `questions_complementaires_json` a disparu : les questions ne sont plus une propriété
+ * du symptôme, et on ne sait lesquelles poser qu'après avoir su ce qui est coché.
+ */
 export interface Symptome {
   id: number;
   nom_fr: string;
   categorie: string;
-  questions_complementaires_json: Question[] | null;
 }
 
 /**
@@ -71,11 +93,33 @@ export interface SymptomesResponse {
 /** Valeur d'une réponse au questionnaire (selon le type de question). */
 export type ValeurReponse = string | number | boolean;
 
-/** Une réponse au questionnaire complémentaire envoyée à l'API. */
+/**
+ * Une réponse au questionnaire envoyée à l'API.
+ *
+ * P10b-3-i — `symptome_id` a disparu : la clé d'une question est unique dans la version du
+ * protocole, et la faire porter par un symptôme laisserait croire qu'elle peut avoir deux sens.
+ */
 export interface Reponse {
-  symptome_id: number;
   cle: string;
   valeur: ValeurReponse;
+}
+
+/** Corps POST /v1/triage/questions — un tour de questionnaire adaptatif. */
+export interface QuestionsPayload {
+  symptomes: number[];
+  reponses?: Reponse[];
+  patient_age?: number | null;
+  patient_sexe?: 'M' | 'F' | null;
+}
+
+/** Réponse POST /v1/triage/questions. */
+export interface QuestionsResultat {
+  /** Les questions débloquées et pas encore répondues. Vide quand il n'y a plus rien à demander. */
+  questions: Question[];
+  /** Le serveur dit quand l'interrogatoire est terminé — le client ne le déduit pas. */
+  termine: boolean;
+  /** §9.1 — le ou les protocoles appliqués et leur version. */
+  protocoles: Array<{ code: string; version: string; numero: number }>;
 }
 
 /** Contexte patient facultatif (en attendant le membre du carnet, Module 2). */
@@ -135,8 +179,21 @@ export interface FicheResponse {
     couleur: string;
     specialite_requise: string | null;
     specialites: Orientation[];
-    /** Les réponses au questionnaire — exigées par le §5.4, jamais affichées avant P10a. */
-    reponses: Array<{ symptome_id: number; cle: string; valeur: ValeurReponse; valeur_impact: number }>;
+    /**
+     * Les réponses au questionnaire — exigées par le §5.4, jamais affichées avant P10a.
+     *
+     * P10b-3-i — `libelle` porte l'énoncé FIGÉ au moment du triage. `valeur_impact` n'existe plus
+     * pour les triages postérieurs à la bascule : depuis que l'impact est une règle, une règle
+     * peut porter sur plusieurs réponses et ses points ne se répartissent entre elles par aucun
+     * partage défendable. Les triages antérieurs, eux, le portent encore — d'où l'optionnalité.
+     */
+    reponses: Array<{
+      cle: string;
+      libelle?: string;
+      valeur: ValeurReponse;
+      symptome_id?: number;
+      valeur_impact?: number;
+    }>;
     etablissements: GroupeEtablissements[];
     referentiel_version: number | null;
     /** Texte IMPOSÉ par le §5.4. Affiché tel quel, jamais reformulé. */

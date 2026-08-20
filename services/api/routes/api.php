@@ -1,23 +1,18 @@
 <?php
 
 use App\Http\Controllers\Api\V1\AlerteEpidemiqueController;
-use App\Http\Controllers\Api\V1\AnalyseController;
 use App\Http\Controllers\Api\V1\AlerteSosController;
+use App\Http\Controllers\Api\V1\AnalyseController;
+use App\Http\Controllers\Api\V1\AppareilPushController;
+use App\Http\Controllers\Api\V1\AssuranceController;
 use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\AvisController;
-use App\Http\Controllers\Api\V1\Carnet\AntecedentController;
 use App\Http\Controllers\Api\V1\Carnet\CalendrierVaccinalController;
 use App\Http\Controllers\Api\V1\Carnet\ContactUrgenceController;
 use App\Http\Controllers\Api\V1\Carnet\DocumentMedicalController;
 use App\Http\Controllers\Api\V1\Carnet\GrossesseController;
 use App\Http\Controllers\Api\V1\Carnet\MesureSanteController;
 use App\Http\Controllers\Api\V1\Carnet\NoteObservationController;
-use App\Http\Controllers\Api\V1\Carnet\OrdonnanceController;
-use App\Http\Controllers\Api\V1\Carnet\RappelController;
-use App\Http\Controllers\Api\V1\Carnet\ResultatAnalyseController;
-use App\Http\Controllers\Api\V1\Carnet\VaccinationController;
-use App\Http\Controllers\Api\V1\AppareilPushController;
-use App\Http\Controllers\Api\V1\AssuranceController;
 use App\Http\Controllers\Api\V1\CarnetsPartagesController;
 use App\Http\Controllers\Api\V1\CarteCmuController;
 use App\Http\Controllers\Api\V1\ContributionCarnetController;
@@ -38,23 +33,24 @@ use App\Http\Controllers\Api\V1\NisController;
 use App\Http\Controllers\Api\V1\NotificationController;
 use App\Http\Controllers\Api\V1\NumeroUrgenceController;
 use App\Http\Controllers\Api\V1\PasswordController;
-use App\Http\Controllers\Api\V1\ResponsableFamilleController;
-use App\Http\Controllers\Api\V1\RevendicationCarnetController;
 use App\Http\Controllers\Api\V1\PhotoMembreController;
+use App\Http\Controllers\Api\V1\Portail\RendezVousController as PortailRendezVousController;
+use App\Http\Controllers\Api\V1\ProtocoleController;
 use App\Http\Controllers\Api\V1\QrController;
 use App\Http\Controllers\Api\V1\RecuRdvController;
 use App\Http\Controllers\Api\V1\ReferentController;
 use App\Http\Controllers\Api\V1\ReferentielController;
-use App\Http\Controllers\Api\V1\Portail\RendezVousController as PortailRendezVousController;
 use App\Http\Controllers\Api\V1\RendezVousController;
+use App\Http\Controllers\Api\V1\ResponsableFamilleController;
+use App\Http\Controllers\Api\V1\RevendicationCarnetController;
 use App\Http\Controllers\Api\V1\SignalementController;
 use App\Http\Controllers\Api\V1\SpecialiteController;
 use App\Http\Controllers\Api\V1\StructureController;
-use App\Http\Controllers\Api\V1\ProtocoleController;
 use App\Http\Controllers\Api\V1\TriageController;
 use App\Http\Controllers\Api\V1\VaccinController;
 use App\Http\Controllers\Api\V1\VilleController;
 use App\Http\Controllers\HealthController;
+use App\Support\RegistreSectionsCarnet;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -406,7 +402,7 @@ Route::middleware('throttle:api')->group(function () {
             // la MÊME liste. `contacts-urgence` (F2.11) garde ses routes ici mais reste hors
             // contributions — son `store()` porte des règles propres qu'un chemin générique
             // contournerait.
-            $sections = \App\Support\RegistreSectionsCarnet::SECTIONS
+            $sections = RegistreSectionsCarnet::SECTIONS
                 + ['contacts-urgence' => ContactUrgenceController::class];
 
             Route::prefix('membres/{membre}')->group(function () use ($sections) {
@@ -649,6 +645,10 @@ Route::middleware('throttle:api')->group(function () {
 
         // Module 1 — Triage et orientation médicale (F1.1 → F1.8). Endpoints publics.
         Route::get('/symptomes', [TriageController::class, 'symptomes']);              // F1.1
+        // P10b-3-i — un tour de questionnaire adaptatif (CDC_08 §4.3b). Déclarée AVANT
+        // `/triage/{triage}/fiche` : une route littérale placée après une route à paramètre se
+        // ferait capter par elle (piège rencontré en P7-D0, P6.5b et P6.6b).
+        Route::post('/triage/questions', [TriageController::class, 'questions']);      // F1.2
         Route::post('/triage/analyser', [TriageController::class, 'analyser']);        // F1.3
         Route::get('/triage/historique', [TriageController::class, 'historique']);     // F1.6
         Route::get('/triage/{triage}/fiche', [TriageController::class, 'fiche']);      // F1.8
