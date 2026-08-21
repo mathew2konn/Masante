@@ -649,6 +649,9 @@ Route::middleware('throttle:api')->group(function () {
         // `/triage/{triage}/fiche` : une route littérale placée après une route à paramètre se
         // ferait capter par elle (piège rencontré en P7-D0, P6.5b et P6.6b).
         Route::post('/triage/questions', [TriageController::class, 'questions']);      // F1.2
+        // P10c-1 — les constantes cliniques collectables (§5.2) et ce que le carnet en propose.
+        // Littérale elle aussi, donc AVANT `/triage/{triage}/fiche` — même piège.
+        Route::get('/triage/constantes', [TriageController::class, 'constantes']);     // §5.2
         Route::post('/triage/analyser', [TriageController::class, 'analyser']);        // F1.3
         Route::get('/triage/historique', [TriageController::class, 'historique']);     // F1.6
         Route::get('/triage/{triage}/fiche', [TriageController::class, 'fiche']);      // F1.8

@@ -8,9 +8,11 @@ use App\Http\Requests\QuestionsTriageRequest;
 use App\Models\MembreFamille;
 use App\Models\Symptome;
 use App\Models\Triage;
+use App\Models\TriageConstante;
 use App\Models\TriageReponse;
 use App\Services\Protocole\JournalApplicationProtocole;
 use App\Services\Triage\FaitsTriage;
+use App\Services\Triage\ServiceConstantesTriage;
 use App\Services\Triage\ServiceFicheTriage;
 use App\Services\Triage\ServiceQuestionnaire;
 use App\Services\Triage\ServiceSymptomesTriage;
@@ -31,6 +33,7 @@ class TriageController extends Controller
         private readonly ServiceFicheTriage $fiches,
         private readonly JournalApplicationProtocole $journal,
         private readonly ServiceQuestionnaire $questionnaire,
+        private readonly ServiceConstantesTriage $constantes,
     ) {}
 
     /**
@@ -122,14 +125,26 @@ class TriageController extends Controller
         // peut-être une question qu'elle n'aurait pas dû déclencher.
         $reponses = $this->questionnaire->normaliser($data['reponses'] ?? []);
 
+        // P10c-1 — Les constantes sont confrontées à la version publiée ICI AUSSI, et pas
+        // seulement à l'analyse : sans cela une valeur hors bornes entrerait dans le moteur et
+        // débloquerait peut-être une question qu'elle n'aurait pas dû déclencher. Aucun membre sur
+        // ce chemin — donc aucune reprise du carnet possible, et l'origine sera « saisie ».
+        $constantes = $this->constantes->normaliser($data['constantes'] ?? []);
+
         $symptomes = $this->referentiel->retenus($data['symptomes']);
 
         // Source unique de l'assemblage (constat Z1) : ce tableau était recopié ici et deux fois
         // dans `TriageService`, et il en manquait une clé — de quoi faire tomber CET endpoint dès
         // qu'une règle s'en serait servie. Les faits des antécédents n'y sont volontairement pas :
-        // ce chemin ne connaît pas le membre.
+        // ce chemin ne connaît pas le membre. Les constantes, elles, y sont — le client les envoie
+        // sur les deux endpoints, donc une règle qui s'en sert vaut des deux côtés.
         $tour = $this->questionnaire->prochainesQuestions(
-            FaitsTriage::base($symptomes, $data['patient_age'] ?? null, $data['patient_sexe'] ?? null),
+            FaitsTriage::base(
+                $symptomes,
+                $data['patient_age'] ?? null,
+                $data['patient_sexe'] ?? null,
+                $this->constantes->faits($constantes),
+            ),
             $reponses,
         );
 
@@ -152,12 +167,20 @@ class TriageController extends Controller
         // reste possible. Mais un triage RATTACHÉ à un membre exige l'auth + l'appartenance.
         $utilisateur = $request->user('sanctum');
         $membreId = $data['membre_id'] ?? null;
-        $antecedents = $this->antecedentsDuMembre($membreId, $utilisateur);
+        $membre = $this->membreAutorise($membreId, $utilisateur);
+        $antecedents = $this->antecedentsDuMembre($membre);
 
         // P10b-3-i — Les réponses sont confrontées à la version PUBLIÉE avant tout calcul : une
         // échelle 1-10 refuse 100 au lieu de le multiplier par un coefficient (constat X4), et une
         // clé inconnue est refusée au lieu de valoir 0 point en silence.
         $reponses = $this->questionnaire->normaliser($data['reponses'] ?? []);
+
+        // P10c-1 — Les constantes du §5.2, confrontées à la version publiée des seuils : une valeur
+        // hors des bornes de plausibilité est REFUSÉE, jamais ramenée dans la plage.
+        //
+        // Le membre est passé pour que le SERVEUR reconnaisse une valeur qu'il a lui-même proposée
+        // depuis le carnet — le client n'a aucun moyen de déclarer sa propre provenance.
+        $constantes = $this->constantes->normaliser($data['constantes'] ?? [], $membre);
 
         $resultat = $this->triage->analyser(
             symptomesIds: $data['symptomes'],
@@ -165,12 +188,13 @@ class TriageController extends Controller
             age: $data['patient_age'] ?? null,
             sexe: $data['patient_sexe'] ?? null,
             antecedents: $antecedents, // carnet du membre (2A.4) : alimente le score (F1.3)
+            constantes: $this->constantes->faits($constantes),
         );
 
         // La trace d'exécution et le triage vivent ou meurent ENSEMBLE : un triage rendu au
         // patient sans trace archivée laisserait une décision de santé sans explication, et une
         // trace sans triage désignerait une décision qui n'a jamais eu lieu.
-        $triage = DB::transaction(function () use ($resultat, $data, $utilisateur, $membreId): Triage {
+        $triage = DB::transaction(function () use ($resultat, $data, $utilisateur, $membreId, $constantes): Triage {
             $triage = Triage::create([
                 'user_id' => $utilisateur?->id,
                 'membre_id' => $membreId,
@@ -249,6 +273,18 @@ class TriageController extends Controller
                 ]);
             }
 
+            // ═══ P10c-1 — LES CONSTANTES CLINIQUES DU §5.2 ═══
+            //
+            // Elles décrivent CET épisode de triage. `mesures_sante` n'est jamais écrite depuis
+            // ici : ce serait un 4ᵉ chemin d'écriture dans une table du carnet, avec sa question de
+            // rejeu et de suppression par le patient (motif W3 de P6.8b — le calendrier vaccinal
+            // répond et prévient, il n'écrit rien).
+            //
+            // `origine` et `referentiel_version` viennent du service, jamais du client.
+            foreach ($this->constantes->lignes($constantes) as $ligne) {
+                TriageConstante::create($ligne + ['triage_id' => $triage->id]);
+            }
+
             // ═══ P10b-2 — LE JOURNAL D'EXÉCUTION DU §10 ═══
             //
             // L'estampille ci-dessus nomme le protocole qui a EMPORTÉ le niveau. Elle est muette sur
@@ -293,19 +329,31 @@ class TriageController extends Controller
             'recommandation_texte' => $resultat['recommandation_texte'],
             'drapeau_rouge' => $resultat['drapeau_rouge'],
             'details_score' => $resultat['details_score'],
+
+            // P10c-1 — Ce que le serveur a RETENU, avec l'origine qu'il a lui-même décidée. Le
+            // client peut ainsi vérifier qu'une valeur reprise du carnet a bien été comptée comme
+            // telle — sans avoir jamais eu le droit de le déclarer.
+            'constantes' => array_map(static fn (string $type, array $ligne): array => [
+                'type_mesure' => $type,
+                'libelle' => $ligne['libelle'],
+                'valeur' => $ligne['valeur'],
+                'unite' => $ligne['unite'],
+                'origine' => $ligne['origine'],
+            ], array_keys($constantes), $constantes),
         ], 201);
     }
 
     /**
-     * Antécédents du membre à injecter dans le score de triage (F1.3), avec contrôle d'accès.
-     * Renvoie [] pour un triage anonyme (sans membre).
+     * P10c-1 — Le membre visé, APRÈS contrôle d'accès. `null` pour un triage anonyme.
      *
-     * @return array<int, array{libelle: string, impact_triage: int}>
+     * Extrait de `antecedentsDuMembre()`, dont c'était la première moitié : deux consommateurs en
+     * ont désormais besoin (les antécédents et les constantes reprises du carnet), et recopier la
+     * garde anti-IDOR pour le second aurait créé **deux endroits** où l'oublier.
      */
-    private function antecedentsDuMembre(?int $membreId, $utilisateur): array
+    private function membreAutorise(?int $membreId, $utilisateur): ?MembreFamille
     {
         if ($membreId === null) {
-            return [];
+            return null;
         }
 
         // Rattacher un triage à un membre suppose un compte authentifié et propriétaire (anti-IDOR).
@@ -315,10 +363,60 @@ class TriageController extends Controller
         abort_if($membre === null, 404, 'Membre introuvable.');
         abort_unless($membre->user_id === $utilisateur->id, 403, 'Accès non autorisé à ce membre.');
 
+        return $membre;
+    }
+
+    /**
+     * Antécédents du membre à injecter dans le score de triage (F1.3).
+     * Renvoie [] pour un triage anonyme (sans membre).
+     *
+     * @return array<int, array{libelle: string, impact_triage: int}>
+     */
+    private function antecedentsDuMembre(?MembreFamille $membre): array
+    {
+        if ($membre === null) {
+            return [];
+        }
+
         return $membre->antecedents()
             ->get(['type', 'impact_triage'])
             ->map(fn ($a) => ['libelle' => $a->type, 'impact_triage' => (int) $a->impact_triage])
             ->all();
+    }
+
+    /**
+     * P10c-1 — Ce que l'écran de triage peut demander, et ce que le carnet en propose (§5.2).
+     *
+     * ═══ TROIS ÉTATS, ET UN SEUL EST UNE AFFIRMATION SUR LE PRÉSENT ═══
+     *
+     * `proposition` = une mesure du carnet DANS sa fenêtre de fraîcheur : le champ est pré-rempli
+     * **avec sa date**, et le patient corrige s'il veut. `contexte` = une mesure hors fenêtre :
+     * montrée pour information, **jamais pré-remplie**, et elle n'entre dans aucune règle. Ni l'un
+     * ni l'autre = rien à dire.
+     *
+     * C'est la leçon des trois sources de P6.4b : on dit **laquelle des trois** on tient. *Une
+     * température prise il y a trois mois n'est pas une température*, et la pré-remplir la
+     * présenterait comme le présent.
+     *
+     * Sans `membre_id` — triage anonyme — la liste des constantes est rendue sans aucune
+     * proposition : il n'y a pas de carnet à consulter, et il n'y a rien à en dire.
+     */
+    public function constantes(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'membre_id' => ['nullable', 'integer', 'min:1'],
+        ]);
+
+        // Même garde anti-IDOR que pour l'analyse : lire les constantes du carnet d'autrui serait
+        // un accès à des données de santé sans lien de prise en charge (CDC_00 §4).
+        $membre = $this->membreAutorise($data['membre_id'] ?? null, $request->user('sanctum'));
+
+        return response()->json([
+            'constantes' => $this->constantes->proposables($membre),
+
+            // La version qui gouverne ces bornes — la même qui estampillera les constantes écrites.
+            'referentiel_version' => $this->constantes->version(),
+        ]);
     }
 
     /**

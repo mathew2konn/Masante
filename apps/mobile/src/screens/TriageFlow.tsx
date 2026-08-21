@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { BackHandler } from 'react-native';
 import { AccueilScreen } from './AccueilScreen';
 import { SymptomesScreen } from './SymptomesScreen';
+import { ConstantesScreen } from './ConstantesScreen';
 import { QuestionsScreen } from './QuestionsScreen';
 import { ResultatScreen } from './ResultatScreen';
 import { HistoriqueScreen } from './HistoriqueScreen';
@@ -9,6 +10,7 @@ import { analyserTriage } from '../api/triage';
 import type {
   AnalyseResultat,
   AnalyserPayload,
+  ConstanteSaisie,
   ContextePatient,
   Reponse,
   Symptome,
@@ -22,7 +24,7 @@ import type {
  * réécriture de la logique métier) : Accueil triage → Symptômes (F1.1) → Questions (F1.2)
  * → Résultat (F1.3 + partage F1.8), plus l'historique (F1.6). Le brouillon vit ici.
  */
-type Route = 'accueil' | 'symptomes' | 'questions' | 'resultat' | 'historique';
+type Route = 'accueil' | 'symptomes' | 'constantes' | 'questions' | 'resultat' | 'historique';
 
 export function TriageFlow() {
   const [route, setRoute] = useState<Route>('accueil');
@@ -31,12 +33,17 @@ export function TriageFlow() {
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [patient, setPatient] = useState<ContextePatient>({});
   const [reponses, setReponses] = useState<Record<string, ValeurReponse>>({});
+
+  // P10c-1 — Les constantes du §5.2, gardées EN TEXTE tant qu'elles sont à l'écran : convertir à
+  // chaque frappe empêcherait de taper « 39. » avant le dixième, et un champ vidé deviendrait 0.
+  const [constantes, setConstantes] = useState<Record<string, string>>({});
   const [resultat, setResultat] = useState<AnalyseResultat | null>(null);
 
   const reinitialiser = useCallback(() => {
     setSelectedIds([]);
     setPatient({});
     setReponses({});
+    setConstantes({});
     setResultat(null);
   }, []);
 
@@ -47,6 +54,34 @@ export function TriageFlow() {
   const setReponse = useCallback((cle: string, valeur: ValeurReponse) => {
     setReponses((prev) => ({ ...prev, [cle]: valeur }));
   }, []);
+
+  const setConstante = useCallback((type: string, valeur: string) => {
+    setConstantes((prev) => ({ ...prev, [type]: valeur }));
+  }, []);
+
+  /**
+   * P10c-1 — Les constantes renseignées, sous la forme que l'API attend.
+   *
+   * Les champs vides et les saisies inexploitables sont ÉCARTÉS plutôt qu'envoyés : le triage est
+   * facultatif depuis le Module 1, et transmettre une chaîne vide ferait refuser toute la requête
+   * pour une mesure que le patient n'a simplement pas.
+   *
+   * Aucune borne n'est appliquée ici. Le serveur refuse lui-même une valeur hors plage, sur la
+   * version publiée, et il la REFUSE au lieu de l'écrêter — filtrer ici en ferait une seconde
+   * autorité, et surtout cacherait au patient que sa saisie posait problème.
+   */
+  const constantesEnvoyees = useMemo<ConstanteSaisie[]>(
+    () =>
+      Object.entries(constantes)
+        .map(([type_mesure, brut]) => ({
+          type_mesure,
+          valeur: Number(String(brut).replace(',', '.')),
+          brut,
+        }))
+        .filter((c) => c.brut.trim() !== '' && Number.isFinite(c.valeur))
+        .map(({ type_mesure, valeur }) => ({ type_mesure, valeur })),
+    [constantes],
+  );
 
   /**
    * P10b-3-i — Les réponses déjà données, sous la forme que l'API attend.
@@ -68,6 +103,7 @@ export function TriageFlow() {
     const payload: AnalyserPayload = {
       symptomes: selectedIds,
       ...(reponsesEnvoyees.length ? { reponses: reponsesEnvoyees } : {}),
+      ...(constantesEnvoyees.length ? { constantes: constantesEnvoyees } : {}),
       patient_nom: patient.patient_nom ?? null,
       patient_age: patient.patient_age ?? null,
       patient_sexe: patient.patient_sexe ?? null,
@@ -85,8 +121,11 @@ export function TriageFlow() {
       case 'historique':
         setRoute('accueil');
         return true;
-      case 'questions':
+      case 'constantes':
         setRoute('symptomes');
+        return true;
+      case 'questions':
+        setRoute('constantes');
         return true;
       case 'resultat':
         setRoute('accueil');
@@ -112,6 +151,16 @@ export function TriageFlow() {
           patient={patient}
           onPatientChange={setPatient}
           onBack={() => setRoute('accueil')}
+          onContinue={() => setRoute('constantes')}
+        />
+      );
+
+    case 'constantes':
+      return (
+        <ConstantesScreen
+          valeurs={constantes}
+          onSetValeur={setConstante}
+          onBack={() => setRoute('symptomes')}
           onContinue={() => setRoute('questions')}
         />
       );
@@ -124,7 +173,8 @@ export function TriageFlow() {
           reponses={reponses}
           reponsesEnvoyees={reponsesEnvoyees}
           onSetReponse={setReponse}
-          onBack={() => setRoute('symptomes')}
+          constantes={constantesEnvoyees}
+          onBack={() => setRoute('constantes')}
           onAnalyser={analyser}
         />
       );

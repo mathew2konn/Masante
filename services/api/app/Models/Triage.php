@@ -106,6 +106,17 @@ class Triage extends Model
         return $this->hasMany(TriageReponse::class, 'triage_id');
     }
 
+    /**
+     * P10c-1 — Les constantes cliniques relevées pour ce triage (CDC_05 §5.2).
+     *
+     * VIDE pour les triages antérieurs : aucune constante n'a été collectée, et leur en inventer
+     * serait un mensonge d'archive (même énoncé que pour les réponses ci-dessus).
+     */
+    public function constantes(): HasMany
+    {
+        return $this->hasMany(TriageConstante::class, 'triage_id');
+    }
+
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);

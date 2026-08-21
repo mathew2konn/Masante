@@ -11,6 +11,7 @@ use App\Services\Triage\ServicePlafondAntecedents;
 use App\Services\Triage\ServiceQuestionnaire;
 use Database\Seeders\PortailRolesSeeder;
 use Database\Seeders\ProtocoleSeeder;
+use Database\Seeders\ReferentielMesureSeeder;
 use Spatie\Permission\PermissionRegistrar;
 
 /**
@@ -43,6 +44,10 @@ use Spatie\Permission\PermissionRegistrar;
  */
 trait PublieLeProtocoleDeTriage
 {
+    // P10c-1 — apporte `publierLesSeuils()` (et, par lui, `GouverneUnReferentiel`). Une classe de
+    // test qui utilise déjà l'un des deux n'a rien à changer : PHP aplatit les traits identiques.
+    use PublieLesSeuilsDeMesure;
+
     /**
      * Met en vigueur les DEUX protocoles sans lesquels un triage ne peut pas aboutir.
      *
@@ -53,6 +58,19 @@ trait PublieLeProtocoleDeTriage
         $this->seed(PortailRolesSeeder::class);
         $this->seed(ProtocoleSeeder::class);
         app(PermissionRegistrar::class)->forgetCachedPermissions();
+
+        // ═══ P10c-1 — UNE CINQUIÈME ÉTAPE, ET ELLE VIENT EN PREMIER ═══
+        //
+        // `TRIAGE-NIVEAU` porte désormais une règle sur `constante.temperature` (§1.2 retourné à
+        // l'endroit). Le contrôle qualité refuse une constante absente de la version publiée des
+        // seuils : **le protocole est donc impubliable tant que `seuils_mesure` n'est pas en
+        // vigueur.**
+        //
+        // L'ordre n'est pas une commodité de test, c'est l'ordre de déploiement réel — et le fait
+        // que toute la suite de triage tomberait s'il n'était pas respecté est le bon niveau
+        // d'alarme. Précédents : la v1 des seuils en L1+L2, celle du questionnaire en P10b-3-i.
+        $this->seed(ReferentielMesureSeeder::class);
+        $this->publierLesSeuils('Mise en vigueur préalable au protocole de triage.');
 
         $numero = $this->publierProtocole(ServiceNiveauTriage::CODE);
 

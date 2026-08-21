@@ -15,6 +15,24 @@ use Illuminate\Database\Seeder;
  *
  * La glycémie est exprimée en g/L, unité usuelle des glucomètres vendus en Côte d'Ivoire
  * (1 g/L = 5,55 mmol/L). Idempotent (`updateOrCreate` sur `type_mesure`).
+ *
+ * ═══════════════════════════════════════════════════════════════════════════════════════════════
+ * P10c-1 — `fraicheur_max_minutes` : COMBIEN DE TEMPS UNE MESURE RESTE PROPOSABLE AU TRIAGE
+ * ═══════════════════════════════════════════════════════════════════════════════════════════════
+ *
+ * Au triage, le carnet **propose** et le patient **confirme** : la valeur est pré-remplie avec sa
+ * date. Passé cette fenêtre elle reste **montrée comme contexte** (« dernière température connue :
+ * 38,2 °C, il y a 3 jours ») mais n'est plus pré-remplie et n'entre dans **aucune règle** — *une
+ * température prise il y a trois mois n'est pas une température*.
+ *
+ * L'écart entre les valeurs ci-dessous est le fond du sujet : une saturation vaut pour l'heure qui
+ * suit, un poids pour des mois. C'est pourquoi ce ne pouvait être ni une constante de code ni un
+ * réglage unique.
+ *
+ * **CES DURÉES SONT UN JEU DE DÉMONSTRATION.** Elles n'ont été confrontées à aucune recommandation
+ * publiée et ne sont attribuées à aucune autorité. Les corriger est **de la donnée, zéro code** —
+ * mais tant que ce n'est pas fait, ce ne sont pas des fenêtres nationales. Même honnêteté que les
+ * intervalles de référence de P6.7a et le calendrier vaccinal de P6.8b.
  */
 class ReferentielMesureSeeder extends Seeder
 {
@@ -32,6 +50,7 @@ class ReferentielMesureSeeder extends Seeder
                 'critique_bas'  => 0.50,   // hypoglycémie sévère
                 'critique_haut' => 2.50,   // hyperglycémie majeure
                 'decimales'     => 2,
+                'fraicheur_max_minutes' => 720,   // 12 h — une glycémie à jeun du matin éclaire encore la journée.
                 'ordre'         => 1,
                 'conseil_anormal' => "Une glycémie hors norme se confirme par une seconde mesure, à jeun, "
                     ."appareil bien calibré. En cas de malaise, sueurs, confusion ou soif intense avec urines "
@@ -49,6 +68,7 @@ class ReferentielMesureSeeder extends Seeder
                 'critique_bas'  => 70,
                 'critique_haut' => 180,    // poussée hypertensive
                 'decimales'     => 0,
+                'fraicheur_max_minutes' => 120,   // 2 h — la tension varie avec l'effort, le stress et la position.
                 'ordre'         => 2,
                 'conseil_anormal' => "Mesurez la tension au repos, assis depuis 5 minutes, bras posé à hauteur "
                     ."du cœur. Une tension élevée à plusieurs mesures doit être vue par un médecin. Au-delà de "
@@ -66,6 +86,7 @@ class ReferentielMesureSeeder extends Seeder
                 'critique_bas'  => 40,
                 'critique_haut' => 120,
                 'decimales'     => 0,
+                'fraicheur_max_minutes' => 120,   // 2 h — voir la systolique : c'est le couple qui compte.
                 'ordre'         => 3,
                 'conseil_anormal' => "La diastolique s'interprète avec la systolique : c'est le couple qui compte. "
                     ."Répétez la mesure après 5 minutes de repos. Au-delà de 120, avec des symptômes, considérez "
@@ -82,6 +103,7 @@ class ReferentielMesureSeeder extends Seeder
                 'critique_bas'  => null,
                 'critique_haut' => null,
                 'decimales'     => 1,
+                'fraicheur_max_minutes' => 129600,   // 90 j — un poids ne change pas d'une heure à l'autre.
                 'ordre'         => 4,
                 'conseil_anormal' => "Le poids n'a pas de norme universelle : c'est son ÉVOLUTION qui parle. "
                     ."Une perte ou une prise rapide et involontaire mérite un avis médical.",
@@ -97,6 +119,7 @@ class ReferentielMesureSeeder extends Seeder
                 'critique_bas'  => 35.0,   // hypothermie
                 'critique_haut' => 39.5,   // fièvre élevée
                 'decimales'     => 1,
+                'fraicheur_max_minutes' => 120,   // 2 h — au-delà, une fièvre a pu monter ou tomber.
                 'ordre'         => 5,
                 'conseil_anormal' => "En zone de paludisme, toute fièvre doit faire pratiquer un test rapide (TDR) "
                     ."sans délai — surtout chez l'enfant et la femme enceinte. Fièvre à 39,5 °C et plus, ou fièvre "
@@ -113,6 +136,7 @@ class ReferentielMesureSeeder extends Seeder
                 'critique_bas'  => 40,
                 'critique_haut' => 130,
                 'decimales'     => 0,
+                'fraicheur_max_minutes' => 60,   // 1 h — au repos, il se modifie vite.
                 'ordre'         => 6,
                 'conseil_anormal' => "Mesurez le pouls au repos : l'effort, la fièvre et le stress l'accélèrent "
                     ."normalement. Un pouls très lent ou très rapide au repos, avec malaise, essoufflement ou "
@@ -129,6 +153,7 @@ class ReferentielMesureSeeder extends Seeder
                 'critique_bas'  => 90,     // détresse respiratoire
                 'critique_haut' => null,   // une saturation ne peut pas être « critiquement haute »
                 'decimales'     => 0,
+                'fraicheur_max_minutes' => 60,   // 1 h — une désaturation peut s'installer en quelques minutes.
                 'ordre'         => 7,
                 'conseil_anormal' => "Vérifiez que le doigt est chaud, propre et sans vernis : un doigt froid fausse "
                     ."la mesure. Une saturation sous 95 % avec essoufflement doit être vue rapidement ; sous 90 %, "

@@ -118,13 +118,16 @@ class TriageService
      * @param  int|null  $age  Âge du patient (repli pédiatrique de l'orientation).
      * @param  string|null  $sexe  'M' ou 'F' (restriction d'orientation).
      * @param  array  $antecedents  [{libelle, impact_triage}, ...] (carnet Module 2).
+     * @param  array<string, float>  $constantes  P10c-1 — faits `constante.<type>` déjà validés
+     *                                            contre la version publiée des seuils de mesure.
      */
     public function analyser(
         array $symptomesIds,
         array $reponses = [],
         ?int $age = null,
         ?string $sexe = null,
-        array $antecedents = []
+        array $antecedents = [],
+        array $constantes = []
     ): array {
         /** @var Collection<int,Symptome> $symptomes */
         $symptomes = $this->symptomes->retenus($symptomesIds);
@@ -136,7 +139,9 @@ class TriageService
         // les deux sites du service et PAS par celui du contrôleur, si bien qu'une règle de
         // questionnaire qui s'en serait servie aurait fait tomber un endpoint sur deux (un fait
         // inconnu lève, depuis P10b-1).
-        $base = FaitsTriage::base($symptomes, $age, $sexe);
+        // P10c-1 — Les constantes entrent dans la BASE : elles sont connues au même moment que les
+        // symptômes, et les deux endpoints les reçoivent. Voir {@see FaitsTriage::base()}.
+        $base = FaitsTriage::base($symptomes, $age, $sexe, $constantes);
 
         $scoreSymptomes = (int) $base['score_symptomes'];
         $drapeauRouge = (bool) $base['drapeau_rouge'];

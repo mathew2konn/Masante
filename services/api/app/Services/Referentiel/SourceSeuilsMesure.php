@@ -58,6 +58,23 @@ final class SourceSeuilsMesure implements SourceReferentiel
                 'critique_bas'    => $m->critique_bas === null ? null : (float) $m->critique_bas,
                 'critique_haut'   => $m->critique_haut === null ? null : (float) $m->critique_haut,
                 'decimales'       => (int) $m->decimales,
+
+                // ═══ P10c-1 — LA FRAÎCHEUR ENTRE DANS LA PROJECTION, ET L'EMPREINTE CHANGE ═══
+                //
+                // Conséquence assumée et dite avant de coder : ajouter ce champ modifie l'empreinte
+                // du référentiel, donc la prochaine proposition divergera de la version en vigueur.
+                // Ce n'est pas une dérive — c'est le même cas que `forme_juridique` en P6.4d et le
+                // rattachement des spécialités en P6.8a.
+                //
+                // Pourquoi elle Y ENTRE : elle décide si une mesure du carnet est **proposée** au
+                // patient au moment d'un triage. C'est une décision de santé publique — combien de
+                // temps une constante reste-t-elle représentative ? — pas un réglage d'affichage.
+                // La laisser hors de la projection permettrait de la corriger par un `UPDATE`, sans
+                // relecture, alors qu'elle gouverne ce qu'un citoyen voit pré-rempli.
+                'fraicheur_max_minutes' => $m->fraicheur_max_minutes === null
+                    ? null
+                    : (int) $m->fraicheur_max_minutes,
+
                 'ordre'           => (int) $m->ordre,
                 'conseil_anormal' => $m->conseil_anormal,
             ])
@@ -93,6 +110,24 @@ final class SourceSeuilsMesure implements SourceReferentiel
             }
             if ($ligne['decimales'] < 0 || $ligne['decimales'] > 3) {
                 $erreurs[] = "« {$type} » : nombre de décimales aberrant ({$ligne['decimales']}).";
+            }
+
+            // ═══ P10c-1 — UNE FENÊTRE DE FRAÎCHEUR NULLE OU NÉGATIVE DIRAIT DEUX CHOSES ═══
+            //
+            // `null` a un sens net et sûr : cette mesure n'est **jamais** proposée au triage. Un
+            // `0` dirait la même chose par un autre chemin — donc deux façons d'écrire le même
+            // fait, dont l'une a l'air d'un réglage et l'autre d'un oubli. On n'en garde qu'une.
+            //
+            // Le contrôle N'EXIGE PAS qu'une fenêtre soit déclarée : *un contrôle qu'on ne peut pas
+            // satisfaire n'est pas une exigence, c'est un mur* (P6.8c sur les codes CIM). Une
+            // absence est légitime et se lit comme un refus de proposer.
+            if (array_key_exists('fraicheur_max_minutes', $ligne)
+                && $ligne['fraicheur_max_minutes'] !== null
+                && (int) $ligne['fraicheur_max_minutes'] < 1) {
+                $erreurs[] = "« {$type} » : fenêtre de fraîcheur nulle ou négative "
+                    ."({$ligne['fraicheur_max_minutes']}). Laissez-la vide pour ne jamais proposer "
+                    .'cette mesure au triage — un 0 dirait la même chose sans qu\'on sache si c\'est '
+                    .'un réglage ou un oubli.';
             }
 
             // Cohérence des bornes. Deux couples à ne pas confondre : la PLAUSIBILITÉ de saisie

@@ -1492,3 +1492,383 @@ C'est ce que « le seuil quitte le code » veut dire.
 - [x] G3 — **1179 tests / 16 430 assertions, 0 échec** ; 23 vecteurs dédiés ; Pint ;
       **mutation 6 tueuses + 1 volontairement verte**, arbre restauré et vérifié
 - [x] G4 propriétaire *(déclaré validé le 2026-08-21)*
+
+---
+
+# Partie 6 — P10c-1 : les constantes cliniques du §5.2
+
+> **Ajoutée le 2026-08-21.** Écrite avant le G4, conservée après le G5 comme procédure de
+> non-régression. Elle **ne remplace aucune partie précédente** : les scénarios 1 à 5 restent en
+> vigueur — avec **une étape de déploiement de plus**, et elle vient **en premier** (§2.2).
+
+## 1. Périmètre — et ce que ce module ne fait PAS
+
+### Ce qu'il livre
+
+- **Le triage collecte des constantes cliniques** (température, pouls, saturation, tension, poids,
+  glycémie), là où il ne collectait que des symptômes, un âge et un sexe.
+- **Le §1.2 est retourné à l'endroit.** CDC_08 §1.2 donne son interdit littéral — « Interdit :
+  `if temperature > 39: urgence = True` ». Cette phrase existe désormais dans le projet, **en
+  donnée**, dans une version relue et signée par les quatre validateurs du §7, corrigible sans
+  déploiement et estampillée sur chaque triage qu'elle a jugé.
+- **Le carnet propose, le patient confirme** : une mesure récente pré-remplit le champ avec sa
+  date ; une mesure ancienne est montrée pour information et **n'entre dans aucune règle**.
+- **Les bornes du référentiel deviennent opposables au triage** : une valeur hors plage est
+  **refusée**, jamais ramenée dans la plage.
+
+### Ce qu'il ne fait pas — à lire avant de tester
+
+| Attendu du corpus | État | Où |
+|---|---|---|
+| Microservice `triage-service`, XGBoost, SHAP (CDC_05 §5.1) | **non livré** | P10c-2 |
+| Questionnaire personnalisé par l'IA (§5.5.2) | **non livré**, nommé comme limite | après P10c-2 |
+| Compréhension du langage naturel (§5.5.1) | **non livré** | CDC_07 |
+| `allergies` structurées (§5.2) | **aucune table dans le projet** | — |
+| `duree_symptomes_heures`, `evolution`, `douleur` (§5.2) | **de la donnée, zéro code** — ce sont des questions de protocole (`reponse.duree_jours`, `reponse.intensite`) | version du questionnaire |
+| Un 8ᵉ type de constante | **exige une migration** — l'ENUM de `referentiels_mesure` plafonne à 7 | — |
+
+**Ce qui est délibérément absent, et c'est le point de conception** : il n'existe **aucun fait
+`constante.temperature_statut`**. Le référentiel sait pourtant classer 39,5 °C en « critique », et
+s'y adosser aurait été plus court. Mais `critique_haut` est gouverné par les **deux signatures
+administratives** du §10, alors qu'un seuil décidant de l'urgence relève des **quatre validations**
+du §7 — c'est l'asymétrie que P10b-3-i a passé un incrément entier à refermer. Le protocole compare
+donc la **valeur brute**, et c'est là que le seuil est relu et signé.
+
+**Les durées de fraîcheur sont un jeu de démonstration** : elles n'ont été confrontées à aucune
+recommandation publiée et ne sont attribuées à aucune autorité. Les corriger est de la donnée,
+zéro code — mais tant que ce n'est pas fait, ce ne sont pas des fenêtres nationales.
+
+---
+
+## 2. Prérequis
+
+### 2.1 Migration et jeu de démonstration
+
+```bash
+cd services/api
+XDEBUG_MODE=off "C:/wamp64/bin/php/php8.3.28/php.exe" artisan migrate
+XDEBUG_MODE=off "C:/wamp64/bin/php/php8.3.28/php.exe" artisan db:seed --class=ReferentielMesureSeeder
+XDEBUG_MODE=off "C:/wamp64/bin/php/php8.3.28/php.exe" artisan serve --host=0.0.0.0 --port=8000
+```
+
+### 2.2 CINQUIÈME ÉTAPE DE DÉPLOIEMENT — ET ELLE PASSE EN PREMIER
+
+Le triage exigeait déjà quatre mises en vigueur (`symptomes_triage`, `TRIAGE-NIVEAU`,
+`TRIAGE-QUESTIONNAIRE`, `TRIAGE-ANTECEDENTS`). Il en faut une cinquième : **`seuils_mesure`**.
+
+**Et son ordre n'est pas indifférent.** `TRIAGE-NIVEAU` porte désormais une règle sur
+`constante.temperature` ; le contrôle qualité du §7.4 refuse une constante absente de la version
+publiée des seuils. **Publier le protocole avant les seuils échoue.** L'ordre est :
+
+```
+1. seuils_mesure          (référentiel, deux agents habilités)
+2. symptomes_triage       (référentiel, deux agents habilités)
+3. TRIAGE-NIVEAU          (protocole : quatre validations §7 + publication)
+4. TRIAGE-QUESTIONNAIRE
+5. TRIAGE-ANTECEDENTS
+```
+
+Si vous obtenez « Le protocole ne satisfait pas les contrôles techniques du §7.4 », lisez le détail :
+il **nomme** la constante manquante et liste celles de la version en vigueur.
+
+---
+
+## 3. Scénarios backend (curl reproductibles)
+
+```bash
+BASE=http://localhost:8000/api/v1
+SYMPT=1   # un symptôme anodin quelconque de la version publiée
+```
+
+### W1 — Les constantes collectables sont servies, sans compte
+
+```bash
+curl -s "$BASE/triage/constantes" | python -m json.tool | head -30
+```
+
+**Attendu** : 7 lignes portant `type_mesure`, `libelle`, `unite`, `decimales`, `valeur_min`,
+`valeur_max`, et **`proposition: null` / `contexte: null`** — sans carnet, il n'y a rien à proposer.
+`referentiel_version` est renseignée.
+
+### W2 — Une valeur hors bornes est REFUSÉE, et la borne est nommée
+
+```bash
+curl -s -X POST "$BASE/triage/analyser" -H 'Content-Type: application/json' \
+  -d "{\"symptomes\":[$SYMPT],\"constantes\":[{\"type_mesure\":\"temperature\",\"valeur\":60}]}" \
+  | python -m json.tool
+```
+
+**Attendu** : **422**, message citant `45` (la borne publiée) et la phrase
+« La valeur n'est pas ramenée dans la plage ». Vérifier qu'aucune constante n'a été écrite :
+
+```sql
+SELECT COUNT(*) FROM triage_constantes;   -- inchangé
+```
+
+### W3 — Une précision de trop est refusée, pas arrondie
+
+```bash
+# le référentiel publie `decimales = 1` pour la température
+curl -s -X POST "$BASE/triage/analyser" -H 'Content-Type: application/json' \
+  -d "{\"symptomes\":[$SYMPT],\"constantes\":[{\"type_mesure\":\"temperature\",\"valeur\":39.5}]}"   # 201
+curl -s -X POST "$BASE/triage/analyser" -H 'Content-Type: application/json' \
+  -d "{\"symptomes\":[$SYMPT],\"constantes\":[{\"type_mesure\":\"temperature\",\"valeur\":39.55}]}"  # 422
+```
+
+**Attendu** : `39.5` accepté, `39.55` **refusé** en citant « au plus 1 décimale » — la borne
+**publiée**. Sans ce refus, la valeur serait arrondie en silence et le dossier porterait une valeur
+que le patient n'a pas saisie.
+
+**Le miroir importe autant que le refus** : si `39.5` était refusé aussi, la garde ne prouverait
+rien d'autre qu'un serveur qui dit non.
+
+**Deux bornes de nature différente, la plus stricte l'emporte** : `decimales` est une donnée
+**gouvernée** du référentiel publié ; `decimal(8,2)` est ce que la **colonne** sait porter. Si un
+référentiel publiait trois décimales, c'est le stockage qui aurait le dernier mot et le message
+nommerait « au plus 2 décimales » — la borne réellement appliquée, jamais la promesse.
+
+> **Ce vecteur a été corrigé après le G2 live.** Le serveur acceptait `39.55` : seule la capacité de
+> la colonne mordait, et la borne publiée était **décorative** — le défaut exact que cet incrément
+> referme pour `valeur_min`/`valeur_max` (constat X4 de P10b-3-i), laissé ouvert un cran plus loin.
+
+### W4 — Le nom du §5.2 n'est pas celui du projet
+
+```bash
+curl -s -X POST "$BASE/triage/analyser" -H 'Content-Type: application/json' \
+  -d "{\"symptomes\":[$SYMPT],\"constantes\":[{\"type_mesure\":\"spo2\",\"valeur\":91}]}"
+```
+
+**Attendu** : **422** nommant `saturation_o2`. Le vocabulaire est **adopté**, pas réinventé
+(principe P6.8a) : deux noms pour le même fait clinique feraient deux vérités.
+
+### W5 — LE VECTEUR CENTRAL : le §1.2 en donnée
+
+```bash
+# Enfant de 4 ans, fièvre à 39,6
+curl -s -X POST "$BASE/triage/analyser" -H 'Content-Type: application/json' \
+  -d "{\"symptomes\":[$SYMPT],\"patient_age\":4,\"constantes\":[{\"type_mesure\":\"temperature\",\"valeur\":39.6}]}" \
+  | python -m json.tool | grep -E 'niveau|score_severite|libelle'
+```
+
+**Attendu** : `niveau: "urgence"`, `score_severite >= 90`, et la règle **« Fièvre élevée chez le
+jeune enfant »** dans `regles_declenchees`.
+
+**Les trois miroirs, sans lesquels le vecteur ci-dessus ne prouverait qu'un score qui monte** :
+
+```bash
+# même fièvre, adulte  -> PAS urgence (la condition d'âge)
+curl -s -X POST "$BASE/triage/analyser" -H 'Content-Type: application/json' \
+  -d "{\"symptomes\":[$SYMPT],\"patient_age\":30,\"constantes\":[{\"type_mesure\":\"temperature\",\"valeur\":39.6}]}" | grep -o '"niveau":"[a-z]*"'
+
+# enfant, fièvre sous le seuil -> PAS urgence
+curl -s -X POST "$BASE/triage/analyser" -H 'Content-Type: application/json' \
+  -d "{\"symptomes\":[$SYMPT],\"patient_age\":4,\"constantes\":[{\"type_mesure\":\"temperature\",\"valeur\":38.2}]}" | grep -o '"niveau":"[a-z]*"'
+
+# enfant, AUCUNE constante -> PAS urgence, et le triage aboutit quand même
+curl -s -X POST "$BASE/triage/analyser" -H 'Content-Type: application/json' \
+  -d "{\"symptomes\":[$SYMPT],\"patient_age\":4}" | grep -o '"niveau":"[a-z]*"'
+```
+
+### W6 — Le seuil change avec la version publiée, sans une ligne de code
+
+Corriger la règle en base **ne suffit pas** : il faut republier le protocole par le cycle §7
+complet. Vérifier qu'un `UPDATE` direct sur `protocole_conditions.valeur_json` **ne change rien** au
+triage rendu, puis republier et constater que le même patient change de niveau. C'est la garantie
+de P10b-1, ici exercée sur une constante.
+
+### W7 — Le client ne peut pas déclarer d'où vient sa valeur
+
+```bash
+curl -s -X POST "$BASE/triage/analyser" -H 'Content-Type: application/json' \
+  -H "Authorization: Bearer $TOKEN" \
+  -d "{\"symptomes\":[$SYMPT],\"membre_id\":$MEMBRE,\"constantes\":[{\"type_mesure\":\"temperature\",\"valeur\":38.4,\"origine\":\"reprise_du_carnet\",\"mesure_id\":4242}]}" \
+  | python -m json.tool | grep origine
+```
+
+**Attendu** : `"origine": "saisie"`. En base :
+
+```sql
+SELECT origine, mesure_id FROM triage_constantes ORDER BY id DESC LIMIT 1;  -- saisie, NULL
+```
+
+### W8 — Le carnet propose, et seulement dans sa fenêtre
+
+Créer pour un membre une température datée d'il y a **30 minutes**, puis :
+
+```bash
+curl -s "$BASE/triage/constantes?membre_id=$MEMBRE" -H "Authorization: Bearer $TOKEN" \
+  | python -m json.tool
+```
+
+**Attendu** : la température en **`proposition`**, avec `date_mesure`. Recommencer avec une
+température de **3 jours** : elle bascule en **`contexte`**, `proposition` reste `null` (fenêtre
+publiée = 120 min).
+
+**Le corollaire qui compte** : envoyer exactement la valeur du `contexte` à l'analyse donne
+`origine: "saisie"` — elle n'a pas été proposée, donc la saisir reste une saisie.
+
+### W9 — Anti-IDOR sur le carnet d'autrui
+
+```bash
+curl -s -o /dev/null -w '%{http_code}\n' "$BASE/triage/constantes?membre_id=$MEMBRE_AUTRUI" -H "Authorization: Bearer $TOKEN"   # 403
+curl -s -o /dev/null -w '%{http_code}\n' "$BASE/triage/constantes?membre_id=$MEMBRE"                                            # 401
+curl -s -o /dev/null -w '%{http_code}\n' "$BASE/triage/constantes"                                                              # 200
+```
+
+### W10 — Le triage n'écrit RIEN dans le carnet
+
+```sql
+SELECT COUNT(*) FROM mesures_sante;      -- avant
+-- lancer un triage avec constantes, rattaché au membre
+SELECT COUNT(*) FROM mesures_sante;      -- IDENTIQUE
+SELECT COUNT(*) FROM triage_constantes;  -- +1
+```
+
+### W11 — La fiche §5.4 montre les constantes avec leur origine
+
+```bash
+curl -s "$BASE/triage/$TRIAGE_ID/fiche?jeton=$JETON" | python -m json.tool | grep -A6 constantes
+```
+
+**Attendu** : `type_mesure`, `valeur`, `unite`, `origine`, `referentiel_version`.
+
+### W12 — La garde du moteur
+
+```sql
+-- Une constante qui se dit reprise du carnet doit dire LAQUELLE.
+INSERT INTO triage_constantes (triage_id, type_mesure, valeur, unite, origine, mesure_id,
+                               referentiel_version, created_at, updated_at)
+VALUES (1, 'temperature', 38.0, '°C', 'reprise_du_carnet', NULL, 1, NOW(), NOW());
+-- Attendu : ERROR 1644 (45000) : ck_triage_constante_origine
+
+-- Un triage ne porte qu'une valeur par constante :
+-- insérer deux fois le même couple (triage_id, type_mesure) -> ERROR 1062
+```
+
+---
+
+## 4. Scénarios mobile (Expo Go SDK 54)
+
+1. Onglet **Triage** → cocher un symptôme → **Continuer**.
+2. L'écran **« Vos mesures »** apparaît entre les symptômes et les précisions. Vérifier :
+   - les 7 champs, chacun avec son unité et sa plage en filigrane ;
+   - **aucune couleur, aucun statut, aucun verdict** — l'écran ne juge rien ;
+   - laisser tout vide et continuer : **le triage aboutit** (tout est facultatif).
+3. Saisir `60` en température puis lancer l'analyse : le message d'erreur **du serveur** s'affiche,
+   et la valeur **n'est pas corrigée** dans le champ.
+4. Avec un compte et un membre ayant une mesure récente : le champ est **pré-rempli** et porte
+   « Repris de votre carnet (il y a N min) ». Avec une mesure de 3 jours : le champ est **vide** et
+   la ligne dit « Dernière valeur connue … Trop ancienne pour être reprise automatiquement ».
+5. **Mode avion** : l'écran affiche son message d'erreur et laisse **continuer** — une liste de
+   mesures indisponible n'est pas une panne du triage.
+
+---
+
+## 5. Invariants base de données
+
+```sql
+-- 1. La colonne de fraîcheur existe et n'est pas imposée
+SHOW COLUMNS FROM referentiels_mesure LIKE 'fraicheur_max_minutes';   -- YES (nullable)
+
+-- 2. Les deux déclencheurs
+SELECT TRIGGER_NAME FROM information_schema.TRIGGERS
+ WHERE EVENT_OBJECT_TABLE = 'triage_constantes';   -- 2 lignes
+
+-- 3. L'unicité
+SHOW INDEX FROM triage_constantes WHERE Key_name = 'uq_triage_constante';
+
+-- 4. `mesure_id` n'est PAS une clé étrangère
+--    (ADR-042 D1 : un identifiant de trace est un identifiant, pas une relation vivante —
+--     supprimer la mesure du carnet ne doit pas effacer d'où venait la valeur du triage)
+SELECT COUNT(*) FROM information_schema.KEY_COLUMN_USAGE
+ WHERE TABLE_NAME = 'triage_constantes' AND REFERENCED_TABLE_NAME = 'mesures_sante';   -- 0
+
+-- 5. Aucune constante n'est orpheline de version
+SELECT COUNT(*) FROM triage_constantes WHERE referentiel_version IS NULL;   -- 0
+```
+
+---
+
+## 6. Limites annoncées (à ne pas signaler comme des défauts)
+
+1. **Aucune IA** — c'est P10c-2. Cet incrément livre la collecte et le gain de protocole.
+2. **Aucune allergie structurée** dans le projet : le §5.2 reste partiellement irreprésentable.
+3. **Durées de fraîcheur = démonstration**, non confrontées à une recommandation publiée.
+4. **La règle de fièvre est en `niveau_preuve = 'D'`**, sans validateur forgé (décision N3).
+5. **Une constante saisie n'est pas vérifiée** : le patient déclare ce qu'affiche son thermomètre.
+   Même régime que `impact_triage` des antécédents — et si le poids d'une déclaration non vérifiée
+   doit être borné, ce sera une **règle de protocole**, pas une constante de code.
+6. **Le moteur ne garantit pas les bornes.** Elles vivent dans un instantané publié, qu'un
+   déclencheur SQL ne peut pas lire : la garde est **applicative**, annoncée comme telle et jamais
+   déguisée en garantie du moteur (précédent du quota d'images, P6.4c).
+7. **Risque résiduel nommé** : si un écran cessait de collecter une constante, une règle qui s'y
+   réfère ne se déclencherait plus **sans bruit** — un fait connu mais non renseigné pour ce patient
+   ne lève pas, par construction, et c'est ce qui garde le triage anonyme possible.
+
+---
+
+## 7. Ce que la campagne de mutation a trouvé
+
+Onze mutations, **dix tueuses et une volontairement verte** (celle-ci teste le harnais lui-même :
+sans elle, un lanceur cassé ferait paraître tout le monde tueur).
+
+Deux enseignements, tous deux au crédit du harnais et non de la relecture :
+
+- **`g5` a d'abord SURVÉCU.** Le vecteur « une fraîcheur absente ne propose jamais » passait pour
+  une raison qui n'était pas la garde : sans elle, `(int) null` vaut 0, la fenêtre devient « zéro
+  minute » et une mesure passée est écartée de toute façon. Il prouvait l'arithmétique, pas
+  l'intention. Le cas qui les sépare est une mesure **datée du futur** (horloge d'appareil en
+  avance) — vecteur ajouté, mutation tuée. **Septième instance** de la famille « le vecteur prouve
+  autre chose » dans ce projet.
+- **`g10` a été refusée par le harnais lui-même**, au titre de sa règle 6 (l'ancre ne doit pas être
+  un préfixe du remplacement, sinon le contrôle « mutation appliquée » la retrouve dans le texte
+  muté et abandonne à tort). La définition était fautive, pas le code ; elle a été réécrite sur une
+  ancre d'une seule ligne.
+
+---
+
+## 8. Ce que le G2 live MySQL a établi (2026-08-21)
+
+Base `ivoirsante` **sauvegardée** (`mysqldump --routines --triggers`, 111 tables recensées),
+éprouvée, puis **restaurée compte pour compte**. Ce que SQLite ne pouvait pas prouver :
+
+| # | Vecteur | Résultat |
+|---|---|---|
+| I1-I5 | Schéma : colonne de fraîcheur nullable, **2 déclencheurs**, `uq_triage_constante`, **0 clé étrangère vers `mesures_sante`** | conforme |
+| W1 | **Publier `TRIAGE-NIVEAU` AVANT `seuils_mesure`** | **refusé**, le message **nomme** « temperature » et dit « aucune version publiée » |
+| W2 | Les cinq mises en vigueur dans l'ordre annoncé | la publication refusée en W1 **passe** — l'ordre a changé, pas le code |
+| W3 | `GET /triage/constantes` sans compte | 7 lignes, **aucune clé de statut** : le référentiel sait classer 39,5 °C en « critique » et **cela ne sort pas du serveur** |
+| W4-W6 | Hors bornes · précision de trop · `spo2` | **422**, chacun **par son motif**, `triage_constantes` et `triages` inchangés |
+| W7 | **Le §1.2 en donnée** : enfant de 4 ans, 39,6 °C | `urgence`, score **90**, les **deux règles enchaînées** visibles |
+| — | Les trois miroirs (adulte · fièvre sous le seuil · aucune constante) | `faible`, score 8, règle **non déclenchée** — sans eux W7 ne prouverait qu'un score qui monte |
+| W8 | Client envoyant `origine: reprise_du_carnet` et `mesure_id: 4242` | base : **`saisie`, `NULL`** |
+| W9 | Carnet : température de 30 min · pouls de 3 jours | **proposition** / **contexte** — et la valeur du contexte, saisie à l'identique, revient **`saisie`** |
+| W10 | Anti-IDOR | carnet d'autrui **403** · sans jeton **401** · sans membre **200** |
+| W11 | `mesures_sante` avant / après un triage avec constantes | **identique** — le triage n'ouvre pas de 4ᵉ chemin d'écriture |
+| W12 | Fiche §5.4 par jeton | constantes avec unité, origine et version ; sans jeton et jeton faux → **404, jamais 403** |
+| W13 | `UPDATE` direct sur `referentiels_mesure` | **aucun effet** : la table dit 40, le serveur sert 45, et 44 °C passe encore |
+| W14 | Quatre-yeux, sur un compte portant **les deux** permissions | **409 « L'auteur d'une proposition ne peut pas la valider lui-même »** — prouvé par son motif |
+| W15 | Après publication par un second agent | le serveur sert 40 et refuse 44 °C, **sans une ligne de code** |
+| W16 | Journal de gouvernance et `laravel.log` | **0 valeur clinique** |
+| W12-bis | `origine = 'reprise_du_carnet'` sans `mesure_id`, en SQL direct | **`ERROR 1644`** — et le déclencheur **UPDATE** mord aussi ; doublon → **`ERROR 1062`** |
+
+### Le défaut trouvé par le G2, et pourquoi les 46 vecteurs ne le voyaient pas
+
+Le référentiel publie `decimales = 1` pour la température, **et le serveur acceptait 39,55**. La
+borne gouvernée était décorative : seule la capacité de `decimal(8,2)` mordait. Aucun vecteur ne
+l'attrapait parce que tous éprouvaient `39.555` — une valeur que **les deux** bornes refusent. Il a
+fallu la valeur qui les sépare.
+
+C'est la forme exacte du constat X4 de P10b-3-i (« le référentiel publiait `min:1 max:10` et le
+serveur ne les regardait pas »), que cet incrément referme pour `valeur_min`/`valeur_max` — et
+laissait ouverte un cran plus loin. Corrigé, trois vecteurs ajoutés, un vecteur hérité **réécrit
+pour dire la garantie qui tient** plutôt que corrigé pour passer (précédent P6.4d).
+
+### Une précision d'environnement, dite plutôt que laissée croire
+
+`origine` est un **ENUM**. Sur ce poste WAMP, le `sql_mode` **global est vide** : une valeur inventée
+y devient `''` au lieu d'être refusée. Ce n'est pas le chemin de l'application — Laravel pose
+`STRICT_TRANS_TABLES` sur **sa** session (`config/database.php`, `'strict' => true`), et l'insertion
+d'une `origine` inventée par le code applicatif est bien **refusée** (vérifié). La garantie tient
+donc sur tous les chemins que l'application emprunte, et dépend du mode de session en dehors —
+comme le quota d'images de P6.4c, elle est **annoncée**, jamais déguisée en garantie du moteur.

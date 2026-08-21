@@ -35,15 +35,31 @@ final class FaitsTriage
     /**
      * Les faits connus dès la sélection des symptômes.
      *
+     * ═══ P10c-1 — LES CONSTANTES SONT DANS LA BASE, ET C'EST UNE DIFFÉRENCE AVEC LES ANTÉCÉDENTS ═══
+     *
+     * Les antécédents sont ajoutés à part parce que `POST /triage/questions` **ne peut pas** les
+     * connaître : il ignore le membre. Les constantes, elles, sont envoyées par le client sur
+     * **les deux** endpoints — elles sont donc connues au même moment que les symptômes.
+     *
+     * Les mettre ici est ce qui rend légitime une règle de questionnaire conditionnée sur la
+     * fièvre (« 39,5 — depuis quand ? »), qui est exactement l'adaptativité du §4.3b. Les passer à
+     * un seul des deux endpoints rejouerait le constat Z1 : un fait inconnu lève, donc une telle
+     * règle ferait tomber un endpoint sur deux.
+     *
+     * Elles arrivent **déjà nommées** (`constante.temperature`) et déjà validées contre la version
+     * publiée : cette classe rassemble, elle ne juge rien — voir l'en-tête.
+     *
      * @param  Collection<int, Symptome>  $symptomes
+     * @param  array<string, float>  $constantes  Faits produits par {@see ServiceConstantesTriage::faits()}.
      * @return array<string, mixed>
      */
     public static function base(
         Collection $symptomes,
         ?int $age = null,
         ?string $sexe = null,
+        array $constantes = [],
     ): array {
-        return [
+        return $constantes + [
             'age' => $age,
             'sexe' => $sexe,
             'score_symptomes' => (int) $symptomes->sum('poids_severite'),

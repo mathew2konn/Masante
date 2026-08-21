@@ -9,7 +9,13 @@ import { PrimaryButton } from '../components/PrimaryButton';
 import { IntensityScale } from '../components/IntensityScale';
 import { colors, radius, spacing, typography } from '../theme/theme';
 import { getQuestionsTriage } from '../api/triage';
-import type { ContextePatient, Question, Reponse, ValeurReponse } from '../types/triage';
+import type {
+  ConstanteSaisie,
+  ContextePatient,
+  Question,
+  Reponse,
+  ValeurReponse,
+} from '../types/triage';
 
 /**
  * QuestionsScreen — F1.2 : le questionnaire ADAPTATIF (CDC_08 §4.3b, CDC_05 §5.5.2).
@@ -43,6 +49,7 @@ export function QuestionsScreen({
   reponses,
   reponsesEnvoyees,
   onSetReponse,
+  constantes,
   onBack,
   onAnalyser,
 }: {
@@ -51,6 +58,15 @@ export function QuestionsScreen({
   reponses: Record<string, ValeurReponse>;
   reponsesEnvoyees: Reponse[];
   onSetReponse: (cle: string, valeur: ValeurReponse) => void;
+  /**
+   * P10c-1 — Les constantes relevées à l'étape précédente.
+   *
+   * Elles sont renvoyées à CHAQUE tour, et ce n'est pas de la redondance : une règle peut
+   * conditionner une question sur la fièvre (« 39,5 — depuis quand ? »), ce qui est l'adaptativité
+   * du §4.3b. Les omettre ici ferait répondre le serveur sans elles, et cette règle ne se
+   * déclencherait jamais — sur CET endpoint seulement. C'est le constat Z1, déplacé d'un cran.
+   */
+  constantes: ConstanteSaisie[];
   onBack: () => void;
   onAnalyser: () => Promise<void>;
 }) {
@@ -75,6 +91,7 @@ export function QuestionsScreen({
       const tour = await getQuestionsTriage({
         symptomes,
         ...(reponsesEnvoyees.length ? { reponses: reponsesEnvoyees } : {}),
+        ...(constantes.length ? { constantes } : {}),
         patient_age: patient.patient_age ?? null,
         patient_sexe: patient.patient_sexe ?? null,
       });
@@ -86,7 +103,7 @@ export function QuestionsScreen({
     } finally {
       setChargement(false);
     }
-  }, [symptomes, patient, reponsesEnvoyees]);
+  }, [symptomes, patient, reponsesEnvoyees, constantes]);
 
   // Premier tour à l'ouverture. Les tours suivants sont déclenchés par « Continuer », jamais
   // automatiquement à chaque frappe : recharger pendant que le patient saisit ferait disparaître

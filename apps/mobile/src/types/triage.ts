@@ -104,10 +104,57 @@ export interface Reponse {
   valeur: ValeurReponse;
 }
 
+/**
+ * P10c-1 — Une constante clinique du §5.2 envoyée à l'API.
+ *
+ * ═══ LE CLIENT N'ENVOIE QUE LE TYPE ET LA VALEUR ═══
+ *
+ * Ni `origine`, ni `mesure_id`. C'est le SERVEUR qui reconnaît une valeur reprise du carnet, en la
+ * comparant à celle qu'il a lui-même proposée. Déclarer sa propre provenance depuis le client
+ * rejouerait la faute refermée quatre fois — `source` d'une contribution (P7-C), `obligatoire`
+ * d'une vaccination (P6.8b), `provenance` d'une couverture (P6.8d), `medecin_nom` d'une ordonnance
+ * (P6.5a).
+ */
+export interface ConstanteSaisie {
+  type_mesure: string;
+  valeur: number | null;
+}
+
+/**
+ * Ce que le serveur sait d'une constante collectable, et ce que le carnet en dit.
+ *
+ * ═══ TROIS ÉTATS, ET UN SEUL EST UNE AFFIRMATION SUR LE PRÉSENT ═══
+ *
+ * `proposition` = une mesure du carnet DANS sa fenêtre de fraîcheur : le champ est pré-rempli avec
+ * sa date, le patient corrige s'il veut. `contexte` = une mesure hors fenêtre : montrée pour
+ * information, **jamais pré-remplie**. Ni l'un ni l'autre = rien à dire.
+ *
+ * *Une température prise il y a trois mois n'est pas une température.* La fenêtre est une donnée
+ * du référentiel publié — le client ne la connaît pas et n'a pas à la connaître : il affiche ce
+ * que le serveur a rangé dans l'une ou l'autre case.
+ */
+export interface ConstanteProposable {
+  type_mesure: string;
+  libelle: string;
+  unite: string;
+  decimales: number;
+  valeur_min: number;
+  valeur_max: number;
+  proposition: { valeur: number; date_mesure: string | null; mesure_id: number } | null;
+  contexte: { valeur: number; date_mesure: string | null; mesure_id: number } | null;
+}
+
+/** Réponse GET /v1/triage/constantes. */
+export interface ConstantesResponse {
+  constantes: ConstanteProposable[];
+  referentiel_version: number;
+}
+
 /** Corps POST /v1/triage/questions — un tour de questionnaire adaptatif. */
 export interface QuestionsPayload {
   symptomes: number[];
   reponses?: Reponse[];
+  constantes?: ConstanteSaisie[];
   patient_age?: number | null;
   patient_sexe?: 'M' | 'F' | null;
 }
@@ -133,6 +180,10 @@ export interface ContextePatient {
 export interface AnalyserPayload extends ContextePatient {
   symptomes: number[];
   reponses?: Reponse[];
+  /** P10c-1 — les constantes du §5.2. Type et valeur seulement : voir {@link ConstanteSaisie}. */
+  constantes?: ConstanteSaisie[];
+  /** Rattache le triage à un membre du carnet — condition du pré-remplissage. */
+  membre_id?: number | null;
 }
 
 /** Réponse POST /v1/triage/analyser (201). */
@@ -165,6 +216,20 @@ export interface AnalyseResultat {
     reponses: number;
     antecedents: number;
   };
+
+  /**
+   * P10c-1 — Ce que le serveur a RETENU, avec l'origine qu'il a lui-même décidée.
+   *
+   * `origine` n'est pas décorative : elle dit si le patient a relevé la valeur maintenant ou s'il a
+   * validé celle que le carnet proposait. Ce n'est pas la même information clinique.
+   */
+  constantes: Array<{
+    type_mesure: string;
+    libelle: string;
+    valeur: number;
+    unite: string;
+    origine: 'saisie' | 'reprise_du_carnet';
+  }>;
 }
 
 /** Réponse GET /v1/triage/{id}/fiche (F1.8). */

@@ -20,6 +20,7 @@ use App\Support\RegistreActionsProtocole;
 use App\Support\RegistreFaitsProtocole;
 use Database\Seeders\PortailRolesSeeder;
 use Database\Seeders\ProtocoleSeeder;
+use Database\Seeders\ReferentielMesureSeeder;
 use Database\Seeders\SpecialiteMedicaleSeeder;
 use Database\Seeders\SymptomeSeeder;
 use Illuminate\Database\QueryException;
@@ -639,6 +640,10 @@ class QuestionnaireAdaptatifTest extends TestCase
         app(PermissionRegistrar::class)->forgetCachedPermissions();
 
         // Seul le protocole de NIVEAU est publié : le questionnaire reste en brouillon.
+        // P10c-1 — `TRIAGE-NIVEAU` porte une regle sur `constante.temperature` : les seuils
+        // doivent etre en vigueur AVANT lui. Ordre de deploiement reel, pas commodite de test.
+        $this->seed(ReferentielMesureSeeder::class);
+        $this->publierLesSeuils();
         $this->publierProtocole(ServiceNiveauTriage::CODE);
         $this->simulerNouvelleRequete();
 

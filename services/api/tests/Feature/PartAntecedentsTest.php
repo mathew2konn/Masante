@@ -17,6 +17,7 @@ use App\Support\RegistreActionsProtocole;
 use App\Support\RegistreContextesProtocole;
 use Database\Seeders\PortailRolesSeeder;
 use Database\Seeders\ProtocoleSeeder;
+use Database\Seeders\ReferentielMesureSeeder;
 use Database\Seeders\SpecialiteMedicaleSeeder;
 use Database\Seeders\SymptomeSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -133,6 +134,10 @@ class PartAntecedentsTest extends TestCase
         $this->seed(PortailRolesSeeder::class);
         $this->seed(ProtocoleSeeder::class);
         $this->publierReferentiel(SourceSymptomesTriage::CODE);
+        // P10c-1 — `TRIAGE-NIVEAU` porte une regle sur `constante.temperature` : les seuils
+        // doivent etre en vigueur AVANT lui. Ordre de deploiement reel, pas commodite de test.
+        $this->seed(ReferentielMesureSeeder::class);
+        $this->publierLesSeuils();
         $this->publierProtocole(ServiceNiveauTriage::CODE);
         $this->publierProtocole(ServiceQuestionnaire::CODE);
         $this->app->forgetScopedInstances();
@@ -162,6 +167,10 @@ class PartAntecedentsTest extends TestCase
         $this->seed(PortailRolesSeeder::class);
         $this->seed(ProtocoleSeeder::class);
         $this->publierReferentiel(SourceSymptomesTriage::CODE);
+        // P10c-1 — `TRIAGE-NIVEAU` porte une regle sur `constante.temperature` : les seuils
+        // doivent etre en vigueur AVANT lui. Ordre de deploiement reel, pas commodite de test.
+        $this->seed(ReferentielMesureSeeder::class);
+        $this->publierLesSeuils();
         $this->publierProtocole(ServiceNiveauTriage::CODE);
         $this->publierProtocole(ServiceQuestionnaire::CODE);
         $this->app->forgetScopedInstances();

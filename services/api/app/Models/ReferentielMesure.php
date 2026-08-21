@@ -31,6 +31,16 @@ class ReferentielMesure extends Model
         'critique_bas',
         'critique_haut',
         'decimales',
+
+        // P10c-1 — Combien de temps une mesure du carnet reste PROPOSABLE au triage.
+        //
+        // `null` = jamais pré-remplie. C'est le sens sûr : une donnée absente ne doit pas autoriser
+        // silencieusement la réutilisation d'une mesure ancienne, et *une température prise il y a
+        // trois mois n'est pas une température*. La valeur diffère radicalement selon le type —
+        // quelques heures pour un pouls, plusieurs mois pour un poids —, donc elle ne pouvait ni
+        // être une constante de code ni être unique.
+        'fraicheur_max_minutes',
+
         'ordre',
         'conseil_anormal',
     ];
@@ -45,6 +55,7 @@ class ReferentielMesure extends Model
             'critique_bas'  => 'float',
             'critique_haut' => 'float',
             'decimales'     => 'integer',
+            'fraicheur_max_minutes' => 'integer',
             'ordre'         => 'integer',
         ];
     }

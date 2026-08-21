@@ -8,6 +8,7 @@ import { api } from '../config/api';
 import type {
   AnalyserPayload,
   AnalyseResultat,
+  ConstantesResponse,
   FicheResponse,
   HistoriqueResponse,
   QuestionsPayload,
@@ -36,6 +37,24 @@ export async function getSymptomes(): Promise<SymptomesResponse> {
  */
 export async function getQuestionsTriage(payload: QuestionsPayload): Promise<QuestionsResultat> {
   const { data } = await api.post<QuestionsResultat>('/v1/triage/questions', payload);
+  return data;
+}
+
+/**
+ * P10c-1 — §5.2 : les constantes cliniques collectables, et ce que le carnet en propose.
+ *
+ * `membre_id` est facultatif : sans lui — triage anonyme — la liste est rendue sans aucune
+ * proposition, puisqu'il n'y a pas de carnet à consulter. Avec lui, l'appel exige un compte
+ * authentifié et propriétaire (anti-IDOR côté serveur).
+ *
+ * La FENÊTRE DE FRAÎCHEUR n'est pas connue d'ici, et c'est voulu : le serveur range déjà chaque
+ * valeur du carnet dans `proposition` (récente, donc pré-remplissable) ou `contexte` (ancienne,
+ * montrée mais jamais pré-remplie). Recalculer la fenêtre ici en ferait une seconde autorité.
+ */
+export async function getConstantesTriage(membreId?: number | null): Promise<ConstantesResponse> {
+  const { data } = await api.get<ConstantesResponse>('/v1/triage/constantes', {
+    params: membreId ? { membre_id: membreId } : undefined,
+  });
   return data;
 }
 

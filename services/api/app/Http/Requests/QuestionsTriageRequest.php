@@ -49,6 +49,15 @@ class QuestionsTriageRequest extends FormRequest
             'reponses.*.cle' => ['required_with:reponses', 'string', 'max:60'],
             'reponses.*.valeur' => ['present'],
 
+            // P10c-1 — Les constantes sont connues dès la sélection des symptômes, donc envoyées
+            // ici aussi. Une règle de questionnaire peut ainsi réagir à une fièvre (« 39,5 —
+            // depuis quand ? »), ce qui est l'adaptativité du §4.3b. Les passer à un seul des deux
+            // endpoints rejouerait le constat Z1 : un fait inconnu lève, donc une telle règle
+            // ferait tomber `POST /triage/questions` et pas `POST /triage/analyser`.
+            'constantes' => ['sometimes', 'array', 'max:20'],
+            'constantes.*.type_mesure' => ['required_with:constantes', 'string', 'max:40'],
+            'constantes.*.valeur' => ['present'],
+
             'patient_age' => ['nullable', 'integer', 'min:0', 'max:120'],
             'patient_sexe' => ['nullable', 'in:M,F'],
         ];

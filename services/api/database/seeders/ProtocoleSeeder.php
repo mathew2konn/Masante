@@ -291,16 +291,54 @@ class ProtocoleSeeder extends Seeder
                 .'soit le total des autres points.'],
         ]);
 
+        // ═══ ORDRE 2 — P10c-1 : LE CONTRE-EXEMPLE DU §1.2, RETOURNÉ À L'ENDROIT ═══
+        //
+        // CDC_08 §1.2 donne son interdit littéral : « Interdit : `if temperature > 39: urgence =
+        // True` ». La voici, la même phrase — mais en **donnée**, dans une version relue et signée
+        // par les quatre validateurs du §7, corrigible sans déploiement et estampillée sur chaque
+        // triage qu'elle aura jugé.
+        //
+        // Elle est la RAISON D'ÊTRE de l'incrément : sans une règle qui les consomme, les
+        // constantes seraient un mécanisme que personne n'emprunte — le « socle à vide » que la
+        // décision D3 de P6.3 a refusé, et le « contrôle toujours vert » de P5.3b-4.
+        //
+        // ═══ ELLE NE LIT PAS `constante.temperature_statut`, ET C'EST TOUT LE POINT ═══
+        //
+        // Le référentiel sait déjà classer 39,5 °C en « critique » (`critique_haut`). S'appuyer
+        // dessus aurait été plus court **et faux** : cette valeur est gouvernée par les DEUX
+        // signatures administratives du §10, alors qu'un seuil décidant de l'urgence relève des
+        // QUATRE validations du §7. C'est l'asymétrie refermée par P10b-3-i ; la règle compare donc
+        // la valeur brute, et c'est ICI que le seuil est relu et signé.
+        //
+        // ═══ CONSÉQUENCE DE DÉPLOIEMENT, DITE PLUTÔT QUE DÉCOUVERTE ═══
+        //
+        // Cette condition rend `TRIAGE-NIVEAU` **impubliable tant que `seuils_mesure` n'est pas en
+        // vigueur** : le contrôle qualité refuse une constante absente de la version publiée. Les
+        // seuils doivent donc être publiés AVANT le protocole. L'ordre est réel, il est vérifié
+        // par la suite, et il figure au guide.
+        //
+        // Le seuil et la population sont ceux du conseil déjà publié dans `referentiels_mesure`
+        // (« Fièvre à 39,5 °C et plus […] : urgence », « surtout chez l'enfant ») — transcription,
+        // pas invention. `niveau_preuve = 'D'` s'applique à cette règle comme aux autres.
+        $this->regle($version, 2, 'Fièvre élevée chez le jeune enfant : prise en charge urgente', [
+            ['constante.temperature', '>=', 39.5],
+            ['age', '<', 5],
+        ], [
+            [RegistreActionsProtocole::DEFINIR_SCORE_MINIMUM, 90,
+                'En zone d\'endémie palustre, une fièvre à 39,5 °C et plus chez un enfant de moins '
+                .'de 5 ans impose un avis immédiat, quel que soit le total des autres points.'],
+        ]);
+
         $bandes = [
-            [2, 0, 25, NiveauTriage::FAIBLE,
+            [3, 0, 25, NiveauTriage::FAIBLE,
                 'Faible priorité',
                 'Vos symptômes semblent bénins. Surveillance à domicile et conseils généraux ; '
                 .'un pharmacien peut vous orienter. En cas d\'aggravation, refaites un triage.'],
-            [3, 26, 50, NiveauTriage::RECOMMANDEE,
+            [4, 26, 50, NiveauTriage::RECOMMANDEE,
                 'Consultation recommandée',
                 'Une consultation est recommandée : prenez rendez-vous avec un médecin '
                 .'généraliste ou un spécialiste.'],
-            [4, 51, 75, NiveauTriage::RAPIDE,
+            [5, 51, 75, NiveauTriage::RAPIDE,
                 'Consultation rapide',
                 'Consultez dans les 24 heures : rendez-vous sans tarder chez un médecin, dans un '
                 .'Centre de Santé Urbain (CSU) ou une clinique.'],
@@ -311,7 +349,7 @@ class ProtocoleSeeder extends Seeder
             // de base — et l'aurait aggravé : corriger le numéro exigerait alors de refaire passer
             // le protocole par les quatre validations du §7, pour un changement sans rien de
             // clinique.
-            [5, 76, 100, NiveauTriage::URGENCE,
+            [6, 76, 100, NiveauTriage::URGENCE,
                 'Urgence',
                 'Rendez-vous immédiatement au service des urgences d\'un CHU/CHR, ou appelez le '
                 .'SAMU au {urgence:samu} (numéro vert, Côte d\'Ivoire).'],

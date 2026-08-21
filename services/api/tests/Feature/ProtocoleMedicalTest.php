@@ -14,6 +14,7 @@ use App\Services\Protocole\DiffusionProtocole;
 use App\Services\Protocole\JournalProtocole;
 use App\Services\Protocole\ProtocoleException;
 use App\Services\Protocole\ServiceGouvernanceProtocole;
+use App\Services\Referentiel\SourceSeuilsMesure;
 use App\Services\Referentiel\SourceSymptomesTriage;
 use App\Services\Triage\ServiceNiveauTriage;
 use App\Services\Triage\ServicePlafondAntecedents;
@@ -22,6 +23,7 @@ use App\Support\NiveauTriage;
 use App\Support\RegistreActionsProtocole;
 use Database\Seeders\PortailRolesSeeder;
 use Database\Seeders\ProtocoleSeeder;
+use Database\Seeders\ReferentielMesureSeeder;
 use Database\Seeders\SpecialiteMedicaleSeeder;
 use Database\Seeders\SymptomeSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -61,6 +63,21 @@ class ProtocoleMedicalTest extends TestCase
         $this->seed(PortailRolesSeeder::class);
         $this->seed(SpecialiteMedicaleSeeder::class);
         app(PermissionRegistrar::class)->forgetCachedPermissions();
+
+        // ═══ P10c-1 — LES SEUILS AVANT LE PROTOCOLE, ET C'EST L'ORDRE DE DÉPLOIEMENT RÉEL ═══
+        //
+        // `TRIAGE-NIVEAU` porte désormais une règle sur `constante.temperature` (le §1.2 retourné à
+        // l'endroit). Le contrôle qualité refuse une constante absente de la version publiée des
+        // seuils : sans cette mise en vigueur préalable, **toute publication du protocole échoue**.
+        //
+        // Dix-huit vecteurs de ce fichier se sont mis à échouer d'un coup lors de la bascule, dont
+        // six pour une raison plus instructive que les autres : le refus du §7.4 leur revenait avec
+        // le motif de la constante manquante **à la place** de celui qu'ils vérifiaient (trou dans
+        // les bandes, recouvrement, avis défavorable…). Ils prouvaient donc un refus, mais plus
+        // « par leur motif » — la faute précise que ce projet corrige depuis P6.5b. Aucun n'a été
+        // affaibli : c'est le montage qui est complété.
+        $this->seed(ReferentielMesureSeeder::class);
+        $this->publierReferentiel(SourceSeuilsMesure::CODE, 'Mise en vigueur préalable au protocole.');
     }
 
     // ─────────────────────────────────────────────────────────────────────────────

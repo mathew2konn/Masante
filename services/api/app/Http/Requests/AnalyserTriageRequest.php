@@ -55,6 +55,23 @@ class AnalyserTriageRequest extends FormRequest
             'reponses.*.cle' => ['required_with:reponses', 'string', 'max:60'],
             'reponses.*.valeur' => ['present'],
 
+            // ═══ P10c-1 — LES CONSTANTES CLINIQUES DU §5.2 ═══
+            //
+            // La FORME seulement, comme pour les réponses. Le fond — type appartenant à la version
+            // publiée, bornes de plausibilité, précision — est confronté à l'instantané par
+            // {@see \App\Services\Triage\ServiceConstantesTriage::normaliser()}, seul endroit qui
+            // connaisse la version en vigueur.
+            //
+            // NI `origine` NI `mesure_id` NE SONT ACCEPTÉS DU CLIENT. C'est le serveur qui
+            // reconnaît une valeur reprise du carnet, en la comparant à ce qu'il a lui-même
+            // proposé. Laisser le client déclarer sa propre provenance rejouerait la faute
+            // refermée quatre fois : `source` d'une contribution (P7-C), `obligatoire` d'une
+            // vaccination (P6.8b), `provenance` d'une couverture (P6.8d), `medecin_nom` d'une
+            // ordonnance (P6.5a).
+            'constantes' => ['sometimes', 'array', 'max:20'],
+            'constantes.*.type_mesure' => ['required_with:constantes', 'string', 'max:40'],
+            'constantes.*.valeur' => ['present'],
+
             // Contexte patient (en attendant le membre du Module 2).
             'membre_id' => ['nullable', 'integer', 'min:1'],
             'patient_nom' => ['nullable', 'string', 'max:200'],

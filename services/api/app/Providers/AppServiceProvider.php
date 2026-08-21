@@ -37,6 +37,18 @@ class AppServiceProvider extends ServiceProvider
         // exactement l'inverse de ce que le §6.1 exige (« chaque décision conserve la version
         // exacte du protocole utilisée », exigence médico-légale).
         $this->app->scoped(\App\Services\Triage\ServiceNiveauTriage::class);
+
+        // ═══ P10c-1 — MÊME RAISON, POUR LES SEUILS QUI BORNENT LES CONSTANTES ═══
+        //
+        // Trois consommateurs le lisent dans la même requête : le contrôleur (qui propose les
+        // valeurs du carnet), le service (qui refuse une valeur hors bornes) et l'écriture (qui
+        // estampille chaque constante avec le numéro de version). En liaison ordinaire, chacun
+        // recevrait sa propre lecture — et une publication survenant au milieu ferait accepter une
+        // valeur selon une version puis l'estampiller d'une autre.
+        //
+        // `ControleQualiteProtocole` l'injecte aussi : le contrôle qui refuse `constante.spo2` doit
+        // juger sur la même version que celle qui l'exécuterait.
+        $this->app->scoped(\App\Services\Triage\ServiceConstantesTriage::class);
     }
 
     /**

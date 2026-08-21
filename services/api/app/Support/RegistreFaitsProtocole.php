@@ -3,6 +3,7 @@
 namespace App\Support;
 
 use App\Models\ProtocoleQuestion;
+use App\Models\ReferentielMesure;
 
 /**
  * P10b-1 — Liste blanche FERMÉE des faits qu'une condition de protocole peut interroger
@@ -81,6 +82,50 @@ final class RegistreFaitsProtocole
      * diverger trois fois* — précédent `MENTION_PROVENANCE` (P6.8d).
      */
     public const PREFIXE_REPONSE = 'reponse.';
+
+    /**
+     * P10c-1 — Le préfixe des CONSTANTES CLINIQUES du §5.2 (`constante.temperature`).
+     *
+     * ═══════════════════════════════════════════════════════════════════════════════════════════
+     * CE COMMENTAIRE DISAIT « CES FAITS ENTRERONT QUAND LEUR COLLECTE EXISTERA ». ELLE EXISTE.
+     * ═══════════════════════════════════════════════════════════════════════════════════════════
+     *
+     * L'en-tête ci-dessus posait la condition : déclarer `temperature` sans écran pour la collecter
+     * aurait permis d'écrire une règle qui ne se déclenche jamais — une garantie inerte. P10c-1
+     * livre la collecte ; le fait entre.
+     *
+     * ═══ POURQUOI UNE FAMILLE À PRÉFIXE ET NON SEPT LIGNES DANS `FAITS` ═══
+     *
+     * Sept entrées figées ici rendraient fausse la propriété que cet incrément cherche : la liste
+     * des constantes collectables vient de la **version publiée** du référentiel `seuils_mesure`.
+     * Ajouter un type au référentiel doit rester une **publication**, pas une livraison — c'est
+     * l'argument V1 d'ADR-027 (une ville en donnée) et le gain de P10b-2 (un protocole régional
+     * sans une ligne de code).
+     *
+     * ═══ LE PARTAGE EST LE MÊME QUE POUR `reponse.<cle>`, ET AUCUN NE RATTRAPE L'AUTRE ═══
+     *
+     * Ce registre ne connaît aucun référentiel — lui en donner un le rendrait dépendant de la base,
+     * ce qu'il n'est pas. Il valide donc la **FORME** (préfixe + clé bien formée) ; c'est le
+     * contrôle qualité qui refuse la publication d'une condition portant `constante.X` quand `X`
+     * n'est pas un type de la version en vigueur, et le moteur qui **lève** s'il en rencontre une.
+     *
+     * ═══ LE TYPE, LUI, EST CONNU D'ICI — À LA DIFFÉRENCE D'UN `reponse.<cle>` ═══
+     *
+     * Une constante est **toujours** un nombre : `mesures_sante.valeur` est un `decimal`, et le
+     * référentiel n'en décrit pas d'autre forme. `type()` peut donc répondre sans consulter quoi que
+     * ce soit, et le contrôle de compatibilité fait/opérateur s'applique tel quel — `contient` sur
+     * une température est refusé exactement comme il l'est sur `age`.
+     *
+     * ═══ CE QUI N'ENTRE PAS, ET C'EST LE POINT DE CONCEPTION ═══
+     *
+     * **Aucun fait `constante.temperature_statut`.** Le référentiel sait classer une valeur en
+     * `critique` ({@see ReferentielMesure::statutPour()}), et un protocole pourrait
+     * s'en servir. Il ne doit pas : `critique_haut` est gouverné par les **deux** signatures
+     * administratives du §10, alors qu'un seuil décidant de l'urgence relève des **quatre**
+     * validations du §7. C'est l'asymétrie refermée par P10b-3-i, qu'on ne rouvre pas un cran plus
+     * bas. Le protocole compare la **valeur brute** — et c'est le §1.2 retourné à l'endroit.
+     */
+    public const PREFIXE_CONSTANTE = 'constante.';
 
     /**
      * La forme admise d'une clé de question : minuscules, chiffres, tiret bas.
@@ -175,9 +220,14 @@ final class RegistreFaitsProtocole
         }
 
         // La FORME seulement — voir l'en-tête. Le fond (« cette question existe-t-elle dans cette
-        // version ? ») est vérifié par le contrôle qualité, qui a la version sous les yeux.
-        return self::estReponse($fait)
-            && preg_match(self::FORME_CLE, self::cleReponse($fait)) === 1;
+        // version ? », « ce type est-il au référentiel publié ? ») est vérifié par le contrôle
+        // qualité, qui a la version sous les yeux.
+        if (self::estReponse($fait)) {
+            return preg_match(self::FORME_CLE, self::cleReponse($fait)) === 1;
+        }
+
+        return self::estConstante($fait)
+            && preg_match(self::FORME_CLE, self::typeConstante($fait)) === 1;
     }
 
     /** Ce fait vient-il du questionnaire ? */
@@ -194,15 +244,37 @@ final class RegistreFaitsProtocole
             : '';
     }
 
+    /** P10c-1 — Ce fait est-il une constante clinique du §5.2 ? */
+    public static function estConstante(string $fait): bool
+    {
+        return str_starts_with($fait, self::PREFIXE_CONSTANTE);
+    }
+
+    /** Le type de mesure porté par `constante.<type>` — chaîne vide si ce n'en est pas un. */
+    public static function typeConstante(string $fait): string
+    {
+        return self::estConstante($fait)
+            ? substr($fait, strlen(self::PREFIXE_CONSTANTE))
+            : '';
+    }
+
     /**
      * Le type d'un fait, ou `null` s'il vient du questionnaire.
      *
      * `null` n'est pas un oubli : le type d'un `reponse.<cle>` est déclaré par la question, et ce
      * registre ne connaît aucun protocole. Un type par défaut inventé ici laisserait passer `>=`
      * sur une question booléenne — l'appelant doit le résoudre dans la version.
+     *
+     * P10c-1 — Une CONSTANTE, elle, est toujours un nombre : `mesures_sante.valeur` est un
+     * `decimal` et le référentiel n'en décrit pas d'autre forme. Répondre ici ne consulte rien et
+     * n'invente rien, si bien que le contrôle de compatibilité fait/opérateur s'applique tel quel.
      */
     public static function type(string $fait): ?string
     {
+        if (self::estConstante($fait)) {
+            return self::TYPE_NOMBRE;
+        }
+
         return self::FAITS[$fait]['type'] ?? null;
     }
 
@@ -217,6 +289,13 @@ final class RegistreFaitsProtocole
         // leur faire signer du code. L'énoncé réel, lui, est figé dans l'instantané.
         if (self::estReponse($fait)) {
             return 'Réponse à la question « '.self::cleReponse($fait).' »';
+        }
+
+        // P10c-1 — Même raison : le §7 fait signer des médecins, et `constante.saturation_o2` brut
+        // n'est pas une phrase. Le libellé exact et l'unité vivent dans le référentiel publié ;
+        // les recopier ici en ferait une seconde vérité, capable de diverger après une correction.
+        if (self::estConstante($fait)) {
+            return 'Constante mesurée « '.self::typeConstante($fait).' »';
         }
 
         return $fait;

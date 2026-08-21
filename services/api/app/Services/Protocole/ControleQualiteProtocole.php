@@ -4,6 +4,7 @@ namespace App\Services\Protocole;
 
 use App\Models\Protocole;
 use App\Models\SpecialiteMedicale;
+use App\Services\Triage\ServiceConstantesTriage;
 use App\Support\NiveauTriage;
 use App\Support\RegistreActionsProtocole;
 use App\Support\RegistreContextesProtocole;
@@ -68,7 +69,10 @@ final class ControleQualiteProtocole
 
     private const SCORE_MAX = 100;
 
-    public function __construct(private readonly MessagesProtocole $messages) {}
+    public function __construct(
+        private readonly MessagesProtocole $messages,
+        private readonly ServiceConstantesTriage $constantes,
+    ) {}
 
     /**
      * @param  array{metadonnees: array<string, mixed>, regles: array<int, array<string, mixed>>, references: array<int, array<string, mixed>>}  $contenu
@@ -431,6 +435,30 @@ final class ControleQualiteProtocole
                     .'pas une question de cette version. La règle ne se déclencherait jamais, et '
                     .'rien ne le signalerait. Questions de cette version : '
                     .($questions === [] ? 'aucune' : implode(', ', array_keys($questions))).'.'];
+            }
+        }
+
+        // ═══ P10c-1 — LE SUFFIXE D'UNE `constante.<type>` EST CONFRONTÉ AU RÉFÉRENTIEL PUBLIÉ ═══
+        //
+        // Même partage que pour `reponse.<cle>`, et aucun des deux ne rattrape l'autre :
+        // `RegistreFaitsProtocole` ne valide que la FORME (il ne connaît aucun référentiel) ; le
+        // fond se vérifie ici. Sans ce contrôle, `constante.spo2` au lieu de
+        // `constante.saturation_o2` produirait une règle qui ne se déclenche **jamais** — et rien
+        // ne le signalerait, ce qui est exactement le défaut que le moteur refuse de commettre en
+        // levant.
+        //
+        // Le contrôle porte sur la version PUBLIÉE, parce que c'est elle que l'exécution lit. Si
+        // aucune n'est en vigueur, la liste est vide et le refus le dit — sans transformer « ce
+        // type n'est pas publié » en panne de serveur (voir `typesDisponibles()`).
+        if (RegistreFaitsProtocole::estConstante($fait)) {
+            $type = RegistreFaitsProtocole::typeConstante($fait);
+            $disponibles = $this->constantes->typesDisponibles();
+
+            if (! in_array($type, $disponibles, true)) {
+                return ["{$reference} : la condition interroge la constante « {$type} », qui ne "
+                    .'fait pas partie de la version en vigueur des seuils de mesure. La règle ne se '
+                    .'déclencherait jamais, et rien ne le signalerait. Constantes de cette '
+                    .'version : '.($disponibles === [] ? 'aucune (aucune version publiée)' : implode(', ', $disponibles)).'.'];
             }
         }
 

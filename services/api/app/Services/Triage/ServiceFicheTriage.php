@@ -101,6 +101,20 @@ final class ServiceFicheTriage
             // règles déclenchées, portée par le journal d'exécution du §10 (P10b-2).
             'reponses' => $this->reponsesDe($triage),
 
+            // ═══ P10c-1 — LES CONSTANTES RELEVÉES (§5.2), AVEC LEUR ORIGINE ═══
+            //
+            // Le §5.4 veut que la fiche montre sur quoi le triage repose. Une température de
+            // 39,5 °C pèse au moins autant qu'une réponse au questionnaire, et un soignant qui lit
+            // la fiche doit savoir si le patient l'a **relevée** au moment du triage ou si elle a
+            // été **reprise du carnet** — ce n'est pas la même information clinique.
+            //
+            // Vide pour tout triage antérieur à cet incrément : aucune constante n'a été collectée,
+            // et leur en inventer serait un mensonge d'archive (précédent L2).
+            'constantes' => $triage->constantes()
+                ->orderBy('type_mesure')
+                ->get(['type_mesure', 'valeur', 'unite', 'origine', 'referentiel_version'])
+                ->all(),
+
             'score_severite' => $triage->score_severite,
             'niveau' => $triage->niveau,
             'niveau_libelle' => $niveau['libelle'],
