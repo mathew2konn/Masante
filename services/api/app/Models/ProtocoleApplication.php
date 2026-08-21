@@ -39,6 +39,8 @@ class ProtocoleApplication extends Model
     public $timestamps = false;
 
     protected $fillable = [
+        // Numéro de chaîne d'audit ({@see ChaineAudit}) : une chaîne scellée n'est jamais réécrite.
+        'chaine',
         'trace_id',
         'contexte',
         'pays_code',
@@ -60,9 +62,9 @@ class ProtocoleApplication extends Model
     protected function casts(): array
     {
         return [
-            'protocoles_json'      => 'array',
+            'protocoles_json' => 'array',
             'recommandations_json' => 'array',
-            'cree_le'              => 'datetime',
+            'cree_le' => 'datetime',
         ];
     }
 

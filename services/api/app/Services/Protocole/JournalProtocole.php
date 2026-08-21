@@ -5,7 +5,10 @@ namespace App\Services\Protocole;
 use App\Models\Protocole;
 use App\Models\ProtocoleJournal;
 use App\Models\User;
+use App\Services\Audit\ChaineAudit;
+use App\Services\Audit\JournalChaine;
 use App\Services\Referentiel\EmpreinteReferentiel;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
 
 /**
@@ -32,8 +35,40 @@ use Illuminate\Support\Carbon;
  * que chaque validation nomme son validateur et son rôle : protéger l'identifiant technique en
  * laissant le nom modifiable protégerait la mauvaise moitié.
  */
-final class JournalProtocole
+final class JournalProtocole implements JournalChaine
 {
+    public function nomJournal(): string
+    {
+        return 'protocole_journal';
+    }
+
+    public function requete(): Builder
+    {
+        return ProtocoleJournal::query();
+    }
+
+    /**
+     * La charge hachée d'une entrée relue.
+     *
+     * Elle doit reproduire À L'IDENTIQUE celle construite à l'écriture — mêmes clés, même ordre,
+     * mêmes types. Toute divergence ferait crier « entrée modifiée » sur un journal intact.
+     *
+     * @return array<string, mixed>
+     */
+    public function charge(object $entree): array
+    {
+        return [
+            'protocole_code' => $entree->protocole_code,
+            'pays_code' => $entree->pays_code,
+            'version_numero' => $entree->version_numero,
+            'action' => $entree->action,
+            'acteur_id' => $entree->acteur_id,
+            'acteur_nom' => $entree->acteur_nom,
+            'cree_le' => $entree->cree_le->toIso8601String(),
+            'details' => $entree->details_json ?? [],
+        ];
+    }
+
     /**
      * Ajoute un maillon à la chaîne. À appeler DANS une transaction déjà ouverte.
      *
@@ -56,7 +91,10 @@ final class JournalProtocole
         // concernée. On prend donc toujours protocole PUIS journal, jamais l'inverse — une
         // inversion entre deux transactions concurrentes est la définition d'un interblocage,
         // exactement ce qui avait mordu en P6.1.
+        $chaine = ChaineAudit::numeroCourant($this->nomJournal(), $this->requete());
+
         $precedent = ProtocoleJournal::query()
+            ->where('chaine', $chaine)
             ->orderByDesc('id')
             ->lockForUpdate()
             ->first();
@@ -65,86 +103,56 @@ final class JournalProtocole
 
         $charge = [
             'protocole_code' => $protocole->code,
-            'pays_code'      => $protocole->pays_code,
+            'pays_code' => $protocole->pays_code,
             'version_numero' => $versionNumero,
-            'action'         => $action,
-            'acteur_id'      => $acteur?->id,
-            'acteur_nom'     => $acteur?->nomLisible() ?? 'Système',
-            'cree_le'        => $horodatage->toIso8601String(),
-            'details'        => $details,
+            'action' => $action,
+            'acteur_id' => $acteur?->id,
+            'acteur_nom' => $acteur?->nomLisible() ?? 'Système',
+            'cree_le' => $horodatage->toIso8601String(),
+            'details' => $details,
         ];
 
-        return ProtocoleJournal::create([
-            'protocole_code'       => $protocole->code,
-            'pays_code'            => $protocole->pays_code,
-            'protocole_id'         => $protocole->id,
-            'version_numero'       => $versionNumero,
-            'action'               => $action,
-            'acteur_id'            => $acteur?->id,
-            'acteur_nom'           => $acteur?->nomLisible() ?? 'Système',
-            'details_json'         => $details,
+        $entree = ProtocoleJournal::create([
+            'chaine' => $chaine,
+            'protocole_code' => $protocole->code,
+            'pays_code' => $protocole->pays_code,
+            'protocole_id' => $protocole->id,
+            'version_numero' => $versionNumero,
+            'action' => $action,
+            'acteur_id' => $acteur?->id,
+            'acteur_nom' => $acteur?->nomLisible() ?? 'Système',
+            'details_json' => $details,
             'empreinte_precedente' => $precedent?->empreinte,
-            'empreinte'            => EmpreinteReferentiel::duMaillon($precedent?->empreinte, $charge),
-            'cree_le'              => $horodatage,
+            'empreinte' => EmpreinteReferentiel::duMaillon($precedent?->empreinte, $charge),
+            'cree_le' => $horodatage,
         ]);
+
+        // ═══ L'ANCRAGE DE TÊTE ═══
+        //
+        // La toute première entrée d'une chaîne fixe son point de départ. Sans lui, vider le
+        // journal puis le réalimenter donnerait une chaîne qui repart d'une empreinte précédente
+        // nulle et se revérifie « intacte » — le scénario exact constaté sur `referentiel_journal`.
+        if ($precedent === null) {
+            ChaineAudit::ancrer($this->nomJournal(), $chaine, $entree->empreinte);
+        }
+
+        return $entree;
     }
 
     /**
-     * Recalcule toute la chaîne et signale la première rupture.
+     * Vérifie la chaîne COURANTE et rend compte des chaînes scellées.
      *
-     * Deux ruptures distinguées, parce qu'elles ne disent pas la même chose :
-     *  - CHAINAGE : une entrée a été supprimée, ou insérée hors du moteur ;
-     *  - CONTENU  : une entrée a été modifiée en base après son écriture.
+     * Trois ruptures distinguées, parce qu'elles ne disent pas la même chose :
+     *  - CHAINAGE : une entrée a été supprimée au milieu, ou insérée hors du moteur ;
+     *  - CONTENU  : une entrée a été modifiée en base après son écriture ;
+     *  - ORIGINE  : la chaîne ne déclare pas son commencement — donc rien ne dirait qu'on lui a
+     *    retiré des entrées EN TÊTE. C'est le défaut que la vérification d'origine ferme, et il
+     *    était muet ({@see ChaineAudit}).
      *
-     * @return array{intacte: bool, entrees: int, rupture: ?array<string, mixed>}
+     * @return array<string, mixed>
      */
     public function verifierChaine(): array
     {
-        $attendue = null;
-        $nombre = 0;
-
-        foreach (ProtocoleJournal::query()->orderBy('id')->cursor() as $entree) {
-            $nombre++;
-
-            if ($entree->empreinte_precedente !== $attendue) {
-                return [
-                    'intacte' => false,
-                    'entrees' => $nombre,
-                    'rupture' => [
-                        'id'      => $entree->id,
-                        'type'    => 'CHAINAGE',
-                        'message' => "L'entrée #{$entree->id} ne s'enchaîne pas au maillon précédent "
-                            .'(entrée supprimée ou insérée hors du moteur).',
-                    ],
-                ];
-            }
-
-            $recalculee = EmpreinteReferentiel::duMaillon($entree->empreinte_precedente, [
-                'protocole_code' => $entree->protocole_code,
-                'pays_code'      => $entree->pays_code,
-                'version_numero' => $entree->version_numero,
-                'action'         => $entree->action,
-                'acteur_id'      => $entree->acteur_id,
-                'acteur_nom'     => $entree->acteur_nom,
-                'cree_le'        => $entree->cree_le->toIso8601String(),
-                'details'        => $entree->details_json ?? [],
-            ]);
-
-            if (! hash_equals($entree->empreinte, $recalculee)) {
-                return [
-                    'intacte' => false,
-                    'entrees' => $nombre,
-                    'rupture' => [
-                        'id'      => $entree->id,
-                        'type'    => 'CONTENU',
-                        'message' => "L'entrée #{$entree->id} a été modifiée après son écriture.",
-                    ],
-                ];
-            }
-
-            $attendue = $entree->empreinte;
-        }
-
-        return ['intacte' => true, 'entrees' => $nombre, 'rupture' => null];
+        return ChaineAudit::verifier($this);
     }
 }

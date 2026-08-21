@@ -5,7 +5,10 @@ namespace App\Services\Pki;
 use App\Models\Medecin;
 use App\Models\SignatureJournal;
 use App\Models\User;
+use App\Services\Audit\ChaineAudit;
+use App\Services\Audit\JournalChaine;
 use App\Services\Referentiel\EmpreinteReferentiel;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
 
 /**
@@ -33,19 +36,53 @@ use Illuminate\Support\Carbon;
  * Aucun contenu clinique. Le journal porte l'EMPREINTE du contenu, jamais les médicaments : il
  * prouve, il ne recopie pas. Deux copies feraient deux vérités (P6.3), et celle-ci serait en clair.
  */
-final class JournalSignature
+final class JournalSignature implements JournalChaine
 {
-    public const SIGNATURE_REUSSIE  = 'signature_reussie';
-    public const SIGNATURE_REFUSEE  = 'signature_refusee';
-    public const SECRET_INVALIDE    = 'secret_invalide';
-    public const CERTIFICAT_EMIS    = 'certificat_emis';
+    public function nomJournal(): string
+    {
+        return 'signature_journal';
+    }
+
+    public function requete(): Builder
+    {
+        return SignatureJournal::query();
+    }
+
+    /**
+     * La charge hachée d'une entrée relue — identique, clé pour clé, à celle de l'écriture.
+     *
+     * @return array<string, mixed>
+     */
+    public function charge(object $entree): array
+    {
+        return [
+            'action' => $entree->action,
+            'type_document' => $entree->type_document,
+            'document_id' => $entree->document_id,
+            'medecin_id' => $entree->medecin_id,
+            'acteur_id' => $entree->acteur_id,
+            'acteur_nom' => $entree->acteur_nom,
+            'motif' => $entree->motif,
+            'cree_le' => $entree->cree_le->toIso8601String(),
+            'details' => $entree->details ?? [],
+        ];
+    }
+
+    public const SIGNATURE_REUSSIE = 'signature_reussie';
+
+    public const SIGNATURE_REFUSEE = 'signature_refusee';
+
+    public const SECRET_INVALIDE = 'secret_invalide';
+
+    public const CERTIFICAT_EMIS = 'certificat_emis';
+
     public const CERTIFICAT_REVOQUE = 'certificat_revoque';
 
     /**
      * Ajoute un maillon. À appeler dans une transaction déjà ouverte quand il y en a une.
      *
      * @param  array<string, mixed>  $details  empreinte, numéro de série, contrôle en échec —
-     *                                        JAMAIS le contenu du document.
+     *                                         JAMAIS le contenu du document.
      */
     public function inscrire(
         string $action,
@@ -58,35 +95,53 @@ final class JournalSignature
     ): SignatureJournal {
         // Le dernier maillon, verrouillé : deux inscriptions simultanées ne peuvent pas partir de
         // la même empreinte précédente et produire deux branches parallèles.
-        $precedent = SignatureJournal::query()->orderByDesc('id')->lockForUpdate()->first();
+        $chaine = ChaineAudit::numeroCourant($this->nomJournal(), $this->requete());
+
+        $precedent = SignatureJournal::query()
+            ->where('chaine', $chaine)
+            ->orderByDesc('id')
+            ->lockForUpdate()
+            ->first();
 
         $horodatage = Carbon::now();
 
         $charge = [
-            'action'         => $action,
-            'type_document'  => $typeDocument,
-            'document_id'    => $documentId,
-            'medecin_id'     => $professionnel?->getKey(),
-            'acteur_id'      => $acteur?->id,
-            'acteur_nom'     => $this->nomLisible($acteur),
-            'motif'          => $motif,
-            'cree_le'        => $horodatage->toIso8601String(),
-            'details'        => $details,
+            'action' => $action,
+            'type_document' => $typeDocument,
+            'document_id' => $documentId,
+            'medecin_id' => $professionnel?->getKey(),
+            'acteur_id' => $acteur?->id,
+            'acteur_nom' => $this->nomLisible($acteur),
+            'motif' => $motif,
+            'cree_le' => $horodatage->toIso8601String(),
+            'details' => $details,
         ];
 
-        return SignatureJournal::create([
-            'action'               => $action,
-            'type_document'        => $typeDocument,
-            'document_id'          => $documentId,
-            'medecin_id'           => $professionnel?->getKey(),
-            'acteur_id'            => $acteur?->id,
-            'acteur_nom'           => $this->nomLisible($acteur),
-            'motif'                => $motif,
-            'details'              => $details,
-            'empreinte'            => EmpreinteReferentiel::duMaillon($precedent?->empreinte, $charge),
+        $entree = SignatureJournal::create([
+            'chaine' => $chaine,
+            'action' => $action,
+            'type_document' => $typeDocument,
+            'document_id' => $documentId,
+            'medecin_id' => $professionnel?->getKey(),
+            'acteur_id' => $acteur?->id,
+            'acteur_nom' => $this->nomLisible($acteur),
+            'motif' => $motif,
+            'details' => $details,
+            'empreinte' => EmpreinteReferentiel::duMaillon($precedent?->empreinte, $charge),
             'empreinte_precedente' => $precedent?->empreinte,
-            'cree_le'              => $horodatage,
+            'cree_le' => $horodatage,
         ]);
+
+        // ═══ L'ANCRAGE DE TÊTE ═══
+        //
+        // La toute première entrée d'une chaîne fixe son point de départ. Sans lui, vider le
+        // journal puis le réalimenter donnerait une chaîne qui repart d'une empreinte précédente
+        // nulle et se revérifie « intacte » — le scénario exact constaté sur `referentiel_journal`.
+        if ($precedent === null) {
+            ChaineAudit::ancrer($this->nomJournal(), $chaine, $entree->empreinte);
+        }
+
+        return $entree;
     }
 
     /**
@@ -98,29 +153,17 @@ final class JournalSignature
      */
     public function premierMaillonRompu(): ?int
     {
-        $precedente = null;
+        return $this->verifierChaine()['rupture']['id'] ?? null;
+    }
 
-        foreach (SignatureJournal::orderBy('id')->cursor() as $maillon) {
-            $charge = [
-                'action'        => $maillon->action,
-                'type_document' => $maillon->type_document,
-                'document_id'   => $maillon->document_id,
-                'medecin_id'    => $maillon->medecin_id,
-                'acteur_id'     => $maillon->acteur_id,
-                'acteur_nom'    => $maillon->acteur_nom,
-                'motif'         => $maillon->motif,
-                'cree_le'       => $maillon->cree_le->toIso8601String(),
-                'details'       => $maillon->details ?? [],
-            ];
-
-            if (! hash_equals(EmpreinteReferentiel::duMaillon($precedente, $charge), $maillon->empreinte)) {
-                return $maillon->id;
-            }
-
-            $precedente = $maillon->empreinte;
-        }
-
-        return null;
+    /**
+     * Vérifie la chaîne courante et rend compte des chaînes scellées ({@see ChaineAudit}).
+     *
+     * @return array<string, mixed>
+     */
+    public function verifierChaine(): array
+    {
+        return ChaineAudit::verifier($this);
     }
 
     /** « Système » quand l'acte n'a pas d'auteur humain (tâche planifiée, commande). */

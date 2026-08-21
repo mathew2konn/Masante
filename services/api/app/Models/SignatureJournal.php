@@ -19,6 +19,8 @@ class SignatureJournal extends Model
     public $timestamps = false;
 
     protected $fillable = [
+        // Numéro de chaîne d'audit ({@see ChaineAudit}) : une chaîne scellée n'est jamais réécrite.
+        'chaine',
         'action',
         'type_document',
         'document_id',
@@ -35,8 +37,8 @@ class SignatureJournal extends Model
     protected function casts(): array
     {
         return [
-            'details'     => 'array',
-            'cree_le'     => 'datetime',
+            'details' => 'array',
+            'cree_le' => 'datetime',
             'document_id' => 'integer',
         ];
     }

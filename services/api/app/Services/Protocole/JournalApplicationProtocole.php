@@ -4,7 +4,10 @@ namespace App\Services\Protocole;
 
 use App\Models\ProtocoleApplication;
 use App\Models\ProtocoleConflit;
+use App\Services\Audit\ChaineAudit;
+use App\Services\Audit\JournalChaine;
 use App\Services\Referentiel\EmpreinteReferentiel;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -33,8 +36,47 @@ use Illuminate\Support\Str;
  * concurrentes. C'est un choix (décision O3) fait en connaissance du §11 (« moins de 100 ms »), qui
  * n'est de toute façon pas déclaré atteint tant que le cache est en `database`.
  */
-final class JournalApplicationProtocole
+final class JournalApplicationProtocole implements JournalChaine
 {
+    public function nomJournal(): string
+    {
+        return 'protocole_applications';
+    }
+
+    public function requete(): Builder
+    {
+        return ProtocoleApplication::query();
+    }
+
+    /**
+     * La charge hachée d'une évaluation relue — identique, clé pour clé, à celle de l'écriture.
+     *
+     * @return array<string, mixed>
+     */
+    public function charge(object $entree): array
+    {
+        return [
+            'trace_id' => $entree->trace_id,
+            'contexte' => $entree->contexte,
+            'pays_code' => $entree->pays_code,
+            'membre_id' => self::entierOuNull($entree->membre_id),
+            'user_id' => self::entierOuNull($entree->user_id),
+            'professionnel_id' => self::entierOuNull($entree->professionnel_id),
+            'triage_id' => self::entierOuNull($entree->triage_id),
+            'protocole_retenu' => $entree->protocole_retenu_code === null ? null : [
+                'code' => $entree->protocole_retenu_code,
+                'version' => $this->libelleVersion($entree),
+                'numero' => (int) $entree->protocole_retenu_version,
+            ],
+            'protocoles' => $entree->protocoles_json ?? [],
+            'recommandations' => $entree->recommandations_json ?? [],
+            'conflits' => $this->conflitsPour($entree),
+            'decision_finale' => $entree->decision_finale,
+            'ecart' => $entree->ecart_justification,
+            'cree_le' => $entree->cree_le->toIso8601String(),
+        ];
+    }
+
     /**
      * Inscrit une évaluation et ses divergences. À appeler DANS une transaction déjà ouverte.
      *
@@ -48,7 +90,10 @@ final class JournalApplicationProtocole
         // ORDRE DES VERROUS : ce journal est toujours pris EN DERNIER, après les tables métier de
         // l'appelant. Une inversion entre deux transactions concurrentes est la définition d'un
         // interblocage — celui qui avait mordu en P6.1.
+        $chaine = ChaineAudit::numeroCourant($this->nomJournal(), $this->requete());
+
         $precedent = ProtocoleApplication::query()
+            ->where('chaine', $chaine)
             ->orderByDesc('id')
             ->lockForUpdate()
             ->first();
@@ -59,46 +104,53 @@ final class JournalApplicationProtocole
         $retenu = $resultat['protocole_retenu'] ?? null;
 
         $charge = [
-            'trace_id'         => $traceId,
-            'contexte'         => $contexteAppel['contexte'],
-            'pays_code'        => $contexteAppel['pays_code'] ?? 'CI',
-            'membre_id'        => self::entierOuNull($contexteAppel['membre_id'] ?? null),
-            'user_id'          => self::entierOuNull($contexteAppel['user_id'] ?? null),
+            'trace_id' => $traceId,
+            'contexte' => $contexteAppel['contexte'],
+            'pays_code' => $contexteAppel['pays_code'] ?? 'CI',
+            'membre_id' => self::entierOuNull($contexteAppel['membre_id'] ?? null),
+            'user_id' => self::entierOuNull($contexteAppel['user_id'] ?? null),
             'professionnel_id' => self::entierOuNull($contexteAppel['professionnel_id'] ?? null),
-            'triage_id'        => self::entierOuNull($contexteAppel['triage_id'] ?? null),
+            'triage_id' => self::entierOuNull($contexteAppel['triage_id'] ?? null),
             'protocole_retenu' => $retenu,
-            'protocoles'       => $resultat['protocoles'] ?? [],
+            'protocoles' => $resultat['protocoles'] ?? [],
             // Ce que le patient a vu. Hors de l'empreinte, ce serait la seule chose réécrivable.
-            'recommandations'  => $resultat['actions'] ?? [],
-            'conflits'         => $resultat['conflits'] ?? [],
-            'decision_finale'  => $contexteAppel['decision_finale'] ?? null,
-            'ecart'            => $contexteAppel['ecart_justification'] ?? null,
-            'cree_le'          => $horodatage->toIso8601String(),
+            'recommandations' => $resultat['actions'] ?? [],
+            'conflits' => $resultat['conflits'] ?? [],
+            'decision_finale' => $contexteAppel['decision_finale'] ?? null,
+            'ecart' => $contexteAppel['ecart_justification'] ?? null,
+            'cree_le' => $horodatage->toIso8601String(),
         ];
 
         $application = ProtocoleApplication::create([
-            'trace_id'                 => $traceId,
-            'contexte'                 => $contexteAppel['contexte'],
-            'pays_code'                => $contexteAppel['pays_code'] ?? 'CI',
-            'membre_id'                => $contexteAppel['membre_id'] ?? null,
-            'user_id'                  => $contexteAppel['user_id'] ?? null,
-            'professionnel_id'         => $contexteAppel['professionnel_id'] ?? null,
-            'triage_id'                => $contexteAppel['triage_id'] ?? null,
-            'protocole_retenu_code'    => $retenu['code'] ?? null,
+            'chaine' => $chaine,
+            'trace_id' => $traceId,
+            'contexte' => $contexteAppel['contexte'],
+            'pays_code' => $contexteAppel['pays_code'] ?? 'CI',
+            'membre_id' => $contexteAppel['membre_id'] ?? null,
+            'user_id' => $contexteAppel['user_id'] ?? null,
+            'professionnel_id' => $contexteAppel['professionnel_id'] ?? null,
+            'triage_id' => $contexteAppel['triage_id'] ?? null,
+            'protocole_retenu_code' => $retenu['code'] ?? null,
             'protocole_retenu_version' => $retenu['numero'] ?? null,
-            'protocoles_json'          => $resultat['protocoles'] ?? [],
-            'recommandations_json'     => $resultat['actions'] ?? [],
-            'decision_finale'          => $contexteAppel['decision_finale'] ?? null,
-            'ecart_justification'      => $contexteAppel['ecart_justification'] ?? null,
-            'empreinte_precedente'     => $precedent?->empreinte,
-            'empreinte'                => EmpreinteReferentiel::duMaillon($precedent?->empreinte, $charge),
-            'cree_le'                  => $horodatage,
+            'protocoles_json' => $resultat['protocoles'] ?? [],
+            'recommandations_json' => $resultat['actions'] ?? [],
+            'decision_finale' => $contexteAppel['decision_finale'] ?? null,
+            'ecart_justification' => $contexteAppel['ecart_justification'] ?? null,
+            'empreinte_precedente' => $precedent?->empreinte,
+            'empreinte' => EmpreinteReferentiel::duMaillon($precedent?->empreinte, $charge),
+            'cree_le' => $horodatage,
         ]);
+
+        // L'ancrage de tête : la première évaluation d'une chaîne fixe son point de départ
+        // ({@see ChaineAudit::ancrer()}).
+        if ($precedent === null) {
+            ChaineAudit::ancrer($this->nomJournal(), $chaine, $application->empreinte);
+        }
 
         foreach ($resultat['conflits'] ?? [] as $conflit) {
             ProtocoleConflit::create($conflit + [
                 'application_id' => $application->id,
-                'cree_le'        => $horodatage,
+                'cree_le' => $horodatage,
             ]);
         }
 
@@ -116,62 +168,7 @@ final class JournalApplicationProtocole
      */
     public function verifierChaine(): array
     {
-        $attendue = null;
-        $nombre = 0;
-
-        foreach (ProtocoleApplication::query()->orderBy('id')->cursor() as $entree) {
-            $nombre++;
-
-            if ($entree->empreinte_precedente !== $attendue) {
-                return [
-                    'intacte' => false,
-                    'entrees' => $nombre,
-                    'rupture' => [
-                        'id'      => $entree->id,
-                        'type'    => 'CHAINAGE',
-                        'message' => "L'évaluation #{$entree->id} ne s'enchaîne pas au maillon "
-                            .'précédent (entrée supprimée ou insérée hors du moteur).',
-                    ],
-                ];
-            }
-
-            $recalculee = EmpreinteReferentiel::duMaillon($entree->empreinte_precedente, [
-                'trace_id'         => $entree->trace_id,
-                'contexte'         => $entree->contexte,
-                'pays_code'        => $entree->pays_code,
-                'membre_id'        => self::entierOuNull($entree->membre_id),
-                'user_id'          => self::entierOuNull($entree->user_id),
-                'professionnel_id' => self::entierOuNull($entree->professionnel_id),
-                'triage_id'        => self::entierOuNull($entree->triage_id),
-                'protocole_retenu' => $entree->protocole_retenu_code === null ? null : [
-                    'code'    => $entree->protocole_retenu_code,
-                    'version' => $this->libelleVersion($entree),
-                    'numero'  => (int) $entree->protocole_retenu_version,
-                ],
-                'protocoles'      => $entree->protocoles_json ?? [],
-                'recommandations' => $entree->recommandations_json ?? [],
-                'conflits'        => $this->conflitsPour($entree),
-                'decision_finale' => $entree->decision_finale,
-                'ecart'           => $entree->ecart_justification,
-                'cree_le'         => $entree->cree_le->toIso8601String(),
-            ]);
-
-            if (! hash_equals($entree->empreinte, $recalculee)) {
-                return [
-                    'intacte' => false,
-                    'entrees' => $nombre,
-                    'rupture' => [
-                        'id'      => $entree->id,
-                        'type'    => 'CONTENU',
-                        'message' => "L'évaluation #{$entree->id} a été modifiée après son écriture.",
-                    ],
-                ];
-            }
-
-            $attendue = $entree->empreinte;
-        }
-
-        return ['intacte' => true, 'entrees' => $nombre, 'rupture' => null];
+        return ChaineAudit::verifier($this);
     }
 
     /**
@@ -213,16 +210,16 @@ final class JournalApplicationProtocole
             ->orderBy('id')
             ->get()
             ->map(static fn ($c): array => [
-                'action_type'              => $c->action_type,
-                'valeur_retenue'           => $c->valeur_retenue,
-                'protocole_retenu_code'    => $c->protocole_retenu_code,
+                'action_type' => $c->action_type,
+                'valeur_retenue' => $c->valeur_retenue,
+                'protocole_retenu_code' => $c->protocole_retenu_code,
                 'protocole_retenu_version' => (int) $c->protocole_retenu_version,
-                'source_retenue'           => $c->source_retenue,
-                'valeur_ecartee'           => $c->valeur_ecartee,
-                'protocole_ecarte_code'    => $c->protocole_ecarte_code,
+                'source_retenue' => $c->source_retenue,
+                'valeur_ecartee' => $c->valeur_ecartee,
+                'protocole_ecarte_code' => $c->protocole_ecarte_code,
                 'protocole_ecarte_version' => (int) $c->protocole_ecarte_version,
-                'source_ecartee'           => $c->source_ecartee,
-                'critere'                  => $c->critere,
+                'source_ecartee' => $c->source_ecartee,
+                'critere' => $c->critere,
             ])
             ->all();
     }

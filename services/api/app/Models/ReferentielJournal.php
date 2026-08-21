@@ -40,6 +40,8 @@ class ReferentielJournal extends Model
     protected $table = 'referentiel_journal';
 
     protected $fillable = [
+        // Numéro de chaîne d'audit ({@see ChaineAudit}) : une chaîne scellée n'est jamais réécrite.
+        'chaine',
         'referentiel_code',
         'pays_code',
         'referentiel_id',
@@ -56,9 +58,9 @@ class ReferentielJournal extends Model
     protected function casts(): array
     {
         return [
-            'details_json'   => 'array',
+            'details_json' => 'array',
             'version_numero' => 'integer',
-            'cree_le'        => 'datetime',
+            'cree_le' => 'datetime',
         ];
     }
 

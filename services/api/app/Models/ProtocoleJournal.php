@@ -45,6 +45,8 @@ class ProtocoleJournal extends Model
     public $timestamps = false;
 
     protected $fillable = [
+        // Numéro de chaîne d'audit ({@see ChaineAudit}) : une chaîne scellée n'est jamais réécrite.
+        'chaine',
         'protocole_code', 'pays_code', 'protocole_id', 'version_numero', 'action',
         'acteur_id', 'acteur_nom', 'details_json',
         'empreinte_precedente', 'empreinte', 'cree_le',
@@ -53,9 +55,9 @@ class ProtocoleJournal extends Model
     protected function casts(): array
     {
         return [
-            'details_json'   => 'array',
+            'details_json' => 'array',
             'version_numero' => 'integer',
-            'cree_le'        => 'datetime',
+            'cree_le' => 'datetime',
         ];
     }
 
