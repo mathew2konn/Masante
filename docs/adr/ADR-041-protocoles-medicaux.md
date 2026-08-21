@@ -2,7 +2,7 @@
 
 - **Statut** : accepté — G1 validé par le propriétaire le 2026-08-19. **P10b-1 : VALIDÉ G5 le
   2026-08-19** — G2 (live MySQL) et G3 prouvés, G4 propriétaire OK. **P10b-2 : VALIDÉ G5 le
-  2026-08-20** (§B2). **P10b-3-i : VALIDÉ G5 le 2026-08-20** (§B3).
+  2026-08-20** (§B2). **P10b-3-i : VALIDÉ G5 le 2026-08-20** (§B3). **P10b-3-ii : VALIDÉ G5 le 2026-08-21** (§B4) — **P10b est COMPLET (b-1, b-2, b-3-i, b-3-ii) : l'étape 4 de l'ordre CDC_08 §13 est achevée.**
 - **Contexte** : P10b, premier incrément (`b-1`). Suit P10a (ADR-040), précède P10b-2 (sélecteur et
   conflits), P10b-3 (questionnaire adaptatif) et P10c (IA, CDC_05 §5).
 - **Corpus** : CDC_08 en entier ; CDC_05 §5.3 (niveaux) ; CDC_04 §115 ; CDC_09 §10 (gouvernance) ;
@@ -722,3 +722,151 @@ Voir `GUIDE_TEST_TRIAGE.md` partie 4 §5. Les deux principales : **le poids des 
 `PLAFOND_ANTECEDENTS` restent dans le code** (X3 n'est refermé que pour les réponses), et **aucun
 écran §7** — un médecin spécialiste signe toujours par curl un document que le §7 qualifie
 d'*opposable*. Les deux sont le périmètre de **P10b-3-ii**.
+
+---
+
+# B4 — Assemblage du score sous protocole et écran §7 de lecture et signature (P10b-3-ii)
+
+- **Statut** : **VALIDÉ G5 le 2026-08-21** — G1 validé le 2026-08-20 (décisions A, B, C) ; G0
+  d'implémentation le 2026-08-21 (constat Z1) ; G3 (1179 tests / 16 430 assertions, 23 vecteurs
+  dédiés, Pint, mutation 6 tueuses + 1 verte) et G2 live MySQL W1→W11 prouvés (base restaurée compte
+  pour compte) ; **G4 propriétaire OK**. Dernier incrément de P10b.
+- **Plan G1** : `docs/PLAN_G1_P10b3ii_Antecedents_Ecran7.md`.
+
+## B4.1 — Le périmètre annoncé a été réduit, et c'est la décision A
+
+`CLAUDE.md` annonçait « poids des symptômes sous protocole ». Le plan G1 a conclu que **ce serait
+une erreur**, pour une raison qui vient de P10b-3-i lui-même : cet incrément a déplacé les questions
+**parce que** question, condition et impact ne peuvent pas vivre dans deux artefacts aux cycles de
+publication indépendants. Déplacer les poids reproduirait le même défaut un cran plus bas — **un
+symptôme neuf publié au référentiel pèserait 0 tant que le protocole ne l'aurait pas rattrapé**,
+sans erreur et sans signal.
+
+> **Ce qui est un attribut de l'objet reste avec l'objet. Ce qui est une règle combinant des objets
+> va au protocole.**
+
+Une question **est** la substance du questionnaire ; un poids est un attribut du symptôme, à côté de
+son nom, de sa catégorie et de ses orientations.
+
+**Ce que cela laisse ouvert et qui est nommé** : `poids_severite` et `drapeau_rouge` restent publiés
+sous le cycle **§10** du socle (deux agents) alors qu'ils décident de l'urgence autant qu'un seuil.
+La réponse honnête n'est pas de déplacer la donnée mais **d'élever la gouvernance de ce
+référentiel** — ce qui touche le cycle de P6.3, partagé par les dix référentiels. Incrément à part,
+nommé plutôt qu'oublié.
+
+## B4.2 — Z1 : l'assemblage des faits existait en trois exemplaires
+
+Trouvé au G0 d'implémentation, pas au G1. `TriageController::questions()` et
+`TriageService::analyser()` (deux fois, une par phase) composaient chacun à la main le tableau de
+faits.
+
+**Ce n'était pas une redite bénigne** : `score_antecedents` était déjà un fait déclaré, passé par
+les deux sites du service et **pas** par celui du contrôleur. Or, depuis P10b-1, **un fait inconnu
+lève**. Une règle de questionnaire conditionnée sur les antécédents aurait donc fonctionné dans
+`POST /triage/analyser` et **rendu `POST /triage/questions` inopérant** — défaut actif, simplement
+non déclenché faute de règle qui l'emprunte. Même famille que le `centre_dialyse` en dur de P6.4b.
+
+Ajouter deux faits à trois endroits aurait reproduit la faute. D'où `FaitsTriage`, source unique.
+
+## B4.3 — Un contexte propre, contre ce que disait le plan
+
+Le plan logeait `TRIAGE-ANTECEDENTS` dans `triage_questionnaire`. Cela **recréait Z1** :
+`POST /triage/questions` ne connaît pas le membre, donc pas ses antécédents. Une même règle aurait
+répondu différemment selon l'endpoint.
+
+Le contexte `triage_antecedents` rend la frontière **vérifiable** au lieu de conventionnelle : le
+contrôle qualité refuse qu'un protocole de questionnaire conditionne sur les antécédents, et qu'un
+protocole d'antécédents conditionne sur un score pas encore assemblé — ou sur la valeur qu'il est
+lui-même en train de décider. **Chaque refus nomme le fait à utiliser à la place.**
+
+Corollaire corrigé au passage : le message de b-3-i proposait `score_antecedents` comme repli pour
+un questionnaire. **C'est devenu faux**, et le message a été rectifié plutôt que laissé.
+
+## B4.4 — `BORNER` et non `DÉFINIR`, après avoir essayé l'inverse
+
+La première écriture disait `SI brut > 20 ALORS DEFINIR 20`. Elle ne tient pas : il faut une seconde
+règle pour le cas contraire — « sinon, garder la somme telle quelle » — et **cette valeur est
+dynamique**, donc inexprimable par une action à valeur littérale. Y mettre 0 aurait effacé les
+antécédents des patients qui en déclarent peu : le contraire exact de la règle.
+
+La borne s'écrit en **une seule règle sans condition** (le moteur prévoit explicitement ce cas), et
+le service applique un `min`. **La décision — le chiffre — est dans le protocole ; l'arithmétique
+reste où vivent déjà la somme et les bornes 0-100.**
+
+## B4.5 — Décision B : le plafond est la réponse à `impact_triage`, pas une incohérence
+
+`impact_triage` est saisi par le patient (constat Y1). J'avais avancé qu'il serait indéfendable de
+faire signer une borne posée sur une saisie libre. **C'est l'inverse** : la borne existe précisément
+*parce que* l'entrée n'est pas vérifiée. La gouverner, c'est gouverner la seule moitié qui puisse
+l'être.
+
+Les deux autres voies, écartées avec leur raison : dériver l'impact d'une gravité gouvernée
+supposerait d'inventer dans le référentiel des maladies une échelle que personne n'a validée (ce que
+P6.8c avait refusé pour `categorie`) ; refuser la déclaration du patient ferait tomber cette part à
+0 pour tout le carnet, donc **baisserait** les scores — un défaut qui pousse vers le **sous-triage**,
+la direction dangereuse.
+
+## B4.6 — L'écran §7 : lire et signer, jamais éditer
+
+Le §7 qualifie le dossier de validation d'**opposable**. Demander à un médecin spécialiste de signer
+par `curl` revient à lui faire signer un texte qu'il n'a pas lu sous une forme lisible.
+
+L'écran rend les règles **en français**, depuis les libellés des trois listes blanches — un
+relecteur clinique n'a pas à lire du JSON. Il montre les contrôles §7.4 en échec **avant** la
+signature, pour qu'on ne relise pas pour rien.
+
+> **Une validation caduque doit avoir l'air caduque.** C'est l'information dont un signataire a le
+> plus besoin : le texte a bougé depuis qu'un confrère l'a relu. L'afficher discrètement laisserait
+> signer par-dessus une relecture périmée — ce que l'anti-substitution existe pour empêcher.
+
+**Aucun bouton « modifier »** (décision Q2). La garde du groupe de routes accepte l'une quelconque
+des cinq permissions ; celle qui **fait autorité** reste celle du service, qui exige la permission
+**exacte** du type signé — sans quoi un relecteur clinique apposerait la signature technique.
+
+## B4.7 — Une divergence assumée avec le §8
+
+Deux protocoles bornant différemment : le service **refuse** au lieu de les départager. À rang égal,
+P10b-2 refuse déjà la publication d'une version que seule la date départagerait. À rangs différents,
+le §8 saurait départager, et nous ne le faisons pas — **plus strict que le corpus, délibérément** :
+la cascade du §8 départage des recommandations qu'un clinicien lit, alors qu'ici la valeur retenue
+modifierait un score **en silence**. Un refus se voit ; un départage tacite, non.
+
+## B4.8 — Ce que la mutation a trouvé, et que les tests verts ne voyaient pas
+
+La première campagne a laissé **trois mutations survivre**, chacune disant autre chose :
+
+1. **Le refus bruyant** — neutraliser la garde « aucun protocole en vigueur » faisait tomber
+   l'exécution sur l'**autre** refus (« aucune règle ne s'applique »), qui rend aussi un 503 parlant
+   de borne. Le vecteur cherchait le mot « borne » : il restait vert en ayant perdu ce qu'il
+   gardait. **Sixième instance** de cette famille (P6.4c, P6.5b, P6.8e, P10b-1, P10b-3-i) — corrigé
+   en vérifiant le motif exact, et **dédoublé** : les deux refus ont désormais chacun son vecteur.
+2. **Deux bornes divergentes** — la garde existait, **aucun vecteur ne la tenait**. Ajouté ; et
+   l'écrire a montré qu'à rang égal la publication est déjà refusée en amont (B4.7).
+3. **La source unique** — fausser `score_symptomes` à 0 ne faisait rien tomber : les vecteurs
+   existants comparaient deux scores qui se décalaient ensemble. *Une source unique n'est prouvée
+   que si l'on vérifie ce qu'elle produit, pas seulement que deux appelants en dépendent.*
+
+Une quatrième mutation était **prévue pour rester verte** (`array_merge` → `array_replace`, même
+sémantique ici) : un harnais qui ne prévoit que des mutations tueuses ne se teste jamais lui-même.
+
+**Piège attrapé à l'écriture, avant toute mutation** : l'union de tableaux `+` garde la valeur de
+**gauche**. Le `drapeau_rouge` relevé par le plancher d'une réponse aurait été ignoré en silence —
+il aurait disparu pour la **seconde fois**. `array_merge`, et un vecteur dédié.
+
+## B4.9 — Conséquence de déploiement
+
+**Cinq mises en vigueur** : `seuils_mesure`, `symptomes_triage`, `TRIAGE-NIVEAU`,
+`TRIAGE-QUESTIONNAIRE`, `TRIAGE-ANTECEDENTS`. Le refus vaut **même pour un patient sans aucun
+antécédent** : sinon un oubli de publication passerait inaperçu sur la majorité des triages et ne se
+signalerait que sur les autres.
+
+## B4.10 — Limites
+
+1. **`poids_severite` et `drapeau_rouge` restent sous deux signatures** (§10) — porteur : un
+   incrément de gouvernance du socle.
+2. **`impact_triage` reste déclaré par le patient** — porteur : chemin soignant, ou gravité
+   gouvernée au référentiel des maladies le jour où une source existe.
+3. **Aucun écran d'authoring** : un brouillon se construit toujours par seeder ou par API.
+4. Le nom du contexte `triage_questionnaire` porte désormais autre chose qu'un questionnaire.
+5. Contenu de démonstration : `niveau_preuve = 'D'`, aucun validateur forgé, aucune autorité nommée.
+6. **§11 (< 100 ms)** toujours non déclaré atteint.

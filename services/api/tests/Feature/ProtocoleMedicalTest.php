@@ -16,6 +16,7 @@ use App\Services\Protocole\ProtocoleException;
 use App\Services\Protocole\ServiceGouvernanceProtocole;
 use App\Services\Referentiel\SourceSymptomesTriage;
 use App\Services\Triage\ServiceNiveauTriage;
+use App\Services\Triage\ServicePlafondAntecedents;
 use App\Services\Triage\ServiceQuestionnaire;
 use App\Support\NiveauTriage;
 use App\Support\RegistreActionsProtocole;
@@ -143,6 +144,7 @@ class ProtocoleMedicalTest extends TestCase
         $this->publierReferentiel(SourceSymptomesTriage::CODE);
         $this->publierProtocoleDeTriage();
         $this->publierQuestionnaire();
+        $this->publierProtocoleAuxiliaire(ServicePlafondAntecedents::CODE);
     }
 
     /**
@@ -152,8 +154,20 @@ class ProtocoleMedicalTest extends TestCase
      */
     private function publierQuestionnaire(): void
     {
+        $this->publierProtocoleAuxiliaire(ServiceQuestionnaire::CODE);
+    }
+
+    /**
+     * P10b-3-ii — Met en vigueur un protocole seedé, par le chemin nominal.
+     *
+     * Le corps de `publierQuestionnaire()` est devenu générique quand une QUATRIÈME étape de
+     * déploiement est apparue (la borne des antécédents) : le recopier une troisième fois aurait
+     * été la duplication que le constat Z1 vient de fermer ailleurs.
+     */
+    private function publierProtocoleAuxiliaire(string $code): void
+    {
         $version = Protocole::query()
-            ->where('code', ServiceQuestionnaire::CODE)
+            ->where('code', $code)
             ->firstOrFail()
             ->versions()
             ->where('etat', ProtocoleVersion::BROUILLON)

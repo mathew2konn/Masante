@@ -14,11 +14,12 @@ use App\Http\Controllers\Portail\EtablissementController;
 use App\Http\Controllers\Portail\MedecinController as PortailMedecinController;
 use App\Http\Controllers\Portail\MesPatientsController;
 use App\Http\Controllers\Portail\ModerationController;
+use App\Http\Controllers\Portail\ProtocoleValidationController;
 use App\Http\Controllers\Portail\ReferentielAnalyseController;
-use App\Http\Controllers\Portail\ReferentielMedicamentController;
 use App\Http\Controllers\Portail\ReferentielAssuranceController;
-use App\Http\Controllers\Portail\ReferentielNumeroUrgenceController;
 use App\Http\Controllers\Portail\ReferentielMaladieController;
+use App\Http\Controllers\Portail\ReferentielMedicamentController;
+use App\Http\Controllers\Portail\ReferentielNumeroUrgenceController;
 use App\Http\Controllers\Portail\ReferentielSpecialiteController;
 use App\Http\Controllers\Portail\ReferentielVaccinController;
 use App\Http\Controllers\Portail\RendezVousController;
@@ -331,6 +332,21 @@ Route::prefix('portail')->name('portail.')->group(function () {
                 Route::post('/', [ReferentielNumeroUrgenceController::class, 'store'])->name('store');
                 Route::get('{numero}/editer', [ReferentielNumeroUrgenceController::class, 'edit'])->name('edit');
                 Route::put('{numero}', [ReferentielNumeroUrgenceController::class, 'update'])->name('update');
+            });
+
+        // ═══ P10b-3-ii — L'ÉCRAN DES QUATRE VALIDATIONS DU §7 : LIRE ET SIGNER ═══
+        //
+        // Les cinq permissions §7/§10 ne sont portées par AUCUN rôle métier (P10b-1) : elles
+        // s'accordent nominativement. La garde du groupe accepte l'une quelconque d'entre elles —
+        // la garde FAISANT AUTORITÉ reste celle du service, qui exige la permission EXACTE du type
+        // signé. Sans cela, un relecteur clinique pourrait apposer la signature technique.
+        Route::middleware('permission:protocole.valider.clinique|protocole.valider.reglementaire'
+            .'|protocole.valider.scientifique|protocole.valider.technique|protocole.publier')
+            ->prefix('protocoles')->name('protocoles.')->group(function () {
+                Route::get('/', [ProtocoleValidationController::class, 'index'])->name('index');
+                Route::get('{protocole}/versions/{version}', [ProtocoleValidationController::class, 'show'])->name('show');
+                Route::post('{protocole}/versions/{version}/valider', [ProtocoleValidationController::class, 'valider'])->name('valider');
+                Route::post('{protocole}/versions/{version}/publier', [ProtocoleValidationController::class, 'publier'])->name('publier');
             });
 
         // 5.7 — Don de sang (FN6) : l'ÉTABLISSEMENT publie ses besoins — lui seul sait qu'il manque

@@ -10,6 +10,7 @@ use App\Models\Symptome;
 use App\Models\Triage;
 use App\Models\TriageReponse;
 use App\Services\Protocole\JournalApplicationProtocole;
+use App\Services\Triage\FaitsTriage;
 use App\Services\Triage\ServiceFicheTriage;
 use App\Services\Triage\ServiceQuestionnaire;
 use App\Services\Triage\ServiceSymptomesTriage;
@@ -123,15 +124,14 @@ class TriageController extends Controller
 
         $symptomes = $this->referentiel->retenus($data['symptomes']);
 
-        $tour = $this->questionnaire->prochainesQuestions([
-            'age' => $data['patient_age'] ?? null,
-            'sexe' => $data['patient_sexe'] ?? null,
-            'score_symptomes' => (int) $symptomes->sum('poids_severite'),
-            'drapeau_rouge' => $symptomes->contains(fn (Symptome $s) => $s->drapeau_rouge === true),
-            'nb_symptomes' => $symptomes->count(),
-            'symptome_id' => $symptomes->pluck('id')->map(fn ($id): int => (int) $id)->all(),
-            'symptome_categorie' => $symptomes->pluck('categorie')->unique()->values()->all(),
-        ], $reponses);
+        // Source unique de l'assemblage (constat Z1) : ce tableau était recopié ici et deux fois
+        // dans `TriageService`, et il en manquait une clé — de quoi faire tomber CET endpoint dès
+        // qu'une règle s'en serait servie. Les faits des antécédents n'y sont volontairement pas :
+        // ce chemin ne connaît pas le membre.
+        $tour = $this->questionnaire->prochainesQuestions(
+            FaitsTriage::base($symptomes, $data['patient_age'] ?? null, $data['patient_sexe'] ?? null),
+            $reponses,
+        );
 
         return response()->json([
             'questions' => $tour['questions'],

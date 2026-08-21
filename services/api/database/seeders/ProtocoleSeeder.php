@@ -6,6 +6,7 @@ use App\Models\Protocole;
 use App\Models\ProtocoleVersion;
 use App\Services\Protocole\DiffusionProtocole;
 use App\Services\Triage\ServiceNiveauTriage;
+use App\Services\Triage\ServicePlafondAntecedents;
 use App\Services\Triage\ServiceQuestionnaire;
 use App\Support\NiveauTriage;
 use App\Support\RegistreActionsProtocole;
@@ -65,6 +66,7 @@ class ProtocoleSeeder extends Seeder
     {
         $this->protocoleDeNiveau();
         $this->protocoleQuestionnaire();
+        $this->protocoleAntecedents();
         $this->protocoleRegional();
         $this->brouillonsTherapeutiques();
     }
@@ -105,6 +107,71 @@ class ProtocoleSeeder extends Seeder
      * code. Les symptômes n'ont pas de code national ; tant qu'ils n'en auront pas, un protocole
      * qui les désigne est lié à cette installation. C'est une limite du G5, pas une élégance.
      */
+    /**
+     * P10b-3-ii — LA PART DES ANTÉCÉDENTS, transcrite depuis `TriageService::PLAFOND_ANTECEDENTS`.
+     *
+     * Comme le protocole de niveau en b-1, celui-ci ne fait que **transcrire** un seuil qui était
+     * déjà codé : 20. Aucune valeur n'est inventée, aucune autorité n'est nommée, et le niveau de
+     * preuve reste « D ». Ce qui change n'est pas le chiffre, c'est qu'il devient relisible,
+     * corrigible sans déploiement, et signé par quatre validateurs (§7).
+     */
+    private function protocoleAntecedents(): void
+    {
+        $protocole = $this->enregistrer(ServicePlafondAntecedents::CODE, [
+            'titre' => 'Part des antécédents dans le score de triage',
+            'domaine' => Protocole::DOMAINE_TRIAGE,
+            'niveau_source' => 'national',
+            'contextes_json' => [RegistreContextesProtocole::TRIAGE_ANTECEDENTS],
+            'organisme' => self::SOURCE_ABSENTE,
+            'langue' => 'fr',
+            'mots_cles_json' => ['triage', 'antecedents', 'score'],
+        ]);
+
+        if ($protocole->versions()->exists()) {
+            return; // Idempotent.
+        }
+
+        $version = ProtocoleVersion::create([
+            'protocole_id' => $protocole->id,
+            'numero' => 1,
+            'libelle' => '2026.1',
+            'etat' => ProtocoleVersion::BROUILLON,
+            'verrou_unicite' => ProtocoleVersion::verrouPour(ProtocoleVersion::BROUILLON, $protocole->id),
+            'niveau_preuve' => 'D',
+            'population' => 'Tous publics — triage déclaratif avec carnet renseigné',
+            'conditions_utilisation' => 'Borne la part du score venant des antécédents DÉCLARÉS par '
+                ."le patient lui-même. Cette déclaration n'est vérifiée par personne : la borne est "
+                .'précisément la réponse à cette absence de vérification. Elle ne pose aucun '
+                .'diagnostic (CDC_05 §1).',
+            'motif' => "Sortie du seuil PLAFOND_ANTECEDENTS = 20, jusqu'ici codé dans TriageService "
+                .'(CDC_08 §1.2).',
+            'redige_le' => Carbon::now(),
+        ]);
+
+        // UNE SEULE RÈGLE, ET SANS CONDITION — le moteur le prévoit explicitement (« une règle
+        // sans condition s'applique toujours »). Deux règles disjointes auraient exigé d'exprimer
+        // « sinon, garder la somme telle quelle », valeur dynamique qu'aucune action à valeur
+        // littérale ne sait dire.
+        $this->regle($version, 1, 'La part des antécédents déclarés ne dépasse pas vingt points',
+            [],
+            [[RegistreActionsProtocole::BORNER_SCORE_ANTECEDENTS, 20,
+                "Un patient qui déclare beaucoup d'antécédents ne doit pas pouvoir porter seul son "
+                ."score à l'urgence : cette déclaration n'est vérifiée par personne."]]);
+
+        $version->references()->create([
+            'type' => 'recommandation',
+            'libelle' => 'CDC_08 §1.2 — aucune règle médicale en dur',
+            'citation' => 'Corpus MaSanté, cahier des charges n°8 section 1.2.',
+        ]);
+
+        $version->references()->create([
+            'type' => 'document',
+            'libelle' => 'Seuil transcrit du Module 1 — aucune validation clinique',
+            'citation' => 'Valeur reprise de TriageService::PLAFOND_ANTECEDENTS = 20. À remplacer '
+                ."par une décision d'autorité sanitaire lorsqu'elle sera fournie.",
+        ]);
+    }
+
     private function protocoleQuestionnaire(): void
     {
         $protocole = $this->enregistrer(ServiceQuestionnaire::CODE, [

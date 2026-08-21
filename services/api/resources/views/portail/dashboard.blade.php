@@ -44,6 +44,9 @@
     ['perm' => 'maladie.referentiel',    'icone' => 'bi-virus',          'titre' => 'Maladies', 'desc' => 'Vocabulaire des maladies, libellés multilingues et surveillance nationale.', 'route' => 'portail.maladies.index'],
     ['perm' => 'assurance.referentiel',  'icone' => 'bi-shield-check',   'titre' => 'Organismes d\'assurance', 'desc' => 'CNAM et assureurs privés agréés — registre national.', 'route' => 'portail.assurances.index'],
     ['perm' => 'urgence.referentiel',    'icone' => 'bi-telephone-fill', 'titre' => 'Numéros d\'urgence', 'desc' => 'Ce que composent l\'écran SOS, la carte vitale et le triage.', 'route' => 'portail.numeros-urgence.index'],
+    // P10b-3-ii — la carte apparaît pour l'une quelconque des quatre permissions de validation :
+    // elles sont accordées nominativement, et un relecteur clinique ne porte que la sienne.
+    ['perm' => 'protocole.valider.clinique', 'icone' => 'bi-file-medical', 'titre' => 'Protocoles médicaux', 'desc' => 'Relire et signer les quatre validations du §7.', 'route' => 'portail.protocoles.index'],
     ['perm' => 'urgence.bris_de_glace','icone' => 'bi-exclamation-octagon', 'titre' => 'Accès d\'urgence', 'desc' => 'Patient inconscient : ouvrir ses informations vitales.', 'route' => 'portail.urgence.bris', 'structure' => true, 'danger' => true],
   ];
 @endphp

@@ -51,6 +51,23 @@ final class RegistreContextesProtocole
      */
     public const TRIAGE_QUESTIONNAIRE = 'triage_questionnaire';
 
+    /**
+     * P10b-3-ii — LA PART DES ANTÉCÉDENTS, bornée avant que le score ne s'assemble.
+     *
+     * ═══ POURQUOI UN CONTEXTE À PART, ALORS QUE LE PLAN G1 DISAIT L'INVERSE ═══
+     *
+     * Le plan annonçait ce protocole dans le contexte `triage_questionnaire`. L'implémentation a
+     * montré que cela recréait le défaut Z1 qu'elle venait de fermer : `POST /triage/questions` ne
+     * connaît **pas** le membre, donc pas ses antécédents, tandis que `POST /triage/analyser` les
+     * connaît. Une règle conditionnée sur les antécédents aurait répondu différemment selon
+     * l'endpoint — la panne asymétrique, déplacée d'un cran.
+     *
+     * Un contexte propre rend la frontière **vérifiable** plutôt que conventionnelle : le contrôle
+     * qualité refuse qu'un protocole de questionnaire conditionne sur les antécédents, et refuse
+     * qu'un protocole d'antécédents conditionne sur un score qui n'est pas encore assemblé.
+     */
+    public const TRIAGE_ANTECEDENTS = 'triage_antecedents';
+
     /** Consultation menée par un professionnel. Aucun écran ne l'émet encore (limite N6). */
     public const CONSULTATION = 'consultation';
 
@@ -61,6 +78,7 @@ final class RegistreContextesProtocole
     public const CONTEXTES = [
         self::TRIAGE => 'Triage / auto-évaluation',
         self::TRIAGE_QUESTIONNAIRE => 'Triage / interrogatoire',
+        self::TRIAGE_ANTECEDENTS => 'Triage / part des antécédents',
         self::CONSULTATION => 'Consultation',
         self::URGENCE => 'Urgence',
     ];

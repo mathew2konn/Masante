@@ -112,6 +112,24 @@ final class RegistreActionsProtocole
     public const AJOUTER_SCORE = 'AJOUTER_SCORE';
 
     /**
+     * P10b-3-ii — Fixe la part du score venant des antécédents (CDC_08 §1.2).
+     *
+     * ═══ POURQUOI « BORNER » ET NON « DÉFINIR », APRÈS AVOIR ESSAYÉ L'INVERSE ═══
+     *
+     * La première écriture disait `SI brut > 20 ALORS DEFINIR 20`. Elle ne tient pas : il faut
+     * alors une seconde règle pour le cas contraire — « sinon, garder la somme telle quelle » —
+     * et **cette valeur-là est dynamique**, donc inexprimable par une action à valeur littérale.
+     * Y mettre 0 aurait effacé les antécédents des patients qui en déclarent peu : le contraire
+     * exact de ce que la règle veut dire.
+     *
+     * La borne, elle, s'écrit en **une seule règle sans condition** — « la part des antécédents ne
+     * dépasse pas 20 » — et le service applique un `min`. La DÉCISION (le chiffre) est dans le
+     * protocole, relue et signée ; l'ARITHMÉTIQUE reste dans le service, au même titre que la
+     * somme et les bornes 0-100 qui y vivent déjà.
+     */
+    public const BORNER_SCORE_ANTECEDENTS = 'BORNER_SCORE_ANTECEDENTS';
+
+    /**
      * type => [valeur attendue ?, famille, libellé lisible]
      *
      * @var array<string, array{valeur: bool, famille: string, libelle: string}>
@@ -172,6 +190,13 @@ final class RegistreActionsProtocole
             'famille' => 'questionnaire',
             'libelle' => 'Ajouter au score',
         ],
+
+        // Même famille : elle construit le score, elle ne dit rien au patient et ne prescrit rien.
+        self::BORNER_SCORE_ANTECEDENTS => [
+            'valeur' => true,
+            'famille' => 'questionnaire',
+            'libelle' => 'Borner la part des antécédents à',
+        ],
     ];
 
     /**
@@ -199,7 +224,11 @@ final class RegistreActionsProtocole
      *
      * @var array<int, string>
      */
-    public const EXCLUSIVES = [self::DEFINIR_NIVEAU];
+    // P10b-3-ii — `BORNER_SCORE_ANTECEDENTS` est EXCLUSIVE, à la différence de
+    // `DEFINIR_SCORE_MINIMUM`. Deux planchers ne se contredisent pas (le plus haut s'applique,
+    // b-2 le déclare) ; deux BORNES, si : rien ne dit laquelle vaut, et en choisir une au hasard
+    // reviendrait à inventer une sémantique que personne n'a signée.
+    public const EXCLUSIVES = [self::DEFINIR_NIVEAU, self::BORNER_SCORE_ANTECEDENTS];
 
     /** Une seule valeur peut-elle prévaloir pour ce type d'action ? */
     public static function estExclusive(string $type): bool

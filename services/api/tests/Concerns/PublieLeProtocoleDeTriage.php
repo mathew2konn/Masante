@@ -7,6 +7,7 @@ use App\Models\ProtocoleVersion;
 use App\Models\User;
 use App\Services\Protocole\ServiceGouvernanceProtocole;
 use App\Services\Triage\ServiceNiveauTriage;
+use App\Services\Triage\ServicePlafondAntecedents;
 use App\Services\Triage\ServiceQuestionnaire;
 use Database\Seeders\PortailRolesSeeder;
 use Database\Seeders\ProtocoleSeeder;
@@ -71,6 +72,14 @@ trait PublieLeProtocoleDeTriage
         // systématiquement plus bas et rien pour le signaler : la panne muette que ce projet
         // ferme depuis P6.3.
         $this->publierProtocole(ServiceQuestionnaire::CODE);
+
+        // ═══ P10b-3-ii — ET UNE QUATRIÈME ═══
+        //
+        // La part des antécédents est désormais bornée par un protocole publié, plus par
+        // `PLAFOND_ANTECEDENTS = 20`. Le refus vaut là aussi même pour un patient sans aucun
+        // antécédent : sinon un oubli de publication laisserait passer des scores non bornés, et
+        // rien ne le dirait.
+        $this->publierProtocole(ServicePlafondAntecedents::CODE);
 
         // `ServiceNiveauTriage` est lié en `scoped` : il pinne une version pour la durée d'une
         // requête. Sans cet oubli, une requête postérieure à la publication continuerait de lire

@@ -4,7 +4,9 @@ namespace App\Services;
 
 use App\Models\Symptome;
 use App\Services\Protocole\MessagesProtocole;
+use App\Services\Triage\FaitsTriage;
 use App\Services\Triage\ServiceNiveauTriage;
+use App\Services\Triage\ServicePlafondAntecedents;
 use App\Services\Triage\ServiceQuestionnaire;
 use App\Services\Triage\ServiceSymptomesTriage;
 use App\Support\NiveauTriage;
@@ -91,28 +93,21 @@ class TriageService
         private readonly ServiceSymptomesTriage $symptomes,
         private readonly ServiceNiveauTriage $protocole,
         private readonly ServiceQuestionnaire $questionnaire,
+        private readonly ServicePlafondAntecedents $plafond,
         private readonly MessagesProtocole $messages,
     ) {}
 
     /**
-     * Plafond de l'impact des antécédents sur le score.
+     * P10b-3-ii — LE DERNIER SEUIL DE CE SERVICE A QUITTÉ LE CODE.
      *
-     * ═══ CE SEUIL RESTE DANS LE CODE, ET C'EST UNE LIMITE ANNONCÉE ═══
+     * `PLAFOND_ANTECEDENTS = 20` bornait la part des antécédents. Il ne décidait d'aucun niveau,
+     * mais il pesait sur l'urgence : c'était la réponse à « quel poids une déclaration NON VÉRIFIÉE
+     * du patient peut-elle avoir ? ». Une décision clinique, désormais relue et signée par quatre
+     * validateurs ({@see ServicePlafondAntecedents}).
      *
-     * Il ne décide d'aucun niveau — il borne la contribution d'une des trois parts du score, en
-     * amont du protocole.
-     *
-     * ═══ P10b-3-i N'A PAS LEVÉ CETTE LIMITE, ET IL FAUT LE DIRE ═══
-     *
-     * Ce commentaire annonçait sa levée « avec le questionnaire adaptatif de P10b-3 ». Cet
-     * incrément a bien sorti l'impact des RÉPONSES, mais le poids des SYMPTÔMES et ce plafond
-     * restent du code : les sortir suppose que l'assemblage du score entier devienne protocolaire,
-     * ce qui touche `poids_severite` — donc le référentiel des symptômes, donc une seconde
-     * bascule. C'est le périmètre de **P10b-3-ii**.
-     *
-     * Nommer un manque ne le comble pas, mais un manque nommé ne s'oublie pas.
+     * Ce service ne porte plus aucun seuil. Ce qui reste est de l'arithmétique — une somme et deux
+     * bornes d'échelle — et l'ORDRE des phases, qui ne dépend d'aucune donnée.
      */
-    private const PLAFOND_ANTECEDENTS = 20;
 
     /**
      * Analyse un triage et renvoie le résultat complet (sans persistance).
@@ -134,15 +129,26 @@ class TriageService
         /** @var Collection<int,Symptome> $symptomes */
         $symptomes = $this->symptomes->retenus($symptomesIds);
 
-        // 1) Poids de base des symptômes + détection d'un drapeau rouge symptôme.
-        $scoreSymptomes = (int) $symptomes->sum('poids_severite');
-        $drapeauRouge = $symptomes->contains(fn (Symptome $s) => $s->drapeau_rouge === true);
+        // ═══ 1) LES FAITS SONT ASSEMBLÉS EN UN SEUL ENDROIT ═══
+        //
+        // Ils l'étaient en trois exemplaires — ici deux fois, et une troisième dans
+        // `TriageController::questions()`. Constat Z1 du G0 : `score_antecedents` était passé par
+        // les deux sites du service et PAS par celui du contrôleur, si bien qu'une règle de
+        // questionnaire qui s'en serait servie aurait fait tomber un endpoint sur deux (un fait
+        // inconnu lève, depuis P10b-1).
+        $base = FaitsTriage::base($symptomes, $age, $sexe);
 
-        // 2) Impact des antécédents, plafonné.
-        $scoreAntecedents = min(
-            (int) collect($antecedents)->sum('impact_triage'),
-            self::PLAFOND_ANTECEDENTS
-        );
+        $scoreSymptomes = (int) $base['score_symptomes'];
+        $drapeauRouge = (bool) $base['drapeau_rouge'];
+
+        // ═══ 2) LA PART DES ANTÉCÉDENTS EST DÉCIDÉE PAR UN PROTOCOLE, PLUS PAR UNE CONSTANTE ═══
+        //
+        // Les faits des antécédents ne sont PAS passés au questionnaire (phase 3) : celui-ci
+        // s'exécute aussi depuis `POST /triage/questions`, où le membre — donc son carnet — est
+        // inconnu. Une règle de questionnaire qui en dépendrait répondrait différemment selon
+        // l'endpoint ; le contrôle qualité le refuse, et cette séparation le rend vérifiable.
+        $partAntecedents = $this->plafond->part(FaitsTriage::avecAntecedents($base, $antecedents));
+        $scoreAntecedents = $partAntecedents['valeur'];
 
         // ═══ 3) LE QUESTIONNAIRE EST UNE PHASE, ÉVALUÉE AVANT QUE LE SCORE NE SOIT CLOS ═══
         //
@@ -155,16 +161,7 @@ class TriageService
         // du score → protocole de niveau. Deux protocoles distincts, deux cycles de validation
         // distincts (§6.1, §7) : corriger un énoncé de question ne fait pas re-signer les seuils
         // de niveau par quatre validateurs, et l'inverse.
-        $impact = $this->questionnaire->impact([
-            'age' => $age,
-            'sexe' => $sexe,
-            'score_symptomes' => $scoreSymptomes,
-            'score_antecedents' => $scoreAntecedents,
-            'drapeau_rouge' => $drapeauRouge,
-            'nb_symptomes' => $symptomes->count(),
-            'symptome_id' => $symptomes->pluck('id')->map(fn ($id): int => (int) $id)->all(),
-            'symptome_categorie' => $symptomes->pluck('categorie')->unique()->values()->all(),
-        ], $reponses);
+        $impact = $this->questionnaire->impact($base, $reponses);
 
         // 4) Score total borné à [0, 100]. Arithmétique, pas décision : le §1.2 vise les seuils
         //    et les conclusions, pas l'addition de trois nombres.
@@ -189,18 +186,19 @@ class TriageService
         // `ReglesOrientation` (P10a) et `ReglesCalendrierVaccinal` (P6.8b) : le service rassemble
         // l'état, la règle rend le verdict. Ici la règle ne vit même plus dans une classe PHP —
         // elle vit en base, versionnée et signée.
-        $decision = $this->protocole->appliquer([
-            'age' => $age,
-            'sexe' => $sexe,
-            'score' => $score,
-            'score_symptomes' => $scoreSymptomes,
-            'score_reponses' => $impact['points'],
-            'score_antecedents' => $scoreAntecedents,
-            'drapeau_rouge' => $drapeauRouge,
-            'nb_symptomes' => $symptomes->count(),
-            'symptome_id' => $symptomes->pluck('id')->map(fn ($id): int => (int) $id)->all(),
-            'symptome_categorie' => $symptomes->pluck('categorie')->unique()->values()->all(),
-        ]);
+        // `array_merge` et NON l'union `+` : sur une clé commune, l'union garde la valeur de
+        // GAUCHE. `drapeau_rouge` est présent dans la base (symptômes seuls) et vient d'être
+        // relevé par le plancher d'une réponse — avec `+`, cette mise à jour serait ignorée en
+        // silence, et le drapeau rouge d'une réponse disparaîtrait pour la seconde fois.
+        $decision = $this->protocole->appliquer(array_merge(
+            FaitsTriage::avecAntecedents($base, $antecedents),
+            [
+                'score' => $score,
+                'score_reponses' => $impact['points'],
+                'score_antecedents' => $scoreAntecedents,
+                'drapeau_rouge' => $drapeauRouge,
+            ],
+        ));
 
         $niveau = $decision['niveau'];
 

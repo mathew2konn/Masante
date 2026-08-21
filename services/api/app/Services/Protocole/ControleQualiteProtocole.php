@@ -43,6 +43,26 @@ use App\Support\RegistreOperateursProtocole;
  */
 final class ControleQualiteProtocole
 {
+    /**
+     * Les faits qu'une phase n'a PAS encore, avec la raison et le remplacement, par contexte.
+     *
+     * @var array<string, array<string, string>>
+     */
+    private const FAITS_HORS_PHASE = [
+        RegistreContextesProtocole::TRIAGE_QUESTIONNAIRE => [
+            'score' => "un protocole de questionnaire ne peut pas conditionner sur « score », qui n'est pas encore clos au moment où l'on interroge le patient — la règle répondrait différemment selon le tour. Utilisez « score_symptomes ».",
+            'score_reponses' => "un protocole de questionnaire ne peut pas conditionner sur « score_reponses » : c'est ce qu'il est en train de produire.",
+            'score_antecedents' => "un protocole de questionnaire ne peut pas conditionner sur les antécédents : l'interrogatoire s'exécute aussi sans membre identifié (POST /triage/questions), où le carnet est inconnu. Une telle règle ferait tomber cet endpoint et pas l'autre. Ce qui dépend des antécédents appartient à un protocole de contexte « triage_antecedents ».",
+            'score_antecedents_brut' => "un protocole de questionnaire ne peut pas conditionner sur les antécédents : le carnet est inconnu quand l'interrogatoire s'exécute sans membre identifié. Utilisez un protocole de contexte « triage_antecedents ».",
+            'nb_antecedents' => "un protocole de questionnaire ne peut pas conditionner sur les antécédents : le carnet est inconnu quand l'interrogatoire s'exécute sans membre identifié. Utilisez un protocole de contexte « triage_antecedents ».",
+        ],
+        RegistreContextesProtocole::TRIAGE_ANTECEDENTS => [
+            'score' => "un protocole d'antécédents ne peut pas conditionner sur « score » : il s'évalue AVANT que le score ne soit assemblé. Utilisez « score_antecedents_brut » ou « nb_antecedents ».",
+            'score_reponses' => "un protocole d'antécédents ne peut pas conditionner sur « score_reponses » : le questionnaire ne s'est pas encore exécuté.",
+            'score_antecedents' => "un protocole d'antécédents ne peut pas conditionner sur « score_antecedents » : c'est la valeur qu'il DÉCIDE. Conditionnez sur « score_antecedents_brut », la somme avant borne.",
+        ],
+    ];
+
     /** Le score de triage se lit sur 100 (héritage du Module 1, cohérent avec `poids_severite`). */
     private const SCORE_MIN = 0;
 
@@ -66,7 +86,7 @@ final class ControleQualiteProtocole
             $this->controlerReferences($contenu['references'] ?? []),
             $this->controlerQuestions($contenu['questions'] ?? []),
             $this->controlerRegles($contenu['regles'] ?? [], $questions),
-            $this->controlerScoreDansQuestionnaire(
+            $this->controlerFaitsDeLaPhase(
                 $contenu['metadonnees']['contextes'] ?? [],
                 $contenu['regles'] ?? [],
             ),
@@ -170,7 +190,8 @@ final class ControleQualiteProtocole
     }
 
     /**
-     * P10b-3-i — UN PROTOCOLE DE QUESTIONNAIRE NE PEUT PAS CONDITIONNER SUR `score`.
+     * P10b-3-i, élargi en P10b-3-ii — UNE RÈGLE NE PEUT PAS CONDITIONNER SUR UN FAIT QUI N'EXISTE
+     * PAS ENCORE À SA PHASE.
      *
      * ═══ POURQUOI CE REFUS N'EST PAS UNE COQUETTERIE ═══
      *
@@ -180,17 +201,35 @@ final class ControleQualiteProtocole
      * le résultat dépend du **moment** de l'évaluation et non des faits. C'est la même famille de
      * défaut que celle refermée par R5 sur le nombre d'allers-retours.
      *
-     * Le refus NOMME les deux faits utilisables : `score_symptomes` et `score_antecedents` sont
-     * clos avant le questionnaire, eux. Refuser sans dire par quoi remplacer ramènerait la faute
-     * qu'on ferme (précédent P6.8a, où le message nomme les termes admis).
+     * ═══ CE QUE P10b-3-ii Y AJOUTE, ET IL FALLAIT LE CORRIGER ═══
+     *
+     * Le message de b-3-i proposait `score_antecedents` comme repli. **C'est devenu faux** : le
+     * questionnaire s'exécute aussi depuis `POST /triage/questions`, où le membre — donc son
+     * carnet — est inconnu. Les faits d'antécédents n'y sont pas passés du tout, et une règle qui
+     * s'en servirait ferait tomber cet endpoint-là seulement (un fait inconnu lève, depuis
+     * P10b-1). C'est le constat Z1, rendu **vérifiable** ici plutôt que laissé à une convention.
+     *
+     * Symétriquement, un protocole d'antécédents ne peut pas lire un score qui n'est pas encore
+     * assemblé, ni la part qu'il est lui-même en train de décider.
+     *
+     * Chaque refus NOMME ce qu'il faut utiliser à la place : refuser sans le dire ramènerait la
+     * faute qu'on ferme (précédent P6.8a).
      *
      * @param  array<int, string>  $contextes
      * @param  array<int, array<string, mixed>>  $regles
      * @return array<int, string>
      */
-    private function controlerScoreDansQuestionnaire(array $contextes, array $regles): array
+    private function controlerFaitsDeLaPhase(array $contextes, array $regles): array
     {
-        if (! in_array(RegistreContextesProtocole::TRIAGE_QUESTIONNAIRE, $contextes, true)) {
+        $interdits = [];
+
+        foreach (self::FAITS_HORS_PHASE as $contexte => $faits) {
+            if (in_array($contexte, $contextes, true)) {
+                $interdits += $faits;
+            }
+        }
+
+        if ($interdits === []) {
             return [];
         }
 
@@ -198,17 +237,16 @@ final class ControleQualiteProtocole
 
         foreach ($regles as $regle) {
             foreach ($regle['conditions'] ?? [] as $condition) {
-                if (($condition['fait'] ?? null) !== 'score') {
+                $fait = (string) ($condition['fait'] ?? '');
+
+                if (! isset($interdits[$fait])) {
                     continue;
                 }
 
                 $nom = trim((string) ($regle['libelle'] ?? ''));
                 $reference = $nom !== '' ? "« {$nom} »" : 'Règle n°'.($regle['ordre'] ?? '?');
 
-                $erreurs[] = "{$reference} : un protocole de questionnaire ne peut pas conditionner "
-                    ."sur « score », qui n'est pas encore clos au moment où l'on interroge le "
-                    .'patient — la règle répondrait différemment selon le tour. Utilisez '
-                    .'« score_symptomes » ou « score_antecedents », qui le sont.';
+                $erreurs[] = "{$reference} : {$interdits[$fait]}";
             }
         }
 

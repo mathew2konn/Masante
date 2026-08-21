@@ -1,12 +1,15 @@
 # Plan G1 — P10b-3-ii : assemblage du score sous protocole + écran §7 de lecture et signature
 
-- **Statut** : **proposé, en attente de validation écrite du propriétaire.** Aucune ligne de code
-  avant validation (CDC_01 §2.4).
+- **Statut** : **G1 VALIDÉ par le propriétaire le 2026-08-20** — décisions A (les poids restent au
+  référentiel, le périmètre annoncé est réduit et l'asymétrie nommée), B (le plafond passe sous
+  protocole, `impact_triage` reste déclaré et devient une limite nommée) et C (écran §7 en Blade,
+  lecture et signature) validées telles quelles. **Implémentation commencée le 2026-08-21**, après
+  le G5 de l'incrément « chaînes d'audit » (ADR-042).
 - **Position** : dernier incrément de **P10b** (étape 4 du CDC_08 §13 achevée). Suit P10b-3-i
   (ADR-041 §B3). Précède **P10c** (`triage-service`, IA, CDC_05 §5).
 - **Corpus** : CDC_08 §1.2, §4, §6, §7, §10 ; CDC_05 §5.3 ; CDC_04 §115 ; CDC_00 §4.
 
-> **Ce plan propose de modifier le périmètre annoncé.** `CLAUDE.md` annonce « poids des symptômes
+> **Ce plan modifie le périmètre annoncé, et c'est validé.** `CLAUDE.md` annonce « poids des symptômes
 > sous protocole + écran §7 ». L'analyse ci-dessous conclut que **déplacer les poids des symptômes
 > serait une erreur**, et pour une raison qui vient de l'incrément précédent lui-même. C'est la
 > décision **A**, et elle vous revient : si vous tranchez dans l'autre sens, le plan change de forme.
@@ -54,6 +57,25 @@ Ils vivent dans le référentiel `symptomes_triage`, publié sous le cycle **§1
 **deux** agents. Les seuils de niveau (b-1) et l'impact des réponses (b-3-i) sont, eux, sous les
 **quatre** validations du §7. L'asymétrie que b-3-i a refermée pour les réponses reste donc ouverte
 pour les symptômes. **C'est le fait qui rend la décision A difficile.**
+
+### Z1 — L'assemblage des faits existe en TROIS exemplaires (trouvé au G0 d'implémentation)
+
+`TriageController::questions()` (l. 128-134) et `TriageService::analyser()` (l. 155-170 **et**
+l. 195-206) composent chacun à la main le tableau de faits remis au moteur. Les six mêmes clés y
+sont recopiées.
+
+**Ce n'est pas une redite sans conséquence, et ce n'est pas latent** : `score_antecedents` est
+déjà un fait déclaré, et il est passé par les **deux** sites du service — **pas** par celui du
+contrôleur. Or, depuis P10b-1, **un fait inconnu lève**. Donc une règle de questionnaire qui
+conditionnerait sur les antécédents fonctionnerait dans `POST /triage/analyser` et **rendrait
+`POST /triage/questions` inopérant**. Aucune règle seedée ne le fait aujourd'hui : le défaut est
+**actif mais non déclenché** — même famille que le `centre_dialyse` de P6.4b et le
+`specialite_requise` de P10a.
+
+**Conséquence sur cet incrément** : ajouter `score_antecedents_brut` et `nb_antecedents` aux trois
+endroits reproduirait la faute au lieu de la fermer. **L'assemblage doit avoir une seule source**
+avant que deux faits ne s'y ajoutent. Ce n'est pas un élargissement de périmètre : c'est la
+condition pour que le périmètre validé (§3) soit tenable.
 
 ### Y7 — La table `antecedents` est vide en développement
 

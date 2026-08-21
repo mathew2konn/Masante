@@ -1309,3 +1309,186 @@ Ils sont consignés ici parce qu'ils feront trébucher quiconque rejouera la pro
 > `intacte: false` sur l'entrée #1 : rupture déjà constatée en P10b-2 (`acteur_id` en `nullOnDelete`
 > pris dans l'empreinte, comptes supprimés lors de la restauration du G2 de P10b-1). *On ne répare
 > pas une chaîne de hachage* — la décision appartient au propriétaire.
+
+---
+
+# Partie 5 — P10b-3-ii : la part des antécédents sous protocole + écran §7
+
+> Ajoutée le 2026-08-21. Écrite avant le G4, conservée après le G5 comme procédure de
+> non-régression. ADR-041 §B4 ; plan `docs/PLAN_G1_P10b3ii_Antecedents_Ecran7.md`.
+
+## 1. Ce que cet incrément change, en une phrase
+
+Le **dernier seuil** de `TriageService` (`PLAFOND_ANTECEDENTS = 20`) quitte le code pour un
+protocole relu et signé, et les quatre validations du §7 se signent enfin **depuis un écran** au
+lieu de `curl`.
+
+### Ce qui se voit tout de suite
+
+| Avant | Après |
+|---|---|
+| la borne des antécédents est une constante PHP | une règle publiée, relue par quatre validateurs |
+| corriger la borne = livrer une version de l'application | une **publication**, sans une ligne de code |
+| un médecin spécialiste signe par `curl` | il relit les règles **en français** et signe à l'écran |
+| une validation périmée se déduit de deux empreintes | elle est **marquée caduque**, en toutes lettres |
+| l'assemblage des faits vivait en **trois** exemplaires | une seule source (`FaitsTriage`) |
+
+> **Ce que cet incrément ne fait PAS** : déplacer le poids des symptômes. Le plan G1 a conclu que ce
+> serait une erreur (ADR-041 §B4.1), et l'asymétrie qui subsiste est nommée, pas tue.
+
+---
+
+## 2. Préparation — CINQ étapes de déploiement, désormais
+
+`seuils_mesure` · `symptomes_triage` · `TRIAGE-NIVEAU` · `TRIAGE-QUESTIONNAIRE` ·
+**`TRIAGE-ANTECEDENTS`**.
+
+Tant que la cinquième manque, `POST /triage/analyser` répond **503** — **même pour un patient sans
+aucun antécédent**. Sinon un oubli de publication passerait inaperçu sur la majorité des triages et
+ne se signalerait que sur les autres.
+
+Comptes nécessaires : un **relecteur** portant les quatre permissions `protocole.valider.*`, un
+**publieur** portant `protocole.publier`, et — pour éprouver le quatre-yeux — un **rédacteur**
+portant `protocole.rediger` **et** `protocole.publier`.
+
+> **Piège** : ne bâtissez aucun de ces comptes sur le rôle `admin_ivoirsante`, qui reçoit **toutes**
+> les permissions. Un vecteur monté sur lui est vert quoi qu'il arrive (leçon P6.6a) — cela s'est
+> produit pendant ce G2 et a dû être repris. Utilisez un rôle de portail réel (`agent_garde`) et
+> accordez les permissions **nominativement**.
+>
+> **Second piège** : la connexion au portail se fait par **e-mail**, pas par téléphone.
+
+---
+
+## 3. Les vecteurs (curl + SQL)
+
+### W1 — Le refus bruyant, avec son motif
+
+```bash
+curl -s -X POST $API/triage/analyser -H 'Accept: application/json' \
+  -H 'Content-Type: application/json' -d '{"symptomes":[14],"patient_age":30}'
+```
+
+Attendu : **503**, message contenant « **la mise en vigueur est une étape de déploiement, jamais un
+repli du code** ». Le motif compte : un second refus existe (« aucune de ses règles ne s'applique »)
+et il ne dit pas la même chose.
+
+### W2 — La garde de l'écran
+
+Sans aucune permission de protocole → **403**. Avec l'une des quatre → **200**, la liste montre
+`TRIAGE-ANTECEDENTS`.
+
+### W3 — Les règles sont lisibles
+
+Sur la fiche de version : « **Borner la part des antécédents à 20** » et « **(toujours)** » —
+une règle sans condition s'applique toujours, et l'écran le dit plutôt que d'afficher un vide qu'un
+relecteur lirait comme une omission. Les quatre validations sont marquées « non signée ».
+
+### W4 — Signer depuis l'écran
+
+Quatre `POST …/valider` (type, avis, rôle). Attendu en base :
+
+```sql
+SELECT type, avis, validateur_nom, validateur_role FROM protocole_validations WHERE version_id = ?;
+```
+
+Chaque ligne nomme **le compte** et **le rôle déclaré** — c'est ce que le §7 appelle opposable.
+
+### W5 — Publier depuis l'écran
+
+Le relecteur (sans `protocole.publier`) est refusé en **nommant la permission** ; le publieur
+réussit, et `publie_par` porte son identifiant.
+
+### W6 — La borne s'applique réellement
+
+Un membre déclarant **37** points d'antécédents :
+
+- anonyme → `details_score.antecedents = 0`, score 8 ;
+- avec carnet → `details_score.antecedents = **20**`, score **28**.
+
+La somme brute (37) n'est **jamais** celle qui entre dans le score.
+
+### W7 — Un `UPDATE` direct reste sans effet
+
+```sql
+UPDATE protocole_actions a JOIN protocole_regles r ON r.id = a.regle_id
+   SET a.valeur_json = '[3]' WHERE r.version_id = ?;
+```
+
+La table dit `3`, le serveur applique toujours **20** : c'est l'instantané publié qui fait foi.
+
+### W8 — Une validation caduque a l'air caduque
+
+Signer les quatre validations d'un brouillon, puis modifier son contenu en SQL. La fiche passe de
+**0** à **4** mentions de « caduque », avec la phrase « **ne vaut plus pour le texte** ».
+
+### W9 — Publier par-dessus une relecture périmée est refusé
+
+Le message **nomme les quatre validations et leur signataire**, et dit pourquoi : « Publier
+maintenant mettrait en vigueur des règles cliniques que personne n'a relues. »
+
+### W10 — Le quatre-yeux, prouvé PAR SON MOTIF
+
+Donnez au rédacteur `protocole.publier` **en plus** de `protocole.rediger`, puis faites-le publier
+sa propre version. Attendu : « **Le rédacteur d'une version ne peut pas la publier lui-même** ».
+
+> Un 403 rendu à quelqu'un qui n'a pas la permission prouverait **l'habilitation**, pas le
+> quatre-yeux. C'est le piège relevé en P6.8e et en P10b-1 ; le vecteur n'a de valeur que sur un
+> compte qui *a* le droit de publier.
+
+### W11 — La borne change avec la version, sans une ligne de code
+
+Publier une v2 bornant à 5, puis rejouer W6 avec **le même patient et les mêmes antécédents** :
+
+- part **20 → 5**, score **28 → 13**.
+
+C'est ce que « le seuil quitte le code » veut dire.
+
+---
+
+## 4. Ce qu'il faut vérifier même si tout semble marcher
+
+1. **Le brut n'entre jamais dans le score** : `details_score.antecedents` ne doit jamais valoir la
+   somme déclarée quand celle-ci dépasse la borne.
+2. **Aucun champ d'édition de règle** dans le HTML de la fiche (`name="libelle"` absent).
+3. **La base restaurée** : cet incrément n'a aucune migration ; après le G2, `protocoles`,
+   `protocole_versions`, `users` et `antecedents` doivent revenir à leur compte initial.
+
+---
+
+## 5. Limites de cet incrément, à ne pas prendre pour des défauts
+
+1. **`poids_severite` et `drapeau_rouge` restent sous deux signatures** (§10) et non quatre.
+   Porteur : un incrément de gouvernance du socle P6.3.
+2. **`impact_triage` reste déclaré par le patient.** La borne est la réponse à cette absence de
+   vérification, pas une incohérence avec elle (ADR-041 §B4.5).
+3. **Aucun écran d'authoring** : un brouillon se construit par seeder ou par API.
+4. **Deux bornes divergentes sont refusées, pas départagées** — plus strict que le §8, délibérément
+   (§B4.7).
+5. Le contexte `triage_questionnaire` porte désormais autre chose qu'un questionnaire.
+6. Contenu de démonstration : `niveau_preuve = 'D'`, aucun validateur forgé, aucune autorité nommée.
+7. **§11 (< 100 ms)** toujours non déclaré atteint.
+
+---
+
+## 6. Checklist de clôture
+
+> **Clôturée le 2026-08-21 — G5.** Les cases **W** ont été prouvées au G2 live ; base de
+> développement sauvegardée avant, **restaurée compte pour compte** après (protocoles 4, versions 5,
+> validations 12, users 8, membres 1, antécédents 0, triages 2, `protocole_journal` 34).
+> **G4 déclaré validé par le propriétaire.**
+
+- [x] W1 — 503 avec le motif « mise en vigueur »
+- [x] W2 — 403 sans permission / 200 avec
+- [x] W3 — règle en français, « (toujours) », 4 validations « non signée »
+- [x] W4 — quatre signatures depuis l'écran, nominatives
+- [x] W5 — publication refusée au relecteur **en nommant la permission**, réussie au publieur
+- [x] W6 — brut 37 → part **20**, score 8 → 28
+- [x] W7 — `UPDATE` direct sans effet (base `3`, serveur `20`)
+- [x] W8 — 0 → **4** mentions de « caduque » après modification
+- [x] W9 — publication refusée, les quatre validations **nommées avec leur signataire**
+- [x] W10 — quatre-yeux **par son motif**, sur un compte portant `protocole.publier`
+- [x] W11 — **part 20 → 5, score 28 → 13** après publication d'une v2
+- [x] G3 — **1179 tests / 16 430 assertions, 0 échec** ; 23 vecteurs dédiés ; Pint ;
+      **mutation 6 tueuses + 1 volontairement verte**, arbre restauré et vérifié
+- [x] G4 propriétaire *(déclaré validé le 2026-08-21)*

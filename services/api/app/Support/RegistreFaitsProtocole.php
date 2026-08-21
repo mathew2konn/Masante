@@ -130,7 +130,23 @@ final class RegistreFaitsProtocole
         ],
         'score_antecedents' => [
             'type' => self::TYPE_NOMBRE,
-            'libelle' => 'Part du score venant des antécédents du carnet',
+            'libelle' => 'Part du score venant des antécédents du carnet, une fois bornée',
+        ],
+
+        // ═══ P10b-3-ii — LA SOMME AVANT BORNE, ET POURQUOI ELLE EST UN FAIT DISTINCT ═══
+        //
+        // `PLAFOND_ANTECEDENTS = 20` vivait dans `TriageService`. C'était un seuil, donc une
+        // décision clinique : quel poids une déclaration NON VÉRIFIÉE du patient peut-elle avoir
+        // sur son urgence ? La borne devient une règle relue et signée (§7), et il lui faut la
+        // valeur brute pour la comparer — d'où deux faits, jamais un seul qui changerait de sens
+        // en cours d'évaluation.
+        'score_antecedents_brut' => [
+            'type' => self::TYPE_NOMBRE,
+            'libelle' => 'Somme des impacts déclarés des antécédents, avant toute borne',
+        ],
+        'nb_antecedents' => [
+            'type' => self::TYPE_NOMBRE,
+            'libelle' => "Nombre d'antécédents déclarés au carnet",
         ],
 
         'drapeau_rouge' => [
