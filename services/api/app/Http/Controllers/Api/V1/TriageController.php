@@ -6,11 +6,13 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\AnalyserTriageRequest;
 use App\Http\Requests\QuestionsTriageRequest;
 use App\Models\MembreFamille;
+use App\Models\PredictionIa;
 use App\Models\Symptome;
 use App\Models\Triage;
 use App\Models\TriageConstante;
 use App\Models\TriageReponse;
 use App\Services\Protocole\JournalApplicationProtocole;
+use App\Services\Triage\ClientTriageIa;
 use App\Services\Triage\FaitsTriage;
 use App\Services\Triage\ServiceConstantesTriage;
 use App\Services\Triage\ServiceFicheTriage;
@@ -34,6 +36,7 @@ class TriageController extends Controller
         private readonly JournalApplicationProtocole $journal,
         private readonly ServiceQuestionnaire $questionnaire,
         private readonly ServiceConstantesTriage $constantes,
+        private readonly ClientTriageIa $triageIa,
     ) {}
 
     /**
@@ -305,6 +308,16 @@ class TriageController extends Controller
             return $triage;
         });
 
+        // ═══ P10c-2-i (F7) — L'ASSISTANCE IA, APRÈS LA DÉCISION, HORS TRANSACTION ═══
+        //
+        // Après, jamais avant : le protocole prime (CDC_08 §3, priorité 6 sur 6) — ce triage a déjà
+        // sa décision, l'IA ne fait qu'y ajouter une trace, jamais la conditionner. Hors
+        // transaction : un service tiers lent ne doit jamais mettre en péril l'écriture d'un
+        // dossier médical (précédent ADR-020, P7-D1). `TriageService::analyser()` n'a pas bougé —
+        // c'est le test de la conception (motif P10b-3-i) : s'il avait fallu le changer, c'est que
+        // l'IA serait entrée dans la décision, ce que ce module s'interdit (Y5).
+        $this->appelerAssistanceIa($triage, $data, $reponses, $constantes, $resultat);
+
         return response()->json([
             'triage_id' => $triage->id,
             'score_severite' => $resultat['score_severite'],
@@ -341,6 +354,55 @@ class TriageController extends Controller
                 'origine' => $ligne['origine'],
             ], array_keys($constantes), $constantes),
         ], 201);
+    }
+
+    /**
+     * P10c-2-i (F7/F9) — Appelle `triage-service`, journalise le résultat, quel qu'il soit.
+     *
+     * ═══ LA CHARGE ENVOYÉE — F9, MINIMISATION §9.4 ═══
+     *
+     * `reference` est pseudonyme (`triage:{id}`), jamais `membre_id`. AUCUN nom, aucun compte,
+     * aucun NIS ne quitte ce tableau — un vecteur dédié le vérifie en capturant la charge réelle
+     * (précédent P7-D1). Les symptômes voyagent en identifiants numériques (P10a/P10b-3-i : ils
+     * n'ont pas de code national ; un identifiant technique ne veut rien dire hors de cette base,
+     * mais c'est la même base des deux côtés de cet appel).
+     *
+     * ═══ LE RÉSULTAT EST TOUJOURS JOURNALISÉ, MÊME DÉGRADÉ ═══
+     *
+     * `predictions_ia` (F10) reçoit une ligne à CHAQUE appel — gaté OFF, disjoncteur ouvert,
+     * injoignable et refus honnête du service produisent chacun une ligne avec son propre motif.
+     * C'est ce qui rend la dégradation vérifiable après coup, pas seulement affirmée par un
+     * commentaire.
+     */
+    private function appelerAssistanceIa(Triage $triage, array $data, array $reponses, array $constantes, array $resultat): void
+    {
+        $resultatIa = $this->triageIa->scorer([
+            'reference' => 'triage:'.$triage->id,
+            'age' => $data['patient_age'] ?? null,
+            'sexe' => $data['patient_sexe'] ?? null,
+            'symptomes' => $data['symptomes'],
+            'constantes' => [
+                'temperature' => $constantes['temperature']['valeur'] ?? null,
+                'pouls' => $constantes['pouls']['valeur'] ?? null,
+                'saturation_o2' => $constantes['saturation_o2']['valeur'] ?? null,
+                'tension_systolique' => $constantes['tension_systolique']['valeur'] ?? null,
+                'tension_diastolique' => $constantes['tension_diastolique']['valeur'] ?? null,
+                'poids' => $constantes['poids']['valeur'] ?? null,
+            ],
+            'duree_jours' => $reponses['duree_jours'] ?? null,
+            'intensite' => $reponses['intensite'] ?? null,
+            'grossesse' => $reponses['grossesse'] ?? null,
+            'niveau_protocole' => $resultat['niveau'],
+        ]);
+
+        PredictionIa::create([
+            'triage_id' => $triage->id,
+            'modele_version' => null, // Inatteignable tant qu'aucun modèle n'existe (F5).
+            'mode' => $resultatIa->mode,
+            'motif_degradation' => $resultatIa->motifDegradation,
+            'latence_ms' => $resultatIa->latenceMs,
+            'cree_le' => now(),
+        ]);
     }
 
     /**

@@ -1,0 +1,21 @@
+[tool.ruff]
+line-length = 110
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.mypy]
+# pydantic.mypy : ne fait pas entrer une dépendance neuve (le plugin vit dans le paquet `pydantic`
+# déjà requis) — sans lui, mypy ne sait pas qu'un champ `Field(None, ...)` rend l'argument facultatif
+# au constructeur, et refuse `Constantes()` alors que Pydantic l'accepte à l'exécution.
+plugins = ["pydantic.mypy"]
+python_version = "3.11"
+ignore_missing_imports = true
+warn_unused_ignores = false
+disallow_untyped_defs = false
+check_untyped_defs = true
+
+[tool.pytest.ini_options]
+addopts = "-q"
+testpaths = ["tests"]

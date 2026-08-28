@@ -186,4 +186,27 @@ return [
         'max_ko'    => (int) env('MASANTE_RECU_MAX_KO', 8192),   // 8 Mo : une photo de ticket
     ],
 
+    /*
+     * P10c-2-i (F7/F8) — socle d'intégration vers `triage-service` (CDC_05, CDC_03 §10.1).
+     *
+     * GATÉ OFF PAR DÉFAUT (`enabled` = false). Appeler à chaque triage un service qui répondra
+     * toujours « pas de modèle » (F5/F6) ajouterait une latence pour rien tant que P10c-3 n'a livré
+     * aucun modèle — régime « prêt à activer » déjà utilisé pour le cashback (P5.3b-3) et le push
+     * (P7-D1). Activer ce réglage ne fait AUCUNE promesse clinique de plus : le service refusera
+     * toujours honnêtement (503) jusqu'à ce qu'un modèle existe réellement.
+     *
+     * SEUILS DU DISJONCTEUR EN DONNÉE, JAMAIS EN DUR (F8) : un service qui reste injoignable ne
+     * doit pas être re-sollicité à chaque triage — trois états (fermé/ouvert/demi-ouvert), état
+     * PARTAGÉ dans le cache (store `database`, F5 de P6.3), jamais une variable de processus PHP
+     * qui ne survivrait pas à la requête suivante.
+     */
+    'triage_ia' => [
+        'enabled' => (bool) env('TRIAGE_IA_ENABLED', false),
+        'base_url' => env('TRIAGE_IA_BASE_URL', 'http://triage-service:8095'),
+        'timeout_connexion_s' => (float) env('TRIAGE_IA_TIMEOUT_CONNEXION', 2),
+        'timeout_lecture_s' => (float) env('TRIAGE_IA_TIMEOUT_LECTURE', 3),
+        'disjoncteur_seuil_echecs' => (int) env('TRIAGE_IA_DISJONCTEUR_SEUIL', 3),
+        'disjoncteur_duree_ouverture_s' => (int) env('TRIAGE_IA_DISJONCTEUR_DUREE', 60),
+    ],
+
 ];

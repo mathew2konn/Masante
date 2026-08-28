@@ -28,6 +28,7 @@ use App\Http\Controllers\Portail\ServiceController;
 use App\Http\Controllers\Portail\SignatureController;
 use App\Http\Controllers\Portail\StatistiqueController;
 use App\Http\Controllers\Portail\StockPharmacieController;
+use App\Http\Controllers\Portail\ValidationApprentissageController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
@@ -332,6 +333,18 @@ Route::prefix('portail')->name('portail.')->group(function () {
                 Route::post('/', [ReferentielNumeroUrgenceController::class, 'store'])->name('store');
                 Route::get('{numero}/editer', [ReferentielNumeroUrgenceController::class, 'edit'])->name('edit');
                 Route::put('{numero}', [ReferentielNumeroUrgenceController::class, 'update'])->name('update');
+            });
+
+        // ═══ P10c-2-i (F4) — LA REVUE DU JEU D'APPRENTISSAGE, SANS DESIGN, COMME K1 DE P6.4D ═══
+        //
+        // `apprentissage.valider` n'est portée par AUCUN rôle métier (TREIZIÈME occurrence, motif
+        // dans PortailRolesSeeder). La garde qui fait autorité est celle du service, vérifiée à
+        // l'intérieur — ce middleware n'évite qu'un écran inutile à qui n'est pas habilité.
+        Route::middleware('permission:apprentissage.valider')
+            ->prefix('apprentissage')->name('apprentissage.')->group(function () {
+                Route::get('/', [ValidationApprentissageController::class, 'index'])->name('index');
+                Route::post('{jeu}/valider', [ValidationApprentissageController::class, 'valider'])->name('valider');
+                Route::post('{jeu}/rejeter', [ValidationApprentissageController::class, 'rejeter'])->name('rejeter');
             });
 
         // ═══ P10b-3-ii — L'ÉCRAN DES QUATRE VALIDATIONS DU §7 : LIRE ET SIGNER ═══

@@ -2,10 +2,14 @@
 
 namespace App\Services\Triage;
 
+use App\Http\Controllers\Api\V1\TriageController;
+use App\Models\JeuDonneesEntrainement;
 use App\Models\Medecin;
 use App\Models\MembreFamille;
 use App\Models\ProtocoleApplication;
 use App\Models\Triage;
+use App\Models\TriageConstante;
+use App\Models\TriageReponse;
 use App\Models\User;
 use App\Services\Protocole\JournalApplicationProtocole;
 use App\Support\RegistreContextesProtocole;
@@ -145,25 +149,70 @@ class ServiceRetourTriage
         // habilité mais sans fiche professionnelle reste identifié par son compte.
         $fiche = Medecin::where('user_id', $soignant->id)->first();
 
-        return DB::transaction(fn (): ProtocoleApplication => $this->journal->inscrire(
-            // Aucune évaluation : un avis humain sur une décision déjà rendue.
-            [
-                'protocole_retenu' => null,
-                'protocoles' => [],
-                'actions' => [],
-                'conflits' => [],
-            ],
-            [
-                'contexte' => RegistreContextesProtocole::TRIAGE,
-                'pays_code' => config('referentiels.pays_defaut', 'CI'),
-                'membre_id' => $membre->id,
-                'user_id' => $soignant->id,
-                'professionnel_id' => $fiche?->id,
-                'triage_id' => $triage->id,
-                'decision_finale' => $retour,
-                'ecart_justification' => $justification,
-            ],
-        ));
+        return DB::transaction(function () use ($soignant, $membre, $triage, $retour, $justification, $fiche): ProtocoleApplication {
+            $entree = $this->journal->inscrire(
+                // Aucune évaluation : un avis humain sur une décision déjà rendue.
+                [
+                    'protocole_retenu' => null,
+                    'protocoles' => [],
+                    'actions' => [],
+                    'conflits' => [],
+                ],
+                [
+                    'contexte' => RegistreContextesProtocole::TRIAGE,
+                    'pays_code' => config('referentiels.pays_defaut', 'CI'),
+                    'membre_id' => $membre->id,
+                    'user_id' => $soignant->id,
+                    'professionnel_id' => $fiche?->id,
+                    'triage_id' => $triage->id,
+                    'decision_finale' => $retour,
+                    'ecart_justification' => $justification,
+                ],
+            );
+
+            $this->alimenterJeuApprentissage($triage, $retour);
+
+            return $entree;
+        });
+    }
+
+    /**
+     * P10c-2-i (F4) — Une ligne du jeu d'apprentissage §5.5.4, à chaque retour donné.
+     *
+     * ═══ PLUSIEURS LIGNES PEUVENT PORTER LE MÊME `triage_id`, ET C'EST ASSUMÉ ═══
+     *
+     * Le journal ci-dessus est append-only ; cette table l'est aussi, pour la même raison qu'écrite
+     * dans sa migration — `triage_id` y sert à l'idempotence et à la traçabilité, pas à empêcher
+     * plusieurs lignes. Un second retour (un médecin qui se ravise, garanti possible par
+     * {@see retoursDe}) produit donc une SECONDE ligne d'apprentissage, jamais une réécriture de la
+     * première. Choisir laquelle fait foi à l'entraînement est une question d'EXPORT (P10c-3), pas
+     * de cet incrément — trancher ici aurait empiété sur une décision qui n'est pas encore prise.
+     *
+     * ═══ AUCUNE IDENTITÉ — LES MÊMES SOURCES QUE {@see TriageController::appelerAssistanceIa()} ═══
+     */
+    private function alimenterJeuApprentissage(Triage $triage, string $retour): void
+    {
+        $constantes = TriageConstante::where('triage_id', $triage->id)->pluck('valeur', 'type_mesure');
+        $reponses = TriageReponse::where('triage_id', $triage->id)->pluck('valeur', 'question_cle');
+
+        JeuDonneesEntrainement::create([
+            'triage_id' => $triage->id,
+            'age' => $triage->patient_age,
+            'sexe' => $triage->patient_sexe,
+            'symptomes_json' => $triage->symptomes_json,
+            'temperature' => $constantes['temperature'] ?? null,
+            'pouls' => $constantes['pouls'] ?? null,
+            'saturation_o2' => $constantes['saturation_o2'] ?? null,
+            'tension_systolique' => $constantes['tension_systolique'] ?? null,
+            'tension_diastolique' => $constantes['tension_diastolique'] ?? null,
+            'poids' => $constantes['poids'] ?? null,
+            'duree_jours' => isset($reponses['duree_jours']) ? (int) $reponses['duree_jours'] : null,
+            'intensite' => isset($reponses['intensite']) ? (int) $reponses['intensite'] : null,
+            'grossesse' => isset($reponses['grossesse']) ? $reponses['grossesse'] === 'oui' : null,
+            'niveau_protocole' => $triage->niveau,
+            'label' => $retour,
+            'cree_le' => now(),
+        ]);
     }
 
     /**

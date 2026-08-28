@@ -127,6 +127,14 @@ class PortailRolesSeeder extends Seeder
         // faux ne produit pas une liste vide ou un filtre inopérant, il produit un appel qui
         // n'aboutit nulle part, composé par quelqu'un devant un blessé.
         'urgence.referentiel',    // éditer le référentiel national des numéros d'urgence
+        // Validation du jeu d'apprentissage IA (P10c-2-i F4, CDC_05 §7.2) — ATTRIBUÉE À AUCUN
+        // RÔLE, TREIZIÈME occurrence, mais pour une raison DIFFÉRENTE des douze précédentes :
+        // celles-ci gouvernent des référentiels NATIONAUX (ce qui fait autorité pour tout le
+        // pays) ; celle-ci gouverne ce qui entraînera un MODÈLE national. Ni un acte de soin au
+        // chevet (ce n'est pas `triage.retour` : le médecin juge un cas pseudonymisé, sans savoir
+        // qui c'est), ni un référentiel administratif — mais le même risque de juge-et-partie
+        // qu'ailleurs si elle était donnée sans discernement à qui produit ces lignes.
+        'apprentissage.valider',  // valider ou rejeter une ligne du jeu d'apprentissage triage
         // Signature électronique (P6.5b, CDC_09 §5.3). Portée par le rôle `medecin` : signer ses
         // propres prescriptions relève du soin, pas d'une habilitation exceptionnelle. Elle ne
         // donne à elle seule AUCUN pouvoir — les cinq contrôles du §5.4 restent devant, et sans

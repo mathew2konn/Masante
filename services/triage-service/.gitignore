@@ -1,0 +1,9 @@
+# Artefacts générés et environnement local. Ne pas committer.
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.venv/
+venv/
+.env

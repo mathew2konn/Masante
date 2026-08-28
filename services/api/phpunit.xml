@@ -32,5 +32,9 @@
         <env name="PULSE_ENABLED" value="false"/>
         <env name="TELESCOPE_ENABLED" value="false"/>
         <env name="NIGHTWATCH_ENABLED" value="false"/>
+        <!-- P10c-2-i : gaté OFF par défaut en test comme en prod (F7) — sans cette ligne, un
+             `.env` local portant TRIAGE_IA_ENABLED=true (laissé par un G2 live) ferait échouer le
+             vecteur qui prouve précisément ce défaut. Trouvé de cette façon. -->
+        <env name="TRIAGE_IA_ENABLED" value="false"/>
     </php>
 </phpunit>
