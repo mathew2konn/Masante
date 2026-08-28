@@ -194,12 +194,72 @@
           </p>
 
         @elseif ($section === 'triage')
+          @error('retour')
+            <div class="alert alert-danger py-2 small">{{ $message }}</div>
+          @enderror
+
           @foreach ($donnees as $t)
-            <div class="border-bottom py-2">
+            <div class="border-bottom py-3">
               <span class="badge bg-{{ $niveaux[$t->niveau] ?? 'secondary' }}">{{ strtoupper($t->niveau) }}</span>
               <span class="text-muted small">· score {{ $t->score_severite }}/100 · {{ $t->created_at->format('d/m/Y H:i') }}</span>
               @if ($t->specialite_requise)<div class="small">Spécialité orientée : <strong>{{ $t->specialite_requise }}</strong></div>@endif
               <div class="small text-muted">{{ $t->recommandation_texte }}</div>
+
+              {{-- P10c-2-i — LES RETOURS DÉJÀ DONNÉS.
+                   Affichés même quand un praticien s'est ravisé : le journal du §10 est
+                   append-only, et un avis retiré reste une information. Le dernier fait foi. --}}
+              @foreach (($retoursDonnes[$t->id] ?? []) as $r)
+                <div class="small mt-2 ps-2 border-start border-3
+                            {{ $r->decision_finale === 'adaptee' ? 'border-success' : 'border-warning' }}">
+                  <strong>{{ $retoursPossibles[$r->decision_finale] ?? $r->decision_finale }}</strong>
+                  <span class="text-muted">· {{ $r->cree_le->format('d/m/Y H:i') }}</span>
+                  @if ($r->ecart_justification)
+                    <div class="text-muted">{{ $r->ecart_justification }}</div>
+                  @endif
+                </div>
+              @endforeach
+
+              {{-- Le retour clinique (CDC_05 §5.5.4, §9.1 « supervision humaine »).
+                   Proposé au seul compte habilité ; le service revérifie de toute façon, et c'est
+                   sa garde qui fait autorité (piège P4 : un middleware au mauvais guard laisse
+                   passer). --}}
+              @if ($peutDonnerRetour)
+                <form method="POST" action="{{ route('portail.dossier.triage.retour', $t->id) }}"
+                      class="mt-2">
+                  @csrf
+                  <div class="row g-2 align-items-start">
+                    <div class="col-md-5">
+                      <label class="form-label small mb-1" for="retour-{{ $t->id }}">
+                        L'orientation était-elle adaptée&nbsp;?
+                      </label>
+                      <select class="form-select form-select-sm" name="retour" id="retour-{{ $t->id }}" required>
+                        <option value="">— choisir —</option>
+                        @foreach ($retoursPossibles as $valeur => $libelle)
+                          <option value="{{ $valeur }}">{{ $libelle }}</option>
+                        @endforeach
+                      </select>
+                    </div>
+                    <div class="col-md-5">
+                      <label class="form-label small mb-1" for="justification-{{ $t->id }}">
+                        Ce que l'orientation n'a pas vu
+                        <span class="text-muted">(obligatoire en cas d'écart)</span>
+                      </label>
+                      <textarea class="form-control form-control-sm" name="justification"
+                                id="justification-{{ $t->id }}" rows="1"
+                                placeholder="Ex. : détresse respiratoire non signalée au questionnaire"></textarea>
+                    </div>
+                    <div class="col-md-2 d-grid">
+                      <label class="form-label small mb-1 d-none d-md-block">&nbsp;</label>
+                      <button type="submit" class="btn btn-sm btn-outline-primary">Enregistrer</button>
+                    </div>
+                  </div>
+                  <div class="form-text small">
+                    Votre retour n'est pas un diagnostic&nbsp;: il dit si le niveau proposé au patient
+                    correspondait à son état réel. Il est journalisé à votre nom et servira à améliorer
+                    les prochaines orientations.
+                  </div>
+                </form>
+              @endif
             </div>
           @endforeach
         @endif

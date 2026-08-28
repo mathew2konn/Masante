@@ -46,6 +46,22 @@ class PortailRolesSeeder extends Seeder
         // `agent_garde` porte `qr.scan` et sert l'accueil ; un agent d'accueil ne rédige pas une
         // ordonnance. Le gestionnaire l'accorde individuellement aux soignants habilités.
         'dossier.ecrire',         // consigner un acte dans le carnet, pendant une session ouverte
+        // Retour clinique sur une orientation (P10c-2-i, CDC_05 §5.5.4 / §9.1) — ATTRIBUÉE, ELLE,
+        // AU RÔLE `medecin`, ET LA DIFFÉRENCE AVEC LES TREIZE PRÉCÉDENTES DOIT ÊTRE DITE.
+        //
+        // Les permissions volontairement orphelines de ce projet gouvernent toutes des
+        // RÉFÉRENTIELS NATIONAUX : elles décident de ce qui fait autorité pour tout le pays, et les
+        // laisser sans rôle empêche qu'un acteur devienne juge et partie sur ses propres données.
+        //
+        // Celle-ci est d'une autre nature : c'est un acte de soin ordinaire, posé au chevet, sur un
+        // seul patient. La laisser orpheline n'aurait protégé personne et aurait garanti l'inverse
+        // du but recherché — **la boucle d'apprentissage du §5.5.4 ne démarrerait jamais**, faute
+        // de quelqu'un pour donner le premier retour.
+        //
+        // Elle n'est pas donnée à `agent_garde` pour autant : juger si une orientation était
+        // adaptée est un jugement clinique, et un agent d'accueil n'a pas à le porter. Même
+        // raisonnement que `dossier.ecrire` ci-dessus, dont l'exclusion visait un rôle d'accueil.
+        'triage.retour',          // dire si l'orientation rendue par le triage était adaptée
         // Référentiels nationaux (P6.3, CDC_09 §10 « accès en écriture strictement réservé aux
         // rôles habilités ») — VOLONTAIREMENT ATTRIBUÉES À AUCUN RÔLE MÉTIER, troisième occurrence
         // du même précédent. Deux permissions distinctes et non une seule : le quatre-yeux du §10
@@ -193,8 +209,12 @@ class PortailRolesSeeder extends Seeder
         // médecin, mais ce circuit est celui de P4, validé G5, et on ne le rouvre pas au détour
         // d'un incrément sur les référentiels. `medecin.manage` non plus — un praticien ne se
         // décrit pas lui-même dans l'annuaire national.
+        // P10c-2-i — `triage.retour` s'ajoute ici, et nulle part ailleurs : c'est le rôle de SOIN.
+        // Il lisait déjà la fiche de triage (`triage.view`) sans avoir aucun moyen d'en dire quoi
+        // que ce soit ; le §9.1 attend précisément cette supervision humaine.
         'medecin' => [
-            'qr.scan', 'triage.view', 'dossier.referent', 'dossier.ecrire', 'document.signer',
+            'qr.scan', 'triage.view', 'triage.retour', 'dossier.referent', 'dossier.ecrire',
+            'document.signer',
         ],
     ];
 

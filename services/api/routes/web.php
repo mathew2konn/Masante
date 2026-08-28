@@ -387,6 +387,18 @@ Route::prefix('portail')->name('portail.')->group(function () {
             // d'accès, qui refuse le bris de glace — est dans le service, parce qu'elle relève du
             // consentement du patient, pas du rôle de l'agent.
             //
+            // P10c-2-i — le retour clinique sur une orientation (CDC_05 §5.5.4, §9.1). Déclarée
+            // AVANT `dossier/{section}` : `dossier/triage/...` serait sinon capté par la route
+            // paramétrée, qui prendrait « triage » pour une section à écrire. Même piège que
+            // `dossier/fermer` ci-dessus, et que la route `signature/{type}/{id}` de P6.5b.
+            //
+            // La permission est vérifiée ICI **et** dans le service. Celle qui fait autorité est
+            // celle du service : les permissions spatie sont sur le guard `web`, et le middleware
+            // au mauvais guard laisse passer (piège de P4 sur `rdv.validate`).
+            Route::post('dossier/triage/{triage}/retour', [DossierController::class, 'retourTriage'])
+                ->middleware('permission:triage.retour')
+                ->name('dossier.triage.retour');
+
             // Déclarée AVANT `dossier/{section}` : sans cela, `enregistrer` serait capté.
             Route::post('dossier/{section}', [DossierController::class, 'enregistrer'])
                 ->middleware('permission:dossier.ecrire')

@@ -35,6 +35,10 @@ class AccesDossier extends Model
         // D2 — la ligne de clôture désigne son ouverture. Sans elle, les deux lignes d'un accès
         // référent ou d'urgence vitale (sans `token_qr_id`) ne se retrouvent que par devinette.
         'acces_ouverture_id',
+        // P10c-2-i — le triage auquel le soignant a DÉCLARÉ que cette consultation répond
+        // (§5.5.4). Un identifiant, sans clé étrangère : le journal survit au triage supprimé
+        // (ADR-042 D1).
+        'triage_id',
         'sections_consultees',
         'donnees_ajoutees',
         'ip_address',

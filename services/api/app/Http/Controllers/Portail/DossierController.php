@@ -9,6 +9,8 @@ use App\Services\EcritureSoignantService;
 use App\Services\Maladie\ServiceMaladies;
 use App\Services\Pki\ServiceSignature;
 use App\Services\SessionDossierService;
+use App\Services\Triage\ServiceRetourTriage;
+use App\Support\RegistreRetourTriage;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
@@ -100,12 +102,28 @@ class DossierController extends Controller
 
         $this->session->noterSection($section);
 
+        $donnees = $this->donneesDe($membre, $section);
+
         return view('portail.dossier.show', [
             'membre'   => $membre,
             'section'  => $section,
             'sections' => self::SECTIONS,
-            'donnees'  => $this->donneesDe($membre, $section),
+            'donnees'  => $donnees,
             'restant'  => $this->session->secondesRestantes(),
+
+            // ═══ P10c-2-i — LE RETOUR CLINIQUE SUR L'ORIENTATION (CDC_05 §5.5.4, §9.1) ═══
+            //
+            // Le médecin lisait la fiche de triage depuis le Module 4 sans aucun moyen d'en dire
+            // quoi que ce soit. Le formulaire n'est proposé qu'au compte habilité ; le service
+            // revérifie de toute façon (la garde qui fait autorité est là-bas — piège P4, où un
+            // middleware `permission:` au mauvais guard laisse passer).
+            'peutDonnerRetour' => $section === 'triage'
+                && auth()->user()?->can('triage.retour') === true,
+            'retoursPossibles' => RegistreRetourTriage::RETOURS,
+            // Les retours DÉJÀ donnés, par triage. Ils restent affichés même quand un praticien
+            // s'est ravisé : le journal est append-only, et un avis retiré est lui-même une
+            // information.
+            'retoursDonnes' => $section === 'triage' ? $this->retoursDonnes($donnees) : [],
             // D0 — le formulaire n'est proposé que si les TROIS conditions sont réunies : section
             // ouverte à l'écriture, compte habilité, voie consentie. Le serveur revérifie tout ;
             // ceci n'évite qu'un formulaire qui serait de toute façon refusé.
@@ -226,6 +244,77 @@ class DossierController extends Controller
         }
 
         return ' Prescription signée électroniquement.';
+    }
+
+    /**
+     * P10c-2-i — Le soignant dit si l'orientation rendue par un triage était adaptée (§5.5.4).
+     *
+     * ═══ UN SEUL GESTE, ET C'EST DÉLIBÉRÉ ═══
+     *
+     * Donner un retour sur un triage, c'est dire du même mouvement « voilà pourquoi ce patient est
+     * devant moi ». Demander deux formulaires — l'un pour désigner, l'autre pour juger — aurait
+     * multiplié les occasions de n'en remplir qu'un, et le lien du §5.5.4 serait resté à moitié
+     * posé, ce que le G0 reprochait précisément à l'existant (constat Y6).
+     *
+     * Le triage n'est PAS déduit de la session : il est nommé dans le formulaire, et le service
+     * vérifie qu'il appartient bien au dossier ouvert.
+     *
+     * ═══ DEUX ÉCRITURES, DEUX DURÉES DE VIE, ET C'EST VOULU ═══
+     *
+     * Le RETOUR part immédiatement au journal du §10 : il est le fait clinique précieux, et le
+     * faire attendre la clôture l'exposerait à disparaître avec un navigateur fermé (constat F5 de
+     * P7-D2). Le LIEN de consultation, lui, n'a de sens qu'accompagné de ce que la visite a produit
+     * — il rejoint donc `donnees_ajoutees` sur la ligne de clôture.
+     */
+    public function retourTriage(
+        Request $request,
+        Triage $triage,
+        ServiceRetourTriage $retours,
+    ): RedirectResponse {
+        $membre = $this->session->membre();
+        abort_if($membre === null, Response::HTTP_FORBIDDEN);
+
+        try {
+            $retours->enregistrer(
+                auth()->user(),
+                $membre,
+                $triage,
+                (string) $request->input('retour', ''),
+                $request->input('justification'),
+            );
+        } catch (\RuntimeException $e) {
+            // Refus métier (habilitation, triage hors dossier, motif manquant) : un message à
+            // l'écran, pas une page d'exception — au chevet comme à l'accueil, c'est une
+            // situation, pas un bug.
+            return back()->withErrors(['retour' => $e->getMessage()])->withInput();
+        }
+
+        // Le lien de consultation n'est posé QU'APRÈS que le retour a été accepté : un refus ne
+        // doit pas laisser derrière lui une consultation rattachée à un triage sur lequel rien
+        // n'a finalement été dit.
+        $this->session->noterTriage((int) $triage->id);
+
+        return redirect()
+            ->route('portail.dossier.section', 'triage')
+            ->with('statut', 'Retour enregistré. Il servira à améliorer les prochaines orientations.');
+    }
+
+    /**
+     * Les retours déjà donnés, indexés par triage — pour que l'écran montre ce qui a été dit.
+     *
+     * @param  iterable<int, Triage>  $triages
+     * @return array<int, mixed>
+     */
+    private function retoursDonnes(iterable $triages): array
+    {
+        $service = app(ServiceRetourTriage::class);
+        $retours = [];
+
+        foreach ($triages as $triage) {
+            $retours[$triage->id] = $service->retoursDe($triage);
+        }
+
+        return $retours;
     }
 
     /** Le formulaire d'écriture doit-il être proposé pour cette section ? */

@@ -54,6 +54,9 @@ class SessionDossierService
             'sections'  => [],
             // D0 — ce que le soignant écrit pendant la fenêtre, inscrit au journal à la clôture.
             'ecritures' => [],
+            // P10c-2-i — le triage auquel le soignant déclare que cette consultation répond.
+            // NULL tant qu'il ne l'a pas désigné : on ne devine jamais ce lien (décision F1).
+            'triage_id' => null,
         ]);
     }
 
@@ -145,6 +148,43 @@ class SessionDossierService
     }
 
     /**
+     * P10c-2-i — Note que cette consultation répond à un triage donné (CDC_05 §5.5.4).
+     *
+     * ═══ LE LIEN EST DÉCLARÉ, JAMAIS DÉDUIT (décision F1) ═══
+     *
+     * La tentation était de rattacher automatiquement au triage le plus récent du membre. Un
+     * patient peut avoir fait trois triages dans la semaine et consulter pour le premier :
+     * affirmer le lien par proximité temporelle produirait une base d'apprentissage **fausse**,
+     * c'est-à-dire le pire résultat possible — un modèle qui apprend d'un lien inventé.
+     *
+     * Même refus qu'en P6.8c, où le serveur ne rapproche pas une maladie d'un texte libre *même
+     * identique au libellé officiel*, et qu'en P6.7b, où une réécriture « évidente » inscrivait le
+     * nom du mauvais médecin.
+     *
+     * L'appartenance du triage au membre ouvert est vérifiée par l'appelant avant cet appel : ce
+     * service porte la fenêtre, il ne juge pas les droits.
+     */
+    public function noterTriage(int $triageId): void
+    {
+        if (! $this->estActive()) {
+            return;
+        }
+
+        $etat = Session::get(self::CLE);
+        $etat['triage_id'] = $triageId;
+
+        Session::put(self::CLE, $etat);
+    }
+
+    /** Le triage désigné pour cette consultation, ou `null` si le soignant n'en a désigné aucun. */
+    public function triageDeclare(): ?int
+    {
+        $triageId = Session::get(self::CLE.'.triage_id');
+
+        return $triageId === null ? null : (int) $triageId;
+    }
+
+    /**
      * Ferme la session et écrit la ligne d'audit de CLÔTURE. Idempotent : sans session ouverte,
      * ne fait rien. `$motif` n'est pas journalisé en base (le schéma d'audit est figé) mais tracé
      * dans les logs applicatifs, utile au diagnostic.
@@ -185,6 +225,17 @@ class SessionDossierService
             // scan ; en accès référent ou d'urgence vitale il est NULL, et la fiche de parcours
             // aurait dû rapprocher les lignes par proximité horaire — c'est-à-dire deviner.
             'acces_ouverture_id'  => $ouverture->id,
+            // P10c-2-i — le triage auquel le soignant a déclaré que cette consultation répond
+            // (§5.5.4). Porté par la ligne de CLÔTURE, comme les sections consultées et les
+            // écritures : il n'est connu qu'une fois la consultation faite, pas au scan.
+            //
+            // CE QU'IL FAUT SAVOIR DE SA FRAGILITÉ, ET ELLE EST ASSUMÉE : si l'agent ferme son
+            // navigateur sans clôturer, cette ligne n'est jamais écrite (constat F5 de P7-D2, qui
+            // vaut déjà pour la durée et les sections). Le lien serait alors perdu — mais **le
+            // retour clinique, lui, ne l'est pas** : il est écrit immédiatement dans le journal du
+            // §10 au moment où le médecin le donne, précisément pour ne pas dépendre d'une clôture
+            // qui peut ne jamais venir.
+            'triage_id'           => $etat['triage_id'] ?? null,
             'sections_consultees' => $etat['sections'],
             // D0 — `null` plutôt qu'un tableau vide : une session sans écriture n'a rien ajouté,
             // et le journal doit le dire sans ambiguïté.
