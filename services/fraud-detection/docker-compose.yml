@@ -16,9 +16,12 @@ services:
       FRAUD_MLFLOW_TRACKING_URI: file:./mlruns
       # Extraction réelle : source = service paiement (pile payment, port publié 8080).
       FRAUD_PAYMENT_BASE_URL: http://host.docker.internal:8080
-      # Secret HMAC DEV partagé avec le paiement (identique à MASANTE_PAYMENT_PRINCIPAL_SECRET).
-      # DEV uniquement ; en prod = compte de service Keycloak. Vide => extraction désactivée (502 honnête).
-      FRAUD_PRINCIPAL_SECRET: cHJpbmNpcGFsLWRldi1zZWNyZXQtMDEyMzQ1Njc4OSEh
+      # Secret HMAC DEV partagé avec le paiement (identique à MASANTE_PAYMENT_PRINCIPAL_SECRET,
+      # apps/web/.env). Micro-lot B4 : plus de valeur en clair ici — lu depuis services/fraud-detection/.env
+      # (gitignoré, voir .env.example). PAS de `:?` : ce secret est légitimement optionnel (ligne du
+      # dessus) — son absence désactive l'extraction proprement (502 honnête), ce n'est pas une panne.
+      # DEV uniquement ; en prod = compte de service Keycloak.
+      FRAUD_PRINCIPAL_SECRET: ${FRAUD_PRINCIPAL_SECRET:-}
 
   # Démo de la DÉGRADATION GRACIEUSE (§1.7) : même image, chemin de modèle inexistant
   # => le service répond en règles seules. Lancer explicitement :

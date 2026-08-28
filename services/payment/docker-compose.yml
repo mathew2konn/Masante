@@ -6,7 +6,9 @@ services:
     environment:
       POSTGRES_DB: masante_payment
       POSTGRES_USER: payment
-      POSTGRES_PASSWORD: payment
+      # Micro-lot B4 : plus aucun secret en clair ici. `${VAR:?}` fait ÉCHOUER le démarrage si
+      # la variable manque — un secret absent doit s'entendre, pas se remplacer par du vide.
+      POSTGRES_PASSWORD: ${PAYMENT_DB_PASSWORD:?absent de services/payment/.env (voir .env.example)}
     ports:
       - "5433:5432"
     volumes:
@@ -41,16 +43,21 @@ services:
     environment:
       DB_URL: jdbc:postgresql://postgres:5432/masante_payment
       DB_USER: payment
-      DB_PASSWORD: payment
+      DB_PASSWORD: ${PAYMENT_DB_PASSWORD:?absent de services/payment/.env (voir .env.example)}
       REDIS_HOST: redis
       REDIS_PORT: 6379
       # B1 — routage d'alerte : le paiement appelle le fraud-detection-service pour scorer (ADR-020).
       MASANTE_PAYMENT_FRAUDE_BASE_URL: http://host.docker.internal:8090
-      # Secrets de DÉV « prêts à activer » (P5.5b-1). En prod : KMS + masante.payment.securite.exiger-cles=true
-      # (démarrage refusé si absents). Valeurs connues ici pour permettre G2/G4 (frappe du principal signé).
-      MASANTE_PAYMENT_DEST_KEY: MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=
-      MASANTE_PAYMENT_DEST_PEPPER: YWJjZGVmMDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODk=
-      MASANTE_PAYMENT_PRINCIPAL_SECRET: cHJpbmNpcGFsLWRldi1zZWNyZXQtMDEyMzQ1Njc4OSEh
+      # Lot 6 — canal interne : notification signée vers le backend Laravel à chaque issue de paiement.
+      LARAVEL_BASE_URL: http://host.docker.internal:8000
+      # Secrets applicatifs (P5.5b-1, lot 6). Lus depuis `.env` (gitignoré) — jamais versionnés.
+      # En prod : KMS + masante.payment.securite.exiger-cles=true (démarrage refusé si absents).
+      MASANTE_PAYMENT_DEST_KEY: ${MASANTE_PAYMENT_DEST_KEY:?absent de services/payment/.env}
+      MASANTE_PAYMENT_DEST_PEPPER: ${MASANTE_PAYMENT_DEST_PEPPER:?absent de services/payment/.env}
+      MASANTE_PAYMENT_PRINCIPAL_SECRET: ${MASANTE_PAYMENT_PRINCIPAL_SECRET:?absent de services/payment/.env}
+      # Lot 7 — GeniusPay. La base est une URL, pas un secret, mais son absence doit s'entendre :
+      # elle est tranchée par la verification V1 et ne s'ecrit jamais en dur dans le code.
+      GENIUSPAY_BASE_URL: ${GENIUSPAY_BASE_URL:?absent de services/payment/.env (voir .env.example)}
     ports:
       - "8080:8080"
 
