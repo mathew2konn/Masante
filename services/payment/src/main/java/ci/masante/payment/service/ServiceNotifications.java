@@ -3,6 +3,8 @@ package ci.masante.payment.service;
 import ci.masante.payment.domain.model.NotificationSortie;
 import ci.masante.payment.domain.notification.EnvoiNotification;
 import ci.masante.payment.domain.notification.MessageNotification;
+import ci.masante.payment.domain.notification.NotificationSysteme;
+import ci.masante.payment.domain.notification.NotificationSystemeException;
 import ci.masante.payment.domain.notification.ResultatEnvoi;
 import ci.masante.payment.domain.notification.StatutNotification;
 import ci.masante.payment.domain.notification.TypeNotification;
@@ -30,15 +32,18 @@ public class ServiceNotifications {
 
     private final NotificationSortieRepository outbox;
     private final EnvoiNotification envoi;
+    private final NotificationSysteme systeme;
     private final ObjectMapper json;
     private final ServiceNotifications self;
 
     public ServiceNotifications(NotificationSortieRepository outbox,
                                 EnvoiNotification envoi,
+                                NotificationSysteme systeme,
                                 ObjectMapper json,
                                 @Lazy ServiceNotifications self) {
         this.outbox = outbox;
         this.envoi = envoi;
+        this.systeme = systeme;
         this.json = json;
         this.self = self;
     }
@@ -69,8 +74,14 @@ public class ServiceNotifications {
         if (notif == null || !notif.estEnAttente()) {
             return false; // déjà livrée/échouée ou disparue → idempotent
         }
-        ResultatEnvoi r = envoi.envoyer(new MessageNotification(
-                notif.getType(), notif.getDestinataireRef(), notif.getCanalSouhaite(), notif.getChargeUtile()));
+        // Dispatch par le TYPE, la seule extension de ce service au lot 6. Un type système part par
+        // appel signé ; TOUT autre type suit exactement le chemin d'avant, au même appel, avec le
+        // même objet — le comportement des notifications humaines est inchangé à l'octet près.
+        // Le « ce type est-il système ? » vit sur l'enum : un futur type système ne touchera pas ici.
+        ResultatEnvoi r = notif.getType().estSysteme()
+                ? livrerSysteme(notif)
+                : envoi.envoyer(new MessageNotification(
+                        notif.getType(), notif.getDestinataireRef(), notif.getCanalSouhaite(), notif.getChargeUtile()));
         if (r.reussi()) {
             notif.marquerEnvoyee(r.canal(), Instant.now());
         } else {
@@ -83,6 +94,19 @@ public class ServiceNotifications {
     @Transactional(readOnly = true)
     public List<NotificationSortie> pourDestinataire(String destinataireRef) {
         return outbox.findByDestinataireRefOrderByCreeLeDesc(destinataireRef);
+    }
+
+    /**
+     * Livraison système : traduit l'exception du port en {@link ResultatEnvoi}, pour que la suite du
+     * relais (marquage, compteur de tentatives, verrou) reste littéralement le code d'avant.
+     */
+    private ResultatEnvoi livrerSysteme(NotificationSortie notif) {
+        try {
+            systeme.livrer(notif.getChargeUtile());
+            return ResultatEnvoi.reussi(NotificationSysteme.CANAL);
+        } catch (NotificationSystemeException e) {
+            return ResultatEnvoi.echoue(e.getMessage());
+        }
     }
 
     private String serialiser(Map<String, Object> charge) {

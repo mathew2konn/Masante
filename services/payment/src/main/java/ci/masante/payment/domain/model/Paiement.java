@@ -6,17 +6,34 @@ import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import jakarta.persistence.Transient;
 import jakarta.persistence.Version;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 import org.hibernate.annotations.UuidGenerator;
+import org.springframework.data.domain.AfterDomainEventPublication;
+import org.springframework.data.domain.DomainEvents;
 
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
 import java.util.UUID;
 
 /**
  * Transaction de paiement (CDC_06 §4.3). FCFA = entier. Le statut n'évolue que via la machine à
  * états (§4.2), consignée dans {@code payment_transitions}, et chaque étape est auditée.
+ *
+ * <p><b>UN SEUL POINT D'ACCROCHE POUR LE CANAL INTERNE</b> (lot 6). Deux services font aujourd'hui
+ * passer un paiement à son issue : {@code ServicePaiement} (mobile money) et {@code ServiceCarte}
+ * (projection du sous-état carte sur la machine partagée). Les accrocher séparément aurait produit
+ * une garantie à deux endroits — donc une garantie qu'un troisième chemin, écrit demain, peut
+ * ignorer sans que rien ne le signale.</p>
+ *
+ * <p>L'accroche vit donc sur l'agrégat : {@link #setStatut} est le passage OBLIGÉ de tous, et
+ * l'événement part au {@code save()} du repository via {@link DomainEvents} (Spring Data, publication
+ * SYNCHRONE dans la transaction en cours — ce que l'Outbox exige, CDC_03 §8). Aucune dépendance
+ * nouvelle, aucun listener JPA, aucune duplication de la règle « qu'est-ce qu'un état terminal ».</p>
  */
 @Entity
 @Table(name = "payments")
@@ -81,6 +98,15 @@ public class Paiement {
     @Column(name = "confirmed_at")
     private Instant confirmedAt;
 
+    /**
+     * Événements en attente de publication. {@code @Transient} : ce n'est pas un état persisté, c'est
+     * une intention à émettre au prochain {@code save()}. Le champ est vidé aussitôt publié — sans
+     * quoi une seconde sauvegarde de la même entité (il y en a, ex. la pose de {@code confirmedAt})
+     * republierait le même événement, et le partenaire serait notifié deux fois du même fait.
+     */
+    @Transient
+    private final transient List<Object> evenements = new ArrayList<>();
+
     protected Paiement() {
     }
 
@@ -143,8 +169,31 @@ public class Paiement {
         return statut;
     }
 
+    /**
+     * Pose le nouvel état — validé en amont par la machine à états, jamais ici — et, si cet état est
+     * terminal, retient un événement à publier au prochain {@code save()} (lot 6, canal interne).
+     *
+     * <p>La garde {@code statut != nouveau} est le garde-fou de la répétition : repasser un paiement
+     * dans l'état qu'il occupe déjà n'est pas un fait nouveau et ne doit rien annoncer.</p>
+     */
     public void setStatut(PaiementStatut statut) {
+        boolean transitionReelle = this.statut != statut;
         this.statut = statut;
+        if (transitionReelle && statut != null && statut.estTerminal()) {
+            evenements.add(new TransitionTerminaleEvenement(
+                    id, correlationId, montant, devise, statut, Instant.now()));
+        }
+    }
+
+    /** Publié par Spring Data au {@code save()} du repository — donc dans la transaction en cours. */
+    @DomainEvents
+    Collection<Object> evenements() {
+        return List.copyOf(evenements);
+    }
+
+    @AfterDomainEventPublication
+    void viderEvenements() {
+        evenements.clear();
     }
 
     public String getProviderRef() {

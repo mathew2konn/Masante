@@ -47,6 +47,13 @@ dependencies {
     implementation 'org.springframework.security:spring-security-crypto:6.3.4'
 
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    // Lot 7 (GeniusPay) : simulation d'une API HTTP au bit pres — SEULE dependance de test autorisee
+    // par l'arbitrage B5. Testcontainers reste refuse. Portee `testImplementation` uniquement : rien
+    // de tout cela n'entre dans l'image produite.
+    // Elle est indispensable a trois tests qui prouvent le lot : le delai depasse qui NE REJOUE PAS,
+    // la signature calculee sur le corps brut, et l'unicite de la requete sortante. Aucun ne peut
+    // s'ecrire sans controler une reponse HTTP a l'octet pres et sans provoquer un vrai timeout.
+    testImplementation 'org.wiremock:wiremock-standalone:3.9.1'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
 

@@ -36,6 +36,17 @@ masante:
   payment:
     # TTL du verrou d'idempotence (Redis) : au-delà, seule la contrainte d'unicité PG protège.
     idempotency-lock-seconds: 30
+    # Canal interne vers le backend Laravel (lot 6). Le SECRET n'est PAS ici : c'est le même
+    # MASANTE_PAYMENT_PRINCIPAL_SECRET que la vérification entrante, jamais un second.
+    canal-interne:
+      principal-sub: ${CANAL_INTERNE_PRINCIPAL_SUB:paiement-service}
+      principal-roles: ${CANAL_INTERNE_PRINCIPAL_ROLES:SYSTEME}
+    laravel:
+      base-url: ${LARAVEL_BASE_URL:http://host.docker.internal:8000}
+      # Un client sans délai attend indéfiniment, et c'est le relais entier qui se bloquerait
+      # sur une seule ligne d'outbox.
+      timeout-connexion-s: ${LARAVEL_TIMEOUT_CONNEXION_S:5}
+      timeout-lecture-s: ${LARAVEL_TIMEOUT_LECTURE_S:10}
     signature:
       # Signature RSA-SHA256 des factures/avoirs (§7.4). Clé de DÉV en mémoire (substitut HSM/KMS).
       # « Prête à activer » : ON par défaut ici ; l'adossement HSM/PKI réelle est l'étape ultérieure.
@@ -108,3 +119,39 @@ masante:
           cron: ${REVERSEMENT_RAPPROCHEMENT_CRON:0 0 2 * * *}   # tous les jours 02:00 UTC (rapproche la veille)
         # Endpoint d'injection d'anomalies : DÉV UNIQUEMENT. OFF en production (l'endpoint répond 404).
         dev-seed-enabled: ${REVERSEMENT_RAPPROCHEMENT_DEV_SEED:false}
+    # GeniusPay (lot 7, ADR-044). Montage A : un compte marchand PAR ÉTABLISSEMENT.
+    # SANDBOX UNIQUEMENT (D7) : toute autre valeur fait ÉCHOUER le démarrage, elle n'est pas ignorée.
+    geniuspay:
+      environnement: ${GENIUSPAY_ENVIRONNEMENT:sandbox}
+      # Aucune valeur par défaut : une base absente doit s'entendre au démarrage, jamais se remplacer
+      # par une URL devinée. Retenue par la vérification V1 (les deux bases répondent 200 → geniuspay.ci).
+      base-url: ${GENIUSPAY_BASE_URL}
+      timeout-connexion-ms: ${GENIUSPAY_TIMEOUT_CONNEXION_MS:5000}
+      timeout-lecture-ms: ${GENIUSPAY_TIMEOUT_LECTURE_MS:15000}
+      # Minimum imposé par GeniusPay (contrainte du prestataire, pas une règle MaSanté).
+      montant-minimum: ${GENIUSPAY_MONTANT_MINIMUM:200}
+      # Fenêtre de fraîcheur de l'horodatage signé du webhook (anti-rejeu).
+      fenetre-antirejeu-secondes: ${GENIUSPAY_FENETRE_ANTIREJEU_S:300}
+      # Délai au-delà duquel une transaction INITIEE_INCERTAINE est soumise au balayage (§7.4.b).
+      levee-incertitude-minutes: ${GENIUSPAY_LEVEE_INCERTITUDE_MIN:15}
+      # Plafond de consultations unitaires par exécution du balayage — le coût est réel (une requête
+      # par candidat), il se borne par une donnée, jamais par une constante de code.
+      balayage-max-consultations: ${GENIUSPAY_BALAYAGE_MAX:200}
+      # Au-delà, une transaction jamais confirmée est déclarée échue. AUCUNE facture n'est soldée sur
+      # une hypothèse : c'est l'inverse qui se produit (remise à la charge du partenaire).
+      abandon-apres-heures: ${GENIUSPAY_ABANDON_APRES_H:24}
+      # Retours applicatifs. Ils N'AUTHENTIFIENT RIEN (D5) : seul le webhook fait foi. Optionnels.
+      success-url: ${GENIUSPAY_SUCCESS_URL:}
+      error-url: ${GENIUSPAY_ERROR_URL:}
+      planification:
+        enabled: ${GENIUSPAY_PLANIF_ENABLED:true}
+        # Traitement des événements webhook reçus : le contrôleur ENREGISTRE et rend la main, le
+        # relais applique. Même motif que l'Outbox de notification (P5.4c) — aucun @Async ajouté.
+        traitement-evenements-ms: ${GENIUSPAY_TRAITEMENT_EVENEMENTS_MS:5000}
+        reconciliation-ms: ${GENIUSPAY_RECONCILIATION_MS:600000}   # 10 min (§8.5)
+    # Plancher métier du paiement EN LIGNE (R17/R5b) : sous ce montant, le paiement sur place reste
+    # la voie normale. DONNÉE, jamais codée en dur.
+    plancher-en-ligne-fcfa: ${PAIEMENT_PLANCHER_EN_LIGNE:5000}
+    # Libellé transmis au prestataire. GÉNÉRIQUE et CONSTANT : aucun acte, aucune spécialité, aucun
+    # service hospitalier ne sort du service (interdiction n°7).
+    libelle-generique: ${PAIEMENT_LIBELLE_GENERIQUE:Règlement MaSanté}

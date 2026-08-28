@@ -122,6 +122,44 @@ public class GestionErreurs {
         return probleme(HttpStatus.UNPROCESSABLE_ENTITY, ex.getMessage());
     }
 
+    /**
+     * Paiement en ligne indisponible pour ce montant (lot 7, §7.5) → <b>422</b>.
+     *
+     * <p>Ce n'est pas une panne, et le code de statut doit le dire : le paiement sur place reste la
+     * voie normale sous le plancher. Sans ce mappage, le refus remontait en <b>500</b> — le partenaire
+     * aurait lu « le service est cassé » là où il fallait lire « payez au guichet », et aurait
+     * probablement réessayé.</p>
+     */
+    @ExceptionHandler(ci.masante.payment.service.PaiementEnLigneIndisponibleException.class)
+    public ProblemDetail paiementEnLigneIndisponible(RuntimeException ex) {
+        return probleme(HttpStatus.UNPROCESSABLE_ENTITY, ex.getMessage());
+    }
+
+    /**
+     * Aucun identifiant marchand actif pour cet établissement (montage A) → <b>409</b>.
+     *
+     * <p>Refus explicite, jamais un repli sur un autre compte : basculer ferait arriver l'argent d'un
+     * partenaire sur le compte d'un autre.</p>
+     */
+    @ExceptionHandler({ci.masante.payment.domain.gateway.geniuspay.MarchandIntrouvableException.class,
+            ci.masante.payment.service.SecretMarchandAbsentException.class})
+    public ProblemDetail marchandIntrouvable(RuntimeException ex) {
+        return probleme(HttpStatus.CONFLICT, ex.getMessage());
+    }
+
+    /**
+     * Le prestataire a refusé, ou n'a pas répondu → <b>502</b>.
+     *
+     * <p>Les deux se distinguent dans le <b>détail</b>, jamais dans le statut : une incertitude ne se
+     * présente pas comme un refus. Et surtout, aucun des deux ne déclenche de rejeu — c'est la règle
+     * la plus importante du lot (§7.4).</p>
+     */
+    @ExceptionHandler({ci.masante.payment.domain.gateway.geniuspay.GeniusPayException.class,
+            ci.masante.payment.domain.gateway.geniuspay.GeniusPayInjoignableException.class})
+    public ProblemDetail prestatairePaiement(RuntimeException ex) {
+        return probleme(HttpStatus.BAD_GATEWAY, ex.getMessage());
+    }
+
     /** Campagne inexistante/inactive/hors période → 409. */
     @ExceptionHandler(CampagneInvalideException.class)
     public ProblemDetail campagne(CampagneInvalideException ex) {

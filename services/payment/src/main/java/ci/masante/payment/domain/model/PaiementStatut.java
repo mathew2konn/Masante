@@ -21,5 +21,20 @@ public enum PaiementStatut {
     SUCCESS,
     FAILED,
     CANCELLED,
-    REFUNDED
+    REFUNDED;
+
+    /**
+     * Vrai si l'issue de la transaction est arrêtée — c'est le moment, et le seul, où un partenaire
+     * a quelque chose à apprendre (lot 6, canal interne).
+     *
+     * <p>Il n'existe PAS d'état {@code EXPIRED} dans cette machine, contrairement à ce que
+     * suggéreraient les sous-états d'un prestataire : une expiration se projette sur {@code FAILED}
+     * (le détail « expiré » reste dans le sous-état backend-only, pour la réconciliation).</p>
+     */
+    public boolean estTerminal() {
+        return switch (this) {
+            case SUCCESS, FAILED, CANCELLED, REFUNDED -> true;
+            case INITIATED, PENDING, PROCESSING -> false;
+        };
+    }
 }

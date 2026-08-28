@@ -49,6 +49,47 @@ public class CarteEvenementWebhook {
     @Column(name = "charge_utile_masquee", nullable = false)
     private String chargeUtileMasquee;
 
+    // ------------------------------------------------------------------------------------------
+    // Colonnes ajoutées par le lot 7 (V17). Elles servent le webhook GeniusPay et restent NULLES
+    // pour les événements carte : leur inventer une valeur serait un mensonge d'archive.
+    // La table garde son nom d'origine (dette de nommage assumée, cf. V17) ; le fait qui compte est
+    // porté par `psp`, présent depuis P5.4a.
+    // ------------------------------------------------------------------------------------------
+
+    /** SHA-256 du corps brut — second filet d'idempotence si le payload ne porte pas de champ `id`. */
+    @Column(name = "empreinte_corps", updatable = false)
+    private String empreinteCorps;
+
+    /** Horodatage DÉCLARÉ par le prestataire, à ne pas confondre avec {@code recuLe}, qui est le nôtre. */
+    @Column(name = "horodatage_declare", updatable = false)
+    private Long horodatageDeclare;
+
+    @Column(name = "environnement", updatable = false)
+    private String environnement;
+
+    @Column(name = "signature_valide", updatable = false)
+    private Boolean signatureValide;
+
+    @Column(name = "motif_rejet")
+    private String motifRejet;
+
+    @Column(name = "numero_tentative", updatable = false)
+    private Integer numeroTentative;
+
+    @Column(name = "reference_passerelle")
+    private String referencePasserelle;
+
+    @Column(name = "adresse_ip", updatable = false)
+    private String adresseIp;
+
+    /**
+     * Corps intégral tel que reçu. C'est la seule forme qui permette de rejouer une vérification de
+     * signature lors d'un litige : un corps normalisé ne prouverait plus rien. Aucune donnée
+     * personnelle ne peut s'y trouver, parce que l'initiation n'en envoie aucune au prestataire.
+     */
+    @Column(name = "corps_brut", updatable = false)
+    private String corpsBrut;
+
     protected CarteEvenementWebhook() {
     }
 
@@ -59,6 +100,71 @@ public class CarteEvenementWebhook {
         this.type = type;
         this.statutTraitement = statutTraitement;
         this.chargeUtileMasquee = chargeUtileMasquee;
+    }
+
+    /**
+     * Forme complète, utilisée par le webhook GeniusPay (lot 7). Le constructeur d'origine est
+     * conservé intact : le module carte n'a pas été touché.
+     */
+    public CarteEvenementWebhook(String psp, String evenementId, String type, String statutTraitement,
+                                 String chargeUtileMasquee, String empreinteCorps, Long horodatageDeclare,
+                                 String environnement, Boolean signatureValide, String motifRejet,
+                                 Integer numeroTentative, String referencePasserelle, String adresseIp,
+                                 String corpsBrut) {
+        this(psp, evenementId, type, statutTraitement, chargeUtileMasquee);
+        this.empreinteCorps = empreinteCorps;
+        this.horodatageDeclare = horodatageDeclare;
+        this.environnement = environnement;
+        this.signatureValide = signatureValide;
+        this.motifRejet = motifRejet;
+        this.numeroTentative = numeroTentative;
+        this.referencePasserelle = referencePasserelle;
+        this.adresseIp = adresseIp;
+        this.corpsBrut = corpsBrut;
+    }
+
+    public String getEmpreinteCorps() {
+        return empreinteCorps;
+    }
+
+    public Long getHorodatageDeclare() {
+        return horodatageDeclare;
+    }
+
+    public String getEnvironnement() {
+        return environnement;
+    }
+
+    public Boolean getSignatureValide() {
+        return signatureValide;
+    }
+
+    public String getMotifRejet() {
+        return motifRejet;
+    }
+
+    public void setMotifRejet(String motifRejet) {
+        this.motifRejet = motifRejet;
+    }
+
+    public Integer getNumeroTentative() {
+        return numeroTentative;
+    }
+
+    public String getReferencePasserelle() {
+        return referencePasserelle;
+    }
+
+    public void setReferencePasserelle(String referencePasserelle) {
+        this.referencePasserelle = referencePasserelle;
+    }
+
+    public String getAdresseIp() {
+        return adresseIp;
+    }
+
+    public String getCorpsBrut() {
+        return corpsBrut;
     }
 
     public void marquerTraite(String statutTraitement, Instant quand) {
