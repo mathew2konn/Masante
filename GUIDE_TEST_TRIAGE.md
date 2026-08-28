@@ -1872,3 +1872,187 @@ y devient `''` au lieu d'être refusée. Ce n'est pas le chemin de l'application
 d'une `origine` inventée par le code applicatif est bien **refusée** (vérifié). La garantie tient
 donc sur tous les chemins que l'application emprunte, et dépend du mode de session en dehors —
 comme le quota d'images de P6.4c, elle est **annoncée**, jamais déguisée en garantie du moteur.
+
+---
+
+# Partie 7 — P10c-2-i : le retour du soignant + le socle IA (§5.5.4)
+
+> **Ajoutée le 2026-08-28.** Deux commits, un seul G1 (`docs/PLAN_G1_P10c2i_Boucle_Apprentissage_
+> Service.md`, F1→F11) — **partie A** (F1-F3, `417b231`) puis **partie B** (F4-F10 + le microservice,
+> `888b64c`). Ce G1 avait été écrit et partiellement codé le 2026-08-22 mais jamais validé par
+> écrit ; trouvé et clos en reprenant P10 après un lot GeniusPay sans rapport. Écrite avant le G4,
+> conservée après le G5.
+
+## 1. Périmètre
+
+### Ce que ça livre
+
+- **Un soignant peut désigner le triage auquel répond sa consultation** et dire si l'orientation
+  rendue était `adaptee` / `sur_triage` / `sous_triage` (F1-F3, permission `triage.retour`).
+- **Chaque retour alimente une ligne pseudonymisée** du jeu d'apprentissage (F4), qu'un second
+  soignant (permission `apprentissage.valider`, orpheline) valide ou rejette avant qu'elle puisse
+  un jour entrer dans un export.
+- **`services/triage-service` existe** (FastAPI/Pydantic, port 8095) et un client Laravel
+  (`ClientTriageIa` + `DisjoncteurTriageIa`) sait l'appeler, se dégrader honnêtement et rouvrir un
+  disjoncteur — **gaté OFF par défaut**.
+
+### Ce que ça ne fait PAS — à lire avant de tester
+
+| Attendu | État |
+|---|---|
+| Un modèle réel, une prédiction réelle | **aucun** — `/api/v1/triage/score` répond 503 à CHAQUE appel (F5/F6), c'est le régime nominal |
+| Anonymisation du jeu d'apprentissage | **pseudonymisation seulement** — `triage_id` reste, l'export qui le retire est en P10c-3 |
+| Écran citoyen montrant une assistance IA | **P10c-2-ii**, différé |
+| `predictions_ia` durcie en chaîne d'audit | **différé à P10c-3** — la table ne porte aujourd'hui aucun contenu clinique |
+
+## 2. Prérequis
+
+Les cinq mises en vigueur de la Partie 6 (§2.2 ci-dessus) restent nécessaires pour que
+`POST /triage/analyser` aboutisse — ce module ne change rien à cet ordre.
+
+```bash
+cd services/api
+XDEBUG_MODE=off "C:/wamp64/bin/php/php8.3.28/php.exe" artisan migrate
+XDEBUG_MODE=off "C:/wamp64/bin/php/php8.3.28/php.exe" artisan db:seed --class=PortailRolesSeeder
+```
+
+Pour éprouver le socle IA en direct (§4 ci-dessous), le microservice doit tourner :
+
+```bash
+cd services/triage-service
+python -m venv .venv && .venv/Scripts/python.exe -m pip install -r requirements.txt
+.venv/Scripts/python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 8095
+# ou : docker compose up --build
+```
+
+## 3. Le retour du soignant et la revue (F1-F4, portail)
+
+Ces deux écrans exigent une session portail (`auth`) ; les scénarios ci-dessous passent par
+`artisan tinker` pour appeler les services directement — c'est le chemin que `RetourTriageTest.php`
+et `JeuApprentissageTriageTest.php` couvrent déjà à l'HTTP, dans les deux sens.
+
+```php
+// Un médecin donne un retour sur un triage de son patient.
+$medecin = \App\Models\User::role('medecin')->first();   // ou : ->givePermissionTo('triage.retour')
+$membre  = \App\Models\MembreFamille::first();
+$triage  = \App\Models\Triage::where('membre_id', $membre->id)->first();
+
+app(\App\Services\Triage\ServiceRetourTriage::class)->enregistrer(
+    $medecin, $membre, $triage, \App\Support\RegistreRetourTriage::ADAPTEE
+);
+// -> nouvelle entrée `protocole_applications` (decision_finale='adaptee')
+// -> nouvelle ligne `jeux_donnees_entrainement`, SANS AUCUNE colonne d'identité
+
+// Un second retour sur LE MÊME triage : une SECONDE ligne, jamais une réécriture.
+app(\App\Services\Triage\ServiceRetourTriage::class)->enregistrer(
+    $medecin, $membre, $triage, \App\Support\RegistreRetourTriage::SOUS_TRIAGE, 'Douleur sous-évaluée.'
+);
+
+// Un réviseur (habilité differemment) valide la première ligne.
+$reviseur = \App\Models\User::factory()->create();
+$reviseur->givePermissionTo('apprentissage.valider');
+$ligne = \App\Models\JeuDonneesEntrainement::where('triage_id', $triage->id)->first();
+app(\App\Services\Triage\ServiceValidationApprentissage::class)->valider($reviseur, $ligne);
+
+// La ligne validée entre dans le contrôle d'export ; la seconde (non décidée) n'y entre pas.
+app(\App\Services\Triage\ServiceValidationApprentissage::class)
+    ->pretsPourExport()->pluck('triage_id');   // -> [le triage ci-dessus], une seule fois
+```
+
+Écran portail : `/portail/dossier/{membre}?section=triage` (F1-F3) et `/portail/apprentissage`
+(F4) — ce dernier gardé par `permission:apprentissage.valider`, sans investissement de design
+(précédent K1 de P6.4d).
+
+## 4. Le socle IA : les trois états du disjoncteur (F7/F8)
+
+**`TRIAGE_IA_ENABLED` reste à `false` en local/prod par défaut** — ne le passer à `true` que pour
+ce scénario, jamais laissé dans `.env` après (voir §6, `phpunit.xml` l'isole désormais en test).
+
+```bash
+# .env, temporairement :
+TRIAGE_IA_ENABLED=true
+TRIAGE_IA_BASE_URL=http://127.0.0.1:8095
+TRIAGE_IA_DISJONCTEUR_SEUIL=2
+TRIAGE_IA_DISJONCTEUR_DUREE=15
+```
+
+```bash
+BASE=http://localhost:8000/api/v1
+
+# État 1 — service DEBOUT : 503 honnête, triage complet quand même.
+curl -s -X POST $BASE/triage/analyser -d '{"symptomes":[1]}' -H "Content-Type: application/json"
+# -> 201, niveau + recommandation présents ; predictions_ia: mode=degrade, motif=modele_indisponible
+
+# État 2 — arrêter triage-service (Ctrl+C), puis :
+curl -s -X POST $BASE/triage/analyser -d '{"symptomes":[1]}' -H "Content-Type: application/json"  # échec 1 (~1-2s)
+curl -s -X POST $BASE/triage/analyser -d '{"symptomes":[1]}' -H "Content-Type: application/json"  # échec 2 -> disjoncteur OUVERT
+curl -s -X POST $BASE/triage/analyser -d '{"symptomes":[1]}' -H "Content-Type: application/json"  # AUCUN appel réseau : quasi instantané
+# -> le 3e a predictions_ia.latence_ms = 0, motif=disjoncteur_ouvert
+
+# État 3 — redémarrer triage-service, attendre > 15s, puis :
+curl -s -X POST $BASE/triage/analyser -d '{"symptomes":[1]}' -H "Content-Type: application/json"
+# -> succès réel (latence_ms > 0), motif=modele_indisponible de nouveau : le circuit s'est refermé
+```
+
+```php
+// Vérifier l'état du disjoncteur sans passer par un appel :
+app(\App\Services\Triage\DisjoncteurTriageIa::class)->estOuvert();
+```
+
+## 5. Invariants base de données
+
+- `predictions_ia` : une ligne à CHAQUE appel de `analyser()` (gaté OFF compris), jamais absente.
+- `triages.modele_version` : **NULL sur toutes les lignes**, tant qu'aucun modèle n'existe (F5).
+- `jeux_donnees_entrainement` : **aucune colonne** `patient_nom`/`membre_id`/`user_id`/`nis` —
+  vérifiable au schéma, pas seulement au comportement du service.
+- `validations_medecins` : au plus une ligne par `jeu_id` (`UNIQUE`), jamais de statut « en attente ».
+
+## 6. Limites annoncées (à ne pas signaler comme des défauts)
+
+1. **Aucun modèle, donc aucune prédiction réelle** — régime nominal, pas une panne.
+2. **Pseudonymisation seulement** ; l'export anonymisant est en P10c-3.
+3. **`predictions_ia` non durcie** (pas de chaîne append-only) — différé à P10c-3, motif dans la
+   migration `2026_08_28_000002_predictions_ia_triage`.
+4. **Aucune campagne de mutation formelle** sur ce périmètre — proportionné à ce que 40 tests dédiés
+   + un G2 live réel (§7) couvrent déjà ; dit plutôt que déguisé.
+5. **Aucune entité consultation/diagnostic d'épisode** (Y7 du G1) : le label reste une appréciation
+   sur l'orientation, jamais une issue clinique observée à 48 h.
+
+## 7. Ce que le G2 live a établi (2026-08-28)
+
+Base MySQL sans aucun protocole triage publié (constat en reprenant le module) : chaîne complète
+republiée par de vrais comptes à quatre-yeux (`seuils_mesure` → `TRIAGE-NIVEAU` →
+`TRIAGE-QUESTIONNAIRE` → `TRIAGE-ANTECEDENTS` → `symptomes_triage`). Puis, contre un
+`triage-service` réellement démarré (venv+uvicorn) et un `php artisan serve` réel :
+
+| # | Vecteur | Résultat |
+|---|---|---|
+| 1 | Retour `adaptee` sur un triage réel lié au membre | accepté, `jeux_donnees_entrainement` peuplée sans identité |
+| 2 | `sous_triage` sans motif | **refusé par son message** |
+| 3 | Triage sans `membre_id` (anti-IDOR) | **refusé par son message** |
+| 4 | Rôle `agent_garde` | **refusé par son message** |
+| 5 | Second retour sur le même triage | accepté comme **2ᵉ entrée** du journal, chaîne vérifiée octet à octet (`empreinte` de la 1ʳᵉ = `empreinte_precedente` de la 2ᵉ) |
+| 6 | Service IA debout | **503 réel**, triage complet, `predictions_ia` correct, disjoncteur resté **fermé** |
+| 7 | Service IA arrêté, 2 échecs réels | disjoncteur **ouvert**, 3ᵉ appel en **0 ms réseau** |
+| 8 | Service IA redémarré, fenêtre passée | succès réel (19 ms), circuit **refermé** |
+
+### Le défaut trouvé par le G2, invisible aux 36 tests dédiés qui précédaient ce run
+
+`DisjoncteurTriageIa` stockait un objet `Carbon` comme valeur de cache. `phpunit.xml` force
+`CACHE_STORE=array` : écriture et lecture dans le **même** processus PHP, jamais sérialisé, donc
+jamais cassé. En conditions réelles (`CACHE_STORE=database`, `php artisan serve` traitant chaque
+requête dans un **processus séparé**), le `Carbon` désérialisé devenait un `__PHP_Incomplete_Class`
+et `Carbon::lt()` levait une `TypeError` en plein triage — **le disjoncteur cassait ce qu'il devait
+protéger**. Corrigé en stockant un horodatage Unix (entier) plutôt qu'un objet.
+
+Un second oubli, de méthode : `TRIAGE_IA_ENABLED=true` laissé dans `.env` après ce G2 a fait échouer
+le vecteur « gaté OFF par défaut » au run PHPUnit suivant — `phpunit.xml` ne l'isolait pas comme il
+isole déjà `PULSE_ENABLED`/`TELESCOPE_ENABLED`. Ajouté à la même liste (§4 ci-dessus le rappelle).
+
+## 8. Checklist de clôture
+
+- [x] Migrations appliquées (`2026_08_28_000001`, `2026_08_28_000002`)
+- [x] G3 Python (8 tests, ruff+mypy propres, build Docker indépendant vert)
+- [x] G3 Laravel (40 tests dédiés du module, 1343/1343 sur la suite complète)
+- [x] G2 live réel (tableau ci-dessus, 3 états du disjoncteur prouvés dans l'ordre)
+- [x] G4 propriétaire *(déclaré validé le 2026-08-28)*
