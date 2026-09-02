@@ -8,8 +8,12 @@ non-régression (règle propriétaire, CDC_01 §2.4).
 | **1** | **P10a** | Orientation après triage + gouvernance du triage + fiche §5.4 |
 | **2** | **P10b-1** | Registre des protocoles médicaux + moteur de règles + le niveau de triage |
 | **3** | **P10b-2** | Sélecteur, ordre de priorité §3, conflits §8, journal d'exécution §10 |
-| *(à venir)* | P10b-3 | Questionnaire adaptatif §4.3b + écran d'authoring |
-| *(à venir)* | P10c | Microservice `triage-service` (CDC_05 §5) |
+| **4** | **P10b-3-i** | Questionnaire adaptatif + bornes opposables + `triage_reponses` |
+| **5** | **P10b-3-ii** | Borne des antécédents sous protocole + écran §7 de lecture et signature |
+| **6** | **P10c-1** | Constantes cliniques du §5.2 |
+| **7** | **P10c-2-i** | Le retour du soignant + le socle IA (§5.5.4) |
+| **8** | **P10c-3-i** | Export anonymisant + entraînement réel + registre de gouvernance |
+| **9** | **P10c-3-ii** (lot A) | Déploiement en observation + captation du diagnostic, de la spécialité et du niveau réel |
 
 ---
 
@@ -2056,3 +2060,468 @@ isole déjà `PULSE_ENABLED`/`TELESCOPE_ENABLED`. Ajouté à la même liste (§4
 - [x] G3 Laravel (40 tests dédiés du module, 1343/1343 sur la suite complète)
 - [x] G2 live réel (tableau ci-dessus, 3 états du disjoncteur prouvés dans l'ordre)
 - [x] G4 propriétaire *(déclaré validé le 2026-08-28)*
+
+---
+
+# Partie 8 — P10c-3-i : export anonymisant + entraînement réel + registre de gouvernance
+
+> **Ajoutée le 2026-08-29.** Plan `docs/PLAN_G1_P10c3i_Export_Anonymisant_Modele_Reel.md`
+> (F12→F21), G1 validé le 2026-08-29 après deux arbitrages du propriétaire (découpage i/ii sur la
+> charnière du §7.2 ; antécédents ajoutés au vecteur, allergies/médicaments différés). Ferme la
+> première moitié de la chaîne §7.2 — l'anonymisation devient EFFECTIVE (F4 de la Partie 7 l'avait
+> annoncé) et le modèle est réel dans son mécanisme. **VALIDÉ G5 le 2026-08-29.**
+>
+> *Mise à jour du 2026-08-30* : au moment où cette partie a été écrite, rien n'était branché sur
+> `/api/v1/triage/score` — **P10c-3-ii l'a fait depuis** (Partie 9). Les vecteurs ci-dessous
+> restent valables tels quels ; seule cette phrase a vieilli.
+
+## 1. Périmètre
+
+### Ce que ça livre
+
+- **Un export anonymisé versionné** (`ServiceExportJeuEntrainement`) : `triage_id` retiré, âge
+  généralisé en bande (config `masante.triage_ia.bandes_age`), date réduite au mois, `k_estime`
+  calculé (jamais bloquant). Habilité par `ia_triage.valider`.
+- **Un entraînement réel** (`triage-service` gagne XGBoost+SHAP+MLflow, `POST /api/v1/triage/
+  entrainement`) : multiclasse (`adaptee`/`sur_triage`/`sous_triage`), `rappel_sous_triage` loggé à
+  part, refus sous 30 lignes (double garde Laravel + Python).
+- **Un registre de gouvernance** (`versions_modeles`/`metriques_modeles`) : `candidat` posé
+  automatiquement, `valide` exige un **second** compte habilité (quatre-yeux, motif
+  `ServiceGouvernanceProtocole`).
+- **`score_antecedents`** (P10b-3-ii) entre dans le vecteur de features — persistée sur `triages`
+  à l'écriture, reprise (jamais recalculée) au moment du retour.
+- **Un écran portail** (`/portail/modeles-ia`) : exporter, lancer un entraînement, valider — sans
+  design (K1).
+- **Une notification** `MODELE_IA_CANDIDAT` (canal existant, `ServiceNotification`) vers les
+  détenteurs de `ia_triage.valider`, sauf l'auteur de l'entraînement — corps sans métrique.
+
+### Ce que ça ne fait PAS — à lire avant de tester
+
+| Attendu | État |
+|---|---|
+| Un modèle qui répond réellement à un triage | **aucun** — `/api/v1/triage/score` répond toujours 503, même avec un modèle `valide` en base (prouvé au G2 live, §6) |
+| Anonymisation garantissant un vrai k-anonymat | **estimé sur les seuls quasi-identifiants généralisés** (bande d'âge, sexe, mois-année) — constantes/symptômes restent à précision clinique, et c'est dit (F20) |
+| Un modèle validé statistiquement | **non** — le pipeline est réel, le volume de retours réels ne l'est pas encore (§6) |
+| Allergies, médicaments en cours dans le vecteur | **hors périmètre**, dette groupée (décision propriétaire) |
+| Drift, canary, équité (§8) | **non traités** — le corpus les place lui-même en dernier de son propre ordre de construction |
+
+## 2. Prérequis
+
+```bash
+cd services/api
+XDEBUG_MODE=off "C:/wamp64/bin/php/php8.3.28/php.exe" artisan migrate
+XDEBUG_MODE=off "C:/wamp64/bin/php/php8.3.28/php.exe" artisan db:seed --class=PortailRolesSeeder
+```
+
+`services/triage-service` gagne la stack ML — **recréer le venv** si un venv Python ≥ 3.12 existe
+déjà (xgboost/shap/scikit-learn n'ont pas tous de roue précompilée au-delà de 3.12 sur Windows au
+moment d'écrire ceci ; `uv python install 3.11` + `uv venv --python 3.11 .venv` reproduit exactement
+la cible du Dockerfile) :
+
+```bash
+cd services/triage-service
+uv python install 3.11 && uv venv --python 3.11 .venv
+uv pip install --python .venv -r requirements.txt
+.venv/Scripts/python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 8095
+```
+
+**Un compte habilité `ia_triage.valider` doit AUSSI porter un rôle du portail** (`admin_ivoirsante`
+/ `gestionnaire_etablissement` / `agent_garde` / `medecin`) — voir §6, ce n'est pas propre à cet
+incrément, c'est la politique de `AuthController::ROLES_PORTAIL` qui existe depuis le Module 4.
+
+## 3. Scénarios (curl + artisan, reproductibles)
+
+Refus sous le seuil (aucune ligne validée) :
+
+```bash
+curl -s -X POST http://127.0.0.1:8095/api/v1/triage/entrainement \
+  -H "Content-Type: application/json" -d '{"pays_code":"CI","numero_export":1,"lignes":[]}'
+# → 422 {"motif":"volume_insuffisant","message":"0 ligne(s) reçue(s), 30 requises au minimum..."}
+```
+
+Export puis entraînement, en tant que compte habilité (`--utilisateur=<id>`) :
+
+```bash
+XDEBUG_MODE=off php artisan masante:triage:jeu-entrainement:exporter --utilisateur=<id>
+# → Export #N (CI, vN) : <n> ligne(s), k estimé = <k>.
+
+TRIAGE_IA_BASE_URL=http://127.0.0.1:8095 php artisan masante:triage:modele:entrainer <export_id> --utilisateur=<id>
+# → Version N (CI) créée en statut « candidat » — run MLflow <run_id>.
+```
+
+Quatre-yeux (même compte refusé, un autre compte accepté) — via le service ou l'écran
+`POST /portail/modeles-ia/{version}/valider` (session + CSRF réels).
+
+## 4. Invariants base de données
+
+- `exports_jeu_entrainement.instantane_json` : **aucune clé** `triage_id`/`membre_id`/`user_id`/
+  `patient_nom`/`nis`/`id` dans aucune ligne.
+- `versions_modeles.statut` ne vaut jamais `actif`/`archive` dans cet incrément.
+- `metriques_modeles` porte toujours `rappel_sous_triage`, jamais absent d'un entraînement réussi.
+- `versions_modeles.valide_par` ≠ `versions_modeles.entraine_par` sur toute ligne `valide`.
+- `predictions_ia` reste inchangée par cet incrément (toujours `mode=degrade` en pratique).
+
+## 5. Limites annoncées (à ne pas signaler comme des défauts)
+
+Voir le tableau du §1. En plus : `/api/v1/triage/entrainement` sans principal signé (même posture
+que `/score` aujourd'hui) ; aucune règle de « meilleur modèle » entre plusieurs candidats (choix
+humain, à l'écran) ; `alertes_drift`/`explications_ia` nommées par le corpus, non créées faute de
+consommateur ; §5.5.2 (questionnaire personnalisé IA) reste sans porteur numéroté.
+
+## 6. Ce que le G2 live a établi (2026-08-29)
+
+Base MySQL réelle (`ivoirsante`), rien réinitialisé. Migrations appliquées sans incident (aucun
+équivalent MySQL 1215/3823 cette fois). 35 lignes réelles semées via `ServiceRetourTriage`/
+`ServiceValidationApprentissage` (mécanisme déjà prouvé par HTTP en Partie 7 — semé ici par appel de
+service direct, pas re-rejoué par HTTP, et c'est dit plutôt que déguisé) : `export #1` → 35 lignes,
+**`k_estime=5`**, `instantane_json` vérifié colonne par colonne sans `triage_id` ni `membre_id`.
+Entraînement réel contre le VRAI `triage-service` (stack ML réelle, aucun mock) → **run MLflow
+`fc4b731ea19a46a882d9d9885fa5bc3d`**, métriques réelles (`exactitude=0.222`, `rappel_sous_
+triage=0.333`, `auc=0.407` — proches du hasard, **honnêtement**, la fixture n'avait aucun signal
+réel à apprendre, exactement la limite annoncée par le plan). Quatre-yeux prouvé deux fois : par
+service direct (v1) et par le VRAI écran, deux comptes, deux sessions authentifiées réelles avec
+CSRF (v2, `versions_modeles.valide_par=105` en base). Notification reçue par les 2 détenteurs
+réels de la permission (dont l'admin, via `syncPermissions(Permission::all())`) et PAS par
+l'auteur — corps vérifié sans métrique. **Le boundary Y10/F18** : avec `TRIAGE_IA_ENABLED=true` et
+un modèle `valide` existant, un vrai `POST /api/v1/triage/analyser` a bien fait partir un vrai
+appel à `/score` (vu dans le log `uvicorn`) — réponse encore et toujours 503,
+`predictions_ia.mode=degrade`. Base restaurée : les 35 triages de test, les 2 exports, les 2
+versions et leurs métriques, les 5 comptes de test et leurs notifications ont été supprimés ;
+**`protocole_applications` n'a délibérément PAS été touchée** (append-only, motif constant de ce
+projet) — les 35 entrées de retour y restent, pour de vrai.
+
+**DEUX DÉFAUTS RÉELS TROUVÉS, TOUS DEUX PAR LE HARNAIS DE TEST, AVANT MySQL** : `score_antecedents`
+manquait du `$fillable` de **`Triage`** ET de **`JeuDonneesEntrainement`** — Eloquent l'écartait
+silencieusement à chaque assignation de masse, et la valeur restait `NULL` en base sans qu'aucune
+erreur ne le signale. Trouvé par `ExportJeuEntrainementTest::test_score_antecedents_traverse_du_
+triage_a_lexport`, qui a échoué deux fois de suite (une fois par modèle) avant que les deux soient
+corrigés. Un troisième défaut, de PLUS FAIBLE gravité, corrigé avant même d'atteindre MySQL : la
+bande d'âge `1-4` du plan portait en réalité `min:2` — l'étiquette mentait sur sa propre borne.
+
+**PIÈGE — LE PREMIER APPEL RÉEL À `triage-service` PEUT S'ÉTERNISER, LE SUIVANT NON** : la toute
+première commande `masante:triage:modele:entrainer` a expiré après 60 s **sans qu'aucune ligne
+n'apparaisse dans le log `uvicorn`** — la requête n'avait donc jamais atteint le service (un `curl`
+direct, lui, a répondu en moins d'une seconde). Rejouée sans rien changer, la commande a réussi.
+Même famille que le « cold-start `host.docker.internal` → 502 transitoires » déjà documenté pour le
+paiement : le premier aller-retour d'un processus PHP vers un port local fraîchement ouvert peut
+être anormalement lent sous Windows, indépendamment du code. **Piège de méthode, distinct** : le
+serveur `php artisan serve` intégré est **mono-requête** — un test scripté qui enchaîne des appels
+réels vers `triage-service` (entraînement compris) peut le rendre transitoirement injoignable
+(`curl` → `000`) ; il redevient disponible seul, sans redémarrage, quelques dizaines de secondes
+plus tard.
+
+**DÉCOUVERTE, PAS UN DÉFAUT** : un compte ne portant QUE `ia_triage.valider` (sans rôle) est refusé
+au **login** du portail lui-même (`AuthController::ROLES_PORTAIL`, Module 4) — avant même d'atteindre
+la garde de la route. C'est une politique **transversale**, pas propre à cet incrément : elle vaut
+déjà pour `apprentissage.valider`, `referentiel.publier` et toutes les permissions orphelines du
+projet. Un compte réel doit porter l'un des quatre rôles du portail **et**, en plus, la permission
+nominative — jamais la permission seule.
+
+## 7. Checklist de clôture
+
+- [x] Migrations appliquées (`2026_08_29_000001`, `2026_08_29_000002`)
+- [x] G3 Python (19 tests — 8 hérités + 11 dédiés —, ruff+mypy propres)
+- [x] G3 Laravel (27 tests dédiés du module ; **1370/1370** sur la suite complète, 16948 assertions)
+- [x] **G3 image Docker — construite (972 Mo), et l'étape de qualité a tourné DANS l'image cible** :
+      `ruff check app tests` → « All checks passed! », puis `python -m pytest` → **19 passed**, sous
+      `python:3.11-slim` avec la résolution figée du build (`mlflow-2.16.2`, `xgboost-2.1.4`,
+      `shap-0.46.0`, `scikit-learn-1.5.2`, `numpy-2.0.2`). **Preuve plus forte qu'un run local** :
+      les 19 vecteurs, dont les deux neufs sur la classe à un seul exemplaire, passent dans
+      l'environnement réellement livré et non dans un venv de poste. Il a fallu **quatre
+      tentatives**, les trois premières tombant sur le réseau (voir le piège ci-dessous) : ~700 s
+      d'installation et ~610 s d'export de couches, cohérent avec le « export image ML lourd
+      (~600 s) » déjà noté pour `fraud-detection`.
+- [x] G2 live réel (export anonymisé, entraînement réel contre MySQL + triage-service réels,
+      quatre-yeux par service ET par écran authentifié, notification, boundary Y10/F18, base
+      restaurée)
+- [x] **G4 propriétaire — validé le 2026-08-29**
+
+## 8. Reprise de vérification après le G4 (2026-08-29)
+
+Contrôle de non-régression joué après la validation du propriétaire : suites rejouées
+(**19/19** Python, **46/46** sur le périmètre triage, **1370/1370** sur la suite Laravel complète,
+16948 assertions), `ruff`+`mypy` propres, `pint` propre sur **tous** les fichiers touchés
+(`ServiceNiveauTriage.php` échoue déjà avant cet incrément — écart de style **hérité**, dernière
+modification en P10b-2, délibérément pas reformaté), `pnpm typecheck` vert sur les trois espaces de
+travail, routes et commandes réellement enregistrées (`web` + `Authenticate` +
+`PermissionMiddleware:ia_triage.valider`, **plus** la garde de service en second rideau), base
+vérifiée sans résidu (`exports_jeu_entrainement`, `versions_modeles`, `metriques_modeles`,
+`jeux_donnees_entrainement`, `validations_medecins` à 0 ; `predictions_ia` ne porte que les 7 lignes
+du 2026-08-28, aucune du 29 ; `TRIAGE_IA_ENABLED` absent de `.env`, donc gaté OFF).
+
+**UN DÉFAUT RÉEL TROUVÉ À CETTE REPRISE, PAR UN CAS LIMITE QU'AUCUN DES 17 VECTEURS N'EXERÇAIT.**
+`train_test_split(stratify=…)` exige **au moins deux exemplaires de chaque classe présente** ; en
+dessous il lève un `ValueError` nu, que FastAPI rendait en **500 opaque**. Le cas n'est pas
+théorique : sur les premiers retours réels la classe rare sera `sous_triage` — **précisément la
+seule dangereuse**, celle que le §F16 fait suivre à part parce qu'un agrégat ne la rattrape jamais.
+Un jeu de 30 lignes dont **une seule** en `sous_triage` est exactement ce qu'on attend des premiers
+mois. Reproduit en direct avant correction (`ValueError: The least populated class in y has only 1
+member`). Corrigé par un **refus motivé qui NOMME la classe** (motif des quatre validations de
+P10b-1, « le refus nomme celle qui manque »), réutilisant le contrat 422 `volume_insuffisant`
+existant plutôt que d'en inventer un second. **Deux vecteurs, une couche chacun** (le service en
+direct, puis HTTP en vérifiant que c'est bien un 422 et pas un 500) — parade P6.6b.
+
+**PIÈGE — UN BUILD DOCKER QUI ÉCHOUE PEUT MENTIR SUR SA CAUSE.** La première construction s'est
+arrêtée sur `ResolutionImpossible` en accusant `mlflow 2.14.0 depends on sqlalchemy<3`. C'était une
+**fausse piste**, et la quatrième tentative l'a prouvé en passant **sans qu'une ligne de
+`requirements.txt` ne bouge** : un aléa réseau pendant la récupération des métadonnées fait
+rétrograder pip jusqu'à la plus vieille version candidate, puis il impute l'échec à **celle-là**.
+Les deux tentatives intermédiaires ont d'ailleurs donné la vraie cause en clair —
+`ReadTimeoutError` sur `files.pythonhosted.org` en récupérant un wheel de **342 Mo**
+(`nvidia_nccl_cu12`, tiré transitivement par `xgboost`), puis un blocage sur les **223 Mo** de
+`xgboost` lui-même. **Avant de desserrer une borne de version sur la foi d'un message de
+résolution, rejouer le build et confronter à un `pip install --dry-run`** : le dry-run résolvait
+proprement dès la première fois, et c'est lui qui disait la vérité.
+
+*Conséquence pratique* : cette image tire près de **600 Mo de wheels** dont un `nvidia_nccl_cu12`
+que le service n'utilisera jamais (dépendance transitive GPU d'`xgboost`). Ce n'est pas un défaut
+de cet incrément — `fraud-detection` a exactement la même — mais c'est ce qui rend la construction
+fragile sur une connexion moyenne, et ça mérite d'être su avant de la lancer.
+
+---
+
+# Partie 9 — P10c-3-ii : déploiement en observation, captation des faits manquants, comparaison et dérive
+
+> **Ajoutée le 2026-08-30.** Plan `docs/PLAN_G1_P10c3ii_Deploiement_Shadow.md` (F22→F39), G1 validé
+> le 2026-08-29 puis élargi le même jour par le propriétaire (captation de maladie/spécialité/
+> priorité, et construction d'`alertes_drift`). Livré en **deux lots**, tous deux couverts ici :
+> **A** (shadow + captation) et **B** (comparaison + dérive). **VALIDÉ G5 le 2026-08-30** — cette
+> partie est conservée comme procédure de non-régression (règle propriétaire, CDC_01 §2.4).
+
+## 1. Périmètre
+
+### Ce que ça livre
+
+- **Le modèle prédit pour de vrai, à chaque triage** — et sa prédiction **n'influence rien**. Mode
+  `observation`, jamais `hybride` : CDC_08 §3 place le raisonnement IA au sixième et dernier rang.
+- **Le registre décide quel modèle répond** (`versions_modeles.statut = actif`). Le service charge
+  ce run-là, et refuse s'il ne l'a pas — jamais un autre.
+- **`valide → actif`**, au plus un actif par pays, rollback possible.
+- **`predictions_ia` devient une chaîne d'audit** (append-only, empreinte chaînée, origine
+  déclarée), parce qu'elle porte désormais une explication SHAP.
+- **Les trois faits du §5.5.4 sont captés** : diagnostic final, spécialité ayant pris en charge,
+  niveau que le soignant aurait retenu — dans `retours_cliniques_triage`, chaînée elle aussi.
+- **`k_estime` compte le diagnostic** parmi les quasi-identifiants.
+
+### Ce que ça ne fait PAS — à lire avant de tester
+
+| Attendu | État |
+|---|---|
+| L'IA propose une maladie, une spécialité ou un niveau | **non, et ce n'est pas de la prudence** : le modèle apprend `adaptee`/`sur_triage`/`sous_triage`, il n'a jamais vu de maladie. Même avec du volume, un diagnostic ne remontera pas dans le triage (CDC_00 §4) |
+| Quelque chose de l'IA apparaît sur la fiche du patient | **rien** — vérifié en direct (§6) |
+| Un écran pour lire les prédictions | **livré (lot B)** — mais sur la surface administrateur seulement, jamais dans le parcours de soin |
+| Une alerte de dérive | **livrée (lot B)** — détection seule, elle ne retire jamais un modèle du service |
+| Un modèle validé statistiquement | **non** : réel dans son mécanisme, entraîné sur un volume faible |
+
+## 2. Préparation — DEUX étapes de déploiement s'ajoutent
+
+| # | Étape | Sans elle |
+|---|---|---|
+| 1 | `php artisan db:seed --class=MaladieSeeder` **puis** `php artisan masante:maladies:backfill` | le référentiel des maladies est vide ou sans code : **le diagnostic ne peut être rattaché à rien**. Le seeder seul ne suffit pas — les codes viennent du backfill (vérifié au G2) |
+| 2 | Entraîner → faire valider par un **second** agent → **activer** | `/score` répond 503 `modele_indisponible`, et le triage reste rendu complet par les protocoles seuls |
+
+Les cinq mises en vigueur des parties 6 à 8 restent nécessaires (référentiels + protocoles).
+
+```bash
+# Le service, avec sa stack ML
+cd services/triage-service && .venv/Scripts/python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 8095
+
+# Laravel, IA allumée (gatée OFF par défaut)
+TRIAGE_IA_ENABLED=true TRIAGE_IA_BASE_URL=http://127.0.0.1:8095 php artisan serve --port=8010
+```
+
+## 3. Les vecteurs
+
+**Mise en service, quatre-yeux compris :**
+
+```bash
+php artisan masante:triage:jeu-entrainement:exporter --utilisateur=<A>
+TRIAGE_IA_BASE_URL=http://127.0.0.1:8095 php artisan masante:triage:modele:entrainer <export> --utilisateur=<A>
+# validation par un SECOND compte habilité, puis activation
+```
+
+L'entraîneur qui tente de valider son propre candidat doit être refusé **par son motif**
+(« le §9 exige une double décision »), et non par l'habilitation.
+
+**Un triage réel, IA allumée** — noter la forme de `constantes`, qui est une **liste d'objets** :
+
+```bash
+curl -s -X POST http://127.0.0.1:8010/api/v1/triage/analyser \
+  -H "Content-Type: application/json" -H "Accept: application/json" \
+  -d '{"symptomes":[1,2],"patient_age":34,"patient_sexe":"F","reponses":{},
+       "constantes":[{"type_mesure":"temperature","valeur":38.9},{"type_mesure":"pouls","valeur":98}]}'
+```
+
+Attendu : la réponse **ne contient rien de l'IA**. La prédiction se lit en base, pas à l'écran.
+
+**Captation, depuis le portail** (section « Fiche de triage » du dossier ouvert) : les trois champs
+sont facultatifs ; le diagnostic et la spécialité se **choisissent dans une liste**. Un niveau qui
+contredit le verdict doit être **refusé en nommant la contradiction**, jamais arbitré.
+
+## 4. Invariants base de données
+
+- `predictions_ia.mode` ne vaut jamais `hybride`.
+- Les entrées antérieures au mécanisme restent à `chaine = NULL` et `empreinte = NULL` ; la
+  déclaration d'origine porte leur **nombre**.
+- `versions_modeles` : au plus **une** ligne `actif` par `pays_code`.
+- `UPDATE`/`DELETE` direct sur `predictions_ia` ou `retours_cliniques_triage` → refusé par le
+  moteur (`1644`).
+- `retours_cliniques_triage.maladie_libelle` ne change pas quand le référentiel est corrigé.
+- Les deux chaînes se vérifient `intacte` après un usage réel.
+
+## 5. Limites annoncées (à ne pas signaler comme des défauts)
+
+Voir le tableau du §1. En plus : aucune surface de lecture (lot B) ; artefacts sur le disque du
+service et non dans MinIO (§10) — c'est ce que `modele_absent_du_service` rend visible ; la chaîne
+ne témoigne pas du passé ; `retours_cliniques_triage` est un **fragment** d'épisode clinique, pas un
+dossier de consultation.
+
+## 6. Ce que le G2 live a établi (2026-08-30)
+
+Base MySQL réelle, sauvegardée (`mysqldump --routines --triggers`) puis restaurée. Migration
+appliquée : ENUM à trois valeurs, **quatre déclencheurs**, **7 entrées antérieures à `chaine =
+NULL`**, déclaration d'origine portant ce chiffre. Les quatre `UPDATE`/`DELETE` directs refusés
+(`1644`) ; altération volontaire → chaîne rompue, puis rétablie.
+
+**36 retours réels** via les services réels → export de 36 lignes, **sans `triage_id`**.
+Entraînement réel contre un `triage-service` démarré → run MLflow `6c1b3471…`. Quatre-yeux refusé
+**par son motif**, second agent valide, mise en service avec `activee_par` et **un seul actif**.
+
+**Triage citoyen bout-en-bout** → `observation`, SHAP réel, confiance `elevee`, 748 ms,
+`triages.modele_version` renseignée (§115). **Frontière vérifiée** : ni `sous_triage`, ni
+`observation`, ni `shap`, ni l'identifiant du modèle dans la réponse rendue au patient.
+
+Captation : diagnostic et spécialité **figés** ; contradiction refusée en nommant les deux moitiés,
+**rien écrit** ; diagnostic inconnu refusé. **`k_estime` tombe de 2 à 1** dès qu'une ligne porte un
+diagnostic.
+
+Base restaurée (triages 52→11, jeu 37→0, exports et versions à 0, comptes de test supprimés). Les
+journaux append-only sont **délibérément conservés** — les effacer serait le geste que la chaîne
+existe pour rendre détectable. Les 21 codes de maladies sont gardés : étape de déploiement, pas
+donnée de test.
+
+## 7. Checklist de clôture
+
+- [x] Migration appliquée (`2026_08_30_000001`)
+- [x] G3 Python (**31 tests**, `ruff` + `mypy` propres)
+- [x] G3 Laravel (**22 vecteurs dédiés** ; suite complète verte ; `pint` propre sur les fichiers
+      touchés — `DossierController` échouait **déjà avant**, écart hérité non reformaté)
+- [x] `pnpm typecheck` vert ×3
+- [x] Campagne de mutation lot A : **9/9 conformes** (8 tueuses + 1 témoin volontairement vert)
+- [x] Lot B : `ReglesDerive`, `TraitsDepuisTriage`, comparaison, `alertes_drift`, écran, tâche
+      quotidienne (**17 vecteurs**, **10/10 mutations conformes**)
+- [x] G2 live réel des deux lots (voir §6 et §9)
+- [x] **G4 propriétaire — validé le 2026-08-30**
+
+## 9. Le lot B — comparaison et dérive
+
+### Ce qu'il ajoute
+
+- **Un écran de comparaison** (`/portail/modeles-ia/{version}/comparaison`) : matrice de confusion
+  en production, concordance, latence, et **seul sur sa ligne** le rappel sur `sous_triage`
+  confronté à celui du jeu de test.
+- **`alertes_drift`** : PSI par feature (la population a-t-elle changé ?) et chute du rappel (le
+  modèle rate-t-il davantage le cas dangereux ?). **Jamais fondus en un score global.**
+- **Une tâche quotidienne** `masante:triage:modele:derive`, plus un bouton « Analyser maintenant ».
+- **La mise en service depuis l'écran**, qui sert aussi de **rollback** (§8) : réactiver une version
+  archivée est le même geste.
+
+### Les vecteurs
+
+```bash
+# Le rapport de dérive, à la demande
+php artisan masante:triage:modele:derive --pays=CI
+```
+
+Attendu selon l'état : « aucun modèle en service » (rien à surveiller), « échantillon insuffisant »
+(aucun indice calculé plutôt qu'un chiffre qui ne voudrait rien dire), ou le détail des dérives —
+**et le modèle reste `actif` dans tous les cas**.
+
+À vérifier à l'écran : le bandeau dit ce que la comparaison mesure **et ce qu'elle ne mesure pas**
+avant d'afficher le moindre chiffre ; le rappel en production affiche « aucun sous-triage constaté »
+et non « 0 % » quand aucun cas n'est survenu ; aucune action n'est proposée depuis la section des
+dérives.
+
+### Invariants
+
+- Une journée sans dérive **n'écrit aucune ligne**.
+- Rejouer le rapport d'un jour ne crée pas de seconde ligne **et ne reprévient personne**.
+- `versions_modeles.statut` n'est jamais modifié par une analyse de dérive.
+- Un triage jugé deux fois compte **deux couples** dans la comparaison.
+
+### Ce que le G2 live du lot B a établi (2026-08-30)
+
+Trente triages réels d'une population **âgée** confrontés à un export de référence d'adultes :
+**9 alertes** — huit dérives d'entrée dont `bande_age` à 17,8 (populations disjointes), plus la
+chute de rappel (**0,80 au test contre 0,00 en production**). Comparaison réelle : 30 prédictions,
+30 couples, concordance 50 %, matrice complète, latence 30 ms. **Le modèle reste `actif`.** Lignes
+idempotentes au rejeu. Base restaurée, journaux append-only conservés, chaînes vérifiées intactes.
+
+*Honnêteté sur la lecture* : la fenêtre mêlait ces trente triages aux onze triages de développement
+préexistants, qui n'ont ni constantes ni réponses. Les indices sont exacts, leur interprétation ne
+vaut que pour ce jeu — **ce n'est pas une cohorte propre**.
+
+---
+
+## 8. Pièges rencontrés
+
+**UNE GARANTIE QUI NE VAUT QUE D'UN CÔTÉ — TROIS FOIS DANS LA MÊME SÉANCE.** SQLite laisse passer ce
+que MySQL refuse ou modifie, et aucun des tests verts ne pouvait le voir :
+
+1. **`VARCHAR` : SQLite n'impose pas la longueur.** `audit_chaines.motif` est un `string(300)` ; la
+   déclaration d'origine dépassait. La migration a échoué au premier contact avec la base réelle
+   (`1406 Data too long`) **après avoir posé une partie du schéma** — le DDL MySQL n'est pas
+   transactionnel, il a donc fallu restaurer et rejouer.
+2. **`decimal(5,4)` : MySQL arrondit.** Le service rend `0.752762`, la base garde `0.7528`. La
+   valeur hachée n'était pas la valeur stockée.
+3. **JSON : MySQL ne distingue pas `0.0` de `0`.** SHAP rend `0.0` pour une feature sans influence ;
+   relu, c'est un entier. Les features qui ne pesaient **rien** suffisaient à casser l'empreinte.
+
+Les deux derniers produisaient le pire défaut possible pour un journal médico-légal : **une fausse
+accusation** — la chaîne se déclarait rompue sur des entrées que personne n'avait touchées. Ce n'est
+plus la leçon d'`entierOuNull` (P10b-2), où *le pilote retypait* : ici **la base modifie la valeur**.
+Les parades normalisent **en PHP**, donc identiquement sur les deux moteurs.
+
+**UNE MIGRATION NE DOIT PAS LIRE UN REGISTRE VIVANT.** La migration d'ADR-042 itérait sur
+`ChaineAudit::JOURNAUX`. Y inscrire deux journaux neufs a fait qu'une migration du 21 août s'est
+mise à vouloir altérer des tables **qui n'existaient pas à sa date** — `migrate:fresh` cassait net.
+Même famille que « ajouter une clé à `charge()` recalcule les vieilles empreintes ».
+
+**UN REFUS DE CONTRAT N'EST PAS UNE PANNE.** Le service nommait la cause (`bande_age_inconnue`) et
+Laravel l'écrasait en `reponse_inattendue_422` **en comptant l'appel comme un échec** : une
+divergence de configuration se serait déguisée en service en panne, puis aurait ouvert le
+disjoncteur.
+
+**UN VECTEUR DE G2 PEUT NE RIEN PROUVER, LUI AUSSI.** « Altérer » `confiance` en y remettant sa
+valeur courante ne prouve rien — et c'est la restauration qui a réellement cassé la chaîne. Vérifier
+la valeur AVANT de la modifier.
+
+**UN TABLEAU PHP VIDE SE SÉRIALISE `[]`, PAS `{}`.** `'constantes' => []` fait échouer la validation
+Pydantic, qui attend un objet. Sans effet en production (le contrôleur envoie toujours les clés),
+mais deux vecteurs de G2 ont d'abord échoué **pour cette raison et non pour celle qu'ils visaient**.
+
+**LE SEEDER DES MALADIES NE POSE PAS LES CODES.** `MaladieSeeder` crée 21 lignes ; les codes
+nationaux viennent de `masante:maladies:backfill`. Sans lui, la captation d'un diagnostic n'a rien à
+quoi se rattacher — et l'effet du diagnostic sur `k_estime` reste **invisible**, ce qui m'a fait
+annoncer un chiffre pour une raison fausse avant de le corriger.
+
+**TROIS PIÈGES DE PLUS, VENUS DU LOT B.**
+
+**Une clé d'idempotence qui compare une date à un datetime n'est pas une clé.** `date_rapport` est
+castée en `date` : Eloquent range `2026-08-29 00:00:00`, un `where('date_rapport', '2026-08-29')`
+compare la chaîne brute, et les deux ne se rencontrent jamais. `updateOrCreate` créait une seconde
+ligne que la contrainte refusait ensuite. **Troisième occurrence** de la famille « la valeur n'est
+pas stockée sous la forme où on l'interroge », après l'arrondi du `decimal` et le `0.0` devenu `0`.
+
+**Un rapport peut être idempotent dans ses lignes et pas dans ses notifications.** Le G2 a produit
+trois messages identiques pour la même journée. Un contrôleur qui reçoit le même avertissement à
+chaque passage **cesse de les lire**.
+
+**La production n'est pas homogène.** Un triage dont `symptomes_json` était **doublement encodé**
+faisait tomber le rapport quotidien entier. Rangé en catégorie `illisible` — jamais en « zéro
+symptôme », qui aurait fabriqué une donnée.
+
+**ET UN PIÈGE DE TEST, ATTRAPÉ PAR LA MUTATION.** `Notification::sentNotifications()` rend un
+tableau imbriqué à **quatre niveaux** ; un `count()` dessus compte les *classes de destinataires* —
+toujours 1. Le vecteur passait **en ne mesurant rien**, et seule la mutation l'a révélé en
+survivant. Compter des notifications exige d'aplatir les quatre niveaux.

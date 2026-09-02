@@ -8,6 +8,8 @@ use App\Services\Protocole\JournalApplicationProtocole;
 use App\Services\Protocole\JournalProtocole;
 use App\Services\Referentiel\EmpreinteReferentiel;
 use App\Services\Referentiel\JournalReferentiel;
+use App\Services\Triage\JournalPredictionIa;
+use App\Services\Triage\JournalRetourClinique;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
 use RuntimeException;
@@ -57,6 +59,12 @@ final class ChaineAudit
         'protocole_journal' => JournalProtocole::class,
         'signature_journal' => JournalSignature::class,
         'protocole_applications' => JournalApplicationProtocole::class,
+        // P10c-3-ii : deux journaux neufs, l'un et l'autre porteurs de contenu clinique — une
+        // explication SHAP nomme les valeurs qui l'ont produite, un retour clinique porte un
+        // diagnostic. Le durcissement de `predictions_ia` était annoncé par sa propre migration
+        // « au jour où un modèle réel écrira la première explication » : c'est ce jour.
+        'predictions_ia' => JournalPredictionIa::class,
+        'retours_cliniques_triage' => JournalRetourClinique::class,
     ];
 
     /**

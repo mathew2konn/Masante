@@ -1,10 +1,21 @@
-# triage-service — socle P10c-2-i (CDC_05 §5.5.4). AUCUNE dépendance ML : ce service n'a aucun
-# modèle à charger aujourd'hui (F5 du G1 P10c2i) ; XGBoost/SHAP/MLflow arriveront en P10c-3, sous
-# accord écrit (§2.6), avec le modèle qui les justifiera. Versions bornées pour la reproductibilité.
+# triage-service (CDC_05 §5.5.4/§7.2/§8). Socle P10c-2-i + entraînement réel P10c-3-i.
 fastapi>=0.111,<0.116
 uvicorn[standard]>=0.30,<0.35
 pydantic>=2.7,<3
 pydantic-settings>=2.3,<3
+
+# ═══ P10c-3-i — LA STACK IMPOSÉE PAR CDC_05 §2, ENFIN JUSTIFIÉE PAR UN MODÈLE RÉEL ═══
+#
+# Différée depuis P10c-2-i (F5 : « en installer serait de la mise en scène pour un modèle qui
+# n'existe pas ») ; la validation du plan G1 P10c-3-i EST l'accord écrit §2.6 — même formule
+# qu'ADR-017 pour `fraud-detection` : « ce n'est pas une dérogation, c'est l'application de la
+# stack imposée ». Mêmes bornes de version que `fraud-detection/requirements.txt`.
+xgboost>=2.0,<3
+shap>=0.45,<0.47
+mlflow>=2.14,<2.17
+scikit-learn>=1.4,<1.6
+pandas>=2.2,<2.3
+numpy>=1.26,<2.1
 
 # Qualité (G3)
 pytest>=8.2,<9

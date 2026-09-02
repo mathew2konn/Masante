@@ -38,6 +38,30 @@ use Illuminate\Support\Facades\Schema;
  */
 return new class extends Migration
 {
+    /**
+     * Les quatre journaux qui existaient LE JOUR de cette migration — figés, jamais relus du
+     * registre vivant.
+     *
+     * ═══ DÉFAUT RÉEL TROUVÉ EN P10c-3-ii, ET IL EST DE LA MÊME FAMILLE QUE CEUX QU'ON ÉVITE ═══
+     *
+     * Ce fichier itérait sur `ChaineAudit::JOURNAUX`. Tant que le registre ne bougeait pas, tout
+     * allait bien. Le jour où P10c-3-ii y a inscrit `predictions_ia` et `retours_cliniques_triage`,
+     * cette migration du 21 août s'est mise à vouloir altérer des tables **qui n'existaient pas
+     * encore** à sa date — `migrate:fresh` échouait net.
+     *
+     * Le principe est celui que ce projet applique déjà aux empreintes : **une migration est un
+     * fait historique, elle ne doit pas changer de sens quand le code évolue.** Un journal ajouté
+     * plus tard apporte ses colonnes dans SA propre migration, jamais rétroactivement dans
+     * celle-ci — exactement comme `JournalApplicationProtocole::charge()` ne gagne pas de clé après
+     * coup sous peine de recalculer l'empreinte d'entrées déjà écrites.
+     */
+    private const JOURNAUX_DU_JOUR = [
+        'referentiel_journal',
+        'protocole_journal',
+        'signature_journal',
+        'protocole_applications',
+    ];
+
     /** Colonnes à libérer de leur clé étrangère : elles sont des identifiants, pas des relations. */
     private const CLES_A_RETIRER = [
         'referentiel_journal' => ['acteur_id'],
@@ -73,7 +97,7 @@ return new class extends Migration
             $table->unique(['journal', 'numero'], 'uq_audit_chaine');
         });
 
-        foreach (array_keys(ChaineAudit::JOURNAUX) as $journal) {
+        foreach (self::JOURNAUX_DU_JOUR as $journal) {
             Schema::table($journal, function (Blueprint $table) use ($journal) {
                 $table->unsignedInteger('chaine')->default(1)->after('id');
                 $table->index(['chaine', 'id'], 'idx_'.$this->court($journal).'_chaine');
@@ -89,7 +113,7 @@ return new class extends Migration
 
     public function down(): void
     {
-        foreach (array_keys(ChaineAudit::JOURNAUX) as $journal) {
+        foreach (self::JOURNAUX_DU_JOUR as $journal) {
             Schema::table($journal, function (Blueprint $table) use ($journal) {
                 $table->dropIndex('idx_'.$this->court($journal).'_chaine');
                 $table->dropColumn('chaine');
@@ -109,7 +133,7 @@ return new class extends Migration
     {
         $maintenant = now();
 
-        foreach (array_keys(ChaineAudit::JOURNAUX) as $journal) {
+        foreach (self::JOURNAUX_DU_JOUR as $journal) {
             if (DB::table($journal)->exists()) {
                 continue;
             }

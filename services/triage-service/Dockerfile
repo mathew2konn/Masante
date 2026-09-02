@@ -1,10 +1,14 @@
-# triage-service (CDC_05 §5.5.4, socle P10c-2-i). Image légère : aucune dépendance ML (F5) — pas
-# de libgomp1, pas d'entraînement au build. Deps + qualité (G3) exécutées au build.
+# triage-service (CDC_05 §5.5.4/§7.2/§8). P10c-3-i : XGBoost+SHAP+MLflow, donc libgomp1 (runtime
+# OpenMP requis par XGBoost — précédent exact et déjà résolu dans fraud-detection/Dockerfile).
 FROM python:3.11-slim
 
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     PIP_NO_CACHE_DIR=1
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends libgomp1 \
+    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 

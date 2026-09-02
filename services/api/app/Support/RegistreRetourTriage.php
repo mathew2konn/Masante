@@ -105,4 +105,40 @@ final class RegistreRetourTriage
     {
         return array_keys(self::RETOURS);
     }
+
+    // ═══════════════════════════════════════════════════════════════════════════════════════════
+    // P10c-3-ii (F33) — LE NIVEAU QUE LE SOIGNANT AURAIT RETENU
+    // ═══════════════════════════════════════════════════════════════════════════════════════════
+    //
+    // ═══ AUCUNE ÉCHELLE N'EST DÉFINIE ICI, ET C'EST LE POINT ═══
+    //
+    // Le réflexe était d'écrire une table de rangs dans cette classe. `NiveauTriage::PATIENT`
+    // existe depuis P10b-1, porte les quatre niveaux du §5.3 **dans l'ordre**, et son commentaire
+    // dit déjà que « l'ORDRE EST SIGNIFIANT ». En recopier une seconde, c'était créer deux
+    // définitions de la même échelle — celles qui divergent (précédent `_ORDRE_BANDES` côté
+    // Python, dont F26 vient précisément de supprimer le doublon de bornes).
+    //
+    // Les cinq niveaux HOSPITALIERS du §5.3 restent hors sujet : ils existent dans
+    // `@masante/shared` depuis P0 mais n'ont aucun écran (N6 du G1 P10b).
+
+    /** @return array<int, string> Les niveaux qu'un soignant peut retenir — ceux du §5.3 patient. */
+    public static function niveauxAdmis(): array
+    {
+        return NiveauTriage::PATIENT;
+    }
+
+    /**
+     * Le rang d'un niveau sur l'échelle patient, ou `null` s'il n'y appartient pas.
+     *
+     * `null` n'est pas une erreur : un triage ancien peut porter un libellé historique
+     * (`leger`/`modere`/`urgent`, que P10b-1 a conservés en élargissant l'ENUM sans jamais le
+     * réécrire). Le contrôle de cohérence se tait alors, plutôt que de conclure sur une échelle
+     * qu'il ne connaît pas.
+     */
+    public static function rangNiveau(string $niveau): ?int
+    {
+        $rang = array_search($niveau, NiveauTriage::PATIENT, true);
+
+        return $rang === false ? null : $rang;
+    }
 }

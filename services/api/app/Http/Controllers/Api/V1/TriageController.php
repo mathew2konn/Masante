@@ -6,7 +6,6 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\AnalyserTriageRequest;
 use App\Http\Requests\QuestionsTriageRequest;
 use App\Models\MembreFamille;
-use App\Models\PredictionIa;
 use App\Models\Symptome;
 use App\Models\Triage;
 use App\Models\TriageConstante;
@@ -14,8 +13,11 @@ use App\Models\TriageReponse;
 use App\Services\Protocole\JournalApplicationProtocole;
 use App\Services\Triage\ClientTriageIa;
 use App\Services\Triage\FaitsTriage;
+use App\Services\Triage\JournalPredictionIa;
 use App\Services\Triage\ServiceConstantesTriage;
+use App\Services\Triage\ServiceExportJeuEntrainement;
 use App\Services\Triage\ServiceFicheTriage;
+use App\Services\Triage\ServiceGouvernanceModeleIa;
 use App\Services\Triage\ServiceQuestionnaire;
 use App\Services\Triage\ServiceSymptomesTriage;
 use App\Services\TriageService;
@@ -37,6 +39,11 @@ class TriageController extends Controller
         private readonly ServiceQuestionnaire $questionnaire,
         private readonly ServiceConstantesTriage $constantes,
         private readonly ClientTriageIa $triageIa,
+        // P10c-3-ii : la chaîne des prédictions (F28), le registre qui désigne le modèle actif
+        // (F23), et la conversion en tranche d'âge partagée avec l'export (F26).
+        private readonly JournalPredictionIa $journalIa,
+        private readonly ServiceGouvernanceModeleIa $gouvernanceIa,
+        private readonly ServiceExportJeuEntrainement $exportIa,
     ) {}
 
     /**
@@ -218,6 +225,17 @@ class TriageController extends Controller
                 // sans version de référentiel plutôt que d'en recevoir une fausse.
                 'reponses_json' => [],
                 'score_severite' => $resultat['score_severite'],
+
+                // ═══ P10c-3-i (F14) — LA PART DES ANTÉCÉDENTS, PERSISTÉE À L'ÉCRITURE ═══
+                //
+                // `TriageService::analyser()` la calcule déjà (`details_score.antecedents`), et la
+                // réponse JSON la portait — mais rien ne la conservait. Sans colonne, elle serait
+                // irrémédiablement perdue le jour où `ServiceRetourTriage::alimenterJeuApprentissage()`
+                // tourne, potentiellement des jours plus tard : même motif que `score_severite`,
+                // `niveau` et `protocole_version` juste en dessous — ne jamais recalculer
+                // rétroactivement une décision, toujours persister ce qui a été décidé au moment où
+                // le serveur le savait.
+                'score_antecedents' => $resultat['details_score']['antecedents'] ?? null,
                 'niveau' => $resultat['niveau'],
                 'specialite_requise' => $resultat['specialite_requise'],
 
@@ -376,9 +394,25 @@ class TriageController extends Controller
      */
     private function appelerAssistanceIa(Triage $triage, array $data, array $reponses, array $constantes, array $resultat): void
     {
+        // ═══ F23 — LE REGISTRE DÉSIGNE LE MODÈLE, PAS LE SERVICE PYTHON ═══
+        //
+        // `null` tant qu'aucune version n'est `actif` : le service répondra alors
+        // `modele_indisponible`, régime nominal et non panne.
+        $actif = $this->gouvernanceIa->actif($triage->pays_code ?? config('referentiels.pays_defaut', 'CI'));
+
         $resultatIa = $this->triageIa->scorer([
             'reference' => 'triage:'.$triage->id,
-            'age' => $data['patient_age'] ?? null,
+            'modele_attendu' => $actif?->mlflow_run_id,
+            // ═══ F26 — UNE TRANCHE, JAMAIS L'ÂGE EXACT ═══
+            //
+            // Le modèle a appris sur des tranches (l'export les généralise pour casser le
+            // croisement âge × sexe × date qui ré-identifie). Lui envoyer un âge exact serait lui
+            // parler dans une autre échelle : il répondrait, et se tromperait sans erreur visible.
+            // La conversion est faite ICI, avec la MÊME fonction que l'export — une seule
+            // définition des bornes, donc rien à désynchroniser.
+            //
+            // Effet de bord voulu : l'âge exact ne sort plus du backend (minimisation §9.4).
+            'bande_age' => $this->exportIa->bandePour($data['patient_age'] ?? null),
             'sexe' => $data['patient_sexe'] ?? null,
             'symptomes' => $data['symptomes'],
             'constantes' => [
@@ -392,17 +426,36 @@ class TriageController extends Controller
             'duree_jours' => $reponses['duree_jours'] ?? null,
             'intensite' => $reponses['intensite'] ?? null,
             'grossesse' => $reponses['grossesse'] ?? null,
+            // P10c-3-i (F14, décision propriétaire) — la valeur DÉJÀ gouvernée par P10b-3-ii,
+            // lue sur `$triage` (persistée à l'écriture, voir `analyser()`), jamais recalculée ici.
+            'score_antecedents' => $triage->score_antecedents,
             'niveau_protocole' => $resultat['niveau'],
         ]);
 
-        PredictionIa::create([
+        // ═══ LA PRÉDICTION EST JOURNALISÉE PAR LA CHAÎNE, PLUS PAR UN `create()` NU (F28) ═══
+        //
+        // Les dégradations y entrent COMME les succès : « le modèle n'a pas répondu ce jour-là »
+        // est un fait de traçabilité au même titre que sa réponse, et c'est ce qui permettra de
+        // dire quelle proportion des triages a réellement été observée.
+        $this->journalIa->inscrire([
             'triage_id' => $triage->id,
-            'modele_version' => null, // Inatteignable tant qu'aucun modèle n'existe (F5).
+            'modele_version' => $resultatIa->modeleVersion,
             'mode' => $resultatIa->mode,
             'motif_degradation' => $resultatIa->motifDegradation,
             'latence_ms' => $resultatIa->latenceMs,
-            'cree_le' => now(),
+            'probabilite' => $resultatIa->probabilite,
+            'facteurs_json' => $resultatIa->facteurs,
+            'explication_json' => $resultatIa->explication,
+            'confiance' => $resultatIa->confiance,
+            'limites' => $resultatIa->limites,
         ]);
+
+        // §115 — la version du modèle qui a VU ce triage, à côté de la version de protocole qui l'a
+        // décidé. Renseignée seulement en observation : un triage dégradé n'a été vu par aucun
+        // modèle, lui en attribuer un serait un mensonge d'archive (précédent L2).
+        if ($resultatIa->estObservation()) {
+            $triage->forceFill(['modele_version' => $resultatIa->modeleVersion])->save();
+        }
     }
 
     /**

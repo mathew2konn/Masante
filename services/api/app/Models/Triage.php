@@ -25,6 +25,12 @@ class Triage extends Model
         'symptomes_json',
         'reponses_json',
         'score_severite',
+        // P10c-3-i (F14) — la part des antécédents (P10b-3-ii), persistée à l'écriture pour que
+        // {@see \App\Services\Triage\ServiceRetourTriage::alimenterJeuApprentissage()} puisse la
+        // relire des jours plus tard sans la recalculer (motif exact de `referentiel_version`
+        // juste en dessous : $fillable parce que le contrôleur écrit par assignation de masse,
+        // mais `AnalyserTriageRequest` ne la déclare pas — aucune valeur du client ne l'atteint).
+        'score_antecedents',
         'niveau',
         'specialite_requise',
         // P10a — Posées par le SERVEUR seul. Elles sont `$fillable` parce que le contrôleur écrit

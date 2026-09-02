@@ -32,6 +32,15 @@ class JeuDonneesEntrainement extends Model
         'duree_jours',
         'intensite',
         'grossesse',
+        // P10c-3-i (F14) — la feature déjà gouvernée par P10b-3-ii, reprise de `triages` au moment
+        // du retour (voir `ServiceRetourTriage::alimenterJeuApprentissage()`).
+        'score_antecedents',
+        // P10c-3-ii (F32) — cibles futures. Déclarées ICI parce qu'une colonne absente du
+        // `$fillable` est écartée par Eloquent SANS UN MOT : c'est le défaut trouvé deux fois de
+        // suite en P10c-3-i, sur ce modèle et sur `Triage`. Une migration ne suffit jamais.
+        'niveau_reel',
+        'maladie_code',
+        'specialite_code',
         'niveau_protocole',
         'label',
         'cree_le',

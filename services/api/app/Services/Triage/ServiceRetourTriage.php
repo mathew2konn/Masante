@@ -71,7 +71,15 @@ use Illuminate\Support\Facades\DB;
  */
 class ServiceRetourTriage
 {
-    public function __construct(private readonly JournalApplicationProtocole $journal) {}
+    public function __construct(
+        private readonly JournalApplicationProtocole $journal,
+        // P10c-3-ii : la résolution des trois faits et leur chaîne propre (F32→F34).
+        private readonly PrecisionsCliniques $precisions,
+        private readonly JournalRetourClinique $journalPrecisions,
+        // Source unique de la traduction « triage → ligne plate », partagée avec la mesure de
+        // dérive du lot B — voir {@see alimenterJeuApprentissage()}.
+        private readonly TraitsDepuisTriage $traits,
+    ) {}
 
     /**
      * Enregistre l'appréciation d'un soignant sur l'orientation d'un triage.
@@ -82,12 +90,20 @@ class ServiceRetourTriage
      *
      * @throws \RuntimeException Refus destiné à être lu par un humain à l'écran.
      */
+    /**
+     * @param  array<string, mixed>  $precisions  P10c-3-ii (F32) — `niveau_reel`, `maladie_id`,
+     *                                            `specialite_id`. Toutes facultatives : les rendre
+     *                                            obligatoires changerait le contrat d'un module
+     *                                            validé G5 et bloquerait un retour par ailleurs
+     *                                            valide.
+     */
     public function enregistrer(
         User $soignant,
         MembreFamille $membre,
         Triage $triage,
         string $retour,
         ?string $justification = null,
+        array $precisions = [],
     ): ProtocoleApplication {
         // ═══ 1) HABILITATION — VÉRIFIÉE EN SERVICE, PAS PAR LE MIDDLEWARE ═══
         //
@@ -149,7 +165,15 @@ class ServiceRetourTriage
         // habilité mais sans fiche professionnelle reste identifié par son compte.
         $fiche = Medecin::where('user_id', $soignant->id)->first();
 
-        return DB::transaction(function () use ($soignant, $membre, $triage, $retour, $justification, $fiche): ProtocoleApplication {
+        // ═══ 6) LES TROIS FAITS DU §5.5.4 (P10c-3-ii, F32→F34) ═══
+        //
+        // Résolus AVANT la transaction : un diagnostic inconnu ou un niveau qui contredit le
+        // verdict doit refuser sans avoir rien ouvert. Le contrôle de cohérence vit dans
+        // {@see PrecisionsCliniques} et refuse en NOMMANT la contradiction — il n'arbitre jamais
+        // entre les deux moitiés, le soignant seul sait laquelle il pensait.
+        $precisions = $this->precisions->resoudre($triage, $retour, $precisions);
+
+        return DB::transaction(function () use ($soignant, $membre, $triage, $retour, $justification, $fiche, $precisions): ProtocoleApplication {
             $entree = $this->journal->inscrire(
                 // Aucune évaluation : un avis humain sur une décision déjà rendue.
                 [
@@ -170,7 +194,19 @@ class ServiceRetourTriage
                 ],
             );
 
-            $this->alimenterJeuApprentissage($triage, $retour);
+            // Le verdict §10 et ses précisions sont UN SEUL ACTE : les écrire dans deux
+            // transactions laisserait exister un verdict sans son diagnostic, ou l'inverse.
+            $this->journalPrecisions->inscrire($precisions + [
+                'application_id' => $entree->id,
+                'triage_id' => $triage->id,
+                'soignant_id' => $soignant->id,
+                // Dans l'empreinte — leçon de P6.3, payée deux fois : sans le nom, réécrire
+                // « Dr X » en « Système » ne romprait pas la chaîne, or c'est ce nom qu'un humain
+                // lit dans un audit, et c'est un diagnostic qu'il signe ici.
+                'soignant_nom' => $soignant->nomLisible(),
+            ]);
+
+            $this->alimenterJeuApprentissage($triage, $retour, $precisions);
 
             return $entree;
         });
@@ -189,28 +225,34 @@ class ServiceRetourTriage
      * de cet incrément — trancher ici aurait empiété sur une décision qui n'est pas encore prise.
      *
      * ═══ AUCUNE IDENTITÉ — LES MÊMES SOURCES QUE {@see TriageController::appelerAssistanceIa()} ═══
+     *
+     * ═══ P10c-3-ii — LES TROIS FAITS Y ENTRENT COMME CIBLES, ET CE N'EST PAS UNE SECONDE VÉRITÉ ═══
+     *
+     * {@see RetourCliniqueTriage} est le JOURNAL (immuable, chaîné, nominatif) ; cette table est un
+     * INSTANTANÉ d'apprentissage, plat, reconstruit à chaque retour. Le second est une projection
+     * du premier — exactement comme `label` l'est déjà de `decision_finale` depuis P10c-2-i.
+     *
+     * @param  array<string, mixed>  $precisions
      */
-    private function alimenterJeuApprentissage(Triage $triage, string $retour): void
+    private function alimenterJeuApprentissage(Triage $triage, string $retour, array $precisions = []): void
     {
-        $constantes = TriageConstante::where('triage_id', $triage->id)->pluck('valeur', 'type_mesure');
-        $reponses = TriageReponse::where('triage_id', $triage->id)->pluck('valeur', 'question_cle');
-
-        JeuDonneesEntrainement::create([
+        // ═══ LA TRADUCTION « TRIAGE → LIGNE PLATE » VIT AILLEURS, ET C'EST DÉLIBÉRÉ ═══
+        //
+        // La mesure de dérive (lot B) doit re-dériver la distribution des entrées depuis les tables
+        // du triage, plutôt que d'en recopier une seconde version à côté de chaque prédiction — le
+        // §9.2 exige des données d'entrée « référencées, non dupliquées en clair ». Les deux
+        // appelants doivent donc traduire IDENTIQUEMENT : si cette traduction existait deux fois,
+        // la dérive mesurerait une population légèrement différente de celle qui a nourri
+        // l'apprentissage, et une part de l'écart constaté serait la nôtre.
+        JeuDonneesEntrainement::create($this->traits->pour($triage) + [
             'triage_id' => $triage->id,
-            'age' => $triage->patient_age,
-            'sexe' => $triage->patient_sexe,
-            'symptomes_json' => $triage->symptomes_json,
-            'temperature' => $constantes['temperature'] ?? null,
-            'pouls' => $constantes['pouls'] ?? null,
-            'saturation_o2' => $constantes['saturation_o2'] ?? null,
-            'tension_systolique' => $constantes['tension_systolique'] ?? null,
-            'tension_diastolique' => $constantes['tension_diastolique'] ?? null,
-            'poids' => $constantes['poids'] ?? null,
-            'duree_jours' => isset($reponses['duree_jours']) ? (int) $reponses['duree_jours'] : null,
-            'intensite' => isset($reponses['intensite']) ? (int) $reponses['intensite'] : null,
-            'grossesse' => isset($reponses['grossesse']) ? $reponses['grossesse'] === 'oui' : null,
-            'niveau_protocole' => $triage->niveau,
             'label' => $retour,
+            // P10c-3-ii (F32/F36) — CIBLES futures, jamais des features : les mettre en entrée
+            // ferait prédire le diagnostic à partir du diagnostic. Aucune tête d'entraînement ne
+            // les consomme dans ce lot, il n'existe pas encore un seul diagnostic à apprendre.
+            'niveau_reel' => $precisions['niveau_reel'] ?? null,
+            'maladie_code' => $precisions['maladie_code'] ?? null,
+            'specialite_code' => $precisions['specialite_code'] ?? null,
             'cree_le' => now(),
         ]);
     }

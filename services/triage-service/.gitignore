@@ -4,6 +4,9 @@ __pycache__/
 .pytest_cache/
 .ruff_cache/
 .mypy_cache/
+# P10c-3-i : modèle entraîné + runs MLflow (précédent fraud-detection/.gitignore).
+mlruns/
+models/
 .venv/
 venv/
 .env
