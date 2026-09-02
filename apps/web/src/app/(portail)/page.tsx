@@ -1,13 +1,16 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
-import { getMe, getMfaStatus } from '@/lib/session';
-import { controleurCourant } from '@/lib/fraude';
+import { getMe, getMfaStatus, mesZones } from '@/lib/session';
 import { Card } from '@/components/ui/Card';
 
 /**
- * Accueil du portail professionnel (P1 — coquille d'identité). Point d'entrée neutre :
- * il AFFICHE l'identité et l'état de sécurité fournis par le backend, sans aucun métier.
- * Les portails par rôle (médecin, pharmacien…) viendront à leurs modules respectifs.
+ * Accueil du portail professionnel. Point d'entrée neutre : il AFFICHE l'identité, l'état de
+ * sécurité et les zones que le backend a rendues atteignables, sans aucun métier.
+ *
+ * P11.0 — LES CARTES SONT DÉRIVÉES DU REGISTRE DE ZONES, plus écrites à la main. Avant, la carte
+ * « Rendez-vous » s'affichait pour tout compte professionnel, y compris ceux qui ne portent pas
+ * `rdv.validate` : ils cliquaient et lisaient « accès restreint ». Une entrée proposée à qui ne
+ * peut pas la suivre n'est pas seulement inutile, elle fait douter de tout le reste de l'écran.
  */
 export default async function PortailAccueil() {
   const user = await getMe();
@@ -19,7 +22,7 @@ export default async function PortailAccueil() {
   if (mfa?.doit_configurer) redirect('/securite/mfa');
 
   const mfaActive = mfa?.facteur_confirme === true;
-  const controleur = await controleurCourant();
+  const zones = await mesZones();
 
   return (
     <div className="space-y-6">
@@ -27,35 +30,6 @@ export default async function PortailAccueil() {
         <h1 className="text-2xl font-bold text-blue-900">Bienvenue</h1>
         <p className="text-ink-700">Votre espace professionnel MaSanté.</p>
       </div>
-
-      <Card>
-        <h2 className="mb-1 text-lg font-semibold text-blue-900">Rendez-vous</h2>
-        <p className="mb-4 text-sm text-ink-700">
-          Validez les demandes de rendez-vous de vos services (agents et gestionnaires).
-        </p>
-        <Link
-          href="/rendez-vous"
-          className="inline-flex rounded-pill bg-primary px-5 py-2.5 text-sm font-semibold text-surface hover:bg-blue-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
-        >
-          Ouvrir la file d’attente
-        </Link>
-      </Card>
-
-      {controleur ? (
-        <Card>
-          <h2 className="mb-1 text-lg font-semibold text-blue-900">Alertes de fraude</h2>
-          <p className="mb-4 text-sm text-ink-700">
-            Signalements de conformité de la plateforme (détection seule). Consultez et marquez les
-            alertes revues.
-          </p>
-          <Link
-            href="/fraude-alertes"
-            className="inline-flex rounded-pill bg-primary px-5 py-2.5 text-sm font-semibold text-surface hover:bg-blue-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
-          >
-            Ouvrir les alertes
-          </Link>
-        </Card>
-      ) : null}
 
       {!mfaActive ? (
         <Card>
@@ -71,13 +45,40 @@ export default async function PortailAccueil() {
             Configurer la double authentification
           </Link>
         </Card>
-      ) : (
+      ) : null}
+
+      {zones.length === 0 ? (
+        /*
+         * Un compte professionnel sans aucune zone. Ce n'est pas une erreur de compte, et le lui
+         * laisser croire serait la pire des réponses : c'est le cas du rôle `assurance`, dont le
+         * portail §8.6 n'existe pas encore dans cette plateforme. On le dit, plutôt que d'afficher
+         * un écran vide qui ressemblerait à une panne.
+         */
         <Card>
-          <p className="text-sm font-semibold text-blue-900">✓ Double authentification active</p>
-          <Link href="/securite/mfa" className="mt-2 inline-flex text-sm text-primary underline">
-            Gérer la sécurité
-          </Link>
+          <h2 className="mb-1 text-lg font-semibold text-blue-900">
+            Aucun espace n’est encore ouvert pour votre profil
+          </h2>
+          <p className="text-sm text-ink-700">
+            Votre compte est bien reconnu comme professionnel, mais l’application correspondant à
+            votre rôle n’est pas encore disponible sur la plateforme. Ce n’est pas un problème de
+            droits : rapprochez-vous de l’administration de MaSanté pour connaître son ouverture.
+          </p>
         </Card>
+      ) : (
+        <div className="grid gap-4 sm:grid-cols-2">
+          {zones.map((zone) => (
+            <Card key={zone.chemin}>
+              <h2 className="mb-1 text-lg font-semibold text-blue-900">{zone.libelle}</h2>
+              <p className="mb-4 text-sm text-ink-700">{zone.description}</p>
+              <Link
+                href={`/${zone.chemin}`}
+                className="inline-flex rounded-pill bg-primary px-5 py-2.5 text-sm font-semibold text-surface hover:bg-blue-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+              >
+                Ouvrir
+              </Link>
+            </Card>
+          ))}
+        </div>
       )}
     </div>
   );

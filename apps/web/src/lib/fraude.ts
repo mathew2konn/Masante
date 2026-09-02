@@ -7,21 +7,26 @@ import type { AlerteFraude, RapportRoutage } from './fraude-types';
 
 /**
  * Couche serveur des alertes de fraude IA (portail — CDC_05, ADR-020 §B2). Deux responsabilités :
- *  1) GARDE : seul un contrôleur plateforme (super_admin ou ministere — décision propriétaire G1)
+ *  1) GARDE : seul un contrôleur plateforme (admin_ivoirsante ou ministere — décision propriétaire G1)
  *     peut consulter/traiter les alertes. On ne MINTE un principal `ADMIN_FINANCE` qu'après avoir
  *     vérifié ce rôle sur la session Laravel. La garde faisant autorité reste le paiement (principal
  *     signé) ; ce contrôle empêche simplement de minter pour un rôle non habilité (défense en profondeur).
  *  2) PROXY : lectures/actions vers le paiement via `paiementFetch`. Aucune règle métier (CDC_02).
  *
  * Destinataire = contrôleur plateforme INDÉPENDANT (ADR-017), jamais la structure signalée : c'est
- * pourquoi `admin_etablissement` (établissement-scopé) est exclu. Détection seule : consulter/revue,
+ * pourquoi `gestionnaire_etablissement` (établissement-scopé) est exclu. Détection seule : consulter/revue,
  * jamais geler.
  */
 
 const CHEMIN = '/api/v1/fraud-alertes';
 
 /** Rôles habilités à voir l'écran fraude (contrôleurs plateforme indépendants). */
-const ROLES_CONTROLEUR: Role[] = ['super_admin', 'ministere'];
+// P11.0 — `super_admin` cède la place à `admin_ivoirsante`. Ce n'est pas un changement de
+// politique : ADR-020 §B2 avait choisi `super_admin` FAUTE DE MIEUX, notant lui-même
+// qu'`admin_finance` était « absent de l'enum Role ». Or `super_admin` était le doublon dormant
+// d'`admin_ivoirsante`, qui porte les 40 permissions du portail. La garde nomme donc le rôle
+// survivant, et le contrôleur indépendant qu'exige ADR-017 §7 reste `ministere`.
+const ROLES_CONTROLEUR: Role[] = ['admin_ivoirsante', 'ministere'];
 
 /** Rôle porté par le principal minté vers le paiement (le paiement exige exactement celui-ci). */
 const ROLE_PAIEMENT = 'ADMIN_FINANCE';

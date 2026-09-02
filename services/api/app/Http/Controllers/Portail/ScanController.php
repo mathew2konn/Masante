@@ -44,10 +44,24 @@ class ScanController extends Controller
     {
         $user = auth()->user();
 
+        // P11.0 — DÉFAUT RÉEL CORRIGÉ, TROUVÉ EN RENOMMANT CE RÔLE.
+        //
+        // Cette garde exigeait le rôle `agent_garde` PAR SON NOM, en plus de la permission
+        // `qr.scan` que la route impose déjà. Conséquence : depuis P6.5a, le rôle `medecin`
+        // portait `qr.scan` et **ne pouvait pas scanner** — il voyait l'entrée du menu et
+        // recevait un 403 disant que le scan « est réservé aux agents de garde ». La décision
+        // « le rôle medecin devient utilisable » était donc restée à moitié inopérante, sans
+        // que rien ne le signale.
+        //
+        // Le même défaut aurait frappé les cinq rôles soignants dotés dans cet incrément.
+        // Ce projet garde sur des PERMISSIONS, pas sur des noms de rôles : la route porte déjà
+        // `permission:qr.scan`, il ne reste ici qu'à vérifier ce qu'elle ne peut pas vérifier —
+        // le rattachement à un établissement, sans lequel on ne saurait pas au nom de qui la
+        // session de dossier est ouverte.
         abort_if(
-            $user->structure_id === null || ! $user->hasRole('agent_garde'),
+            $user->structure_id === null,
             Response::HTTP_FORBIDDEN,
-            'Le scan est réservé aux agents de garde rattachés à un établissement.',
+            'Le scan est réservé aux comptes rattachés à un établissement.',
         );
 
         return StructureSanitaire::findOrFail($user->structure_id);

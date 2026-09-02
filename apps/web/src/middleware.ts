@@ -17,6 +17,12 @@ export function middleware(req: NextRequest) {
 }
 
 export const config = {
-  // Tout sauf : les routes d'API (proxy), les assets Next, le login et la page « réservé pros ».
-  matcher: ['/((?!api|_next/static|_next/image|favicon.ico|logo.png|login|reserve-pros).*)'],
+  // Tout sauf : les routes d'API (proxy), les assets Next, le login, la page « réservé pros »
+  // et le formulaire public de candidature.
+  //
+  // P11.1 — `rejoindre` est PUBLIC, et c'est tout le point de la méthode 2 de CDC_11 §3 :
+  // « Clinique Saint Joseph souhaite rejoindre la plateforme » vient de quelqu'un qui n'a ni
+  // compte ni contact préalable. Le protéger reviendrait à la méthode 1, celle où
+  // l'administrateur crée lui-même l'établissement.
+  matcher: ['/((?!api|_next/static|_next/image|favicon.ico|logo.png|login|reserve-pros|rejoindre).*)'],
 };

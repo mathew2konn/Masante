@@ -7,15 +7,14 @@ use App\Models\Analyse;
 use App\Models\LaboratoireAnalyse;
 use App\Services\Analyse\CatalogueDuLaboratoire;
 use App\Support\TypesEtablissement;
-use App\Models\ActivationPortail;
 use App\Models\CategorieImageEtablissement;
 use App\Models\DistrictSanitaire;
 use App\Models\Region;
 use App\Models\StructureSanitaire;
 use App\Models\EtablissementImage;
-use App\Models\User;
 use App\Models\Ville;
 use App\Services\Etablissement\ImagesEtablissement;
+use App\Services\OnboardingEtablissementService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -34,6 +33,10 @@ use Symfony\Component\HttpKernel\Exception\HttpException;
  */
 class EtablissementController extends Controller
 {
+    public function __construct(
+        private readonly OnboardingEtablissementService $onboarding,
+    ) {}
+
     /**
      * Types d'établissement — délégué à la SOURCE UNIQUE `TypesEtablissement` (P6.4b).
      *
@@ -85,27 +88,20 @@ class EtablissementController extends Controller
             'gestionnaire_email'  => ['required', 'email', 'max:190', 'unique:users,email'],
         ]);
 
-        $lien = DB::transaction(function () use ($data, $gestionnaire) {
-            $structure = StructureSanitaire::create($data + ['actif' => true]);
-
-            // Compte gestionnaire : SANS mot de passe (activation obligatoire), rattaché à l'établissement.
-            $user = User::create([
-                'nom'          => $gestionnaire['gestionnaire_nom'],
-                'prenom'       => $gestionnaire['gestionnaire_prenom'],
-                'email'        => $gestionnaire['gestionnaire_email'],
-                'password'     => null,
-                'structure_id' => $structure->id,
-                'actif'        => true,
-            ]);
-            $user->assignRole('gestionnaire_etablissement');
-
-            return $this->emettreLienActivation($user);
-        });
+        // P11.1 — la création est déléguée au service : la méthode 2 (demande d'inscription)
+        // aboutit au MÊME acte, et l'écrire deux fois la laisserait diverger du côté qu'on
+        // regarde le moins. Motif de `RendezVousValidationService` (P4), source unique du
+        // workflow entre le portail Blade et l'API.
+        $resultat = $this->onboarding->creer($data, [
+            'nom' => $gestionnaire['gestionnaire_nom'],
+            'prenom' => $gestionnaire['gestionnaire_prenom'],
+            'email' => $gestionnaire['gestionnaire_email'],
+        ]);
 
         return redirect()
             ->route('portail.etablissements.index')
             ->with('statut', 'Établissement créé. Transmettez le lien d\'activation au gestionnaire.')
-            ->with('lien_activation', $lien);
+            ->with('lien_activation', $resultat->lienActivation);
     }
 
     public function edit(StructureSanitaire $etablissement): View
@@ -175,14 +171,16 @@ class EtablissementController extends Controller
             return back()->withErrors(['gestionnaire' => 'Aucun gestionnaire rattaché à cet établissement.']);
         }
 
-        if ($gestionnaire->password !== null) {
+        $lien = $this->onboarding->reemettreLien($gestionnaire);
+
+        if ($lien === null) {
             return back()->withErrors(['gestionnaire' => 'Ce compte est déjà activé.']);
         }
 
         return redirect()
             ->route('portail.etablissements.edit', $etablissement)
             ->with('statut', 'Nouveau lien d\'activation généré.')
-            ->with('lien_activation', $this->emettreLienActivation($gestionnaire));
+            ->with('lien_activation', $lien);
     }
 
     /**
@@ -392,11 +390,6 @@ class EtablissementController extends Controller
     }
 
     /** Émet un jeton d'activation (usage unique, 24h) pour un compte staff et renvoie l'URL du lien. */
-    private function emettreLienActivation(User $user): string
-    {
-        return route('portail.activation.show', ['token' => ActivationPortail::genererPour($user)]);
-    }
-
     /**
      * P6.7b — Déclare qu'un laboratoire réalise une analyse (CDC_09 §7.2).
      *

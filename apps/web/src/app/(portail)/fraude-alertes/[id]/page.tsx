@@ -5,6 +5,7 @@ import { LIBELLE_STATUT } from '@/lib/fraude-types';
 import { Card } from '@/components/ui/Card';
 import { NiveauBadge } from '../NiveauBadge';
 import { AlerteActions } from './AlerteActions';
+import { exigerZone } from '@/lib/session';
 
 /**
  * Détail d'une alerte de fraude IA (CDC_05, ADR-020 §B2). Serveur pour les données (garde/mint =
@@ -12,6 +13,10 @@ import { AlerteActions } from './AlerteActions';
  * sortie IA sans explication+confiance+limites (CDC_00 §4). Seule action : marquer « revue » (trace).
  */
 export default async function AlerteDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  // P11.0 — garde de zone : la permission qui ouvre « fraude-alertes » est déclarée une seule
+  // fois, dans le registre. Le backend reste l'autorité et refuse de son côté (branche
+  // `interdit` plus bas, conservée comme filet) ; ici on évite d'afficher une page vide.
+  await exigerZone('fraude-alertes');
   const { id } = await params;
   const a = await getAlerte(id);
   if (!a) notFound();

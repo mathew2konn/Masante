@@ -5,10 +5,11 @@ import { LIBELLE_STATUT, STATUTS_ALERTE } from '@/lib/fraude-types';
 import { Card } from '@/components/ui/Card';
 import { NiveauBadge } from './NiveauBadge';
 import { FraudeScanBouton } from './FraudeScanBouton';
+import { exigerZone } from '@/lib/session';
 
 /**
  * Alertes de fraude IA — écran du contrôleur plateforme (CDC_05, ADR-020 §B2). Serveur : la garde
- * (super_admin/ministere → principal signé ADMIN_FINANCE) est dans `getAlertes`. Détection seule :
+ * (admin_ivoirsante/ministere → principal signé ADMIN_FINANCE) est dans `getAlertes`. Détection seule :
  * on consulte et on marque « revue » ; aucune action de gel (ADR-017). Filtre par statut via l'URL.
  */
 export default async function FraudeAlertesPage({
@@ -16,6 +17,10 @@ export default async function FraudeAlertesPage({
 }: {
   searchParams: Promise<{ statut?: string }>;
 }) {
+  // P11.0 — garde de zone : la permission qui ouvre « fraude-alertes » est déclarée une seule
+  // fois, dans le registre. Le backend reste l'autorité et refuse de son côté (branche
+  // `interdit` plus bas, conservée comme filet) ; ici on évite d'afficher une page vide.
+  await exigerZone('fraude-alertes');
   const sp = await searchParams;
   const statut = STATUTS_ALERTE.includes(sp.statut as StatutAlerteFraudeIa)
     ? (sp.statut as StatutAlerteFraudeIa)

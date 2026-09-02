@@ -35,7 +35,13 @@ class PortailRolesSeeder extends Seeder
         'stats.etablissement',    // statistiques de SON établissement
         // Agent de garde
         'disponibilite.manage',   // mettre à jour la dispo de SON service
-        'rdv.validate',           // valider / refuser les RDV
+        // B1-a — DEUX permissions distinctes là où il n'y en avait qu'une (CDC_11 §9.1 littéral :
+        // « le médecin fait la validation finale »). `rdv.prevalider` porte l'étape 1 (accueil,
+        // en_attente→prevalide) ; `rdv.validate` porte désormais SEULEMENT l'étape 2 (médecin,
+        // prevalide→confirme). Avant B1-a les deux rôles partageaient `rdv.validate` et rien ne
+        // les distinguait dans le code — voir le commentaire du rôle `medecin` plus bas.
+        'rdv.prevalider',         // pré-valider une demande de RDV (étape 1, accueil)
+        'rdv.validate',           // valider (finale) ou refuser un RDV pré-validé
         'qr.scan',                // scanner le QR patient (carnet / RDV)
         'triage.view',            // consulter la fiche de triage reçue
         'dossier.referent',       // ouvrir sans QR le dossier des patients qui vous ont désigné (5.6)
@@ -120,6 +126,12 @@ class PortailRolesSeeder extends Seeder
         // de SON établissement, et la liste nationale deviendrait la somme des conventions de
         // chacun. Un agrément est délivré par un État.
         'assurance.referentiel',  // éditer le registre national des organismes d'assurance agréés
+        // Facturation partenaire (lot 8, post-facturation) — enregistrer un règlement reçu d'un
+        // établissement est une action de back-office : un établissement ne peut jamais déclarer
+        // lui-même « j'ai payé » (risque de fraude direct sur son propre recouvrement). Rattachée
+        // à aucun rôle métier explicitement : elle atteint `admin_ivoirsante` par le
+        // `syncPermissions(Permission::all())` ci-dessous, comme les permissions référentielles.
+        'recouvrement.manage',    // consulter/gérer la facturation partenaire côté back-office
         // Numéros d'urgence nationaux (P6.8e, CDC_09 §8) — ATTRIBUÉE À AUCUN RÔLE, DOUZIÈME
         // occurrence, et celle-ci porte l'enjeu le plus direct du projet. Un numéro d'urgence est
         // attribué par un plan national de numérotation : aucun établissement, aucun opérateur,
@@ -135,6 +147,14 @@ class PortailRolesSeeder extends Seeder
         // qui c'est), ni un référentiel administratif — mais le même risque de juge-et-partie
         // qu'ailleurs si elle était donnée sans discernement à qui produit ces lignes.
         'apprentissage.valider',  // valider ou rejeter une ligne du jeu d'apprentissage triage
+        // Gouvernance des modèles IA de triage (P10c-3-i F17/F18/F19, CDC_05 §7.2/§8/§9) —
+        // ATTRIBUÉE À AUCUN RÔLE, QUATORZIÈME occurrence, et sa raison rejoint celle
+        // d'`apprentissage.valider` juste au-dessus : ni un acte de soin au chevet, ni un
+        // référentiel administratif, mais le même risque de juge-et-partie si elle était donnée
+        // sans discernement à qui produit les lignes qu'elle finit par entraîner. Garde la surface
+        // entière (voir/exporter/entraîner/valider), motif `apprentissage.valider` qui garde de la
+        // même façon un contrôleur entier — la fractionner n'a été demandé par aucune décision.
+        'ia_triage.valider',      // produire un export, déclencher un entraînement, valider un candidat
         // Signature électronique (P6.5b, CDC_09 §5.3). Portée par le rôle `medecin` : signer ses
         // propres prescriptions relève du soin, pas d'une habilitation exceptionnelle. Elle ne
         // donne à elle seule AUCUN pouvoir — les cinq contrôles du §5.4 restent devant, et sans
@@ -189,13 +209,24 @@ class PortailRolesSeeder extends Seeder
         // glace vérifie le service d'urgences) : la permission dit le rôle, pas la nature du lieu.
         'gestionnaire_etablissement' => [
             'service.manage', 'agent.manage', 'medecin.manage', 'don_sang.manage', 'medicament.manage',
-            'stats.etablissement', 'rdv.validate', 'disponibilite.manage',
+            'stats.etablissement', 'rdv.prevalider', 'rdv.validate', 'disponibilite.manage',
         ],
         // La permission `dossier.referent` ne donne accès à RIEN à elle seule : encore faut-il que le
         // gestionnaire ait relié le compte à une fiche de l'annuaire, ET qu'un patient ait désigné ce
         // praticien. C'est le patient qui ouvre la porte, pas le rôle (Sécurité §4.4).
-        'agent_garde' => [
-            'disponibilite.manage', 'rdv.validate', 'qr.scan', 'triage.view', 'dossier.referent',
+        //
+        // P11.0 — CE RÔLE S'APPELAIT `agent_garde`, ET IL ABSORBE `secretaire`. Ce n'étaient pas
+        // deux métiers mais un seul écrit deux fois : `secretaire` n'a jamais porté la moindre
+        // permission, tandis que `agent_garde` faisait déjà le travail que CDC_11 §9.1 confie au
+        // guichet. Le terme du propriétaire (décision B1) départage — « agent de garde » évoque
+        // une astreinte, alors que ce rôle vérifie une fiche de rendez-vous à l'accueil.
+        //
+        // B1-a — `rdv.validate` REMPLACÉE PAR `rdv.prevalider`. Jusqu'ici ce rôle pouvait
+        // confirmer un RDV de bout en bout (seul un `en_attente` existait) : c'était l'inverse de
+        // ce que §9.1 demande. Il pré-valide désormais (étape 1), la validation finale (étape 2)
+        // appartient au rôle `medecin` seul.
+        'personnel_accueil' => [
+            'disponibilite.manage', 'rdv.prevalider', 'qr.scan', 'triage.view', 'dossier.referent',
         ],
         // ═══ P6.5a — LE RÔLE `medecin` DEVIENT UTILISABLE (décision propriétaire P5) ═══
         //
@@ -220,10 +251,98 @@ class PortailRolesSeeder extends Seeder
         // P10c-2-i — `triage.retour` s'ajoute ici, et nulle part ailleurs : c'est le rôle de SOIN.
         // Il lisait déjà la fiche de triage (`triage.view`) sans avoir aucun moyen d'en dire quoi
         // que ce soit ; le §9.1 attend précisément cette supervision humaine.
+        // P11.0 — `rdv.validate` S'AJOUTE, ET C'EST UNE DETTE ANNONCÉE QU'ON SOLDE.
+        // Le commentaire ci-dessus disait : « `disponibilite.manage` et `rdv.validate` restent à
+        // l'accueil et au secrétariat : CDC_11 §9 prévoit bien une validation finale par le
+        // médecin, mais ce circuit est celui de P4, validé G5, et on ne le rouvre pas au détour
+        // d'un incrément sur les référentiels. » Cet incrément-ci EST celui qui le rouvre, et le
+        // §9.1 est littéral : « **Le médecin fait la validation finale.** » Jusqu'ici l'accueil
+        // pouvait confirmer un rendez-vous et le praticien concerné, non.
+        // `disponibilite.manage` ne suit pas : ouvrir des créneaux est un acte d'organisation du
+        // service, pas un acte de soin, et le §9.1 le confie explicitement à l'accueil.
+        //
+        // B1-a — LA DETTE EST RÉELLEMENT SOLDÉE, PAS SEULEMENT ACCORDÉE. Depuis P11.0 ce rôle
+        // portait `rdv.validate` sans que le code distingue son usage de celui de l'accueil : les
+        // deux appelaient la même transition (`en_attente→confirme`). Ce n'est plus le cas :
+        // `personnel_accueil` porte désormais `rdv.prevalider` (étape 1) et non plus
+        // `rdv.validate` — seul `medecin` (et `gestionnaire_etablissement`, en supervision) peut
+        // confirmer, et seulement un RDV déjà `prevalide`.
         'medecin' => [
             'qr.scan', 'triage.view', 'triage.retour', 'dossier.referent', 'dossier.ecrire',
-            'document.signer',
+            'document.signer', 'rdv.validate',
         ],
+        // ═══ P11.0 — LES SEPT RÔLES MUETS (CDC_11 §6, §7, §8) ═══
+        //
+        // Ils existaient depuis P1, traduits dans `@masante/shared`, soumis au MFA — et portaient
+        // ZÉRO permission, sans qu'aucun portail ne les accepte. Huit modules durant, un
+        // infirmier, un pharmacien ou un laborantin n'avait aucune porte.
+        //
+        // RÈGLE QUI GOUVERNE CE BLOC, ET QUI EXPLIQUE POURQUOI CERTAINES LISTES SONT COURTES :
+        // **on n'invente aucune permission pour un écran qui n'existe pas.** Créer
+        // `hospitalisation.manage` aujourd'hui donnerait une clé pour une porte qui n'est pas
+        // encore percée — c'est le « socle à vide » refusé en P6.3-D3, et le contrôle toujours
+        // vert refusé en P5.3b-4. Chaque rôle reçoit donc exactement les capacités qui EXISTENT
+        // et qui lui reviennent ; les autres arriveront avec l'application qui les porte.
+
+        // §6 — L'infirmier consigne les constantes et les traitements administrés. C'est
+        // littéralement « consigner un acte dans le carnet », ce que `dossier.ecrire` nomme. Les
+        // TROIS GARDES CUMULATIVES de P7-D0 restent intactes : permission, voie consentie
+        // (`qr_scan`/`referent`, jamais le bris de glace), et liste blanche des sections.
+        // Pas de `document.signer` : la « signature infirmier » du §6 n'a aucun type de document
+        // correspondant dans le registre de P6.5b, et signer suppose d'abord quelque chose à
+        // signer. Pas de `rdv.validate` non plus — ce n'est pas son circuit.
+        'infirmier' => [
+            'qr.scan', 'triage.view', 'dossier.ecrire',
+        ],
+        // §7 — Le pharmacien tient les prix et les ruptures de SON officine. `medicament.manage`
+        // existe déjà et fait exactement cela ; l'écran se referme de lui-même sur les
+        // établissements qui ne sont pas des pharmacies.
+        // Il ne reçoit **pas** `medicament.referentiel` : le catalogue national, ses indications
+        // et ses interactions ne se décident pas à l'officine (P6.6a, onzième occurrence du
+        // précédent « juge et partie »).
+        'pharmacien' => [
+            'medicament.manage', 'qr.scan',
+        ],
+        // §8.1 — Le laborantin publie un résultat dans le carnet du patient :
+        // `resultats-analyses` figure dans la liste blanche des sections ouvertes au soignant,
+        // donc la capacité existe réellement.
+        // Il ne reçoit **pas** `analyse.referentiel` : un laboratoire ne fixe pas les valeurs de
+        // référence nationales contre lesquelles ses propres résultats seront lus (P6.7a).
+        'laborantin' => [
+            'qr.scan', 'triage.view', 'dossier.ecrire',
+        ],
+        // §8.2 — Le radiologue est le rôle le plus pauvre de ce bloc, et il faut le dire plutôt
+        // que de le garnir : il n'existe dans ce projet NI imagerie, NI DICOM, NI compte rendu
+        // radiologique — le registre des documents signables de P6.5b le déclare mot pour mot
+        // « entité inexistante ». Aucune des quatre sections ouvertes au soignant n'est un
+        // compte rendu d'imagerie. Lui donner `dossier.ecrire` lui ouvrirait donc les
+        // ordonnances et les antécédents, ce qui n'est pas son métier.
+        // Il reçoit ce qu'il peut réellement faire aujourd'hui : identifier le patient qui se
+        // présente et lire l'orientation qui l'amène.
+        'radiologue' => [
+            'qr.scan', 'triage.view',
+        ],
+        // §8.5 — Le Ministère pilote (statistiques nationales) et surveille (alertes
+        // épidémiques). Les deux permissions existent et étaient jusqu'ici réservées à
+        // `admin_ivoirsante`, c'est-à-dire à l'exploitant de la plateforme : publier une alerte
+        // sanitaire nationale est un acte d'autorité de santé, pas un acte d'exploitation.
+        // `stats.etablissement` ne suit pas — elle est bornée à l'établissement du compte, ce
+        // qui n'a aucun sens pour un ministère qui les regarde tous.
+        'ministere' => [
+            'stats.global', 'sante_publique.manage',
+        ],
+        // §8.6 — L'ASSURANCE NE REÇOIT AUCUNE PERMISSION, ET CE VIDE EST LA RÉPONSE HONNÊTE.
+        //
+        // Le §8.6 lui demande de vérifier une couverture, de valider une prise en charge et de
+        // contrôler la fraude. Aucune de ces trois capacités n'existe : la vérification auprès
+        // d'un organisme est la limite ouverte de P6.8d (« l'étape 2 du §8.1 — l'API CNAM —
+        // n'existe pas »), et la prise en charge est calculée par le microservice de paiement,
+        // qui n'expose aucune surface d'assureur.
+        //
+        // Lui fabriquer une permission maintenant lui donnerait une clé sans serrure, et
+        // surtout ferait CROIRE que le portail assurance existe. La ligne est écrite ici, vide
+        // et commentée, pour que l'absence se voie au lieu de se deviner.
+        'assurance' => [],
     ];
 
     public function run(): void
@@ -252,10 +371,10 @@ class PortailRolesSeeder extends Seeder
         $user = User::firstOrCreate(
             ['email' => 'admin@masante.ci'],
             [
-                'nom'                   => 'Admin',
-                'prenom'                => 'IVOIRSANTÉ',
-                'password'              => Hash::make('Admin@2026!'),
-                'email_verified_at'     => now(),
+                'nom' => 'Admin',
+                'prenom' => 'IVOIRSANTÉ',
+                'password' => Hash::make('Admin@2026!'),
+                'email_verified_at' => now(),
             ],
         );
 

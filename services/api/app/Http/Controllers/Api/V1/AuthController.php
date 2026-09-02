@@ -203,8 +203,26 @@ class AuthController extends Controller
     }
 
     /**
-     * Charge utile utilisateur exposée au front : attributs visibles + rôles (RBAC).
-     * Les rôles viennent du backend (autorité) ; le front les affiche, ne les déduit pas.
+     * Charge utile utilisateur exposée au front : attributs visibles + rôles + PERMISSIONS.
+     * Les deux viennent du backend (autorité) ; le front les affiche, ne les déduit jamais.
+     *
+     * ═══ P11.0 — POURQUOI LES PERMISSIONS ENTRENT ICI ═══
+     *
+     * Le portail garde ses routes sur des PERMISSIONS (`dossier.ecrire`, `rdv.validate`,
+     * `protocole.publier`…), et quatorze d'entre elles n'appartiennent délibérément à aucun
+     * rôle — elles sont accordées nominativement. Or cette charge utile ne renvoyait que les
+     * rôles. Le front était donc **structurellement incapable de reproduire les gardes du
+     * backend** : il ne pouvait qu'afficher un menu au jugé, et laisser l'utilisateur découvrir
+     * par un 403 ce qu'il n'avait pas le droit de faire.
+     *
+     * CE N'EST PAS UN DÉPLACEMENT D'AUTORITÉ. La décision reste entièrement au backend, qui
+     * revérifie à chaque requête ; le front s'en sert uniquement pour **n'afficher que ce qui
+     * est atteignable**. C'est exactement la défense en profondeur du module fraude (ADR-020
+     * §B2), où Next vérifie le rôle avant de signer un principal que le paiement revérifie.
+     *
+     * Elles sont renvoyées à plat (`getAllPermissions`), donc rôles ET attributions
+     * nominatives confondus : la distinction intéresse celui qui administre les comptes, pas
+     * celui qui affiche un menu.
      *
      * @return array<string, mixed>
      */
@@ -213,6 +231,7 @@ class AuthController extends Controller
         return [
             ...$user->toArray(),
             'roles' => $user->getRoleNames(),
+            'permissions' => $user->getAllPermissions()->pluck('name')->values(),
             // P6.1 (ADR-021 §2.1) — le BACKEND dit si le dossier de santé du titulaire existe ;
             // le mobile ne le déduit jamais de la liste des membres (règle de frontière).
             'a_dossier_titulaire' => $user->membresFamille()->where('est_titulaire', true)->exists(),
