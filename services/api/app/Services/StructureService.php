@@ -40,7 +40,12 @@ class StructureService
      */
     public function rechercher(array $filtres): Collection
     {
-        $query = StructureSanitaire::query();
+        // Lot 4 (correction `actif`, 2026-08-27) — pas un filtre optionnel parmi d'autres : une
+        // structure désactivée (CdC §5.4.2) est retirée de l'annuaire PAR CONSTRUCTION, jamais
+        // selon ce que l'appelant demande. `abonnements_structure.statut` (Palier 0, lot 1) ne
+        // touche jamais cette ligne — une structure SUSPENDUE pour impayé reste `actif=true` et
+        // donc pleinement visible (décision D-E1) ; seule une fermeture administrative masque.
+        $query = StructureSanitaire::query()->where('actif', true);
         $this->appliquerFiltres($query, $filtres);
         $this->triParDefaut($query, $filtres);
 
@@ -71,6 +76,14 @@ class StructureService
     /** Fiche détaillée : services actifs + disponibilité du jour + médecins réservables + statut global. */
     public function fiche(StructureSanitaire $structure): StructureSanitaire
     {
+        if (! $structure->actif) {
+            // Lot 4 : le G0 a trouvé que `show()` (accès direct par id) ne filtrait STRICTEMENT
+            // RIEN, contrairement à `rechercher()` — une structure absente de la liste restait
+            // pleinement consultable par lien direct. 404, jamais un contenu partiel : le lien
+            // direct ne doit pas rester une porte dérobée vers ce que l'annuaire ne montre plus.
+            abort(404);
+        }
+
         $structure->load([
             'services' => fn ($s) => $s->where('actif', true),
             'services.disponibilites' => fn ($d) => $d->whereDate('date', Carbon::today()),
@@ -97,6 +110,7 @@ class StructureService
 
         $pharmacies = StructureSanitaire::query()
             ->where('type', 'pharmacie')
+            ->where('actif', true)
             ->whereIn('id', $idsDeGarde)
             ->orderBy('nom')
             ->get();
