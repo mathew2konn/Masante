@@ -1,0 +1,117 @@
+{
+  "id": "PROT-OMS-ANC.DT.05-EVALUATING-LABOUR",
+  "titre": "ANC.DT.04-05 Physical exam",
+  "source": {
+    "organisation": "OMS",
+    "document": "WHO SMART Guidelines — Antenatal Care (DAK L2)",
+    "fichier": "WHO-SRH-21.2-eng.xlsx",
+    "licence": "CC BY-NC-SA 3.0 IGO"
+  },
+  "statut": "source_externe_non_validee",
+  "version": "2021.1",
+  "pays_applicable": [
+    "*"
+  ],
+  "declencheur": "ANC.B8 Conduct physical exam",
+  "regle_metier": "During a cervical exam, if cervical dilation is greater than 2 cm evaluate the possibility of labour",
+  "regles": [
+    {
+      "condition": "\"Systolic blood pressure\" ≥ 140 mmHg",
+      "sortie": "Measure BP again after 10–15 minutes rest",
+      "action": "Measure BP again after 10–15 minutes rest",
+      "annotation": "Given high values (SBP ≥ 140 or DBP ≥ 90) upon first measure, blood pressure should be measured again",
+      "reference": "Managing complications guide (IMPAC) (2017): Section S-51 (5)"
+    },
+    {
+      "condition": "\"Diastolic blood pressure\" ≥ 90 mmHg",
+      "sortie": "Measure BP again after 10–15 minutes rest",
+      "action": "Measure BP again after 10–15 minutes rest",
+      "annotation": "Given high values (SBP ≥ 140 or DBP ≥ 90) upon first measure, blood pressure should be measured again",
+      "reference": "Managing complications guide (IMPAC) (2017): Section S-51 (5)"
+    },
+    {
+      "condition": "\"Body temperature\" ≥ 38°C",
+      "sortie": "Measure temperature again",
+      "action": "Measure temperature again",
+      "annotation": "The health worker should retake the woman's temperature if the first reading is over 38°C",
+      "reference": "Managing complications guide (IMPAC) (2017): Section S-113 (5)"
+    },
+    {
+      "condition": "60 > Pulse rate > 100",
+      "sortie": "Abnormal pulse rate",
+      "action": "Check again after 10 minutes rest",
+      "annotation": "The health worker should retake the woman's pulse rate if the first reading is lower than 60 or higher than 100 beats per minute",
+      "reference": "Managing complications guide (IMPAC) (2017): Section S-1 (5)"
+    },
+    {
+      "condition": "\"Respiratory exam result\" = \"Dyspnoea\"",
+      "sortie": "Conduct oximetry test",
+      "action": "Conduct oximetry test",
+      "annotation": "If the woman has an abnormal respiratory exam result or respiratory distress, conduct oximetry test",
+      "reference": "Managing complications guide (IMPAC) (2017): Section S-149 (5)"
+    },
+    {
+      "condition": "\"Respiratory exam result\" = \"Cough\"",
+      "sortie": "Conduct oximetry test",
+      "action": "Conduct oximetry test",
+      "annotation": "",
+      "reference": "Managing complications guide (IMPAC) (2017): Section S-149 (5)"
+    },
+    {
+      "condition": "\"Respiratory exam result\" = \"Rapid breathing\"",
+      "sortie": "Conduct oximetry test",
+      "action": "Conduct oximetry test",
+      "annotation": "",
+      "reference": "Managing complications guide (IMPAC) (2017): Section S-149 (5)"
+    },
+    {
+      "condition": "\"Respiratory exam result\" = \"Slow breathing\"",
+      "sortie": "Conduct oximetry test",
+      "action": "Conduct oximetry test",
+      "annotation": "",
+      "reference": "Managing complications guide (IMPAC) (2017): Section S-149 (5)"
+    },
+    {
+      "condition": "\"Respiratory exam result\" = \"Wheezing\"",
+      "sortie": "Conduct oximetry test",
+      "action": "Conduct oximetry test",
+      "annotation": "",
+      "reference": "Managing complications guide (IMPAC) (2017): Section S-149 (5)"
+    },
+    {
+      "condition": "\"Respiratory exam result\" = \"Rales\"",
+      "sortie": "Conduct oximetry test",
+      "action": "Conduct oximetry test",
+      "annotation": "",
+      "reference": "Managing complications guide (IMPAC) (2017): Section S-149 (5)"
+    },
+    {
+      "condition": "\"Respiratory exam result\" = \"Other abnormal respiratory exam result (specify)\"",
+      "sortie": "Conduct oximetry test",
+      "action": "Conduct oximetry test",
+      "annotation": "",
+      "reference": "Managing complications guide (IMPAC) (2017): Section S-149 (5)"
+    },
+    {
+      "condition": "100 bpm > Fetal heart rate > 180 bpm",
+      "sortie": "100 bpm > Fetal heart rate > 180 bpm",
+      "action": "Measure the fetal heart rate again",
+      "annotation": "Fetal heart rate out of normal range (100–180) – please have the woman lay on her left side for 15 minutes and check again",
+      "reference": "Managing complications guide (IMPAC) (2017): C-89 (5)"
+    },
+    {
+      "condition": "\"Cervical dilation\" > 2 cm",
+      "sortie": "Evaluate labour > 37 weeks",
+      "action": "Evaluate labour > 37 weeks",
+      "annotation": "Cervix is more than 2 cm dilated: check for other signs and symptoms of labour (if GA is 37 weeks or later)",
+      "reference": "Pregnancy, childbirth, postpartum and newborn care guide (IMPAC) (2015) (1)"
+    },
+    {
+      "condition": "\"Cervical dilation\" > 2cm",
+      "sortie": "Evaluate labour < 37 week",
+      "action": "Evaluate labour < 37 week",
+      "annotation": "Cervix is more than 2 cm dilated: check for other signs and symptoms of pre-term labour and other related complications (if GA is less than 37 weeks)",
+      "reference": "Pregnancy, childbirth, postpartum and newborn care guide (IMPAC) (2015) (1)"
+    }
+  ]
+}

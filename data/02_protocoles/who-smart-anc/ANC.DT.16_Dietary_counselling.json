@@ -1,0 +1,47 @@
+{
+  "id": "PROT-OMS-ANC.DT.16-DIETARY-COUNSELLING",
+  "titre": "ANC.DT.16 Dietary counselling",
+  "source": {
+    "organisation": "OMS",
+    "document": "WHO SMART Guidelines — Antenatal Care (DAK L2)",
+    "fichier": "WHO-SRH-21.2-eng.xlsx",
+    "licence": "CC BY-NC-SA 3.0 IGO"
+  },
+  "statut": "source_externe_non_validee",
+  "version": "2021.1",
+  "pays_applicable": [
+    "*"
+  ],
+  "declencheur": "ANC.B10. Counselling, in-facility management & treatment",
+  "regle_metier": "ALL women should have \"Healthy eating and keeping physically active counselling\" with guidance on nutrition and exercise. If a woman is classified as \"underweight\" AND she is part of a population whereby the prevalence of undernourishment is greater than or equal to 20%, then additional dietary counselling is needed.",
+  "regles": [
+    {
+      "condition": "\"Population prevalence of undernourishment\" ≥ 20%",
+      "sortie": "Counselling on increasing daily energy and protein intake",
+      "action": "Conduct counselling on dietary interventions",
+      "annotation": "Increase daily energy and protein intake to reduce the risk of low-birth-weight neonates  [Protein Sources and Energy Sources]",
+      "reference": "WHO ANC recommendations (2016): A1.2. Dietary interventions (3)"
+    },
+    {
+      "condition": "\"Population prevalence of undernourishment\" ≥ 20%",
+      "sortie": "Counselling on balanced energy and protein dietary supplementation",
+      "action": "Conduct counselling on dietary interventions",
+      "annotation": "Balanced energy and protein dietary supplementation is recommended for pregnant women to reduce the risk of stillbirths and small-for-gestational-age neonates",
+      "reference": "WHO ANC recommendations (2016): A1.3. Dietary interventions (3)"
+    },
+    {
+      "condition": "Dietary supplements NOT recommended include:",
+      "sortie": "Reference(s)",
+      "action": "",
+      "annotation": "",
+      "reference": ""
+    },
+    {
+      "condition": "– High protein supplement  – Zinc supplement – Vitamin B6 supplement: Moderate certainty evidence shows that vitamin B6 (pyridoxine) probably provides some relief for nausea during pregnancy – Vitamins C and E supplement: Vitamin C is important for improving the bioavailability of oral iron – low-certainty evidence on vitamin C alone suggests that it may prevent pre-labour rupture of membranes (PROM); however, it is relatively easy to consume sufficient quantities of vitamin C from food sources – Vitamin D supplement: Pregnant women should be advised that sunlight is the most important source of vitamin D; for pregnant women with documented vitamin D deficiency, vitamin D supplements may be given at the current recommended nutrient intake (RNI) of 200 IU (5 μg) per day",
+      "sortie": "WHO ANC recommendations (2016): A.1.4. Dietary interventions (3)",
+      "action": "",
+      "annotation": "",
+      "reference": ""
+    }
+  ]
+}

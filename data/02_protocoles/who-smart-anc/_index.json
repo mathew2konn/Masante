@@ -1,0 +1,98 @@
+[
+  {
+    "fichier": "ANC.DT.01_Danger_signs.json",
+    "id": "PROT-OMS-ANC.DT.01-DANGER-SIGNS",
+    "titre": "ANC.DT.01 Danger signs",
+    "nb_regles": 14
+  },
+  {
+    "fichier": "ANC.DT.02_HEADSS_assessment.json",
+    "id": "PROT-OMS-ANC.DT.02-ADOLESCENT-HEADSS-ASESSEMENT",
+    "titre": "ANC.DT.02 HEADSS assessment",
+    "nb_regles": 1
+  },
+  {
+    "fichier": "ANC.DT.03_Check_symptoms.json",
+    "id": "PROT-OMS-ANC.DT.03-CHECK-SYMPTOMS-AND-FOLLOW-UP",
+    "titre": "ANC.DT.03 Check symptoms",
+    "nb_regles": 46
+  },
+  {
+    "fichier": "ANC.DT.04-05_Physical_exam.json",
+    "id": "PROT-OMS-ANC.DT.05-EVALUATING-LABOUR",
+    "titre": "ANC.DT.04-05 Physical exam",
+    "nb_regles": 14
+  },
+  {
+    "fichier": "ANC.DT.06_Physical_exam_refer.json",
+    "id": "PROT-OMS-ANC.DT.06-PHYSICAL-SYMPTOMS-AND-EXAM-RESULTS-REQUIRING-REFERRAL",
+    "titre": "ANC.DT.06 Physical exam refer",
+    "nb_regles": 46
+  },
+  {
+    "fichier": "ANC.DT.07_14_Laboratory_imaging.json",
+    "id": "PROT-OMS-ANC.DT.14-OTHER",
+    "titre": "ANC.DT.07–14 Laboratory&imaging",
+    "nb_regles": 32
+  },
+  {
+    "fichier": "ANC.DT.15_Behaviour_counselling.json",
+    "id": "PROT-OMS-ANC.DT.15-BEHAVIOUR-COUNSELLING-REQUIRED",
+    "titre": "ANC.DT.15 Behaviour counselling",
+    "nb_regles": 30
+  },
+  {
+    "fichier": "ANC.DT.16_Dietary_counselling.json",
+    "id": "PROT-OMS-ANC.DT.16-DIETARY-COUNSELLING",
+    "titre": "ANC.DT.16 Dietary counselling",
+    "nb_regles": 4
+  },
+  {
+    "fichier": "ANC.DT.17_24_Diagnosis_treat.json",
+    "id": "PROT-OMS-ANC.DT.24-TB-DIAGNOSIS",
+    "titre": "ANC.DT.17–24 Diagnosis & treat",
+    "nb_regles": 62
+  },
+  {
+    "fichier": "ANC.DT.25_Anaemia_IFA.json",
+    "id": "PROT-OMS-ANC.DT.25-ANAEMIA-IRON-AND-FOLIC-ACID-SUPPLEMENTATION",
+    "titre": "ANC.DT.25 Anaemia IFA",
+    "nb_regles": 16
+  },
+  {
+    "fichier": "ANC.DT.26_Nutrition_Ca_VitA.json",
+    "id": "PROT-OMS-ANC.DT.26-CALCIUM-AND-VITAMIN-A-SUPPLEMENTATION",
+    "titre": "ANC.DT.26 Nutrition–Ca+VitA",
+    "nb_regles": 4
+  },
+  {
+    "fichier": "ANC.DT.27_30_Risk_counselling.json",
+    "id": "PROT-OMS-ANC.DT.30-GENERAL-RISK-REDUCTION-COUNSELLING",
+    "titre": "ANC.DT.27–30 Risk counselling",
+    "nb_regles": 44
+  },
+  {
+    "fichier": "ANC.DT.31_32_Immunizations.json",
+    "id": "PROT-OMS-ANC.DT.32-TETANUS-TOXOID-CONTAINING-VACCINATION",
+    "titre": "ANC.DT.31–32 Immunizations",
+    "nb_regles": 9
+  },
+  {
+    "fichier": "ANC.DT.33_35General_counselling.json",
+    "id": "PROT-OMS-ANC.DT.35-FAMILY-PLANNING-COUNSELLING",
+    "titre": "ANC.DT.33–35General counselling",
+    "nb_regles": 19
+  },
+  {
+    "fichier": "ANC.DT.36-37_IPV_.json",
+    "id": "PROT-OMS-ANC.DT.37-INTIMATE-PARTNER-VIOLENCE-IPV-FIRST-LINE-SUPPORT-AND-TREATMENT",
+    "titre": "ANC.DT.36-37 IPV ",
+    "nb_regles": 39
+  },
+  {
+    "fichier": "ANC.DT.38_Deworming_malaria.json",
+    "id": "PROT-OMS-ANC.DT.38-DEWORMING-AND-MALARIA-PROPHYLAXIS",
+    "titre": "ANC.DT.38 Deworming & malaria",
+    "nb_regles": 5
+  }
+]

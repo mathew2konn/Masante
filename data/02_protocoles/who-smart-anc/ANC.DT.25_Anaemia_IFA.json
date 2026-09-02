@@ -1,0 +1,131 @@
+{
+  "id": "PROT-OMS-ANC.DT.25-ANAEMIA-IRON-AND-FOLIC-ACID-SUPPLEMENTATION",
+  "titre": "ANC.DT.25 Anaemia IFA",
+  "source": {
+    "organisation": "OMS",
+    "document": "WHO SMART Guidelines — Antenatal Care (DAK L2)",
+    "fichier": "WHO-SRH-21.2-eng.xlsx",
+    "licence": "CC BY-NC-SA 3.0 IGO"
+  },
+  "statut": "source_externe_non_validee",
+  "version": "2021.1",
+  "pays_applicable": [
+    "*"
+  ],
+  "declencheur": "ANC.B9. Conduct laboratory tests and imaging",
+  "regle_metier": "Testing for anaemia is recommended for all pregnant women. Regardless of test results, iron and folic acid supplementation is recommended. The amount of iron and folic acid supplementation will vary depending on anaemia diagnosis, population prevalence of anaemia, and whether the woman has side-effects due to iron and folic acid supplementation.",
+  "regles": [
+    {
+      "condition": "\"Blood haemoglobin test result\" < 110 g/L",
+      "sortie": "\"Anaemia diagnosis = \"Positive for anaemia\"",
+      "action": "Conduct REQUIRED anaemia counselling",
+      "annotation": "Anaemia can be diagnosed if Hb level is less than 11 in first or third trimester or Hb level less than 10.5 in second trimester; OR there is no Hb test result recorded, but woman has pallor.  If a woman is diagnosed with anaemia during pregnancy, conduct counselling for managing and treating anaemia.   Her daily elemental iron should be increased to 120 mg until her haemoglobin (Hb) concentration rises to normal (Hb 110 g/L or higher). Thereafter, she can resume the standard daily antenatal iron dose to prevent recurrence of anaemia.  The equivalent of 120 mg of elemental iron equals 600 mg of ferrous sulfate heptahydrate, 360 mg of ferrous fumarate or 1000 mg of ferrous gluconate.  Please refer to iron sources listed below for additional guidance that can be provided.",
+      "reference": "WHO ANC recommendations (2016): B1.1, A.2.1, A.2.2 (3) Pregnancy, childbirth, postpartum and newborn care guide (2015): C4 (1)"
+    },
+    {
+      "condition": "\"Blood haemoglobin test result\" < 110 g/L",
+      "sortie": "\"Anaemia diagnosis = \"Positive for anaemia\"",
+      "action": "Conduct REQUIRED anaemia counselling",
+      "annotation": "",
+      "reference": "WHO ANC recommendations (2016): B1.1, A.2.1, A.2.3 (3) Pregnancy, childbirth, postpartum and newborn care guide (2015): C4 (1)"
+    },
+    {
+      "condition": "\"Blood haemoglobin test result\" < 105 g/L",
+      "sortie": "\"Anaemia diagnosis = \"Positive for anaemia\"",
+      "action": "Conduct REQUIRED anaemia counselling",
+      "annotation": "",
+      "reference": "WHO ANC recommendations (2016): B1.1, A.2.1, A.2.4 (3) Pregnancy, childbirth, postpartum and newborn care guide (2015): C4 (1)"
+    },
+    {
+      "condition": "\"Blood haemoglobin test conducted\" = FALSE",
+      "sortie": "\"Anaemia diagnosis = \"Positive for anaemia\"",
+      "action": "Conduct REQUIRED anaemia counselling",
+      "annotation": "",
+      "reference": "WHO ANC recommendations (2016): B1.1, A.2.1, A.2.5 (3) Pregnancy, childbirth, postpartum and newborn care guide (2015): C4 (1)"
+    },
+    {
+      "condition": "\"Blood haemoglobin test result\" ≥ 110 g/L",
+      "sortie": "\"Anaemia diagnosis = \"Negative for anaemia\"",
+      "action": "\"Anaemia counselling conducted\" IS OPTIONAL",
+      "annotation": "If a woman is not diagnosed for anaemia, iron and folic acid supplementation is still recommended.   Due to the population's high anaemia prevalence, a daily dose of 60 mg of elemental iron is preferred over a lower dose. A daily dose of 400 micrograms (0.4 mg) folic acid is also recommended.  The equivalent of 60 mg of elemental iron is 300 mg of ferrous sulfate heptahydrate, 180 mg of ferrous fumarate or 500 mg of ferrous gluconate.  Please refer to iron sources listed below for additional guidance that can be provided.",
+      "reference": "WHO ANC recommendations (2016): B.1.1. Anaemia (3) WHO ANC recommendations (2016): A.2.1. Daily iron and folic acid supplements (3)"
+    },
+    {
+      "condition": "\"Blood haemoglobin test result\" ≥ 110 g/L",
+      "sortie": "\"Anaemia diagnosis = \"Negative for anaemia\"",
+      "action": "\"Anaemia counselling conducted\" IS OPTIONAL",
+      "annotation": "",
+      "reference": "WHO ANC recommendations (2016): B.1.1. Anaemia (3) WHO ANC recommendations (2016): A.2.1. Daily iron and folic acid supplements (3)"
+    },
+    {
+      "condition": "\"Blood haemoglobin test result\" ≥ 105 g/L",
+      "sortie": "\"Anaemia diagnosis = \"Negative for anaemia\"",
+      "action": "\"Anaemia counselling conducted\" IS OPTIONAL",
+      "annotation": "",
+      "reference": "WHO ANC recommendations (2016): B.1.1. Anaemia (3) WHO ANC recommendations (2016): A.2.1. Daily iron and folic acid supplements (3)"
+    },
+    {
+      "condition": "\"Blood haemoglobin test conducted\" = FALSE",
+      "sortie": "\"Anaemia diagnosis = \"Negative for anaemia\"",
+      "action": "\"Anaemia counselling conducted\" IS OPTIONAL",
+      "annotation": "",
+      "reference": "WHO ANC recommendations (2016): B.1.1. Anaemia (3) WHO ANC recommendations (2016): A.2.1. Daily iron and folic acid supplements (3)"
+    },
+    {
+      "condition": "\"Blood haemoglobin test result\" ≥ 110 g/L",
+      "sortie": "\"Anaemia diagnosis = \"Negative for anaemia\" Iron and Folic side-effects",
+      "action": "\"Anaemia counselling conducted\" IS OPTIONAL",
+      "annotation": "If a woman is not diagnosed for anaemia, iron and folic acid supplementation is still recommended.   Daily oral iron and folic acid supplementation with 30–60 mg of elemental iron and 400 micrograms (0.4 mg) of folic acidc to prevent maternal anaemia, puerperal sepsis, low birth weight and preterm birth.  The equivalent of 60 mg of elemental iron is 300 mg of ferrous sulfate hepahydrate, 180 mg of ferrous fumarate or 500 mg of ferrous gluconate.  Please refer to iron sources listed below for additional guidance that can be provided.",
+      "reference": "WHO ANC recommendations (2016): B.1.1. Anaemia (3) WHO ANC recommendations (2016): A.2.1. Daily iron and folic acid supplements (3)"
+    },
+    {
+      "condition": "\"Blood haemoglobin test result\" ≥ 110 g/L",
+      "sortie": "\"Anaemia diagnosis = \"Negative for anaemia\" Iron and Folic side-effects",
+      "action": "\"Anaemia counselling conducted\" IS OPTIONAL",
+      "annotation": "",
+      "reference": "WHO ANC recommendations (2016): B.1.1. Anaemia (3) WHO ANC recommendations (2016): A.2.1. Daily iron and folic acid supplements (3)"
+    },
+    {
+      "condition": "\"Blood haemoglobin test result\" ≥ 105 g/L",
+      "sortie": "\"Anaemia diagnosis = \"Negative for anaemia\" Iron and Folic side-effects",
+      "action": "\"Anaemia counselling conducted\" IS OPTIONAL",
+      "annotation": "",
+      "reference": "WHO ANC recommendations (2016): B.1.1. Anaemia (3) WHO ANC recommendations (2016): A.2.1. Daily iron and folic acid supplements (3)"
+    },
+    {
+      "condition": "\"Blood haemoglobin test conducted\" = FALSE",
+      "sortie": "\"Anaemia diagnosis = \"Negative for anaemia\" Iron and Folic side-effects",
+      "action": "\"Anaemia counselling conducted\" IS OPTIONAL",
+      "annotation": "",
+      "reference": "WHO ANC recommendations (2016): B.1.1. Anaemia (3) WHO ANC recommendations (2016): A.2.1. Daily iron and folic acid supplements (3)"
+    },
+    {
+      "condition": "\"Blood haemoglobin test result\" ≥ 110 g/L",
+      "sortie": "\"Anaemia diagnosis = \"Negative for anaemia\" No Iron or Folic side-effects",
+      "action": "\"Anaemia counselling conducted\" IS OPTIONAL",
+      "annotation": "If a woman is not diagnosed for anaemia, iron and folic acid supplementation is still recommended.   If daily iron is not acceptable due to side-effects, provide intermittent iron and folic acid supplementation instead (120 mg of elemental iron and 2.8 mg of folic acid once weekly).  The equivalent of 120 mg of elemental iron is 600 mg of ferrous sulfate heptahydrate, 360 mg of ferrous fumarate or 1000 mg of ferrous gluconate.  Please refer to iron sources listed below for additional guidance that can be provided.",
+      "reference": "WHO ANC recommendations (2016): B.1.1. Anaemia (3) WHO ANC recommendations (2016): A.2.2. Intermittent iron and folic acid supplements (3)"
+    },
+    {
+      "condition": "\"Blood haemoglobin test result\" ≥ 110 g/L",
+      "sortie": "\"Anaemia diagnosis = \"Negative for anaemia\" No Iron or Folic side-effects",
+      "action": "\"Anaemia counselling conducted\" IS OPTIONAL",
+      "annotation": "",
+      "reference": "WHO ANC recommendations (2016): B.1.1. Anaemia (3) WHO ANC recommendations (2016): A.2.2. Intermittent iron and folic acid supplements (3)"
+    },
+    {
+      "condition": "\"Blood haemoglobin test result\" ≥ 105 g/L",
+      "sortie": "\"Anaemia diagnosis = \"Negative for anaemia\" No Iron or Folic side-effects",
+      "action": "\"Anaemia counselling conducted\" IS OPTIONAL",
+      "annotation": "",
+      "reference": "WHO ANC recommendations (2016): B.1.1. Anaemia (3) WHO ANC recommendations (2016): A.2.2. Intermittent iron and folic acid supplements (3)"
+    },
+    {
+      "condition": "\"Blood haemoglobin test conducted\" = FALSE",
+      "sortie": "\"Anaemia diagnosis = \"Negative for anaemia\" No Iron or Folic side-effects",
+      "action": "\"Anaemia counselling conducted\" IS OPTIONAL",
+      "annotation": "",
+      "reference": "WHO ANC recommendations (2016): B.1.1. Anaemia (3) WHO ANC recommendations (2016): A.2.2. Intermittent iron and folic acid supplements (3)"
+    }
+  ]
+}

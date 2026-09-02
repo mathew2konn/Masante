@@ -1,0 +1,327 @@
+{
+  "id": "PROT-OMS-ANC.DT.30-GENERAL-RISK-REDUCTION-COUNSELLING",
+  "titre": "ANC.DT.27–30 Risk counselling",
+  "source": {
+    "organisation": "OMS",
+    "document": "WHO SMART Guidelines — Antenatal Care (DAK L2)",
+    "fichier": "WHO-SRH-21.2-eng.xlsx",
+    "licence": "CC BY-NC-SA 3.0 IGO"
+  },
+  "statut": "source_externe_non_validee",
+  "version": "2021.1",
+  "pays_applicable": [
+    "*"
+  ],
+  "declencheur": "ANC.B9. Conduct laboratory tests and imaging",
+  "regle_metier": "Depending on a variety of risk factors and/or gestational age, provide additional counselling accordingly",
+  "regles": [
+    {
+      "condition": "\"Number of fetuses\" ≥ 2",
+      "sortie": "\"Risk of pre-eclampsia\" = TRUE",
+      "action": "Provide counselling on pre-eclampsia risk",
+      "annotation": "The woman is at risk of developing pre-eclampsia – provide counselling",
+      "reference": "Pregnancy, childbirth, postpartum and newborn care guide (2015): C3 (1) WHO pre-eclampsia and eclampsia recommendations (2011): 1, 2 (5)"
+    },
+    {
+      "condition": "\"Past pregnancy complications\" = \"Pre-eclampsia\"",
+      "sortie": "\"Risk of pre-eclampsia\" = TRUE",
+      "action": "Provide counselling on pre-eclampsia risk",
+      "annotation": "",
+      "reference": "Pregnancy, childbirth, postpartum and newborn care guide (2015): C3 (1) WHO pre-eclampsia and eclampsia recommendations (2011): 1, 3 (5)"
+    },
+    {
+      "condition": "\"Past pregnancy complications\" = \"Eclampsia\"",
+      "sortie": "\"Risk of pre-eclampsia\" = TRUE",
+      "action": "Provide counselling on pre-eclampsia risk",
+      "annotation": "",
+      "reference": "Pregnancy, childbirth, postpartum and newborn care guide (2015): C3 (1) WHO pre-eclampsia and eclampsia recommendations (2011): 1, 4 (5)"
+    },
+    {
+      "condition": "\"Past pregnancy complications\" = \"Convulsions\"",
+      "sortie": "\"Risk of pre-eclampsia\" = TRUE",
+      "action": "Provide counselling on pre-eclampsia risk",
+      "annotation": "",
+      "reference": "Pregnancy, childbirth, postpartum and newborn care guide (2015): C3 (1) WHO pre-eclampsia and eclampsia recommendations (2011): 1, 5 (5)"
+    },
+    {
+      "condition": "\"Existing chronic health conditions\" = \"Autoimmune disease\"",
+      "sortie": "\"Risk of pre-eclampsia\" = TRUE",
+      "action": "Provide counselling on pre-eclampsia risk",
+      "annotation": "",
+      "reference": "Pregnancy, childbirth, postpartum and newborn care guide (2015): C3 (1) WHO pre-eclampsia and eclampsia recommendations (2011): 1, 6 (5)"
+    },
+    {
+      "condition": "\"Existing chronic health conditions\" = \"Diabetes\"",
+      "sortie": "\"Risk of pre-eclampsia\" = TRUE",
+      "action": "Provide counselling on pre-eclampsia risk",
+      "annotation": "",
+      "reference": "Pregnancy, childbirth, postpartum and newborn care guide (2015): C3 (1) WHO pre-eclampsia and eclampsia recommendations (2011): 1, 7 (5)"
+    },
+    {
+      "condition": "\"Existing chronic health conditions\" = \"Hypertension\"",
+      "sortie": "\"Risk of pre-eclampsia\" = TRUE",
+      "action": "Provide counselling on pre-eclampsia risk",
+      "annotation": "",
+      "reference": "Pregnancy, childbirth, postpartum and newborn care guide (2015): C3 (1) WHO pre-eclampsia and eclampsia recommendations (2011): 1, 8 (5)"
+    },
+    {
+      "condition": "\"Existing chronic health conditions\" = \"Kidney disease\"",
+      "sortie": "\"Risk of pre-eclampsia\" = TRUE",
+      "action": "Provide counselling on pre-eclampsia risk",
+      "annotation": "",
+      "reference": "Pregnancy, childbirth, postpartum and newborn care guide (2015): C3 (1) WHO pre-eclampsia and eclampsia recommendations (2011): 1, 9 (5)"
+    },
+    {
+      "condition": "\"Number of fetuses\" ≥ 2",
+      "sortie": "\"Risk of pre-eclampsia\" = TRUE Gestational age >= 12 weeks",
+      "action": "Provide counselling on pre-eclampsia risk",
+      "annotation": "The woman is at risk of developing pre-eclampsia: provide counselling; prescribe aspirin 75 mg daily until delivery (starting at 12 weeks gestation) for pre-eclampsia risk",
+      "reference": "Pregnancy, childbirth, postpartum and newborn care guide (2015): C3 (1) WHO pre-eclampsia and eclampsia recommendations (2011): 1, 10 (5)"
+    },
+    {
+      "condition": "\"Past pregnancy complications\" = \"Pre-eclampsia\"",
+      "sortie": "\"Risk of pre-eclampsia\" = TRUE Gestational age >= 12 weeks",
+      "action": "Provide counselling on pre-eclampsia risk",
+      "annotation": "",
+      "reference": "Pregnancy, childbirth, postpartum and newborn care guide (2015): C3 (1) WHO pre-eclampsia and eclampsia recommendations (2011): 1, 11 (5)"
+    },
+    {
+      "condition": "\"Past pregnancy complications\" = \"Eclampsia\"",
+      "sortie": "\"Risk of pre-eclampsia\" = TRUE Gestational age >= 12 weeks",
+      "action": "Provide counselling on pre-eclampsia risk",
+      "annotation": "",
+      "reference": "Pregnancy, childbirth, postpartum and newborn care guide (2015): C3 (1) WHO pre-eclampsia and eclampsia recommendations (2011): 1, 12 (5)"
+    },
+    {
+      "condition": "\"Past pregnancy complications\" = \"Convulsions\"",
+      "sortie": "\"Risk of pre-eclampsia\" = TRUE Gestational age >= 12 weeks",
+      "action": "Provide counselling on pre-eclampsia risk",
+      "annotation": "",
+      "reference": "Pregnancy, childbirth, postpartum and newborn care guide (2015): C3 (1) WHO pre-eclampsia and eclampsia recommendations (2011): 1, 13 (5)"
+    },
+    {
+      "condition": "\"Existing chronic health conditions\" = \"Autoimmune disease\"",
+      "sortie": "\"Risk of pre-eclampsia\" = TRUE Gestational age >= 12 weeks",
+      "action": "Provide counselling on pre-eclampsia risk",
+      "annotation": "",
+      "reference": "Pregnancy, childbirth, postpartum and newborn care guide (2015): C3 (1) WHO pre-eclampsia and eclampsia recommendations (2011): 1, 14 (5)"
+    },
+    {
+      "condition": "\"Existing chronic health conditions\" = \"Diabetes\"",
+      "sortie": "\"Risk of pre-eclampsia\" = TRUE Gestational age >= 12 weeks",
+      "action": "Provide counselling on pre-eclampsia risk",
+      "annotation": "",
+      "reference": "Pregnancy, childbirth, postpartum and newborn care guide (2015): C3 (1) WHO pre-eclampsia and eclampsia recommendations (2011): 1, 15 (5)"
+    },
+    {
+      "condition": "\"Existing chronic health conditions\" = \"Hypertension\"",
+      "sortie": "\"Risk of pre-eclampsia\" = TRUE Gestational age >= 12 weeks",
+      "action": "Provide counselling on pre-eclampsia risk",
+      "annotation": "",
+      "reference": "Pregnancy, childbirth, postpartum and newborn care guide (2015): C3 (1) WHO pre-eclampsia and eclampsia recommendations (2011): 1, 16 (5)"
+    },
+    {
+      "condition": "\"Existing chronic health conditions\" = \"Kidney disease\"",
+      "sortie": "\"Risk of pre-eclampsia\" = TRUE Gestational age >= 12 weeks",
+      "action": "Provide counselling on pre-eclampsia risk",
+      "annotation": "",
+      "reference": "Pregnancy, childbirth, postpartum and newborn care guide (2015): C3 (1) WHO pre-eclampsia and eclampsia recommendations (2011): 1, 17 (5)"
+    },
+    {
+      "condition": "\"Number of fetuses\" ≥ 2",
+      "sortie": "\"Risk of pre-eclampsia\" = TRUE Gestational age >= 12 weeks Population with low calcium intake",
+      "action": "Provide counselling on pre-eclampsia risk",
+      "annotation": "The woman is at risk of developing pre-eclampsia: provide counselling; prescribe aspirin 75 mg daily until delivery (starting at 12 weeks gestation) and ensure that she continues to take her daily calcium supplement of 1.5–2 g until delivery for pre-eclampsia risk",
+      "reference": "Pregnancy, childbirth, postpartum and newborn care guide (2015): C3 (1) WHO pre-eclampsia and eclampsia recommendations (2011): 1, 18 (5)"
+    },
+    {
+      "condition": "\"Past pregnancy complications\" = \"Pre-eclampsia\"",
+      "sortie": "\"Risk of pre-eclampsia\" = TRUE Gestational age >= 12 weeks Population with low calcium intake",
+      "action": "Provide counselling on pre-eclampsia risk",
+      "annotation": "",
+      "reference": "Pregnancy, childbirth, postpartum and newborn care guide (2015): C3 (1) WHO pre-eclampsia and eclampsia recommendations (2011): 1, 19 (5)"
+    },
+    {
+      "condition": "\"Past pregnancy complications\" = \"Eclampsia\"",
+      "sortie": "\"Risk of pre-eclampsia\" = TRUE Gestational age >= 12 weeks Population with low calcium intake",
+      "action": "Provide counselling on pre-eclampsia risk",
+      "annotation": "",
+      "reference": "Pregnancy, childbirth, postpartum and newborn care guide (2015): C3 (1) WHO pre-eclampsia and eclampsia recommendations (2011): 1, 20 (5)"
+    },
+    {
+      "condition": "\"Past pregnancy complications\" = \"Convulsions\"",
+      "sortie": "\"Risk of pre-eclampsia\" = TRUE Gestational age >= 12 weeks Population with low calcium intake",
+      "action": "Provide counselling on pre-eclampsia risk",
+      "annotation": "",
+      "reference": "Pregnancy, childbirth, postpartum and newborn care guide (2015): C3 (1) WHO pre-eclampsia and eclampsia recommendations (2011): 1, 21 (5)"
+    },
+    {
+      "condition": "\"Existing chronic health conditions\" = \"Autoimmune disease\"",
+      "sortie": "\"Risk of pre-eclampsia\" = TRUE Gestational age >= 12 weeks Population with low calcium intake",
+      "action": "Provide counselling on pre-eclampsia risk",
+      "annotation": "",
+      "reference": "Pregnancy, childbirth, postpartum and newborn care guide (2015): C3 (1) WHO pre-eclampsia and eclampsia recommendations (2011): 1, 22 (5)"
+    },
+    {
+      "condition": "\"Existing chronic health conditions\" = \"Diabetes\"",
+      "sortie": "\"Risk of pre-eclampsia\" = TRUE Gestational age >= 12 weeks Population with low calcium intake",
+      "action": "Provide counselling on pre-eclampsia risk",
+      "annotation": "",
+      "reference": "Pregnancy, childbirth, postpartum and newborn care guide (2015): C3 (1) WHO pre-eclampsia and eclampsia recommendations (2011): 1, 23 (5)"
+    },
+    {
+      "condition": "\"Existing chronic health conditions\" = \"Hypertension\"",
+      "sortie": "\"Risk of pre-eclampsia\" = TRUE Gestational age >= 12 weeks Population with low calcium intake",
+      "action": "Provide counselling on pre-eclampsia risk",
+      "annotation": "",
+      "reference": "Pregnancy, childbirth, postpartum and newborn care guide (2015): C3 (1) WHO pre-eclampsia and eclampsia recommendations (2011): 1, 24 (5)"
+    },
+    {
+      "condition": "\"Existing chronic health conditions\" = \"Kidney disease\"",
+      "sortie": "\"Risk of pre-eclampsia\" = TRUE Gestational age >= 12 weeks Population with low calcium intake",
+      "action": "Provide counselling on pre-eclampsia risk",
+      "annotation": "",
+      "reference": "Pregnancy, childbirth, postpartum and newborn care guide (2015): C3 (1) WHO pre-eclampsia and eclampsia recommendations (2011): 1, 25 (5)"
+    },
+    {
+      "condition": "\"BMI\" ≥ 30",
+      "sortie": "\"Risk of gestational diabetes mellitus\" = TRUE",
+      "action": "Provide counselling on gestational diabetes mellitus (GDM) risk",
+      "annotation": "The woman is considered at risk for GDM if she has any of the following risk factors:  – BMI of 30 kg/m2 or more – Previous GDM – Previous macrosomia  – Glycosuria on dipstick testing is ++ or above on one occasion OR + on two or more occasions  Please provide appropriate counseling for GDM risk mitigation, including:  – Reasserting dietary interventions – Reasserting physical activity during pregnancy",
+      "reference": "WHO ANC recommendations (2016): B.1.4 (2)"
+    },
+    {
+      "condition": "\"Past pregnancy complications\" = \"Gestational diabetes mellitus\"",
+      "sortie": "\"Risk of gestational diabetes mellitus\" = TRUE",
+      "action": "Provide counselling on gestational diabetes mellitus (GDM) risk",
+      "annotation": "",
+      "reference": "WHO ANC recommendations (2016): B.1.5 (2)"
+    },
+    {
+      "condition": "\"Past pregnancy complications\" = \"Macrosomia\"",
+      "sortie": "\"Risk of gestational diabetes mellitus\" = TRUE",
+      "action": "Provide counselling on gestational diabetes mellitus (GDM) risk",
+      "annotation": "",
+      "reference": "WHO ANC recommendations (2016): B.1.6 (2)"
+    },
+    {
+      "condition": "\"Urine dipstick result – glucose\" = \"++\"",
+      "sortie": "\"Risk of gestational diabetes mellitus\" = TRUE",
+      "action": "Provide counselling on gestational diabetes mellitus (GDM) risk",
+      "annotation": "",
+      "reference": "WHO ANC recommendations (2016): B.1.7 (2)"
+    },
+    {
+      "condition": "\"Urine dipstick result – glucose\" = \"+++\"",
+      "sortie": "\"Risk of gestational diabetes mellitus\" = TRUE",
+      "action": "Provide counselling on gestational diabetes mellitus (GDM) risk",
+      "annotation": "",
+      "reference": "WHO ANC recommendations (2016): B.1.8 (2)"
+    },
+    {
+      "condition": "\"Urine dipstick result – glucose\" = \"++++\"",
+      "sortie": "\"Risk of gestational diabetes mellitus\" = TRUE",
+      "action": "Provide counselling on gestational diabetes mellitus (GDM) risk",
+      "annotation": "",
+      "reference": "WHO ANC recommendations (2016): B.1.9 (2)"
+    },
+    {
+      "condition": "\"Urine dipstick result – glucose\" = \"+\" ON MORE THAN ONE TEST ACROSS PREGNANCY",
+      "sortie": "\"Risk of gestational diabetes mellitus\" = TRUE",
+      "action": "Provide counselling on gestational diabetes mellitus (GDM) risk",
+      "annotation": "",
+      "reference": "WHO ANC recommendations (2016): B.1.10 (2)"
+    },
+    {
+      "condition": "\"HIV status\" = \"HIV negative\"",
+      "sortie": "\"High risk for HIV\" = TRUE",
+      "action": "Conduct counselling on HIV risk",
+      "annotation": "If the woman lives in a setting with a generalized HIV epidemic, or her partner is HIV positive, or she injects drugs, or she is a sex worker, then she is at high risk for HIV – counselling should be given to provide prevention options  Provide comprehensive HIV prevention options:  – STI screening and treatment (syndromic and syphilis) – Condom promotion – Risk reduction counselling – Pre-exposure prophylaxis (PrEP) with emphasis on adherence – Emphasize importance of follow-up ANC contact visits",
+      "reference": "WHO ANC recommendations (2016): B.1.7, C.7 (2) Pregnancy, childbirth, postpartum and newborn care guide (IMPAC) (2015): C6 (1)"
+    },
+    {
+      "condition": "\"HIV status\" = \"HIV negative\"",
+      "sortie": "\"High risk for HIV\" = TRUE",
+      "action": "Conduct counselling on HIV risk",
+      "annotation": "",
+      "reference": "WHO ANC recommendations (2016): B.1.7, C.7 (2) Pregnancy, childbirth, postpartum and newborn care guide (IMPAC) (2015): C7 (1)"
+    },
+    {
+      "condition": "\"HIV status\" = \"HIV negative\"",
+      "sortie": "\"High risk for HIV\" = TRUE",
+      "action": "Conduct counselling on HIV risk",
+      "annotation": "",
+      "reference": "WHO ANC recommendations (2016): B.1.7, C.7 (2) Pregnancy, childbirth, postpartum and newborn care guide (IMPAC) (2015): C8 (1)"
+    },
+    {
+      "condition": "\"HIV status\" = \"HIV negative\"",
+      "sortie": "\"High risk for HIV\" = TRUE",
+      "action": "Conduct counselling on HIV risk",
+      "annotation": "",
+      "reference": "WHO ANC recommendations (2016): B.1.7, C.7 (2) Pregnancy, childbirth, postpartum and newborn care guide (IMPAC) (2015): C9 (1)"
+    },
+    {
+      "condition": "\"HIV status\" = \"HIV negative\"",
+      "sortie": "\"High risk for HIV\" = TRUE",
+      "action": "Conduct counselling on HIV risk",
+      "annotation": "",
+      "reference": "WHO ANC recommendations (2016): B.1.7, C.7 (2) Pregnancy, childbirth, postpartum and newborn care guide (IMPAC) (2015): C10 (1)"
+    },
+    {
+      "condition": "\"HIV status\" = \"HIV negative\"",
+      "sortie": "\"High risk for HIV\" = TRUE",
+      "action": "Conduct counselling on HIV risk",
+      "annotation": "",
+      "reference": "WHO ANC recommendations (2016): B.1.7, C.7 (2) Pregnancy, childbirth, postpartum and newborn care guide (IMPAC) (2015): C11 (1)"
+    },
+    {
+      "condition": "\"Population incidence of HIV in the absence of PrEP\" > 3 per 100 person-years",
+      "sortie": "\"High risk for HIV\" = TRUE Population incidence of HIV 3 per 100",
+      "action": "Conduct counselling on pre-exposure prophylaxis (PrEP) for HIV prevention",
+      "annotation": "Oral pre-exposure prophylaxis (PrEP) containing tenofovir disoproxil fumarate (TDF) should be offered as an additional prevention choice for pregnant women at substantial risk of HIV infection as part of combination prevention approaches.  See \"PrEP offering framework\" – a suggested prioritization framework for offering PrEP to pregnant and breastfeeding women (below).",
+      "reference": "WHO ANC recommendations (2016): C.7 (2) Pre-exposure prophylaxis (PrEP) for HIV prevention (2017) (20)"
+    },
+    {
+      "condition": "\"Partner HIV status (reported)\" = \"Inconclusive\"",
+      "sortie": "\"Partner HIV status (reported)\" = \"Inconclusive\"",
+      "action": "Conduct counselling on HIV risk",
+      "annotation": "Encourage woman to find out the status of her partner(s) or to bring them during the next contact visit to get tested",
+      "reference": "WHO ANC recommendations (2016): B.1.7 (2) Consolidated guidelines on HIV testing services (2015) (6)"
+    },
+    {
+      "condition": "\"Partner HIV test conducted\" = FALSE",
+      "sortie": "\"Partner HIV status (reported)\" = \"Inconclusive\"",
+      "action": "Conduct counselling on HIV risk",
+      "annotation": "",
+      "reference": "WHO ANC recommendations (2016): B.1.7 (2) Consolidated guidelines on HIV testing services (2015) (6)"
+    },
+    {
+      "condition": "PrEP offering framework – a suggested prioritization framework for offering PrEP to pregnant and breastfeeding women",
+      "sortie": "",
+      "action": "",
+      "annotation": "",
+      "reference": ""
+    },
+    {
+      "condition": "Source: PrEP technical brief (2017) (18).",
+      "sortie": "",
+      "action": "",
+      "annotation": "",
+      "reference": ""
+    },
+    {
+      "condition": "Rh factor\" = \"Rh negative\"",
+      "sortie": "Rh factor\" = \"Rh negative\"",
+      "action": "Provide counselling on Rh factor negative",
+      "annotation": "– Woman is at risk of alloimmunization if the baby's father is Rh positive or unknown – Proceed with local protocol to investigate sensitization and the need for referral  – If non-sensitized, woman should receive anti-D prophylaxis postnatally if the baby is Rh positive",
+      "reference": "WHO ANC recommendations (2016): C.3. Antenatal anti-D immunoglobulin administration (2)"
+    },
+    {
+      "condition": "Midstream urine culture (recommended)\" = \"Positive – Group B Streptococcus (GBS)\"",
+      "sortie": "Midstream urine culture (recommended)\" = \"Positive – Group B Streptococcus (GBS)\"",
+      "action": "Provide counselling on intrapartum antibiotic to prevent early neonatal Group B Streptococcus (GBS) infection",
+      "annotation": "Pregnant women with GBS colonization should receive intrapartum antibiotic administration to prevent early neonatal GBS infection",
+      "reference": "WHO ANC recommendations (2016): C.1: Antibiotics for asymptomatic bacteriuria (ASB) (2)"
+    }
+  ]
+}

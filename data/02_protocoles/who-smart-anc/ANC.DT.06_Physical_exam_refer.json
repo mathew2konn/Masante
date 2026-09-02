@@ -1,0 +1,341 @@
+{
+  "id": "PROT-OMS-ANC.DT.06-PHYSICAL-SYMPTOMS-AND-EXAM-RESULTS-REQUIRING-REFERRAL",
+  "titre": "ANC.DT.06 Physical exam refer",
+  "source": {
+    "organisation": "OMS",
+    "document": "WHO SMART Guidelines — Antenatal Care (DAK L2)",
+    "fichier": "WHO-SRH-21.2-eng.xlsx",
+    "licence": "CC BY-NC-SA 3.0 IGO"
+  },
+  "statut": "source_externe_non_validee",
+  "version": "2021.1",
+  "pays_applicable": [
+    "*"
+  ],
+  "declencheur": "ANC.B8. Conduct physical exam",
+  "regle_metier": "If the woman has any of the following physical exam results, refer to the hospital",
+  "regles": [
+    {
+      "condition": "\"Body temperature\" ≥ 38°C",
+      "sortie": "\"Current physiological symptoms\" = \"Fever\"",
+      "action": "Conduct further investigation and, if necessary, refer urgently if treatment not available at your facility",
+      "annotation": "Woman has a fever – provide treatment and refer urgently to hospital! Procedure: – Insert an IV line – Give fluids slowly",
+      "reference": "Managing complications guide (IMPAC) (2017): Section S-113 (5)"
+    },
+    {
+      "condition": "60 bpm > \"Second pulse rate\" > 100 bpm",
+      "sortie": "\"Current physiological symptoms\" = \"Abnormal pulse rate\"",
+      "action": "Refer to a hospital",
+      "annotation": "Abnormal pulse rate – refer for further investigation Procedure: – Check for fever, infection, respiratory distress, arrhythmia – Refer for further investigation",
+      "reference": "Managing complications guide (IMPAC) (2017): Section S-1 (5)"
+    },
+    {
+      "condition": "\"Respiratory exam result\" = \"Dyspnoea\"",
+      "sortie": "\"Respiratory exam result\" = \"Dyspnoea\"",
+      "action": "Refer urgently to a hospital",
+      "annotation": "Woman has respiratory distress – refer urgently to the hospital!",
+      "reference": "Managing complications in pregnancy and childbirth guide (IMPAC) (2017): Section S-149 (5)"
+    },
+    {
+      "condition": "\"Respiratory exam result\" = \"Cough\"",
+      "sortie": "\"Respiratory exam result\" = \"Cough\"",
+      "action": "Refer urgently to a hospital",
+      "annotation": "",
+      "reference": "Managing complications in pregnancy and childbirth guide (IMPAC) (2017): Section S-149 (5)"
+    },
+    {
+      "condition": "\"Respiratory exam result\" = \"Rapid breathing\"",
+      "sortie": "\"Respiratory exam result\" = \"Rapid breathing\"",
+      "action": "Refer urgently to a hospital",
+      "annotation": "",
+      "reference": "Managing complications in pregnancy and childbirth guide (IMPAC) (2017): Section S-149 (5)"
+    },
+    {
+      "condition": "\"Respiratory exam result\" = \"Slow breathing\"",
+      "sortie": "\"Respiratory exam result\" = \"Slow breathing\"",
+      "action": "Refer urgently to a hospital",
+      "annotation": "",
+      "reference": "Managing complications in pregnancy and childbirth guide (IMPAC) (2017): Section S-149 (5)"
+    },
+    {
+      "condition": "\"Respiratory exam result\" = \"Wheezing\"",
+      "sortie": "\"Respiratory exam result\" = \"Wheezing\"",
+      "action": "Refer urgently to a hospital",
+      "annotation": "",
+      "reference": "Managing complications in pregnancy and childbirth guide (IMPAC) (2017): Section S-149 (5)"
+    },
+    {
+      "condition": "\"Respiratory exam result\" = \"Rales\"",
+      "sortie": "\"Respiratory exam result\" = \"Rales\"",
+      "action": "Refer urgently to a hospital",
+      "annotation": "",
+      "reference": "Managing complications in pregnancy and childbirth guide (IMPAC) (2017): Section S-149 (5)"
+    },
+    {
+      "condition": "\"Respiratory exam result\" = \"Other abnormal respiratory exam result (specify)\"",
+      "sortie": "\"Respiratory exam result\" = \"Other abnormal respiratory exam result (specify)\"",
+      "action": "Refer urgently to a hospital",
+      "annotation": "",
+      "reference": "Managing complications in pregnancy and childbirth guide (IMPAC) (2017): Section S-149 (5)"
+    },
+    {
+      "condition": "\"Oximetry\" < 92%",
+      "sortie": "\"Oximetry\" < 92",
+      "action": "Refer urgently to a hospital",
+      "annotation": "Woman has low oximetry (<92%) – she should be referred urgently to the hospital",
+      "reference": "Managing complications in pregnancy and childbirth guide (IMPAC) (2017): Section S-58 (5)"
+    },
+    {
+      "condition": "\"Cardiac exam result\" = \"Heart murmur\"",
+      "sortie": "\"Cardiac exam result\" = \"Heart murmur\"",
+      "action": "Refer urgently to a hospital",
+      "annotation": "Woman's cardiac condition is abnormal and she should be referred urgently to the hospital",
+      "reference": "Managing complications in pregnancy and childbirth guide (IMPAC) (2017): Section S-150 (5)"
+    },
+    {
+      "condition": "\"Cardiac exam result\" = \"Weak pulse\"",
+      "sortie": "\"Cardiac exam result\" = \"Weak pulse\"",
+      "action": "Refer urgently to a hospital",
+      "annotation": "",
+      "reference": "Managing complications in pregnancy and childbirth guide (IMPAC) (2017): Sections S-1, S-150 (5)"
+    },
+    {
+      "condition": "\"Cardiac exam result\" = \"Tachycardia\"",
+      "sortie": "\"Cardiac exam result\" = \"Tachycardia\"",
+      "action": "Refer urgently to a hospital",
+      "annotation": "",
+      "reference": "Managing complications in pregnancy and childbirth guide (IMPAC) (2017): Sections S-114, S-161 (5)"
+    },
+    {
+      "condition": "\"Cardiac exam result\" = \"Bradycardia\"",
+      "sortie": "\"Cardiac exam result\" = \"Bradycardia\"",
+      "action": "Refer urgently to a hospital",
+      "annotation": "",
+      "reference": "Managing complications in pregnancy and childbirth guide (IMPAC) (2017): Section S-150 (5)"
+    },
+    {
+      "condition": "\"Cardiac exam result\" = \"Arrhythmia\"",
+      "sortie": "\"Cardiac exam result\" = \"Arrhythmia\"",
+      "action": "Refer urgently to a hospital",
+      "annotation": "",
+      "reference": "Managing complications in pregnancy and childbirth guide (IMPAC) (2017): Section S-150 (5)"
+    },
+    {
+      "condition": "\"Cardiac exam result\" = \"Cyanosis\"",
+      "sortie": "\"Cardiac exam result\" = \"Cyanosis\"",
+      "action": "Refer urgently to a hospital",
+      "annotation": "",
+      "reference": "Managing complications in pregnancy and childbirth guide (IMPAC) (2017): Section S-150 (5)"
+    },
+    {
+      "condition": "\"Cardiac exam result\" = \"Cold sweats\"",
+      "sortie": "\"Cardiac exam result\" = \"Cold sweats\"",
+      "action": "Refer urgently to a hospital",
+      "annotation": "",
+      "reference": "Managing complications in pregnancy and childbirth guide (IMPAC) (2017): Section S-1 (5)"
+    },
+    {
+      "condition": "\"Cardiac exam result\" = \"Other abnormal cardiac exam result (specify)\"",
+      "sortie": "\"Cardiac exam result\" = \"Other abnormal cardiac exam result (specify)\"",
+      "action": "Refer urgently to a hospital",
+      "annotation": "",
+      "reference": "Managing complications in pregnancy and childbirth guide (IMPAC) (2017): Section S-150 (5)"
+    },
+    {
+      "condition": "\"Breast exam result\" = \"Nodule\"",
+      "sortie": "\"Breast exam result\" = \"Nodule\"",
+      "action": "Conduct further investigation and, if necessary, refer urgently to a hospital",
+      "annotation": "Woman's breast exam was abnormal and she should be referred to hospital for further investigation",
+      "reference": ""
+    },
+    {
+      "condition": "\"Breast exam result\" = \"Discharge\"",
+      "sortie": "\"Breast exam result\" = \"Discharge\"",
+      "action": "Conduct further investigation and, if necessary, refer urgently to a hospital",
+      "annotation": "",
+      "reference": ""
+    },
+    {
+      "condition": "\"Breast exam result\" = \"Flushing\"",
+      "sortie": "\"Breast exam result\" = \"Flushing\"",
+      "action": "Conduct further investigation and, if necessary, refer urgently to a hospital",
+      "annotation": "",
+      "reference": ""
+    },
+    {
+      "condition": "\"Breast exam result\" = \"Local pain\"",
+      "sortie": "\"Breast exam result\" = \"Local pain\"",
+      "action": "Conduct further investigation and, if necessary, refer urgently to a hospital",
+      "annotation": "",
+      "reference": ""
+    },
+    {
+      "condition": "\"Breast exam result\" = \"Bleeding\"",
+      "sortie": "\"Breast exam result\" = \"Bleeding\"",
+      "action": "Conduct further investigation and, if necessary, refer urgently to a hospital",
+      "annotation": "",
+      "reference": ""
+    },
+    {
+      "condition": "\"Breast exam result\" = \"Increased temperature\"",
+      "sortie": "\"Breast exam result\" = \"Increased temperature\"",
+      "action": "Conduct further investigation and, if necessary, refer urgently to a hospital",
+      "annotation": "",
+      "reference": ""
+    },
+    {
+      "condition": "\"Breast exam result\" = \"Other breast exam result (specify)\"",
+      "sortie": "\"Breast exam result\" = \"Other breast exam result (specify)\"",
+      "action": "Conduct further investigation and, if necessary, refer urgently to a hospital",
+      "annotation": "",
+      "reference": ""
+    },
+    {
+      "condition": "\"Abdominal exam result\" = \"Mass/tumour\"",
+      "sortie": "\"Abdominal exam result\" = \"Mass/tumour\"",
+      "action": "Refer to a hospital",
+      "annotation": "Woman's abdominal exam was abnormal and she should be referred or further evaluated",
+      "reference": "WHO ANC recommendations (2016): B2.2 (2) Managing complications in pregnancy and childbirth guide (IMPAC) (2017): Section S-139 (5)"
+    },
+    {
+      "condition": "\"Abdominal exam result\" = \"Pain on superficial palpation\"",
+      "sortie": "\"Abdominal exam result\" = \"Pain on superficial palpation\"",
+      "action": "Refer to a hospital",
+      "annotation": "",
+      "reference": "WHO ANC recommendations: B2.2 (2) Managing complications in pregnancy and childbirth guide (IMPAC) (2017): Section S-138 (5)"
+    },
+    {
+      "condition": "\"Abdominal exam result\" = \"Pain on deep palpation\"",
+      "sortie": "\"Abdominal exam result\" = \"Pain on deep palpation\"",
+      "action": "Refer to a hospital",
+      "annotation": "",
+      "reference": "WHO ANC recommendations: B2.2 (2) Managing complications in pregnancy and childbirth guide (IMPAC) (2017): Section S-138 (5)"
+    },
+    {
+      "condition": "\"Abdominal exam result\" = \"Painful decompression\"",
+      "sortie": "\"Abdominal exam result\" = \"Painful decompression\"",
+      "action": "Refer to a hospital",
+      "annotation": "",
+      "reference": "WHO ANC recommendations: B2.2 (2) Managing complications in pregnancy and childbirth guide (IMPAC) (2017): Section S-138 (5)"
+    },
+    {
+      "condition": "\"Abdominal exam result\" = \"Other abnormal abdominal exam result (specify)\"",
+      "sortie": "\"Abdominal exam result\" = \"Other abnormal abdominal exam result (specify)\"",
+      "action": "Refer to a hospital",
+      "annotation": "",
+      "reference": "WHO ANC recommendations: B2.2 (2) Managing complications in pregnancy and childbirth guide (IMPAC) (2017): Section S-138 (5)"
+    },
+    {
+      "condition": "\"Pelvic exam result (visual)\" = \"Abnormal vaginal discharge\"",
+      "sortie": "\"Pelvic exam result (visual)\" = \"Abnormal vaginal discharge\"",
+      "action": "Refer to a hospital",
+      "annotation": "",
+      "reference": "Managing complications in pregnancy and childbirth guide (IMPAC) (2017): Sections S-9, S-43, S-114 (5)"
+    },
+    {
+      "condition": "\"Pelvic exam result (visual)\" = \"Evidence of amniotic fluid\"",
+      "sortie": "\"Pelvic exam result (visual)\" = \"Evidence of amniotic fluid\"",
+      "action": "Refer to a hospital",
+      "annotation": "",
+      "reference": "Managing complications in pregnancy and childbirth guide (IMPAC) (2017): Sections S-51, C-91 (5)"
+    },
+    {
+      "condition": "\"Pelvic exam result (visual)\" = \"Foul-smelling vaginal discharge\"",
+      "sortie": "\"Pelvic exam result (visual)\" = \"Foul-smelling vaginal discharge\"",
+      "action": "Refer to a hospital",
+      "annotation": "",
+      "reference": "Managing complications in pregnancy and childbirth guide (IMPAC) (2017): Section S-9 (5)"
+    },
+    {
+      "condition": "\"Pelvic exam result (visual)\" = \"Clusters of erythematous papules\"",
+      "sortie": "\"Pelvic exam result (visual)\" = \"Clusters of erythematous papules\"",
+      "action": "Refer to a hospital",
+      "annotation": "",
+      "reference": "Managing complications in pregnancy and childbirth guide (IMPAC) (2017): Section S-128 (5)"
+    },
+    {
+      "condition": "\"Pelvic exam result (visual)\" = \"Vesicles\"",
+      "sortie": "\"Pelvic exam result (visual)\" = \"Vesicles\"",
+      "action": "Refer to a hospital",
+      "annotation": "",
+      "reference": ""
+    },
+    {
+      "condition": "\"Pelvic exam result (visual)\" = \"Genital ulcer\"",
+      "sortie": "\"Pelvic exam result (visual)\" = \"Genital ulcer\"",
+      "action": "Refer to a hospital",
+      "annotation": "",
+      "reference": "Pregnancy, childbirth, postpartum and newborn care guide (IMPAC) (2015) (1)"
+    },
+    {
+      "condition": "\"Pelvic exam result (visual)\" = \"Genital pain\"",
+      "sortie": "\"Pelvic exam result (visual)\" = \"Genital pain\"",
+      "action": "Refer to a hospital",
+      "annotation": "",
+      "reference": "Managing complications in pregnancy and childbirth guide (IMPAC) (2017): Section S-9 (5)"
+    },
+    {
+      "condition": "\"Pelvic exam result (visual)\" = \"Tender bilateral inguinal and femoral lymphadenopathy\"",
+      "sortie": "\"Pelvic exam result (visual)\" = \"Tender bilateral inguinal and femoral lymphadenopathy\"",
+      "action": "Refer to a hospital",
+      "annotation": "",
+      "reference": ""
+    },
+    {
+      "condition": "\"Pelvic exam result (visual)\" = \"Cervical friability\"",
+      "sortie": "\"Pelvic exam result (visual)\" = \"Cervical friability\"",
+      "action": "Refer to a hospital",
+      "annotation": "",
+      "reference": ""
+    },
+    {
+      "condition": "\"Pelvic exam result (visual)\" = \"Mucopurulent cervicitis\"",
+      "sortie": "\"Pelvic exam result (visual)\" = \"Mucopurulent cervicitis\"",
+      "action": "Refer to a hospital",
+      "annotation": "",
+      "reference": "Managing complications in pregnancy and childbirth guide (IMPAC) (2017): Section S-161 (5)"
+    },
+    {
+      "condition": "\"Pelvic exam result (visual)\" = \"Tender unilateral lymphadenopathy\"",
+      "sortie": "\"Pelvic exam result (visual)\" = \"Tender unilateral lymphadenopathy\"",
+      "action": "Refer to a hospital",
+      "annotation": "",
+      "reference": ""
+    },
+    {
+      "condition": "\"Pelvic exam result (visual)\" = \"Curd-like vaginal discharge\"",
+      "sortie": "\"Pelvic exam result (visual)\" = \"Curd-like vaginal discharge\"",
+      "action": "Refer to a hospital",
+      "annotation": "",
+      "reference": "Managing complications in pregnancy and childbirth guide (IMPAC) (2017): Sections S-9, S-43, S-114 (5)"
+    },
+    {
+      "condition": "\"Pelvic exam result (visual)\" = \"Other abnormal pelvic exam (visual) result (specify)\"",
+      "sortie": "\"Pelvic exam result (visual)\" = \"Other abnormal pelvic exam (visual) result (specify)\"",
+      "action": "Refer to a hospital",
+      "annotation": "",
+      "reference": "Managing complications in pregnancy and childbirth guide (IMPAC) (2017): Section S-150 (5)"
+    },
+    {
+      "condition": "\"Pelvic exam result (visual)\" = \"Evidence of amniotic fluid\"",
+      "sortie": "\"Pelvic exam result (visual)\" = \"Evidence of amniotic fluid\" - \"Gestational age\" < 37 weeks",
+      "action": "Refer urgently to a hospital",
+      "annotation": "Woman should be referred urgently if there is evidence of amniotic fluid, which could indicate the start of labour",
+      "reference": "Managing complications in pregnancy and childbirth guide (IMPAC) (2017): Sections S-51, C-91 (5)"
+    },
+    {
+      "condition": "\"Fetal heartbeat present\" = FALSE",
+      "sortie": "\"Fetal heartbeat present\" = FALSE",
+      "action": "Refer to a hospital",
+      "annotation": "If no fetal heartbeat is observed, inform the woman that there might be a problem and that she needs to be referred to the hospital for further examination and next steps.  Procedure: – Inform the woman that you cannot find the heartbeat and need to refer her to check if there's a problem – Refer to hospital",
+      "reference": "Pregnancy, childbirth, postpartum and newborn care guide (IMPAC) (2015): C7 (1)"
+    },
+    {
+      "condition": "100 bpm > \"Second fetal heart rate\" > 180 bpm",
+      "sortie": "100 bpm > \"Second fetal heart rate\" > 180 bpm",
+      "action": "Refer to a hospital",
+      "annotation": "Fetal heart rate is abnormal after two readings: the woman should be referred to hospital",
+      "reference": "Pregnancy, childbirth, postpartum and newborn care guide (IMPAC) (2015): C7 (1)"
+    }
+  ]
+}

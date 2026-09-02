@@ -1,0 +1,54 @@
+{
+  "id": "PROT-OMS-ANC.DT.38-DEWORMING-AND-MALARIA-PROPHYLAXIS",
+  "titre": "ANC.DT.38 Deworming & malaria",
+  "source": {
+    "organisation": "OMS",
+    "document": "WHO SMART Guidelines — Antenatal Care (DAK L2)",
+    "fichier": "WHO-SRH-21.2-eng.xlsx",
+    "licence": "CC BY-NC-SA 3.0 IGO"
+  },
+  "statut": "source_externe_non_validee",
+  "version": "2021.1",
+  "pays_applicable": [
+    "*"
+  ],
+  "declencheur": "ANC.B10. Counselling, in-facility management and treatment",
+  "regle_metier": "IF the woman is currently in a malaria-endemic setting, or in an area where there is greater than 20% prevalence of infection with any soil-transmitted helminths, THEN she should receive preventative treatment accordingly",
+  "regles": [
+    {
+      "condition": "Malaria-endemic setting = TRUE",
+      "sortie": "\"Conduct counselling on malaria prevention\"",
+      "action": "Provide malaria prophylaxis",
+      "annotation": "Sleeping under an insecticide-treated bednet and the importance of seeking care and getting treatment as soon as she has any symptoms",
+      "reference": "WHO ANC recommendations (2016): C.6. Malaria prevention: intermittent preventive treatment in pregnancy (IPTp) (3)"
+    },
+    {
+      "condition": "Malaria-endemic setting = TRUE",
+      "sortie": "\"IPTp-SP dose 1 provided\" = FALSE \"IPTp-SP dose 2 provided\" = FALSE \"IPTp-SP dose 3 provided\" = FALSE",
+      "action": "Do not give IPTp-SP, because woman is taking co-trimoxazole",
+      "annotation": "IF the woman is currently taking co-trimoxazole, even in a malaria-endemic setting, she should not receive any dose of IPTp-SP. Women who are taking co-trimoxazole SHOULD NOT receive IPTp-SP. Taking both co-trimoxazole and IPTp-SP together can enhance side-effects, especially haematological side-effects such as anaemia.",
+      "reference": "WHO ANC recommendations (2016): C.6. Malaria prevention: intermittent preventive treatment in pregnancy (IPTp) (3)"
+    },
+    {
+      "condition": "\"Population prevalence of soil-transmitted helminth infection\" ≥ 20%",
+      "sortie": "\"Preventive antihelminthic treatment provided\"",
+      "action": "Conduct deworming",
+      "annotation": "In areas with a population prevalence of infection with any soil-transmitted helminths of 20% or higher OR a population anaemia prevalence 40% or higher, preventive anthelminthic treatment is recommended for pregnant women after the first trimester as part of worm infection reduction programmes",
+      "reference": "WHO ANC recommendations (2016): C.4. Preventive anthelminthic treatment (3)"
+    },
+    {
+      "condition": "\"Population prevalence of anaemia\" ≥ 40%",
+      "sortie": "\"Preventive antihelminthic treatment provided\"",
+      "action": "Conduct deworming",
+      "annotation": "",
+      "reference": "WHO ANC recommendations (2016): C.4. Preventive anthelminthic treatment (3)"
+    },
+    {
+      "condition": "Malaria prevention counselling",
+      "sortie": "",
+      "action": "",
+      "annotation": "",
+      "reference": ""
+    }
+  ]
+}

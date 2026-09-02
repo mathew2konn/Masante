@@ -1,0 +1,229 @@
+{
+  "id": "PROT-OMS-ANC.DT.15-BEHAVIOUR-COUNSELLING-REQUIRED",
+  "titre": "ANC.DT.15 Behaviour counselling",
+  "source": {
+    "organisation": "OMS",
+    "document": "WHO SMART Guidelines — Antenatal Care (DAK L2)",
+    "fichier": "WHO-SRH-21.2-eng.xlsx",
+    "licence": "CC BY-NC-SA 3.0 IGO"
+  },
+  "statut": "source_externe_non_validee",
+  "version": "2021.1",
+  "pays_applicable": [
+    "*"
+  ],
+  "declencheur": "ANC.B10. Counselling, in-facility management & treatment",
+  "regle_metier": "Depending on the woman's behaviours reported during the first contact and the woman's reported persistent behaviours, additional counselling may or may not be required",
+  "regles": [
+    {
+      "condition": "\"Daily caffeine intake\" = \"More than 2 cups of coffee (brewed, filter, instant or espresso)\"",
+      "sortie": "Conduct counselling on caffeine reduction",
+      "action": "Conduct counselling on caffeine reduction",
+      "annotation": "Lowering daily caffeine intake during pregnancy is recommended to reduce the risk of pregnancy loss and low-birth-weight neonates.  This includes any product, beverage or food containing caffeine (e.g. brewed coffee, tea, cola-type soft drinks, caffeinated energy drinks, chocolate, caffeine tablets); caffeine-containing teas (black tea and green tea) and soft drinks (colas and iced tea) usually contain less than 50 mg per 250 ml serving",
+      "reference": "WHO ANC recommendations (2016): A.10. Restricting caffeine intake (3)"
+    },
+    {
+      "condition": "\"Daily caffeine intake\" = \"More than 4 cups of tea\"",
+      "sortie": "Conduct counselling on caffeine reduction",
+      "action": "Conduct counselling on caffeine reduction",
+      "annotation": "",
+      "reference": "WHO ANC recommendations (2016): A.10. Restricting caffeine intake (3)"
+    },
+    {
+      "condition": "\"Daily caffeine intake\" = \"More than 12 bars (50g) of chocolate\"",
+      "sortie": "Conduct counselling on caffeine reduction",
+      "action": "Conduct counselling on caffeine reduction",
+      "annotation": "",
+      "reference": "WHO ANC recommendations (2016): A.10. Restricting caffeine intake (3)"
+    },
+    {
+      "condition": "\"Daily caffeine intake\" = \"More than one can of soda or energy drink\"",
+      "sortie": "Conduct counselling on caffeine reduction",
+      "action": "Conduct counselling on caffeine reduction",
+      "annotation": "",
+      "reference": "WHO ANC recommendations (2016): A.10. Restricting caffeine intake (3)"
+    },
+    {
+      "condition": "\"Daily caffeine intake\" = \"None of the above daily caffeine intake\"",
+      "sortie": "Conduct counselling on caffeine reduction",
+      "action": "Conduct counselling on caffeine reduction",
+      "annotation": "",
+      "reference": ""
+    },
+    {
+      "condition": "IF \"Daily caffeine intake\" = \"More than 2 cups of coffee (brewed, filter, instant, or espresso)\" ON MORE THAN ONE CONTACT",
+      "sortie": "Conduct counselling on caffeine reduction",
+      "action": "Conduct counselling on caffeine reduction",
+      "annotation": "",
+      "reference": "WHO ANC recommendations (2016): A.10. Restricting caffeine intake (3)"
+    },
+    {
+      "condition": "IF  \"Daily caffeine intake\" = \"More than 4 cups of tea\" ON MORE THAN ONE CONTACT",
+      "sortie": "Conduct counselling on caffeine reduction",
+      "action": "Conduct counselling on caffeine reduction",
+      "annotation": "",
+      "reference": "WHO ANC recommendations (2016): A.10. Restricting caffeine intake (3)"
+    },
+    {
+      "condition": "IF \"Daily caffeine intake\" = \"More than 12 bars (50 g) of chocolate\" ON MORE THAN ONE CONTACT",
+      "sortie": "Conduct counselling on caffeine reduction",
+      "action": "Conduct counselling on caffeine reduction",
+      "annotation": "",
+      "reference": "WHO ANC recommendations (2016): A.10. Restricting caffeine intake (3)"
+    },
+    {
+      "condition": "IF \"Daily caffeine intake\" = \"More than one can of soda or energy drink\" ON MORE THAN ONE CONTACT",
+      "sortie": "Conduct counselling on caffeine reduction",
+      "action": "Conduct counselling on caffeine reduction",
+      "annotation": "",
+      "reference": "WHO ANC recommendations (2016): A.10. Restricting caffeine intake (3)"
+    },
+    {
+      "condition": "IF \"Daily caffeine intake\" = \"None of the above daily caffeine intake\" ON MORE THAN ONE CONTACT",
+      "sortie": "Conduct counselling on caffeine reduction",
+      "action": "Conduct counselling on caffeine reduction",
+      "annotation": "",
+      "reference": "WHO ANC recommendations (2016): A.10. Restricting caffeine intake (3)"
+    },
+    {
+      "condition": "\"Persistant behaviours\" = \"High caffeine intake\"",
+      "sortie": "Conduct counselling on caffeine reduction",
+      "action": "Conduct counselling on caffeine reduction",
+      "annotation": "",
+      "reference": "WHO ANC recommendations (2016): A.10. Restricting caffeine intake (3)"
+    },
+    {
+      "condition": "\"Tobacco use\" = TRUE",
+      "sortie": "Conduct counselling on tobacco cessation",
+      "action": "Conduct counselling on tobacco cessation",
+      "annotation": "Health-care providers should routinely offer advice and psychosocial interventions for tobacco cessation to all pregnant women who are either current tobacco users or recent tobacco quitters",
+      "reference": "WHO ANC recommendations (2016): B.1.5. Tobacco use (3)"
+    },
+    {
+      "condition": "IF \"Tobacco use\" = TRUE ON MORE THAN ONE CONTACT",
+      "sortie": "Conduct counselling on tobacco cessation",
+      "action": "Conduct counselling on tobacco cessation",
+      "annotation": "",
+      "reference": "WHO ANC recommendations (2016): B.1.5. Tobacco use (3)"
+    },
+    {
+      "condition": "\"Recently quit tobacco products\" = TRUE",
+      "sortie": "Conduct counselling on tobacco cessation",
+      "action": "Conduct counselling on tobacco cessation",
+      "annotation": "",
+      "reference": "WHO ANC recommendations (2016): B.1.5. Tobacco use (3)"
+    },
+    {
+      "condition": "IF \"Recently quit tobacco products\" = TRUE ON MORE THAN ONE CONTACT",
+      "sortie": "Conduct counselling on tobacco cessation",
+      "action": "Conduct counselling on tobacco cessation",
+      "annotation": "",
+      "reference": "WHO ANC recommendations (2016): B.1.5. Tobacco use (3)"
+    },
+    {
+      "condition": "\"Persistant behaviours\" = \"Current tobacco use or recently quit\"",
+      "sortie": "Conduct counselling on tobacco cessation",
+      "action": "Conduct counselling on tobacco cessation",
+      "annotation": "",
+      "reference": "WHO ANC recommendations (2016): B.1.5. Tobacco use (3)"
+    },
+    {
+      "condition": "\"Exposure to second\"hand smoke\" = TRUE",
+      "sortie": "Conduct counselling on second-hand smoke",
+      "action": "Conduct counselling on second-hand smoke",
+      "annotation": "Provide pregnant women, their partners and other household members with advice and information about the risks of second-hand smoke (SHS) exposure from all forms of smoked tobacco, as well as strategies to reduce SHS in the home",
+      "reference": "WHO ANC recommendations (2016): B.1.5. Tobacco use (3)"
+    },
+    {
+      "condition": "IF \"Exposure to second-hand smoke\" = TRUE ON MORE THAN ONE CONTACT",
+      "sortie": "Conduct counselling on second-hand smoke",
+      "action": "Conduct counselling on second-hand smoke",
+      "annotation": "",
+      "reference": "WHO ANC recommendations (2016): B.1.5. Tobacco use (3)"
+    },
+    {
+      "condition": "\"Persistent behaviours\" = \"Exposure to second-hand smoke in the home\"",
+      "sortie": "Conduct counselling on second-hand smoke",
+      "action": "Conduct counselling on second-hand smoke",
+      "annotation": "",
+      "reference": "WHO ANC recommendations (2016): B.1.5. Tobacco use (3)"
+    },
+    {
+      "condition": "\"Contraceptive use of male condoms\" = FALSE",
+      "sortie": "Conduct counselling on condom use",
+      "action": "Conduct counselling on condom use",
+      "annotation": "Advise to use condoms to prevent Zika, HIV and other STIs; if necessary, reassure it is OK to continue to have sex during pregnancy",
+      "reference": "Pregnancy management with Zika (2017) (19)"
+    },
+    {
+      "condition": "\"Contraceptive use of female condoms\" = FALSE",
+      "sortie": "Conduct counselling on condom use",
+      "action": "Conduct counselling on condom use",
+      "annotation": "",
+      "reference": ""
+    },
+    {
+      "condition": "IF \"Contraceptive use of male condoms\" = FALSE ON MORE THAN ONE CONTACT",
+      "sortie": "Conduct counselling on condom use",
+      "action": "Conduct counselling on condom use",
+      "annotation": "",
+      "reference": ""
+    },
+    {
+      "condition": "IF \"Contraceptive use of female condoms\" = FALSE ON MORE THAN ONE CONTACT",
+      "sortie": "Conduct counselling on condom use",
+      "action": "Conduct counselling on condom use",
+      "annotation": "",
+      "reference": ""
+    },
+    {
+      "condition": "\"Persistent behaviours\" = \"No condom use during sex\"",
+      "sortie": "Conduct counselling on condom use",
+      "action": "Conduct counselling on condom use",
+      "annotation": "",
+      "reference": ""
+    },
+    {
+      "condition": "\"Current alcohol and/or other substance use\" = \"Alcohol\"",
+      "sortie": "Conduct counselling on alcohol/substance use",
+      "action": "Conduct counselling on alcohol/substance use",
+      "annotation": "Health-care providers should at the earliest opportunity advise pregnant women dependent on alcohol or drugs to cease their alcohol or drug use and offer, or refer them to, detoxification services under medical supervision, where necessary and applicable",
+      "reference": "WHO ANC recommendations (2016): B.1.6. Substance use (3)"
+    },
+    {
+      "condition": "IF  \"Current alcohol and/or other substance use\" = \"Alcohol\" ON MORE THAN ONE CONTACT",
+      "sortie": "Conduct counselling on alcohol/substance use",
+      "action": "Conduct counselling on alcohol/substance use",
+      "annotation": "",
+      "reference": "WHO ANC recommendations (2016): B.1.6. Substance use (3)"
+    },
+    {
+      "condition": "\"Persistent behaviours\" = \"Alcohol use\"",
+      "sortie": "Conduct counselling on alcohol/substance use",
+      "action": "Conduct counselling on alcohol/substance use",
+      "annotation": "",
+      "reference": "WHO ANC recommendations (2016): B.1.6. Substance use (3)"
+    },
+    {
+      "condition": "\"Current alcohol and/or other substance use\" = \"Marijuana\" AND/OR \"Cocaine\" AND/OR \"Crack\" AND/OR \"Injectable drugs\" AND/OR \"Other substance use (specify)\"",
+      "sortie": "Conduct counselling on alcohol/substance use",
+      "action": "Conduct counselling on alcohol/substance use",
+      "annotation": "",
+      "reference": "WHO ANC recommendations (2016): B.1.6. Substance use (3)"
+    },
+    {
+      "condition": "IF \"Current alcohol and/or other substance use\" = \"Marijuana\" AND/OR \"Cocaine\" AND/OR \"Crack\" AND/OR \"Injectable drugs\" AND/OR \"Other substance use (specify)\" ON MORE THAN ONE CONTACT",
+      "sortie": "Conduct counselling on alcohol/substance use",
+      "action": "Conduct counselling on alcohol/substance use",
+      "annotation": "",
+      "reference": "WHO ANC recommendations (2016): B.1.6. Substance use (3)"
+    },
+    {
+      "condition": "\"Persistent behaviours\" = \"Substance use\"",
+      "sortie": "Conduct counselling on alcohol/substance use",
+      "action": "Conduct counselling on alcohol/substance use",
+      "annotation": "",
+      "reference": "WHO ANC recommendations (2016): B.1.6. Substance use (3)"
+    }
+  ]
+}

@@ -1,0 +1,336 @@
+{
+  "id": "PROT-CI-PALU",
+  "version": "2022.1",
+  "titre": "Prise en charge du paludisme — Côte d'Ivoire",
+  "pays_applicable": ["CI"],
+  "specialite": "maladies_infectieuses",
+  "statut": "source_externe_non_validee",
+  "note_statut": "Contenu transcrit depuis le Guide national du PNLP (mars 2022). Doit être relu et validé par le comité scientifique MaSanté avant tout passage à l'état ACTIF (CDC_08 §7).",
+  "source": {
+    "organisation": "Ministère de la Santé, de l'Hygiène Publique et de la Couverture Maladie Universelle — Programme National de Lutte contre le Paludisme (PNLP)",
+    "pays": "Côte d'Ivoire",
+    "document": "Guide national de prise en charge du paludisme",
+    "date_edition": "2022-03",
+    "url": "https://www.pnlpcotedivoire.org/fichiers_uploades/2023/06/fichier_joint_152"
+  },
+  "cycle_de_vie": {
+    "etat": "BROUILLON",
+    "date_import": "2026-08-22",
+    "validations": []
+  },
+
+  "variables_entree": [
+    { "cle": "age_mois", "type": "entier", "unite": "mois", "obligatoire": true },
+    { "cle": "poids_kg", "type": "decimal", "unite": "kg", "obligatoire": true },
+    { "cle": "temperature_c", "type": "decimal", "unite": "°C", "obligatoire": false },
+    { "cle": "fievre_ou_antecedent_fievre", "type": "booleen", "obligatoire": true },
+    { "cle": "resultat_tdr", "type": "enum", "valeurs": ["POSITIF", "NEGATIF", "NON_REALISE"], "obligatoire": true },
+    { "cle": "resultat_goutte_epaisse", "type": "enum", "valeurs": ["POSITIF", "NEGATIF", "NON_REALISE"], "obligatoire": false },
+    { "cle": "espece_plasmodium", "type": "enum", "valeurs": ["FALCIPARUM", "VIVAX", "OVALE", "MALARIAE", "INCONNUE"], "obligatoire": false },
+    { "cle": "signes_gravite", "type": "liste", "referentiel": "SIGNES_GRAVITE_OMS", "obligatoire": true },
+    { "cle": "grossesse", "type": "booleen", "obligatoire": true },
+    { "cle": "trimestre_grossesse", "type": "enum", "valeurs": ["T1", "T2", "T3"], "obligatoire": false },
+    { "cle": "niveau_structure", "type": "enum", "valeurs": ["COMMUNAUTE_ASC", "ESPC", "STRUCTURE_REFERENCE"], "obligatoire": true },
+    { "cle": "peut_avaler", "type": "booleen", "obligatoire": true },
+    { "cle": "sous_cotrimoxazole", "type": "booleen", "obligatoire": false },
+    { "cle": "traitement_arv", "type": "liste", "obligatoire": false }
+  ],
+
+  "referentiels_internes": {
+    "SIGNES_GRAVITE_OMS": {
+      "cliniques": [
+        { "code": "GRAV_CONSCIENCE", "libelle": "Troubles de la conscience (Glasgow < 11 ou Blantyre < 3)" },
+        { "code": "GRAV_PROSTRATION", "libelle": "Prostration : incapacité à s'asseoir ou se tenir debout sans aide" },
+        { "code": "GRAV_CONVULSIONS", "libelle": "Convulsions répétées (> 2 en 24 heures)" },
+        { "code": "GRAV_DETRESSE_RESP", "libelle": "Respiration profonde / détresse respiratoire" },
+        { "code": "GRAV_OAP", "libelle": "Œdème pulmonaire avec hypoxie" },
+        { "code": "GRAV_COLLAPSUS", "libelle": "Collapsus cardiovasculaire / état de choc" },
+        { "code": "GRAV_OLIGOANURIE", "libelle": "Oligurie ou anurie" },
+        { "code": "GRAV_SAIGNEMENT", "libelle": "Saignements anormaux" }
+      ],
+      "biologiques": [
+        { "code": "GRAV_HYPOGLYCEMIE", "libelle": "Hypoglycémie", "seuil": "< 2,2 mmol/L" },
+        { "code": "GRAV_ACIDOSE", "libelle": "Acidose métabolique", "seuil": "bicarbonates < 15 mmol/L" },
+        { "code": "GRAV_ANEMIE_SEVERE", "libelle": "Anémie sévère" },
+        { "code": "GRAV_HEMOGLOBINURIE", "libelle": "Hémoglobinurie" },
+        { "code": "GRAV_HYPERLACTATEMIE", "libelle": "Hyperlactatémie", "seuil": "> 5 mmol/L" },
+        { "code": "GRAV_IRA", "libelle": "Insuffisance rénale aiguë" },
+        { "code": "GRAV_ICTERE", "libelle": "Ictère avec parasitémie", "seuil": "> 10 000/µL" },
+        { "code": "GRAV_HYPERPARASITEMIE", "libelle": "Hyperparasitémie", "seuil": "> 10 %" }
+      ]
+    }
+  },
+
+  "regles": [
+    {
+      "id": "R01",
+      "priorite": 1,
+      "libelle": "Signes de gravité — urgence absolue",
+      "condition": "signes_gravite.length > 0",
+      "actions": [
+        { "type": "CLASSIFICATION", "valeur": "PALUDISME_GRAVE_SUSPECT" },
+        { "type": "ORIENTATION", "valeur": "REFERENCE_URGENTE" },
+        { "type": "TRAITEMENT_PRE_TRANSFERT", "ref": "TRT_PRE_TRANSFERT" }
+      ],
+      "niveau_preuve": "A",
+      "annotation": "Ne pas retarder la référence pour réaliser un TDR."
+    },
+    {
+      "id": "R02",
+      "priorite": 2,
+      "libelle": "Confirmation parasitologique obligatoire avant traitement",
+      "condition": "fievre_ou_antecedent_fievre == true ET signes_gravite.length == 0 ET resultat_tdr == 'NON_REALISE' ET resultat_goutte_epaisse == 'NON_REALISE'",
+      "actions": [
+        { "type": "EXAMEN", "valeur": "TDR_PALUDISME" },
+        { "type": "BLOCAGE_PRESCRIPTION", "message": "Aucun antipaludique avant confirmation parasitologique." }
+      ],
+      "niveau_preuve": "A"
+    },
+    {
+      "id": "R03",
+      "priorite": 3,
+      "libelle": "Paludisme simple confirmé",
+      "condition": "(resultat_tdr == 'POSITIF' OU resultat_goutte_epaisse == 'POSITIF') ET signes_gravite.length == 0",
+      "actions": [
+        { "type": "CLASSIFICATION", "valeur": "PALUDISME_SIMPLE_CONFIRME" },
+        { "type": "TRAITEMENT", "ref": "TRT_CTA_1ERE_INTENTION" },
+        { "type": "SUIVI", "valeur": "J3_J7_J14" }
+      ],
+      "niveau_preuve": "A"
+    },
+    {
+      "id": "R04",
+      "priorite": 3,
+      "libelle": "Test négatif — chercher une autre cause",
+      "condition": "resultat_tdr == 'NEGATIF' ET signes_gravite.length == 0",
+      "actions": [
+        { "type": "CLASSIFICATION", "valeur": "PALUDISME_ECARTE" },
+        { "type": "ORIENTATION", "valeur": "RECHERCHE_AUTRE_ETIOLOGIE_FIEVRE" }
+      ],
+      "niveau_preuve": "A"
+    },
+    {
+      "id": "R05",
+      "priorite": 2,
+      "libelle": "Grossesse 1er trimestre — CTA contre-indiquées (paludisme simple)",
+      "condition": "grossesse == true ET trimestre_grossesse == 'T1' ET classification == 'PALUDISME_SIMPLE_CONFIRME'",
+      "actions": [
+        { "type": "TRAITEMENT", "ref": "TRT_QUININE_ORALE_5J" },
+        { "type": "ALERTE", "message": "Paludisme chez la femme enceinte = urgence médicale." }
+      ],
+      "remplace": ["R03"],
+      "niveau_preuve": "A"
+    },
+    {
+      "id": "R06",
+      "priorite": 2,
+      "libelle": "TPIg — traitement préventif intermittent chez la femme enceinte",
+      "condition": "grossesse == true ET semaines_amenorrhee >= 16 ET sous_cotrimoxazole == false",
+      "actions": [
+        { "type": "PREVENTION", "medicament": "SULFADOXINE_PYRIMETHAMINE", "posologie": "3 comprimés en prise unique, mensuelle jusqu'à l'accouchement", "modalite": "TDO — traitement directement observé en CPN" },
+        { "type": "PRECAUTION", "message": "Suspendre l'acide folique > 5 mg/j ; reprise 15 jours après la dose de SP." }
+      ],
+      "niveau_preuve": "A"
+    },
+    {
+      "id": "R07",
+      "priorite": 2,
+      "libelle": "Contre-indication SP sous cotrimoxazole",
+      "condition": "grossesse == true ET sous_cotrimoxazole == true",
+      "actions": [
+        { "type": "CONTRE_INDICATION", "medicament": "SULFADOXINE_PYRIMETHAMINE", "motif": "Risque de surdosage" }
+      ],
+      "niveau_preuve": "A"
+    },
+    {
+      "id": "R08",
+      "priorite": 2,
+      "libelle": "Interaction ARV — éviter AS+AQ",
+      "condition": "traitement_arv contient 'EFAVIRENZ' OU traitement_arv contient 'ZIDOVUDINE'",
+      "actions": [
+        { "type": "CONTRE_INDICATION_RELATIVE", "medicament": "ARTESUNATE_AMODIAQUINE", "motif": "Interaction avec éfavirenz / zidovudine" },
+        { "type": "ALTERNATIVE", "ref": "TRT_CTA_1ERE_INTENTION", "exclure": ["AS_AQ"] }
+      ],
+      "niveau_preuve": "B"
+    },
+    {
+      "id": "R09",
+      "priorite": 4,
+      "libelle": "Fièvre élevée — traitement adjuvant",
+      "condition": "temperature_c > 38.5",
+      "actions": [
+        { "type": "TRAITEMENT_ADJUVANT", "medicament": "PARACETAMOL", "posologie": "15 mg/kg toutes les 6 h", "maximum": "80 mg/kg/j (enfant) — 3 g/j (adulte)" },
+        { "type": "CONTRE_INDICATION", "medicament": "ASPIRINE_ET_AINS" }
+      ],
+      "niveau_preuve": "A"
+    },
+    {
+      "id": "R10",
+      "priorite": 3,
+      "libelle": "Échec thérapeutique",
+      "condition": "parasitemie_persistante_j3 == true OU reapparition_parasites == true",
+      "actions": [
+        { "type": "EVALUATION", "valeur": "VERIFIER_OBSERVANCE" },
+        { "type": "EXAMEN", "valeur": "GOUTTE_EPAISSE_CONTROLE" },
+        { "type": "ARBRE_DECISION", "ref": "ARBRE_ECHEC_THERAPEUTIQUE" }
+      ],
+      "niveau_preuve": "B"
+    }
+  ],
+
+  "traitements": {
+    "TRT_CTA_1ERE_INTENTION": {
+      "libelle": "Combinaison thérapeutique à base d'artémisinine (CTA) — 3 jours",
+      "options": [
+        {
+          "code": "AS_AQ",
+          "libelle": "Artésunate + Amodiaquine",
+          "dose_reference": "4 mg/kg/j artésunate + 10 mg/kg/j amodiaquine",
+          "posologie_par_poids": [
+            { "age": "< 1 an", "poids_min": 0, "poids_max": 9, "presentation": "25/67,5 mg", "dose": "1 comprimé/jour", "duree_jours": 3 },
+            { "age": "1–5 ans", "poids_min": 9, "poids_max": 18, "presentation": "50/135 mg", "dose": "1 comprimé/jour", "duree_jours": 3 },
+            { "age": "6–13 ans", "poids_min": 18, "poids_max": 36, "presentation": "100/270 mg", "dose": "1 comprimé/jour", "duree_jours": 3 },
+            { "age": "> 14 ans", "poids_min": 36, "poids_max": null, "presentation": "100/270 mg", "dose": "2 comprimés/jour", "duree_jours": 3 }
+          ]
+        },
+        {
+          "code": "AL",
+          "libelle": "Artéméther + Luméfantrine",
+          "dose_reference": "4 mg/kg/j artéméther + 24 mg/kg/j luméfantrine",
+          "modalite": "2 prises par jour espacées de 12 h, avec un repas gras",
+          "presentation": "20/120 mg",
+          "posologie_par_poids": [
+            { "age": "< 3 ans", "poids_min": 7, "poids_max": 14, "dose": "1 comprimé par prise", "prises_par_jour": 2, "duree_jours": 3 },
+            { "age": "3–9 ans", "poids_min": 15, "poids_max": 24, "dose": "2 comprimés par prise", "prises_par_jour": 2, "duree_jours": 3 },
+            { "age": "9–14 ans", "poids_min": 25, "poids_max": 34, "dose": "3 comprimés par prise", "prises_par_jour": 2, "duree_jours": 3 },
+            { "age": "> 14 ans", "poids_min": 34, "poids_max": null, "dose": "4 comprimés par prise", "prises_par_jour": 2, "duree_jours": 3 }
+          ]
+        },
+        {
+          "code": "AP",
+          "libelle": "Artésunate + Pyronaridine",
+          "dose_reference": "4 mg/kg/j artésunate + 12 mg/kg/j pyronaridine",
+          "posologie_par_poids": [
+            { "poids_min": 5, "poids_max": 8, "presentation": "sachet 20/60 mg", "dose": "1 sachet/jour", "duree_jours": 3 },
+            { "poids_min": 8, "poids_max": 15, "presentation": "sachet 20/60 mg", "dose": "2 sachets/jour", "duree_jours": 3 },
+            { "poids_min": 15, "poids_max": 20, "presentation": "sachet 20/60 mg", "dose": "3 sachets/jour", "duree_jours": 3 },
+            { "poids_min": 20, "poids_max": 24, "presentation": "comprimé 60/180 mg", "dose": "1 comprimé/jour", "duree_jours": 3 },
+            { "poids_min": 24, "poids_max": 45, "presentation": "comprimé 60/180 mg", "dose": "2 comprimés/jour", "duree_jours": 3 },
+            { "poids_min": 45, "poids_max": 65, "presentation": "comprimé 60/180 mg", "dose": "3 comprimés/jour", "duree_jours": 3 },
+            { "poids_min": 65, "poids_max": null, "presentation": "comprimé 60/180 mg", "dose": "4 comprimés/jour", "duree_jours": 3 }
+          ]
+        },
+        {
+          "code": "DHA_PPQ",
+          "libelle": "Dihydroartémisinine + Pipéraquine",
+          "dose_reference": "4 mg/kg/j DHA + 18 mg/kg/j PPQ",
+          "modalite": "1 prise par jour",
+          "posologie_par_poids": [
+            { "poids_min": 5, "poids_max": 8, "presentation": "20/160 mg", "dose": "1 comprimé/jour", "duree_jours": 3 },
+            { "poids_min": 8, "poids_max": 11, "presentation": "20/160 mg", "dose": "1,5 comprimé/jour", "duree_jours": 3 },
+            { "poids_min": 11, "poids_max": 17, "presentation": "40/320 mg", "dose": "1 comprimé/jour", "duree_jours": 3 },
+            { "poids_min": 17, "poids_max": 25, "presentation": "40/320 mg", "dose": "1,5 comprimé/jour", "duree_jours": 3 },
+            { "poids_min": 25, "poids_max": 36, "presentation": "40/320 mg", "dose": "2 comprimés/jour", "duree_jours": 3 },
+            { "poids_min": 36, "poids_max": 60, "presentation": "40/320 mg", "dose": "3 comprimés/jour", "duree_jours": 3 },
+            { "poids_min": 60, "poids_max": 80, "presentation": "40/320 mg", "dose": "4 comprimés/jour", "duree_jours": 3 },
+            { "poids_min": 80, "poids_max": null, "presentation": "40/320 mg", "dose": "5 comprimés/jour", "duree_jours": 3 }
+          ]
+        }
+      ]
+    },
+
+    "TRT_QUININE_ORALE_5J": {
+      "libelle": "Quinine base orale — 2e intention et 1er trimestre de grossesse",
+      "dose_reference": "25 mg/kg/j en 3 prises espacées de 8 h, pendant 5 jours",
+      "presentation": "comprimé 300 mg",
+      "posologie_par_poids": [
+        { "age": "5 mois – < 2 ans", "poids_min": 7, "poids_max": 12, "dose": "¼ comprimé × 3/jour" },
+        { "age": "2 – < 8 ans", "poids_min": 12, "poids_max": 25, "dose": "½ comprimé × 3/jour" },
+        { "age": "8 – < 11 ans", "poids_min": 25, "poids_max": 35, "dose": "1 comprimé × 3/jour" },
+        { "age": "11 – < 14 ans", "poids_min": 35, "poids_max": 50, "dose": "1,5 comprimé × 3/jour" },
+        { "age": "≥ 14 ans", "poids_min": 50, "poids_max": null, "dose": "2 comprimés × 3/jour" }
+      ],
+      "duree_jours": 5
+    },
+
+    "TRT_PALUDISME_GRAVE": {
+      "libelle": "Paludisme grave — traitement parentéral",
+      "premiere_intention": {
+        "code": "ARTESUNATE_INJECTABLE",
+        "libelle": "Artésunate injectable (IV ou IM)",
+        "posologie": [
+          { "population": "Adulte et enfant ≥ 20 kg", "dose": "2,4 mg/kg" },
+          { "population": "Enfant < 20 kg", "dose": "3 mg/kg" },
+          { "population": "Femme enceinte", "dose": "2,4 mg/kg" }
+        ],
+        "schema": "J1 : H0, H12, H24 (3 doses) — puis 1 dose/jour de J2 à J7",
+        "relais_oral": "Dès que le patient tolère la voie orale et après au moins 24 h (3 doses) : CTA pendant 3 jours"
+      },
+      "alternatives": [
+        { "code": "ARTEMETHER_IM", "posologie": "J1 : 1,6 mg/kg à H0 et H12 — J2 à J7 : 1,6 mg/kg une fois par jour", "duree_jours": 7 },
+        { "code": "QUININE_IV", "posologie": "J1 : 8 mg/kg × 3 perfusions (24 mg/kg) — J2 à J5 : 12 mg/kg × 2 perfusions (24 mg/kg)", "duree_jours": 5 }
+      ],
+      "alerte_interaction": "Ne pas associer quinine, CTA, statines et fluoroquinolones — risque de cardiotoxicité et d'hypoglycémie. Espacer de 12 à 24 h si indispensable."
+    },
+
+    "TRT_PRE_TRANSFERT": {
+      "libelle": "Traitement pré-transfert avant référence urgente",
+      "options": [
+        { "population": "Enfant 0–5 ans (< 20 kg)", "choix": [
+          { "medicament": "ARTESUNATE_RECTAL", "dose": "capsule 100 mg — 10 mg/kg" },
+          { "medicament": "ARTESUNATE_IM", "dose": "3 mg/kg" },
+          { "medicament": "ARTEMETHER_IM", "dose": "3,2 mg/kg" }
+        ], "adjuvant": "Paracétamol 60 mg/kg, à répéter 2 à 3 fois pendant le transport" },
+        { "population": "Adulte et enfant ≥ 20 kg", "choix": [
+          { "medicament": "ARTESUNATE_IV_IM", "dose": "2,4 mg/kg" },
+          { "medicament": "ARTEMETHER_IM", "dose": "3,2 mg/kg" }
+        ] }
+      ]
+    }
+  },
+
+  "arbres_decision": {
+    "ARBRE_ECHEC_THERAPEUTIQUE": {
+      "sans_microscopie": [
+        { "condition": "observance == 'MAUVAISE'", "action": "Reprendre la CTA initiale avec conseils d'observance" },
+        { "condition": "observance == 'BONNE'", "action": "Quinine orale (2e intention)" }
+      ],
+      "avec_microscopie": [
+        { "condition": "microscopie == 'NEGATIVE' ET observance == 'BONNE'", "action": "Rechercher une autre cause de fièvre" },
+        { "condition": "microscopie == 'POSITIVE' ET observance == 'MAUVAISE'", "action": "Reprendre la CTA initiale" },
+        { "condition": "microscopie == 'POSITIVE' ET observance == 'BONNE' ET jours_depuis_debut < 14", "action": "Quinine orale — recrudescence probable" },
+        { "condition": "microscopie == 'POSITIVE' ET observance == 'BONNE' ET jours_depuis_debut > 14", "action": "Reprendre la CTA initiale — réinfection probable" }
+      ]
+    },
+    "ARBRE_DIAGNOSTIC_PAR_NIVEAU": {
+      "COMMUNAUTE_ASC": [
+        { "condition": "temperature_c >= 37.5 ET tdr_disponible == true", "action": "Réaliser le TDR" },
+        { "condition": "resultat_tdr == 'POSITIF'", "action": "Référer au centre de santé ; administrer la capsule rectale d'artésunate si disponible" },
+        { "condition": "resultat_tdr == 'NEGATIF' ET signes_gravite.length > 0", "action": "Référer" },
+        { "condition": "signes_gravite.length > 0", "action": "Référer immédiatement sans attendre le TDR" }
+      ],
+      "ESPC": [
+        { "condition": "signes_gravite.length == 0", "action": "Traiter comme paludisme simple ; suivi à J3, J7, J14" },
+        { "condition": "signes_gravite.length > 0", "action": "Référence urgente avec traitement pré-transfert" }
+      ],
+      "STRUCTURE_REFERENCE": [
+        { "condition": "true", "action": "Confirmation par microscopie (goutte épaisse / frottis) et détermination de la densité parasitaire" }
+      ]
+    }
+  },
+
+  "suivi": {
+    "calendrier": [
+      { "jour": 3, "attendu": "densité parasitaire < 25 % de la valeur initiale" },
+      { "jour": 7, "attendu": "microscopie négative" },
+      { "jour": 14, "attendu": "microscopie négative" }
+    ]
+  },
+
+  "tracabilite": {
+    "champs_obligatoires_journal": [
+      "identifiant_patient", "identifiant_professionnel", "protocole_id", "protocole_version",
+      "horodatage", "recommandations_affichees", "decision_finale", "justification_ecart"
+    ]
+  }
+}

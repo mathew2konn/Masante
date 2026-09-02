@@ -1,0 +1,453 @@
+{
+  "id": "PROT-OMS-ANC.DT.24-TB-DIAGNOSIS",
+  "titre": "ANC.DT.17–24 Diagnosis & treat",
+  "source": {
+    "organisation": "OMS",
+    "document": "WHO SMART Guidelines — Antenatal Care (DAK L2)",
+    "fichier": "WHO-SRH-21.2-eng.xlsx",
+    "licence": "CC BY-NC-SA 3.0 IGO"
+  },
+  "statut": "source_externe_non_validee",
+  "version": "2021.1",
+  "pays_applicable": [
+    "*"
+  ],
+  "declencheur": "ANC.B10.4. Diagnosis and treatment",
+  "regle_metier": "If the woman's TB screening results are positive for TB, provide the required treatment as per local TB protocols",
+  "regles": [
+    {
+      "condition": "\"Systolic blood pressure\" ≥ 140 mmHg",
+      "sortie": "\"Severe pre-eclampsia\" = TRUE",
+      "action": "Refer urgently to a hospital",
+      "annotation": "Symptom(s) of severe pre-eclampsia! Refer urgently to hospital! Woman has hypertension. If she is experiencing a symptom of severe pre-eclampsia, then refer urgently to the hospital for further investigation and management.  Procedure – Give magnesium sulphate – Give appropriate anti-hypertensives – Revise the birth plan – Refer urgently to hospital",
+      "reference": "Pregnancy, childbirth, postpartum and newborn care guide (IMPAC) (2015): recommendation C3 (1) Managing complications guide (IMPAC) (2017): Section S-53, Table S-12 (5)"
+    },
+    {
+      "condition": "\"Diastolic blood pressure\" ≥ 90 mmHg",
+      "sortie": "\"Severe pre-eclampsia\" = TRUE",
+      "action": "Refer urgently to a hospital",
+      "annotation": "",
+      "reference": "Pregnancy, childbirth, postpartum and newborn care guide (IMPAC) (2015): recommendation C3 (1) Managing complications guide (IMPAC) (2017): Section S-53, Table S-13 (5)"
+    },
+    {
+      "condition": "\"Systolic blood pressure\" ≥ 140 mmHg",
+      "sortie": "\"Severe pre-eclampsia\" = TRUE",
+      "action": "Refer urgently to a hospital",
+      "annotation": "",
+      "reference": "Pregnancy, childbirth, postpartum and newborn care guide (IMPAC) (2015): recommendation C3 (1) Managing complications guide (IMPAC) (2017): Section S-53, Table S-14 (5)"
+    },
+    {
+      "condition": "\"Diastolic blood pressure\" ≥ 90 mmHg",
+      "sortie": "\"Severe pre-eclampsia\" = TRUE",
+      "action": "Refer urgently to a hospital",
+      "annotation": "",
+      "reference": "Pregnancy, childbirth, postpartum and newborn care guide (IMPAC) (2015): recommendation C3 (1) Managing complications guide (IMPAC) (2017): Section S-53, Table S-15 (5)"
+    },
+    {
+      "condition": "\"Systolic blood pressure\" ≥ 140 mmHg",
+      "sortie": "\"Severe pre-eclampsia\" = TRUE",
+      "action": "Refer urgently to a hospital",
+      "annotation": "",
+      "reference": "Pregnancy, childbirth, postpartum and newborn care guide (IMPAC) (2015): recommendation C3 (1) Managing complications guide (IMPAC) (2017): Section S-53, Table S-16 (5)"
+    },
+    {
+      "condition": "\"Diastolic blood pressure\" ≥ 90 mmHg",
+      "sortie": "\"Severe pre-eclampsia\" = TRUE",
+      "action": "Refer urgently to a hospital",
+      "annotation": "",
+      "reference": "Pregnancy, childbirth, postpartum and newborn care guide (IMPAC) (2015): recommendation C3 (1) Managing complications guide (IMPAC) (2017): Section S-53, Table S-17 (5)"
+    },
+    {
+      "condition": "\"Systolic blood pressure\" ≥ 140 mmHg",
+      "sortie": "\"Severe pre-eclampsia\" = TRUE",
+      "action": "Refer urgently to a hospital",
+      "annotation": "",
+      "reference": "Pregnancy, childbirth, postpartum and newborn care guide (IMPAC) (2015): recommendation C3 (1) Managing complications guide (IMPAC) (2017): Section S-53, Table S-18 (5)"
+    },
+    {
+      "condition": "\"Diastolic blood pressure\" ≥ 90 mmHg",
+      "sortie": "\"Severe pre-eclampsia\" = TRUE",
+      "action": "Refer urgently to a hospital",
+      "annotation": "",
+      "reference": "Pregnancy, childbirth, postpartum and newborn care guide (IMPAC) (2015): recommendation C3 (1) Managing complications guide (IMPAC) (2017): Section S-53, Table S-19 (5)"
+    },
+    {
+      "condition": "\"Systolic blood pressure\" ≥ 140 mmHg",
+      "sortie": "\"Severe pre-eclampsia\" = TRUE",
+      "action": "Refer urgently to a hospital",
+      "annotation": "",
+      "reference": "Pregnancy, childbirth, postpartum and newborn care guide (IMPAC) (2015): recommendation C3 (1) Managing complications guide (IMPAC) (2017): Section S-53, Table S-20 (5)"
+    },
+    {
+      "condition": "\"Diastolic blood pressure\" ≥ 90 mmHg",
+      "sortie": "\"Severe pre-eclampsia\" = TRUE",
+      "action": "Refer urgently to a hospital",
+      "annotation": "",
+      "reference": "Pregnancy, childbirth, postpartum and newborn care guide (IMPAC) (2015): recommendation C3 (1) Managing complications guide (IMPAC) (2017): Section S-53, Table S-21 (5)"
+    },
+    {
+      "condition": "\"Systolic blood pressure\" ≥ 140 mmHg",
+      "sortie": "\"Severe pre-eclampsia\" = TRUE",
+      "action": "Refer urgently to a hospital",
+      "annotation": "",
+      "reference": "Pregnancy, childbirth, postpartum and newborn care guide (IMPAC) (2015): recommendation C3 (1) Managing complications guide (IMPAC) (2017): Section S-53, Table S-21 (5)"
+    },
+    {
+      "condition": "\"Diastolic blood pressure\" ≥ 90 mmHg",
+      "sortie": "\"Severe pre-eclampsia\" = TRUE",
+      "action": "Refer urgently to a hospital",
+      "annotation": "",
+      "reference": "Pregnancy, childbirth, postpartum and newborn care guide (IMPAC) (2015): recommendation C3 (1) Managing complications guide (IMPAC) (2017): Section S-53, Table S-21 (5)"
+    },
+    {
+      "condition": "\"Systolic blood pressure\" ≥ 140 mmHg",
+      "sortie": "\"Severe pre-eclampsia\" = TRUE",
+      "action": "Refer urgently to a hospital",
+      "annotation": "",
+      "reference": "Pregnancy, childbirth, postpartum and newborn care guide (IMPAC) (2015): recommendation C3 (1) Managing complications guide (IMPAC) (2017): Section S-53, Table S-21 (5)"
+    },
+    {
+      "condition": "\"Diastolic blood pressure\" ≥ 90 mmHg",
+      "sortie": "\"Severe pre-eclampsia\" = TRUE",
+      "action": "Refer urgently to a hospital",
+      "annotation": "",
+      "reference": "Pregnancy, childbirth, postpartum and newborn care guide (IMPAC) (2015): recommendation C3 (1) Managing complications guide (IMPAC) (2017): Section S-53, Table S-21 (5)"
+    },
+    {
+      "condition": "\"Systolic blood pressure\" ≥ 140 mmHg",
+      "sortie": "\"Severe pre-eclampsia\" = TRUE",
+      "action": "Refer urgently to a hospital",
+      "annotation": "",
+      "reference": "Pregnancy, childbirth, postpartum and newborn care guide (IMPAC) (2015): recommendation C3 (1) Managing complications guide (IMPAC) (2017): Section S-53, Table S-21 (5)"
+    },
+    {
+      "condition": "\"Diastolic blood pressure\" ≥ 90 mmHg",
+      "sortie": "\"Severe pre-eclampsia\" = TRUE",
+      "action": "Refer urgently to a hospital",
+      "annotation": "",
+      "reference": "Pregnancy, childbirth, postpartum and newborn care guide (IMPAC) (2015): recommendation C3 (1) Managing complications guide (IMPAC) (2017): Section S-53, Table S-21 (5)"
+    },
+    {
+      "condition": "\"Systolic blood pressure\" ≤ 140 mmHg",
+      "sortie": "\"Pre-eclampsia\" = TRUE",
+      "action": "Refer urgently to a hospital",
+      "annotation": "Pre-eclampsia diagnosis! Refer to hospital and revise birth plan. Woman has pre-eclampsia – SBP of 140 mmHg or above and/or DBP of 90 mmHg or above and proteinuria 2+ and no symptom of severe pre-eclampsia.  Procedure:  – Refer to hospital  – Revise the birth plan",
+      "reference": "Pregnancy, childbirth, postpartum and newborn care guide (IMPAC) (2015): recommendation C3 (1)  Managing complications guide (IMPAC) (2017): Section S-52, Table S-12 (5) WHO pre-eclampsia and eclampsia recommendations (2011): 6, 7 (7)"
+    },
+    {
+      "condition": "\"Systolic blood pressure\" > 160 mmHg",
+      "sortie": "\"Pre-eclampsia\" = TRUE",
+      "action": "Refer urgently to a hospital",
+      "annotation": "",
+      "reference": "Pregnancy, childbirth, postpartum and newborn care guide (IMPAC) (2015): recommendation C3 (1)  Managing complications guide (IMPAC) (2017): Section S-52, Table S-12 (5) WHO pre-eclampsia and eclampsia recommendations (2011): 6, 7 (7)"
+    },
+    {
+      "condition": "90 mmHg ≤ \"Diastolic blood pressure\" < 110 mmHg",
+      "sortie": "\"Pre-eclampsia\" = TRUE",
+      "action": "Refer urgently to a hospital",
+      "annotation": "",
+      "reference": "Pregnancy, childbirth, postpartum and newborn care guide (IMPAC) (2015): recommendation C3 (1) Managing complications guide (IMPAC) (2017): Section S-52, Table S-12 (5) WHO pre-eclampsia and eclampsia recommendations (2011): 6, 7 (7)"
+    },
+    {
+      "condition": "140 mmHg ≤ \"Systolic blood pressure\" < 160 mmHg",
+      "sortie": "\"Pre-eclampsia\" = TRUE",
+      "action": "Refer urgently to a hospital",
+      "annotation": "",
+      "reference": "Pregnancy, childbirth, postpartum and newborn care guide (IMPAC) (2015): recommendation C3 (1) Managing complications guide (IMPAC) (2017): Section S-52, Table S-12 (5) WHO pre-eclampsia and eclampsia recommendations (2011): 6, 7 (7)"
+    },
+    {
+      "condition": "90 mmHg ≤ \"Diastolic blood pressure\" < 110 mmHg",
+      "sortie": "\"Pre-eclampsia\" = TRUE",
+      "action": "Refer urgently to a hospital",
+      "annotation": "",
+      "reference": "Pregnancy, childbirth, postpartum and newborn care guide (IMPAC) (2015): recommendation C3 (1) Managing complications guide (IMPAC) (2017): Section S-52, Table S-12 (5) WHO pre-eclampsia and eclampsia recommendations (2011): 6, 7 (7)"
+    },
+    {
+      "condition": "140 mmHg ≤ \"Systolic blood pressure\" < 160 mmHg",
+      "sortie": "\"Pre-eclampsia\" = TRUE",
+      "action": "Refer urgently to a hospital",
+      "annotation": "",
+      "reference": "Pregnancy, childbirth, postpartum and newborn care guide (IMPAC) (2015): recommendation C3 (1) Managing complications guide (IMPAC) (2017): Section S-52, Table S-12 (5) WHO pre-eclampsia and eclampsia recommendations (2011): 6, 7 (7)"
+    },
+    {
+      "condition": "90 mmHg ≤ \"Diastolic blood pressure\" < 110 mmHg",
+      "sortie": "\"Pre-eclampsia\" = TRUE",
+      "action": "Refer urgently to a hospital",
+      "annotation": "",
+      "reference": "Pregnancy, childbirth, postpartum and newborn care guide (IMPAC) (2015): recommendation C3 (1) Managing complications guide (IMPAC) (2017): Section S-52, Table S-12 (5) WHO pre-eclampsia and eclampsia recommendations (2011): 6, 7 (7)"
+    },
+    {
+      "condition": "\"Systolic blood pressure\" ≥ 160 mmHg",
+      "sortie": "\"Severe hypertension\" = TRUE",
+      "action": "Refer urgently to a hospital",
+      "annotation": "Woman has severe hypertension. If SBP is 160 mmHg or higher and/or DBP is 110 mmHg or higher, then refer urgently to the hospital for further investigation and management.",
+      "reference": "Managing complications guide (IMPAC) (2017): S-61 (5) WHO pre-eclampsia and eclampsia recommendations (2011): 4 (7)"
+    },
+    {
+      "condition": "\"Diastolic blood pressure\" ≥ 110 mmHg",
+      "sortie": "\"Severe hypertension\" = TRUE",
+      "action": "Refer urgently to a hospital",
+      "annotation": "",
+      "reference": ""
+    },
+    {
+      "condition": "\"Systolic blood pressure\" ≥ 160 mmHg",
+      "sortie": "\"Severe hypertension\" = TRUE",
+      "action": "Refer urgently to a hospital",
+      "annotation": "Woman has severe hypertension. If SBP is 160 mmHg or higher and/or DBP is 110 mmHg or higher, then refer urgently to the hospital for further investigation and management.",
+      "reference": "Managing complications guide (IMPAC) (2017): S-61 (5) WHO pre-eclampsia and eclampsia recommendations (2011): 4 (7)"
+    },
+    {
+      "condition": "\"Diastolic blood pressure\" ≥ 110 mmHg",
+      "sortie": "\"Severe hypertension\" = TRUE",
+      "action": "Refer urgently to a hospital",
+      "annotation": "",
+      "reference": ""
+    },
+    {
+      "condition": "\"Existing chronic health conditions\" = \"Hypertension\"",
+      "sortie": "\"Existing chronic health conditions\" = \"Hypertension\"",
+      "action": "Conduct hypertension counselling",
+      "annotation": "Woman has hypertension – SBP of 140 mmHg or higher and/or DBP of 90 mmHg or higher and no proteinuria.  Counselling: – Advice to reduce workload and to rest – Advise on danger signs – Reassess at the next contact or in 1 week if 8 months pregnant – If hypertension persists after 1 week or at next contact, refer to hospital or discuss case with the doctor, if available",
+      "reference": "Pregnancy, childbirth, postpartum and newborn care guide (IMPAC) (2015): C3 (1)"
+    },
+    {
+      "condition": "140 mmHg ≤ \"Systolic blood pressure\" < 160 mmHg",
+      "sortie": "\"Hypertension\" = TRUE",
+      "action": "Conduct hypertension counselling",
+      "annotation": "",
+      "reference": "Pregnancy, childbirth, postpartum and newborn care guide (IMPAC) (2015): C3 (1)"
+    },
+    {
+      "condition": "90 mmHg ≤ \"Diastolic blood pressure\" < 110 mmHg",
+      "sortie": "\"Hypertension\" = TRUE",
+      "action": "Conduct hypertension counselling",
+      "annotation": "",
+      "reference": ""
+    },
+    {
+      "condition": "140 mmHg ≤ \"Systolic blood pressure\" < 160 mmHg",
+      "sortie": "\"Hypertension\" = TRUE",
+      "action": "Conduct hypertension counselling",
+      "annotation": "",
+      "reference": ""
+    },
+    {
+      "condition": "90 mmHg ≤ \"Diastolic blood pressure\" < 110 mmHg",
+      "sortie": "\"Hypertension\" = TRUE",
+      "action": "Conduct hypertension counselling",
+      "annotation": "",
+      "reference": "Pregnancy, childbirth, postpartum and newborn care guide (IMPAC) (2015): C3 (1)"
+    },
+    {
+      "condition": "\"HIV test result\" = \"Inconclusive\"",
+      "sortie": "\"HIV test result\" = \"Inconclusive\"",
+      "action": "Refer for further testing",
+      "annotation": "HIV test inconclusive, refer for further testing. \"In high-prevalence settings, provider-initiated testing and counselling (PITC) for HIV should be considered a routine component of the package of care for pregnant women in all antenatal care settings. In low-prevalence settings, PITC can be considered for pregnant women in antenatal care settings as a key component of the effort to eliminate mother-to-child transmission of HIV, and to integrate HIV testing with syphilis, viral or other key tests, as relevant to the setting, and to strengthen the underlying maternal and child health systems\" (2)",
+      "reference": "WHO ANC recommendations (2016): B.1.7. Human immunodeficiency virus (HIV) and syphilis (3)"
+    },
+    {
+      "condition": "\"HIV test result\" = \"HIV positive\"",
+      "sortie": "\"HIV test result\" = \"HIV positive\"",
+      "action": "Conduct HIV positive counselling",
+      "annotation": "– Counsel for HIV positive test  – Refer for further testing and confirmation – Refer for HIV services  – Advise on opportunistic infections and need to seek medical help – Proceed with systematic screening for active TB \"In high-prevalence settings, provider-initiated testing and counselling (PITC) for HIV should be considered a routine component of the package of care for pregnant women in all antenatal care settings. In low-prevalence settings, PITC can be considered for pregnant women in antenatal care settings as a key component of the effort to eliminate mother-to-child transmission of HIV, and to integrate HIV testing with syphilis, viral or other key tests, as relevant to the setting, and to strengthen the underlying maternal and child health systems\" (2)",
+      "reference": "WHO ANC recommendations (2016): B.1.7. Human immunodeficiency virus (HIV) and syphilis (3)"
+    },
+    {
+      "condition": "\"Hepatitis B test result\" = \"Hepatitis B negative\"",
+      "sortie": "\"Hepatitis B diagnosis\" = \"Hepatitis B negative\"",
+      "action": "Provide hepatitis B counselling and immunization",
+      "annotation": "Counselling: – Provide post-testing counselling – Advise retesting and immunisation if ongoing risk or known exposure",
+      "reference": "Guidelines on hepatitis B and C testing (2017): Section 16.6 (6)"
+    },
+    {
+      "condition": "\"Hepatitis B test result\" = \"Hepatitis B positive\"",
+      "sortie": "\"Hepatitis B test result\" = \"Hepatitis B positive\"",
+      "action": "Conduct hepatitis B positive counselling",
+      "annotation": "Counseling: – Provide post-testing counselling – Request confirmatory nucleic acid testing (NAT) – Refer to hospital",
+      "reference": "Guidelines on hepatitis B and C testing (2017): Section 16.7 (6)"
+    },
+    {
+      "condition": "\"Hepatitis C test result\" = \"Hepatitis C positive\"",
+      "sortie": "Conduct hepatitis C positive counselling",
+      "action": "Conduct hepatitis C positive counselling",
+      "annotation": "Counseling: – Provide post-testing counselling – Request confirmatory nucleic acid testing (NAT) – Refer to hospital",
+      "reference": "Guidelines on hepatitis B and C testing (2017): Section 16.5 (6)"
+    },
+    {
+      "condition": "\"Population prevalence of syphilis in pregnant women\" ≥ 5%",
+      "sortie": "Conduct syphilis counselling and further testing",
+      "action": "Conduct syphilis counselling and further testing",
+      "annotation": "Procedure: Provide first dose of treatment and refer for additional testing – If primary or secondary stage of syphilis, give single dose of benzathine penicillin 2,400,000 IU – If late or unknown stage of syphilis, give one dose of benzathine penicillin 2,400,000 IU weekly for 3 consecutive weeks – Advise on treating partner – Encourage HIV testing and counselling – Reinforce use of condoms – Proceed to further testing with an RPR test \"In high-prevalence settings, provider-initiated testing and counselling (PITC) for HIV should be considered a routine component of the package of care for pregnant women in all antenatal care settings. In low-prevalence settings, PITC can be considered for pregnant women in antenatal care settings as a key component of the effort to eliminate mother-to-child transmission of HIV, and to integrate HIV testing with syphilis, viral or other key tests, as relevant to the setting, and to strengthen the underlying maternal and child health systems\" (2)",
+      "reference": "WHO ANC recommendations (2016): B.1.7. Human immunodeficiency virus (HIV) and syphilis (3)"
+    },
+    {
+      "condition": "\"Population prevalence of syphilis in pregnant women\" ≥ 5%",
+      "sortie": "\"Syphilis diagnosis\" = \"Syphilis positive\" (RPR)",
+      "action": "Conduct syphilis counselling and further testing",
+      "annotation": "Provide treatment according to the clinical phase of syphilis: – If primary or secondary stage of syphilis, give single dose of benzathine penicillin 2,400,000 IU – If late or unknown stage of syphilis, give one dose of benzathine penicillin 2,400,000 IU weekly for 3 consecutive weeks – Advise on treating partner – Encourage HIV testing and counselling – Reinforce use of condoms – Proceed to further testing with an RPR test \"In high-prevalence settings, provider-initiated testing and counselling (PITC) for HIV should be considered a routine component of the package of care for pregnant women in all antenatal care settings. In low-prevalence settings, PITC can be considered for pregnant women in antenatal care settings as a key component of the effort to eliminate mother-to-child transmission of HIV, and to integrate HIV testing with syphilis, viral or other key tests, as relevant to the setting, and to strengthen the underlying maternal and child health systems\" (2)",
+      "reference": "WHO ANC recommendations (2016): B.1.7. Human immunodeficiency virus (HIV) and syphilis (3)"
+    },
+    {
+      "condition": "\"Population prevalence of syphilis in pregnant women\" < 5%",
+      "sortie": "\"Syphilis diagnosis\" = \"Syphilis positive\"",
+      "action": "Conduct syphilis counselling and further testing",
+      "annotation": "Procedure: – If primary or secondary stage of syphilis, give single dose of benzathine penicillin 2,400,000 IU – If late or unknown stage of syphilis, give one dose of benzathine penicillin 2,400,000 IU weekly for 3 consecutive weeks – Advise on treating partner – Encourage HIV testing and counselling – Reinforce use of condoms \"In high-prevalence settings, provider-initiated testing and counselling (PITC) for HIV should be considered a routine component of the package of care for pregnant women in all antenatal care settings. In low-prevalence settings, PITC can be considered for pregnant women in antenatal care settings as a key component of the effort to eliminate mother-to-child transmission of HIV, and to integrate HIV testing with syphilis, viral or other key tests, as relevant to the setting, and to strengthen the underlying maternal and child health systems\" (2)",
+      "reference": "WHO ANC recommendations (2016): B.1.7. Human immunodeficiency virus (HIV) and syphilis (3)"
+    },
+    {
+      "condition": "\"Midstream urine culture (recommended)\" = \"Positive – any agent\"",
+      "sortie": "\"Asymptomatic bacteriuria (ASB) diagnosis\" = \"Positive ASB\"",
+      "action": "Provide 7-day antibiotic regimen for asymptomatic bacteriuria (ASB)",
+      "annotation": "A woman is considered to have ASB if she has one of the following test results: – Positive culture (> 100,000 bacteria/ml) – Gram-staining positive – Urine dipstick test positive (nitrites or leukocytes)  Seven-day antibiotic regimen is recommended for all pregnant women with asymptomatic bacteriuria (ASB) to prevent persistent bacteriuria, preterm birth and low birth weight. \"Midstream urine culture is the recommended method for diagnosing asymptomatic bacteriuria (ASB) in pregnancy. In settings where urine culture is not available, on-site midstream urine Gramstaining is recommended over the use of dipstick tests as the method for diagnosing ASB in pregnancy\" (2)",
+      "reference": "WHO ANC recommendations (2016): B.1.2. Asymptomatic bacteriuria (ASB) (3)"
+    },
+    {
+      "condition": "\"Midstream urine culture (recommended)\" = \"Positive – Group B Streptococcus (GBS)\"",
+      "sortie": "\"Asymptomatic bacteriuria (ASB) diagnosis\" = \"Positive ASB\"",
+      "action": "Provide 7-day antibiotic regimen for asymptomatic bacteriuria (ASB)",
+      "annotation": "A woman is considered to have ASB if she has one of the following test results: – Positive culture (> 100,000 bacteria/ml) – Gram-staining positive – Urine dipstick test positive (nitrites or leukocytes)  Seven-day antibiotic regimen is recommended for all pregnant women with asymptomatic bacteriuria (ASB) to prevent persistent bacteriuria, preterm birth and low birth weight. \"Midstream urine culture is the recommended method for diagnosing asymptomatic bacteriuria (ASB) in pregnancy. In settings where urine culture is not available, on-site midstream urine Gramstaining is recommended over the use of dipstick tests as the method for diagnosing ASB in pregnancy\" (2)",
+      "reference": "WHO ANC recommendations (2016): B.1.2. Asymptomatic bacteriuria (ASB) (3)"
+    },
+    {
+      "condition": "\"Midstream urine Gram-staining\" = \"Positive\"",
+      "sortie": "\"Asymptomatic bacteriuria (ASB) diagnosis\" = \"Positive ASB\"",
+      "action": "Provide 7-day antibiotic regimen for asymptomatic bacteriuria (ASB)",
+      "annotation": "A woman is considered to have ASB if she has one of the following test results: – Positive culture (> 100,000 bacteria/ml) – Gram-staining positive – Urine dipstick test positive (nitrites or leukocytes)  Seven-day antibiotic regimen is recommended for all pregnant women with asymptomatic bacteriuria (ASB) to prevent persistent bacteriuria, preterm birth and low birth weight. \"Midstream urine culture is the recommended method for diagnosing asymptomatic bacteriuria (ASB) in pregnancy. In settings where urine culture is not available, on-site midstream urine Gramstaining is recommended over the use of dipstick tests as the method for diagnosing ASB in pregnancy\" (2)",
+      "reference": "WHO ANC recommendations (2016): B.1.2. Asymptomatic bacteriuria (ASB) (3)"
+    },
+    {
+      "condition": "\"Urine dipstick result – nitrites\" = \"+\"",
+      "sortie": "\"Asymptomatic bacteriuria (ASB) diagnosis\" = \"Positive ASB\"",
+      "action": "Provide 7-day antibiotic regimen for asymptomatic bacteriuria (ASB)",
+      "annotation": "A woman is considered to have ASB if she has one of the following test results: – Positive culture (> 100,000 bacteria/ml) – Gram-staining positive – Urine dipstick test positive (nitrites or leukocytes)  Seven-day antibiotic regimen is recommended for all pregnant women with asymptomatic bacteriuria (ASB) to prevent persistent bacteriuria, preterm birth and low birth weight. \"Midstream urine culture is the recommended method for diagnosing asymptomatic bacteriuria (ASB) in pregnancy. In settings where urine culture is not available, on-site midstream urine Gramstaining is recommended over the use of dipstick tests as the method for diagnosing ASB in pregnancy\" (2)",
+      "reference": "WHO ANC recommendations (2016): B.1.2. Asymptomatic bacteriuria (ASB) (3)"
+    },
+    {
+      "condition": "\"Urine dipstick result – nitrites\" = \"++\"",
+      "sortie": "\"Asymptomatic bacteriuria (ASB) diagnosis\" = \"Positive ASB\"",
+      "action": "Provide 7-day antibiotic regimen for asymptomatic bacteriuria (ASB)",
+      "annotation": "A woman is considered to have ASB if she has one of the following test results: – Positive culture (> 100,000 bacteria/ml) – Gram-staining positive – Urine dipstick test positive (nitrites or leukocytes)  Seven-day antibiotic regimen is recommended for all pregnant women with asymptomatic bacteriuria (ASB) to prevent persistent bacteriuria, preterm birth and low birth weight. \"Midstream urine culture is the recommended method for diagnosing asymptomatic bacteriuria (ASB) in pregnancy. In settings where urine culture is not available, on-site midstream urine Gramstaining is recommended over the use of dipstick tests as the method for diagnosing ASB in pregnancy\" (2)",
+      "reference": "WHO ANC recommendations (2016): B.1.2. Asymptomatic bacteriuria (ASB) (3)"
+    },
+    {
+      "condition": "\"Urine dipstick result – nitrites\" = \"+++\"",
+      "sortie": "\"Asymptomatic bacteriuria (ASB) diagnosis\" = \"Positive ASB\"",
+      "action": "Provide 7-day antibiotic regimen for asymptomatic bacteriuria (ASB)",
+      "annotation": "A woman is considered to have ASB if she has one of the following test results: – Positive culture (> 100,000 bacteria/ml) – Gram-staining positive – Urine dipstick test positive (nitrites or leukocytes)  Seven-day antibiotic regimen is recommended for all pregnant women with asymptomatic bacteriuria (ASB) to prevent persistent bacteriuria, preterm birth and low birth weight. \"Midstream urine culture is the recommended method for diagnosing asymptomatic bacteriuria (ASB) in pregnancy. In settings where urine culture is not available, on-site midstream urine Gramstaining is recommended over the use of dipstick tests as the method for diagnosing ASB in pregnancy\" (2)",
+      "reference": "WHO ANC recommendations (2016): B.1.2. Asymptomatic bacteriuria (ASB) (3)"
+    },
+    {
+      "condition": "\"Urine dipstick result – nitrites\" = \"++++\"",
+      "sortie": "\"Asymptomatic bacteriuria (ASB) diagnosis\" = \"Positive ASB\"",
+      "action": "Provide 7-day antibiotic regimen for asymptomatic bacteriuria (ASB)",
+      "annotation": "A woman is considered to have ASB if she has one of the following test results: – Positive culture (> 100,000 bacteria/ml) – Gram-staining positive – Urine dipstick test positive (nitrites or leukocytes)  Seven-day antibiotic regimen is recommended for all pregnant women with asymptomatic bacteriuria (ASB) to prevent persistent bacteriuria, preterm birth and low birth weight. \"Midstream urine culture is the recommended method for diagnosing asymptomatic bacteriuria (ASB) in pregnancy. In settings where urine culture is not available, on-site midstream urine Gramstaining is recommended over the use of dipstick tests as the method for diagnosing ASB in pregnancy\" (2)",
+      "reference": "WHO ANC recommendations (2016): B.1.2. Asymptomatic bacteriuria (ASB) (3)"
+    },
+    {
+      "condition": "\"Urine dipstick result – leukocytes\" = \"+\"",
+      "sortie": "\"Asymptomatic bacteriuria (ASB) diagnosis\" = \"Positive ASB\"",
+      "action": "Provide 7-day antibiotic regimen for asymptomatic bacteriuria (ASB)",
+      "annotation": "A woman is considered to have ASB if she has one of the following test results: – Positive culture (> 100,000 bacteria/ml) – Gram-staining positive – Urine dipstick test positive (nitrites or leukocytes)  Seven-day antibiotic regimen is recommended for all pregnant women with asymptomatic bacteriuria (ASB) to prevent persistent bacteriuria, preterm birth and low birth weight. \"Midstream urine culture is the recommended method for diagnosing asymptomatic bacteriuria (ASB) in pregnancy. In settings where urine culture is not available, on-site midstream urine Gramstaining is recommended over the use of dipstick tests as the method for diagnosing ASB in pregnancy\" (2)",
+      "reference": "WHO ANC recommendations (2016): B.1.2. Asymptomatic bacteriuria (ASB) (3)"
+    },
+    {
+      "condition": "\"Urine dipstick result – leukocytes\" = \"++\"",
+      "sortie": "\"Asymptomatic bacteriuria (ASB) diagnosis\" = \"Positive ASB\"",
+      "action": "Provide 7-day antibiotic regimen for asymptomatic bacteriuria (ASB)",
+      "annotation": "A woman is considered to have ASB if she has one of the following test results: – Positive culture (> 100,000 bacteria/ml) – Gram-staining positive – Urine dipstick test positive (nitrites or leukocytes)  Seven-day antibiotic regimen is recommended for all pregnant women with asymptomatic bacteriuria (ASB) to prevent persistent bacteriuria, preterm birth and low birth weight. \"Midstream urine culture is the recommended method for diagnosing asymptomatic bacteriuria (ASB) in pregnancy. In settings where urine culture is not available, on-site midstream urine Gramstaining is recommended over the use of dipstick tests as the method for diagnosing ASB in pregnancy\" (2)",
+      "reference": "WHO ANC recommendations (2016): B.1.2. Asymptomatic bacteriuria (ASB) (3)"
+    },
+    {
+      "condition": "\"Urine dipstick result – leukocytes\" = \"+++\"",
+      "sortie": "\"Asymptomatic bacteriuria (ASB) diagnosis\" = \"Positive ASB\"",
+      "action": "Provide 7-day antibiotic regimen for asymptomatic bacteriuria (ASB)",
+      "annotation": "A woman is considered to have ASB if she has one of the following test results: – Positive culture (> 100,000 bacteria/ml) – Gram-staining positive – Urine dipstick test positive (nitrites or leukocytes)  Seven-day antibiotic regimen is recommended for all pregnant women with asymptomatic bacteriuria (ASB) to prevent persistent bacteriuria, preterm birth and low birth weight. \"Midstream urine culture is the recommended method for diagnosing asymptomatic bacteriuria (ASB) in pregnancy. In settings where urine culture is not available, on-site midstream urine Gramstaining is recommended over the use of dipstick tests as the method for diagnosing ASB in pregnancy\" (2)",
+      "reference": "WHO ANC recommendations (2016): B.1.2. Asymptomatic bacteriuria (ASB) (3)"
+    },
+    {
+      "condition": "\"Urine dipstick result – leukocytes\" = \"++++\"",
+      "sortie": "\"Asymptomatic bacteriuria (ASB) diagnosis\" = \"Positive ASB\"",
+      "action": "Provide 7-day antibiotic regimen for asymptomatic bacteriuria (ASB)",
+      "annotation": "A woman is considered to have ASB if she has one of the following test results: – Positive culture (> 100,000 bacteria/ml) – Gram-staining positive – Urine dipstick test positive (nitrites or leukocytes)  Seven-day antibiotic regimen is recommended for all pregnant women with asymptomatic bacteriuria (ASB) to prevent persistent bacteriuria, preterm birth and low birth weight. \"Midstream urine culture is the recommended method for diagnosing asymptomatic bacteriuria (ASB) in pregnancy. In settings where urine culture is not available, on-site midstream urine Gramstaining is recommended over the use of dipstick tests as the method for diagnosing ASB in pregnancy\" (2)",
+      "reference": "WHO ANC recommendations (2016): B.1.2. Asymptomatic bacteriuria (ASB) (3)"
+    },
+    {
+      "condition": "\"Midstream urine culture (recommended)\" = \"Positive – Group B Streptococcus (GBS)\"",
+      "sortie": "\"Group B Streptococcus (GBS) diagnosis\" = \"Positive GBS\"",
+      "action": "Provide intrapartum antibiotic to prevent early neonatal Group B Streptococcus (GBS) infection counselling",
+      "annotation": "Pregnant women with Group B Streptococcus (GBS) colonization should receive intrapartum antibiotic administration to prevent early neonatal GBS infection. \"Midstream urine culture is the recommended method for diagnosing asymptomatic bacteriuria (ASB) in pregnancy. In settings where urine culture is not available, on-site midstream urine Gramstaining is recommended over the use of dipstick tests as the method for diagnosing ASB in pregnancy\" (2)",
+      "reference": "WHO ANC recommendations (2016): B.1.2. Asymptomatic bacteriuria (ASB) (3)"
+    },
+    {
+      "condition": "92 mg/dL ≤ \"Fasting plasma glucose results\" < 126 mg/dL",
+      "sortie": "\"Gestational diabetes mellitus (GDM) diagnosis\" = \"GDM positive\" [92 mg/dL, 126 mg/dL)",
+      "action": "Conduct REQUIRED gestational diabetes mellitus (GDM) counselling",
+      "annotation": "– The woman has gestational diabetes mellitus (GDM) if her fasting plasma glucose is 92–125 mg/dL – Woman with hyperglycemia, reassert dietary intervention and refer to high-level care \"Hyperglycaemia first detected at any time during pregnancy should be classified as either gestational diabetes mellitus (GDM) or diabetes mellitus in pregnancy, according to WHO criteria\" (2)",
+      "reference": "WHO ANC recommendations (2016): B.1.4. Gestational diabetes mellitus (GDM) (3)"
+    },
+    {
+      "condition": "92 mg/dL ≤ \"75 g OGTT – fasting glucose results\" < 126 mg/dL",
+      "sortie": "\"Gestational diabetes mellitus (GDM) diagnosis\" = \"GDM positive\" '92 mg/dL ≤ \"75 g OGTT – fasting glucose results\" < 126 mg/dL",
+      "action": "Conduct REQUIRED gestational diabetes mellitus (GDM) counselling",
+      "annotation": "– The woman has gestational diabetes mellitus (GDM) if her 75 g OGTT – fasting glucose is 92–125 mg/dL – Woman with hyperglycemia, reassert dietary intervention and refer to high-level care \"Hyperglycaemia first detected at any time during pregnancy should be classified as either gestational diabetes mellitus (GDM) or diabetes mellitus in pregnancy, according to WHO criteria\" (2)",
+      "reference": "WHO ANC recommendations (2016): B.1.4. Gestational diabetes mellitus (GDM) (3)"
+    },
+    {
+      "condition": "180 mg/dL ≤ \"75 g OGTT – 1 hour results\" < 200 mg/dL",
+      "sortie": "\"Gestational diabetes mellitus (GDM) diagnosis\" = \"GDM positive\" '180 mg/dL ≤ \"75 g OGTT – 1 hour results\" < 200 mg/dL",
+      "action": "Conduct REQUIRED gestational diabetes mellitus (GDM) counselling",
+      "annotation": "– The woman has gestational diabetes mellitus (GDM) if her 75g OGTT – 1 hour is 180–199 mg/dL – Woman with hyperglycemia, reassert dietary intervention and refer to high-level care \"Hyperglycaemia first detected at any time during pregnancy should be classified as either gestational diabetes mellitus (GDM) or diabetes mellitus in pregnancy, according to WHO criteria\" (2)",
+      "reference": "WHO ANC recommendations (2016): B.1.4. Gestational diabetes mellitus (GDM) (3)"
+    },
+    {
+      "condition": "153 mg/dL ≤ \"75 g OGTT – 2 hours results\" < 200 mg/dL",
+      "sortie": "\"Gestational diabetes mellitus (GDM) diagnosis\" = \"GDM positive\" '153 mg/dL ≤ \"75 g OGTT – 2 hours results\" < 200 mg/dL",
+      "action": "Conduct REQUIRED gestational diabetes mellitus (GDM) counselling",
+      "annotation": "– The woman has gestational diabetes mellitus (GDM) if her 75 g OGTT – 2 hours is 153–199 mg/dL – Woman with hyperglycemia, reassert dietary intervention and refer to high-level care \"Hyperglycaemia first detected at any time during pregnancy should be classified as either gestational diabetes mellitus (GDM) or diabetes mellitus in pregnancy, according to WHO criteria\" (2)",
+      "reference": "WHO ANC recommendations (2016): B.1.4. Gestational diabetes mellitus (GDM) (3)"
+    },
+    {
+      "condition": "\"Fasting plasma glucose results\" ≥ 126 mg/dL",
+      "sortie": "\"Diabetes mellitus (DM) during pregnancy diagnosis\" = \"DM positive\" '\"Fasting plasma glucose results\" ≥ 126 mg/dL",
+      "action": "Conduct REQUIRED diabetes mellitus (DM) counselling",
+      "annotation": "– The woman has diabetes mellitus (DM) in pregnancy if her fasting plasma glucose is 126 mg/dL or higher – Woman with hyperglycemia, reassert dietary intervention and refer to high-level care \"Hyperglycaemia first detected at any time during pregnancy should be classified as either gestational diabetes mellitus (GDM) or diabetes mellitus in pregnancy, according to WHO criteria\" (2)",
+      "reference": "WHO ANC recommendations (2016): B.1.4. Gestational diabetes mellitus (GDM) (3)"
+    },
+    {
+      "condition": "\"75 g OGTT – fasting glucose results\" ≥ 126 mg/dL",
+      "sortie": "\"Diabetes mellitus (DM) during pregnancy diagnosis\" = \"DM positive\" '\"75 g OGTT – fasting glucose results\" ≥ 126 mg/dL",
+      "action": "Conduct REQUIRED diabetes mellitus (DM) counselling",
+      "annotation": "– The woman has diabetes mellitus (DM) in pregnancy if her 75 g OGTT – fasting glucose is 126 mg/dL or higher – Woman with hyperglycemia, reassert dietary intervention and refer to high-level care \"Hyperglycaemia first detected at any time during pregnancy should be classified as either gestational diabetes mellitus (GDM) or diabetes mellitus in pregnancy, according to WHO criteria\" (2)",
+      "reference": "WHO ANC recommendations (2016): B.1.4. Gestational diabetes mellitus (GDM) (3)"
+    },
+    {
+      "condition": "\"75 g OGTT – 1 hour results\" ≥ 200 mg/dL",
+      "sortie": "\"Diabetes mellitus (DM) during pregnancy diagnosis\" = \"DM positive\" '\"75 g OGTT – 1 hour results\" ≥ 200 mg/dL",
+      "action": "Conduct REQUIRED diabetes mellitus (DM) counselling",
+      "annotation": "– The woman has diabetes mellitus (DM) in pregnancy if her 75 g OGTT – 1 hour is 200 mg/dL or higher – Woman with hyperglycemia, reassert dietary intervention and refer to high-level care \"Hyperglycaemia first detected at any time during pregnancy should be classified as either gestational diabetes mellitus (GDM) or diabetes mellitus in pregnancy, according to WHO criteria\" (2)",
+      "reference": "WHO ANC recommendations (2016): B.1.4. Gestational diabetes mellitus (GDM) (3)"
+    },
+    {
+      "condition": "\"75 g OGTT – 2 hours results\" ≥ 200 mg/dL",
+      "sortie": "\"Diabetes mellitus (DM) during pregnancy diagnosis\" = \"DM positive\" '\"75 g OGTT – 2 hours results\" ≥ 200 mg/dL",
+      "action": "Conduct REQUIRED diabetes mellitus (DM) counselling",
+      "annotation": "– The woman has diabetes mellitus (DM) in pregnancy if her fasting 75 g OGTT – 2 hours is 200 mg/dL or higher – Woman with hyperglycemia, reassert dietary intervention and refer to high-level care \"Hyperglycaemia first detected at any time during pregnancy should be classified as either gestational diabetes mellitus (GDM) or diabetes mellitus in pregnancy, according to WHO criteria\" (2)",
+      "reference": "WHO ANC recommendations (2016): B.1.4. Gestational diabetes mellitus (GDM) (3)"
+    },
+    {
+      "condition": "\"Random plasma glucose test results\" ≥ 200 mg/dL",
+      "sortie": "\"Diabetes mellitus (DM) during pregnancy diagnosis\" = \"DM positive\" '\"Random plasma glucose test results\" ≥ 200 mg/dL",
+      "action": "Conduct REQUIRED diabetes mellitus (DM) counselling",
+      "annotation": "– The woman has diabetes mellitus (DM) in pregnancy if her random plasma glucose level is 200 mg/dL or higher – Woman with hyperglycemia, reassert dietary intervention and refer to high-level care \"Hyperglycaemia first detected at any time during pregnancy should be classified as either gestational diabetes mellitus (GDM) or diabetes mellitus in pregnancy, according to WHO criteria\" (2)",
+      "reference": "WHO ANC recommendations (2016): B.1.4. Gestational diabetes mellitus (GDM) (3)"
+    },
+    {
+      "condition": "\"TB screening result\" = \"Positive for TB\"",
+      "sortie": "\"TB screening result\" = \"Positive for TB\"",
+      "action": "Conduct TB screening positive counseling",
+      "annotation": "Treat according to local protocol and/or refer for treatment. \"In settings where the tuberculosis (TB) prevalence in the general population is 100/100 000 population or higher, systematic screening for active TB should be considered for pregnant women as part of antenatal care\" (2)",
+      "reference": "WHO ANC recommendations (2016): B.1.8. Tuberculosis (TB) (3)"
+    }
+  ]
+}

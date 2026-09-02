@@ -1,0 +1,243 @@
+{
+  "id": "PROT-OMS-ANC.DT.14-OTHER",
+  "titre": "ANC.DT.07–14 Laboratory&imaging",
+  "source": {
+    "organisation": "OMS",
+    "document": "WHO SMART Guidelines — Antenatal Care (DAK L2)",
+    "fichier": "WHO-SRH-21.2-eng.xlsx",
+    "licence": "CC BY-NC-SA 3.0 IGO"
+  },
+  "statut": "source_externe_non_validee",
+  "version": "2021.1",
+  "pays_applicable": [
+    "*"
+  ],
+  "declencheur": "ANC.B10.4. Diagnosis and treatment",
+  "regle_metier": "Additional blood tests",
+  "regles": [
+    {
+      "condition": "\"Gestational age\" < 24 weeks",
+      "sortie": "\"Ultrasound scan required\" = TRUE",
+      "action": "Conduct ultrasound at the health-care facility or the referral facility",
+      "annotation": "An ultrasound is recommended for all women before 24 weeks gestation",
+      "reference": "WHO ANC recommendations (2016): B.2.4. Ultrasound scan (3)"
+    },
+    {
+      "condition": "\"Gestational age\" ≥ 24 weeks",
+      "sortie": "\"Ultrasound scan required\" = Optional",
+      "action": "Conduct ultrasound at the health-care facility or the referral facility optional if deemed necessary by the health worker",
+      "annotation": "An ultrasound is recommended for all women even after 24 weeks gestation if deemed necessary (e.g. to identify the number of fetuses, fetal presentation or placenta location)",
+      "reference": "WHO ANC recommendations (2016): B.2.4. Ultrasound scan (3)"
+    },
+    {
+      "condition": "\"Ultrasound scan conducted\" = FALSE",
+      "sortie": "\"Referral for screening including diagnostics and lab testing\" = FALSE",
+      "action": "Conduct ultrasound scan",
+      "annotation": "An ultrasound is recommended for all women before 24 weeks gestation or even after if deemed necessary (e.g. to identify the number of fetuses, fetal presentation or placenta location).  An early ultrasound is key to estimate gestational age, improve detection of fetal anomalies and multiple fetuses, reduce induction of labour for post-term pregnancy, and improve a woman’s pregnancy experience.",
+      "reference": "WHO ANC recommendations (2016): B.2.4. Ultrasound scan (3)"
+    },
+    {
+      "condition": "\"Ultrasound scan conducted\" = FALSE",
+      "sortie": "\"Referral for screening including diagnostics and lab testing\" = TRUE",
+      "action": "Refer to a facility with ultrasound equipment",
+      "annotation": "If an ultrasound cannot be conducted at the health-care facility, the woman should be referred to another health-care facility in which she can receive an ultrasound.  An ultrasound is recommended for all women before 24 weeks gestation or even after if deemed necessary (e.g. to identify the number of fetuses, fetal presentation or placenta location).  An early U/S is key to estimate gestational age, improve detection of fetal anomalies and multiple fetuses, reduce induction of labour for post-term pregnancy, and improve a woman’s pregnancy experience.",
+      "reference": "WHO ANC recommendations (2016): B.2.4. Ultrasound scan (3)"
+    },
+    {
+      "condition": "\"Ultrasound scan conducted\" = FALSE",
+      "sortie": "",
+      "action": "Ultrasound scan is optional",
+      "annotation": "An ultrasound is recommended for all women before 24 weeks gestation or even after if deemed necessary (e.g. to identify the number of fetuses, fetal presentation or placenta location)",
+      "reference": "WHO ANC recommendations (2016): B.2.4. Ultrasound scan (3)"
+    },
+    {
+      "condition": "\"Ultrasound scan conducted\" = FALSE",
+      "sortie": "",
+      "action": "Ultrasound scan is optional",
+      "annotation": "An ultrasound is recommended for all women before 24 weeks gestation or even after if deemed necessary (e.g. to identify the number of fetuses, fetal presentation or placenta location)",
+      "reference": "WHO ANC recommendations: B.2.4. Ultrasound scan (3)"
+    },
+    {
+      "condition": "\"Population prevalence of HIV in pregnant women\" ≥ 5%",
+      "sortie": "\"HIV test required\" = TRUE - First Contact",
+      "action": "Conduct HIV test",
+      "annotation": "In high-prevalence settings, provider-initiated testing and counselling (PITC) for HIV should be considered a routine component of the package of care for pregnant women in all ANC settings  An HIV test is required for all pregnant women at the first contact in pregnancy if the HIV prevalence in the pregnant woman population is 5% or higher.",
+      "reference": "WHO ANC recommendations (2016): B.1.7. Human immunodeficiency virus (HIV) and syphilis (3)"
+    },
+    {
+      "condition": "\"Population prevalence of HIV in pregnant women\" ≥ 5%",
+      "sortie": "\"HIV test required\" = TRUE",
+      "action": "Conduct HIV test",
+      "annotation": "Another HIV test is required for all pregnant women at the first contact of the 3rd trimester (28 weeks), if the HIV prevalence in the pregnant woman population is 5% or higher",
+      "reference": "WHO ANC recommendations (2016): B.1.7. Human immunodeficiency virus (HIV) and syphilis (3)"
+    },
+    {
+      "condition": "\"Population prevalence of HIV in pregnant women\" < 5%",
+      "sortie": "\"HIV test required\" = OPTIONAL",
+      "action": "HIV test is optional",
+      "annotation": "In low-prevalence settings, provider-initiated testing and counselling (PITC) can be considered for pregnant women in ANC settings as a key component of the effort to eliminate mother-to-child transmission of HIV, and to integrate HIV testing with syphilis, viral or other key tests, as relevant to the setting, and to strengthen the underlying maternal and child health systems",
+      "reference": "WHO ANC recommendations (2016): B.1.7. Human immunodeficiency virus (HIV) and syphilis (3)"
+    },
+    {
+      "condition": "\"HIV status\" = \"HIV positive\"",
+      "sortie": "\"HIV test required\" = FALSE",
+      "action": "HIV test is not required",
+      "annotation": "A test is not required if the woman is already confirmed HIV positive",
+      "reference": "WHO ANC recommendations (2016): B.1.7. Human immunodeficiency virus (HIV) and syphilis (3)"
+    },
+    {
+      "condition": "\"Population prevalence of hepatitis B\" ≥ 2%",
+      "sortie": "\"Hepatitis B test required\" = TRUE",
+      "action": "Conduct hepatitis B test",
+      "annotation": "Hepatitis B testing is recommended for at-risk women. HBsAg laboratory-based immunoassay is the preferred method for testing for Hep B infection in pregnancy; if immunoassay is not available, HBsAg rapid diagnostic test (RDT) is recommended over dried blood spot (DBS) HBsAg testing.",
+      "reference": "Guidelines on hepatitis B and C testing (2017): Recommendation 2 (4)"
+    },
+    {
+      "condition": "\"HIV status\" = \"HIV positive\"",
+      "sortie": "\"Hepatitis B test required\" = TRUE",
+      "action": "Conduct hepatitis B test",
+      "annotation": "",
+      "reference": "Guidelines on hepatitis B and C testing (2017): Recommendation (4)"
+    },
+    {
+      "condition": "Current alcohol and/or other substance use\" = \"Injectable drugs\"",
+      "sortie": "\"Hepatitis B test required\" = TRUE",
+      "action": "Conduct hepatitis B test",
+      "annotation": "",
+      "reference": "Guidelines on hepatitis B and C testing 92017): Recommendation 11 (4)"
+    },
+    {
+      "condition": "\"Occupation\" = \"Employment that puts woman at increased risk for HIV (e.g. sex worker)\"",
+      "sortie": "\"Hepatitis B test required\" = TRUE",
+      "action": "Conduct hepatitis B test",
+      "annotation": "",
+      "reference": "Guidelines on hepatitis B and C testing (2017): Recommendation 14 (4)"
+    },
+    {
+      "condition": "\"Population prevalence of hepatitis C\" ≥ 2%",
+      "sortie": "\"Hepatitis C test required\" = TRUE \"Population prevalence of hepatitis C\" ≥ 2%",
+      "action": "Conduct hepatitis C test",
+      "annotation": "In settings where the proportion of HCV antibody seroprevalence in the general population is 2% or higher, then a hepatitis C test is required.  Anti-HCV laboratory-based immunoassay is the preferred method for testing for Hep C infection in pregnancy; if immunoassay is not available, anti-HCV rapid diagnostic test (RDT) is recommended over dried blood spot (DBS) anti-HCV testing.",
+      "reference": "Guidelines on hepatitis B and C testing (2017): Recommendation 6.1 (4)"
+    },
+    {
+      "condition": "\"HIV status\" = \"HIV positive\"",
+      "sortie": "\"Hepatitis C test required\" = TRUE \"HIV status\" = \"HIV positive\"",
+      "action": "Conduct hepatitis C test",
+      "annotation": "If the woman is HIV positive, then a hepatitis C test is required.  Anti-HCV laboratory-based immunoassay is the preferred method for testing for Hep C infection in pregnancy; if immunoassay is not available, anti-HCV rapid diagnostic test (RDT) is recommended over dried blood spot (DBS) anti-HCV testing",
+      "reference": "Guidelines on hepatitis B and C testing (2017): Recommendation 6.1 (4)"
+    },
+    {
+      "condition": "\"Current alcohol and/or other substance use\" = \"Injectable drugs\"",
+      "sortie": "\"Hepatitis C test required\" = TRUE \"Current alcohol and/or other substance use\" = \"Injectable drugs\"",
+      "action": "Conduct hepatitis C test",
+      "annotation": "If the woman injects drugs, then a hepatitis C test is required.  Anti-HCV laboratory-based immunoassay is the preferred method for testing for Hep C infection in pregnancy; if immunoassay is not available, anti-HCV rapid diagnostic test (RDT) is recommended over dried blood spot (DBS) anti-HCV testing.",
+      "reference": "Guidelines on hepatitis B and C testing (2017): Recommendation 6.1 (4)"
+    },
+    {
+      "condition": "\"Occupation\" = \"Informal employment (sex worker)\"",
+      "sortie": "\"Hepatitis C test required\" = TRUE \"Occupation\" = \"Informal employment (sex worker)\"",
+      "action": "Conduct hepatitis C test",
+      "annotation": "If a woman is a sex worker, then a hepatitis C test is required.  Anti-HCV laboratory-based immunoassay is the preferred method for testing for Hep C infection in pregnancy; if immunoassay is not available, anti-HCV rapid diagnostic test (RDT) is recommended over dried blood spot (DBS) anti-HCV testing.",
+      "reference": "Guidelines on hepatitis B and C testing (2017): Recommendation 6.1 (4)"
+    },
+    {
+      "condition": "\"ANC contact number\" = 1",
+      "sortie": "\"Syphilis test required\" = TRUE - First Contact",
+      "action": "Conduct syphilis test",
+      "annotation": "A syphilis test is recommended for all pregnant women at the first contact",
+      "reference": "WHO ANC recommendations (2016): B.1.7. Human immunodeficiency virus (HIV) and syphilis (3)"
+    },
+    {
+      "condition": "\"Gestational age\" ≥ 29 weeks",
+      "sortie": "\"Syphilis test required\" = TRUE - >= 29 weeks",
+      "action": "Conduct syphilis test",
+      "annotation": "A syphilis test is recommended again at the first contact of 3rd trimester (28 weeks)",
+      "reference": "WHO ANC recommendations (2016): B.1.7. Human immunodeficiency virus (HIV) and syphilis (3)"
+    },
+    {
+      "condition": "\"Syphilis diagnosis\" = \"Syphilis positive\"",
+      "sortie": "\"Syphilis test required\" = FALSE",
+      "action": "No syphilis test required",
+      "annotation": "Women who are already confirmed positive for syphilis do not need to be tested",
+      "reference": "WHO ANC recommendations (2016): B.1.7. Human immunodeficiency virus (HIV) and syphilis (3)"
+    },
+    {
+      "condition": "\"Current physiological symptoms\" = \"Pain during urination (dysuria)\"",
+      "sortie": "\"Urine test required\" = TRUE - Pain during urination",
+      "action": "Conduct urine test",
+      "annotation": "Urine test is required any time the woman reports pain during urination (dysuria)",
+      "reference": "Managing complications guide (IMPAC) (2017): Section S-51 (3)"
+    },
+    {
+      "condition": "\"Repeat systolic blood pressure\" ≥ 140 mmHg",
+      "sortie": "\"Urine test required\" = TRUE - Blood pressure",
+      "action": "Do urine dipstick test for protein",
+      "annotation": "Given high values (SBP ≥ 140 or DBP ≥ 90) upon second measure, urine dipstick test should be done to check for protein in the urine, a symptom of pre-eclampsia",
+      "reference": "Managing complications guide (IMPAC) (2017): Section S-51 (3)"
+    },
+    {
+      "condition": "\"Repeat diastolic blood pressure\" ≥ 90mmHg",
+      "sortie": "\"Urine test required\" = TRUE - Blood pressure",
+      "action": "Do urine dipstick test for protein",
+      "annotation": "Given high values (SBP ≥ 140 or DBP ≥ 90) upon second measure, urine dipstick test should be done to check for protein in the urine, a symptom of pre-eclampsia",
+      "reference": "Managing complications guide (IMPAC) (2017): Section S-51 (3)"
+    },
+    {
+      "condition": "\"ANC contact number\" = 1",
+      "sortie": "\"Urine test required\" = TRUE",
+      "action": "Conduct urine test",
+      "annotation": "The urine test checks for bacterial or other infections that can lead to adverse outcomes for the neonate. The urine dipstick test can check for proteins in the urine, which can be a sign of pre-eclampsia. Midstream urine culture is the preferred method for testing for asymptomatic bacteriuria (ASB) in pregnancy; if culture is not available, midstream urine Gram-staining is recommended over dipstick.  Urine dipstick tests should only be used to diagnose ASB in pregnancy if midstream culture and Gram-staining are not possible. Dipstick tests are required to check for protein in the urine, a symptom of pre-eclampsia.",
+      "reference": "WHO ANC recommendations (2016): B.1.2. Asymptomatic bacteriuria (ASB) (3)"
+    },
+    {
+      "condition": "\"Gestational age\" ≥ 26 weeks",
+      "sortie": "\"Urine test required\" = TRUE",
+      "action": "Conduct urine test",
+      "annotation": "The urine test checks for bacterial or other infections that can lead to adverse outcomes for the neonate. The urine dipstick test can check for proteins in the urine, which can be a sign of pre-eclampsia. Midstream urine culture is the preferred method for testing for asymptomatic bacteriuria (ASB) in pregnancy; if culture is not available, midstream urine Gram-staining is recommended over dipstick.  Urine dipstick tests should only be used to diagnose ASB in pregnancy if midstream culture and Gram-staining are not possible. Dipstick tests are required to check for protein in the urine, a symptom of pre-eclampsia.",
+      "reference": "WHO ANC recommendations (2016): B.1.2. Asymptomatic bacteriuria (ASB) (3)"
+    },
+    {
+      "condition": "\"Gestational age\" ≥ 34 weeks",
+      "sortie": "\"Urine test required\" = TRUE",
+      "action": "Conduct urine test",
+      "annotation": "The urine test checks for bacterial or other infections that can lead to adverse outcomes for the neonate. The urine dipstick test can check for proteins in the urine, which can be a sign of pre-eclampsia. Midstream urine culture is the preferred method for testing for asymptomatic bacteriuria (ASB) in pregnancy; if culture is not available, midstream urine Gram-staining is recommended over dipstick.  Urine dipstick tests should only be used to diagnose ASB in pregnancy if midstream culture and Gram-staining are not possible. Dipstick tests are required to check for protein in the urine, a symptom of pre-eclampsia.",
+      "reference": "WHO ANC recommendations (2016): B.1.2. Asymptomatic bacteriuria (ASB) (3)"
+    },
+    {
+      "condition": "\"Population prevalence of tuberculosis (TB)\" ≥ 100 per 100 000 population",
+      "sortie": "\"TB screening recommended\" = TRUE",
+      "action": "Conduct TB screening",
+      "annotation": "In settings where the tuberculosis (TB) prevalence in the general population is 100/100,000 persons or higher or in settings with sub-populations that have very poor access to health care, or if the woman is HIV positive, TB screening is recommended",
+      "reference": "WHO ANC recommendations (2016): B.1.8. Tuberculosis (TB) (3)"
+    },
+    {
+      "condition": "\"HIV status\" = \"HIV positive\"",
+      "sortie": "\"TB screening recommended\" = TRUE",
+      "action": "Conduct TB screening",
+      "annotation": "",
+      "reference": "WHO ANC recommendations (2016): B.1.8. Tuberculosis (TB) (3)"
+    },
+    {
+      "condition": "\"Hematocrit (Ht)\" < 20%",
+      "sortie": "\"Hematocrit result\" = \"Low levels\"",
+      "action": "Follow-up steps/investigations: clinician's discretion",
+      "annotation": "Hematocrit levels too low!",
+      "reference": "Managing complications guide (IMPAC) (2017): Sections S-7, S-47, S-151 (5)"
+    },
+    {
+      "condition": "\"White blood cell (WBC) count\" > 16 000",
+      "sortie": "\"White blood cell count result\" = \"Low levels\"",
+      "action": "Follow-up steps/investigations: clinician's discretion",
+      "annotation": "White blood cell count too high!",
+      "reference": "Managing complications guide (IMPAC) (2017): Section S-151 (5)"
+    },
+    {
+      "condition": "\"Platelet count\" < 100 000 cells/microlitre (μl)",
+      "sortie": "\"Platelet count result\" = \"Low levels\"",
+      "action": "Follow-up steps/investigations: clinician's discretion",
+      "annotation": "Platelet count too low!",
+      "reference": "Managing complications guide (IMPAC) (2017): Section S-53 (5)"
+    }
+  ]
+}

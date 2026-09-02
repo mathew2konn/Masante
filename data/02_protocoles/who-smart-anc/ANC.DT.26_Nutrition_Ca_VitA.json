@@ -1,0 +1,47 @@
+{
+  "id": "PROT-OMS-ANC.DT.26-CALCIUM-AND-VITAMIN-A-SUPPLEMENTATION",
+  "titre": "ANC.DT.26 Nutrition–Ca+VitA",
+  "source": {
+    "organisation": "OMS",
+    "document": "WHO SMART Guidelines — Antenatal Care (DAK L2)",
+    "fichier": "WHO-SRH-21.2-eng.xlsx",
+    "licence": "CC BY-NC-SA 3.0 IGO"
+  },
+  "statut": "source_externe_non_validee",
+  "version": "2021.1",
+  "pays_applicable": [
+    "*"
+  ],
+  "declencheur": "IF \"Population with low dietary calcium intake\" = TRUE AND/OR IF \"Population with vitamin A deficiency\" = TRUE",
+  "regle_metier": "Depending on the population, additional calcium and/or vitamin A supplements maybe required",
+  "regles": [
+    {
+      "condition": "IF \"Population with low dietary calcium intake\" = TRUE",
+      "sortie": "Provide calcium supplementation",
+      "action": "Provide calcium supplementation",
+      "annotation": "In populations with low dietary calcium intake, daily calcium supplementation (1.5–2.0 g oral elemental calcium) is recommended for pregnant women to reduce the risk of pre-eclampsia.   Dietary counselling of pregnant women should promote adequate calcium intake through locally available, calcium-rich foods.  – Divide the total dose into three doses, preferably taken at meal-time. – Iron and calcium should preferably be administered several hours apart rather than concomitantly.  Please refer to calcium sources listed below for additional guidance that can be provided.",
+      "reference": "WHO ANC recommendations (2016): A.3. Calcium supplements (3)"
+    },
+    {
+      "condition": "IF \"Population with low dietary calcium intake\" = FALSE",
+      "sortie": "Do not provide calcium supplementation",
+      "action": "Do not provide calcium supplementation",
+      "annotation": "Dietary counselling of pregnant women should promote adequate calcium intake through locally available, calcium-rich foods.  Please refer to calcium sources listed below for additional guidance that can be provided.",
+      "reference": "WHO ANC recommendations (2016): A.3. Calcium supplements (3)"
+    },
+    {
+      "condition": "IF \"Population with vitamin A deficiency\" = TRUE",
+      "sortie": "Provide vitamin A supplementation",
+      "action": "Provide vitamin A supplementation",
+      "annotation": "Give a dose of up to 10,000 IU vitamin A per day, or a weekly dose of up to 25,000 IU.  A single dose of a vitamin A supplement greater than 25,000 IU is not recommended as its safety is uncertain. Furthermore, a single dose of a vitamin A supplement greater than 25,000 IU might be teratogenic if consumed between day 15 and day 60 from conception.  Please refer to vitaminA sources listed below for additional guidance that can be provided.",
+      "reference": "WHO ANC recommendations (2016): A.4. Vitamin A supplements (3)"
+    },
+    {
+      "condition": "IF \"Population with vitamin A deficiency\" = FALSE",
+      "sortie": "Do not provide vitamin A supplementation",
+      "action": "Do not provide vitamin A supplementation",
+      "annotation": "There is no demonstrated benefit from taking vitamin A supplements in populations where habitual daily vitamin A intakes exceed 8000 IU or 2400 micrograms, and the potential risk of adverse events increases with higher intakes (above 10 000 IU) if supplements are routinely taken by people in these populations.  Please refer to vitaminA sources listed below for additional guidance that can be provided.",
+      "reference": "WHO ANC recommendations (2016): A.4. Vitamin A supplements (3)"
+    }
+  ]
+}

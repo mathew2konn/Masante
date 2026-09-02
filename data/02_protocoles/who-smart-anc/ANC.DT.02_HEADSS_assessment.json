@@ -1,0 +1,26 @@
+{
+  "id": "PROT-OMS-ANC.DT.02-ADOLESCENT-HEADSS-ASESSEMENT",
+  "titre": "ANC.DT.02 HEADSS assessment",
+  "source": {
+    "organisation": "OMS",
+    "document": "WHO SMART Guidelines — Antenatal Care (DAK L2)",
+    "fichier": "WHO-SRH-21.2-eng.xlsx",
+    "licence": "CC BY-NC-SA 3.0 IGO"
+  },
+  "statut": "source_externe_non_validee",
+  "version": "2021.1",
+  "pays_applicable": [
+    "*"
+  ],
+  "declencheur": "Client is an adolescent (age >19)",
+  "regle_metier": "If client is an adolescent, conduct Home-Eating-Activity-Drugs-Sexuality-Safety-Suicide (HEADSS) assessment",
+  "regles": [
+    {
+      "condition": "\"Age\" > 19",
+      "sortie": "Conduct HEADSS assessment",
+      "action": "Conduct HEADSS assessment",
+      "annotation": "Questions to consider include: -Whether the adolescent studies/works? -How they perceive their home situation? -How they perceive their relation with their teachers and fellow students/employers and colleagues? -Whether there have been any recent changes in their situation? -Whether they feel safe at home, in the community, in their place of study or work; on the road, etc?",
+      "reference": "Adolescent job aid: a handy desk reference tool for primary level health (2010) pp.11 (2)"
+    }
+  ]
+}

@@ -1,0 +1,292 @@
+{
+  "id": "PROT-OMS-ANC.DT.37-INTIMATE-PARTNER-VIOLENCE-IPV-FIRST-LINE-SUPPORT-AND-TREATMENT",
+  "titre": "ANC.DT.36-37 IPV ",
+  "source": {
+    "organisation": "OMS",
+    "document": "WHO SMART Guidelines — Antenatal Care (DAK L2)",
+    "fichier": "WHO-SRH-21.2-eng.xlsx",
+    "licence": "CC BY-NC-SA 3.0 IGO"
+  },
+  "statut": "source_externe_non_validee",
+  "version": "2021.1",
+  "pays_applicable": [
+    "*"
+  ],
+  "declencheur": "ANC.B10. Counselling, in-facility management & treatment – 8. IPV first-line support and care",
+  "regle_metier": "Woman has been subjected to IPV",
+  "regles": [
+    {
+      "condition": "Minimum requirements for IPV assessment = TRUE",
+      "sortie": "Conduct clinical enquiry",
+      "action": "Conduct clinical enquiry",
+      "annotation": "Cultures and communities have ways of referring to the problem with other words. It is important to use the words that women themselves use.",
+      "reference": "WHO ANC recommendations (2016): B1.3 (2)   IPV handbook (2014) (12)"
+    },
+    {
+      "condition": "Minimum requirements for IPV assessment = TRUE",
+      "sortie": "\"Woman discloses or is suspected to be subjected to intimate partner violence\"\" = TRUE",
+      "action": "Conduct clinical enquiry and provide first-line support and care if IPV confirmed",
+      "annotation": "WHO does not recommend universal screening for violence against women attending health care. WHO does encourage health-care providers to raise the topic with women who have injuries or conditions that they suspect may be related to violence.  Never raise the issue of partner violence unless a woman is alone. Even if she is with another woman, that woman could be the mother or sister of an abuser.  If you do ask her about violence, do it in an empathic, non-judgemental manner. Use language that is appropriate and relevant to the culture and community you are working in. Some women may not like the words “violence” and “abuse”",
+      "reference": "IPV handbook (2014) (15)"
+    },
+    {
+      "condition": "Minimum requirements for IPV assessment = TRUE",
+      "sortie": "\"Woman discloses or is suspected to be subjected to intimate partner violence\" = TRUE",
+      "action": "",
+      "annotation": "",
+      "reference": ""
+    },
+    {
+      "condition": "Minimum requirements for IPV assessment = TRUE",
+      "sortie": "\"Woman discloses or is suspected to be subjected to intimate partner violence\" = TRUE",
+      "action": "",
+      "annotation": "",
+      "reference": ""
+    },
+    {
+      "condition": "Minimum requirements for IPV assessment = TRUE",
+      "sortie": "\"Woman discloses or is suspected to be subjected to intimate partner violence\" = TRUE",
+      "action": "",
+      "annotation": "",
+      "reference": ""
+    },
+    {
+      "condition": "Minimum requirements for IPV assessment = TRUE",
+      "sortie": "\"Woman discloses or is suspected to be subjected to intimate partner violence\" = TRUE",
+      "action": "",
+      "annotation": "",
+      "reference": ""
+    },
+    {
+      "condition": "Minimum requirements for IPV assessment = TRUE",
+      "sortie": "\"Woman discloses or is suspected to be subjected to intimate partner violence\" = TRUE",
+      "action": "",
+      "annotation": "",
+      "reference": ""
+    },
+    {
+      "condition": "Minimum requirements for IPV assessment = TRUE",
+      "sortie": "\"Woman discloses or is suspected to be subjected to intimate partner violence\" = TRUE",
+      "action": "",
+      "annotation": "",
+      "reference": ""
+    },
+    {
+      "condition": "Minimum requirements for IPV assessment = TRUE",
+      "sortie": "\"Woman discloses or is suspected to be subjected to intimate partner violence\" = TRUE",
+      "action": "",
+      "annotation": "",
+      "reference": ""
+    },
+    {
+      "condition": "Minimum requirements for IPV assessment = TRUE",
+      "sortie": "\"Woman discloses or is suspected to be subjected to intimate partner violence\" = TRUE",
+      "action": "",
+      "annotation": "",
+      "reference": ""
+    },
+    {
+      "condition": "Minimum requirements for IPV assessment = TRUE",
+      "sortie": "\"Woman discloses or is suspected to be subjected to intimate partner violence\" = TRUE",
+      "action": "",
+      "annotation": "",
+      "reference": ""
+    },
+    {
+      "condition": "Minimum requirements for IPV assessment = TRUE",
+      "sortie": "\"Woman discloses or is suspected to be subjected to intimate partner violence\" = TRUE",
+      "action": "",
+      "annotation": "",
+      "reference": ""
+    },
+    {
+      "condition": "Minimum requirements for IPV assessment = TRUE",
+      "sortie": "\"Woman discloses or is suspected to be subjected to intimate partner violence\" = TRUE",
+      "action": "",
+      "annotation": "",
+      "reference": ""
+    },
+    {
+      "condition": "Minimum requirements for IPV assessment = TRUE",
+      "sortie": "\"Woman discloses or is suspected to be subjected to intimate partner violence\" = TRUE",
+      "action": "",
+      "annotation": "",
+      "reference": "Responding to IPV (2013) (16)"
+    },
+    {
+      "condition": "Minimum requirements for IPV assessment = TRUE",
+      "sortie": "\"Woman discloses or is suspected to be subjected to intimate partner violence\" = TRUE",
+      "action": "",
+      "annotation": "",
+      "reference": ""
+    },
+    {
+      "condition": "Minimum requirements for IPV assessment = TRUE",
+      "sortie": "\"Woman discloses or is suspected to be subjected to intimate partner violence\" = TRUE",
+      "action": "",
+      "annotation": "",
+      "reference": ""
+    },
+    {
+      "condition": "Minimum requirements for IPV assessment = TRUE",
+      "sortie": "\"Woman discloses or is suspected to be subjected to intimate partner violence\" = TRUE",
+      "action": "",
+      "annotation": "",
+      "reference": ""
+    },
+    {
+      "condition": "Minimum requirements for IPV assessment = TRUE",
+      "sortie": "\"Woman discloses or is suspected to be subjected to intimate partner violence\" = TRUE",
+      "action": "",
+      "annotation": "",
+      "reference": ""
+    },
+    {
+      "condition": "Minimum requirements for IPV assessment = TRUE",
+      "sortie": "\"Woman discloses or is suspected to be subjected to intimate partner violence\" = TRUE",
+      "action": "",
+      "annotation": "",
+      "reference": ""
+    },
+    {
+      "condition": "Minimum requirements for IPV assessment = TRUE",
+      "sortie": "\"Woman discloses or is suspected to be subjected to intimate partner violence\" = TRUE",
+      "action": "",
+      "annotation": "",
+      "reference": ""
+    },
+    {
+      "condition": "Minimum requirements for IPV assessment = TRUE",
+      "sortie": "\"Woman discloses or is suspected to be subjected to intimate partner violence\" = TRUE",
+      "action": "",
+      "annotation": "",
+      "reference": ""
+    },
+    {
+      "condition": "Minimum requirements for IPV assessment = TRUE",
+      "sortie": "\"Woman discloses or is suspected to be subjected to intimate partner violence\" = TRUE",
+      "action": "",
+      "annotation": "",
+      "reference": "IPV handbook (2014) (15)"
+    },
+    {
+      "condition": "Minimum requirements for IPV assessment = TRUE",
+      "sortie": "\"Woman discloses or is suspected to be subjected to intimate partner violence\" = TRUE",
+      "action": "",
+      "annotation": "",
+      "reference": ""
+    },
+    {
+      "condition": "Minimum requirements for IPV assessment = TRUE",
+      "sortie": "\"Woman discloses or is suspected to be subjected to intimate partner violence\" = TRUE",
+      "action": "",
+      "annotation": "",
+      "reference": ""
+    },
+    {
+      "condition": "Minimum requirements for IPV assessment = TRUE",
+      "sortie": "\"Woman discloses or is suspected to be subjected to intimate partner violence\" = TRUE",
+      "action": "",
+      "annotation": "",
+      "reference": ""
+    },
+    {
+      "condition": "Minimum requirements for IPV assessment = TRUE",
+      "sortie": "\"Woman discloses or is suspected to be subjected to intimate partner violence\" = TRUE",
+      "action": "",
+      "annotation": "",
+      "reference": ""
+    },
+    {
+      "condition": "Minimum requirements for IPV assessment = TRUE",
+      "sortie": "\"Woman discloses or is suspected to be subjected to intimate partner violence\" = TRUE",
+      "action": "",
+      "annotation": "",
+      "reference": ""
+    },
+    {
+      "condition": "\"Has the woman  been subjected to intimate partner violence\"=TRUE",
+      "sortie": "Conduct first-line support",
+      "action": "Provide first-line support. Four (4) kinds of needs deserve attention: – Immediate emotional/psychological health needs – Immediate physical health needs – Ongoing safety needs – Ongoing support and mental health needs.",
+      "annotation": "Conduct the following 5 tasks:  – Listen to the woman closely, with empathy, and without judging – Inquire about needs and concerns: assess and respond to her various needs and concerns – emotional, physical, social and practical (e.g. childcare) – Validate: show her that you understand and believe her; assure her that she is not to blame – Enhance saftey: discuss a plan to protect herself from further harm if violence occurs again – Support her by helping her connect to information, services and social support.",
+      "reference": "IPV handbook (2014) (15)"
+    },
+    {
+      "condition": "\"Safety assessement conducted\"=TRUE",
+      "sortie": "Assess immediate risk of violence",
+      "action": "Ask the following questions:   -Has the physical violence happened more often or gotten worse over the past 6 months?  - Has he ever used a weapon or threatened you with a weapon?  - Has he ever tried to strangle you?  - Do you believe he could kill you?  - Has he ever beaten you when you were pregnant?  - Is he violently and constantly jealous of you?",
+      "annotation": "If woman answers \"yes\" to at least 3 of the questions, the woman may be at high risk of violence /danger",
+      "reference": ""
+    },
+    {
+      "condition": "\"Has the physical violence happened more often or gotten worse over the past 6 months?\"  = TRUE",
+      "sortie": "Woman may be at high risk of immediate risk of violence/danger",
+      "action": "If it is not safe for the woman to return home, make appropriate referrals for shelter or safe housing, or work with her to identify a safe place she can go to (such as a friend’s home or church).",
+      "annotation": "If it is not safe for the woman to return home, make appropriate referrals for shelter or safe housing, or work with her to identify a safe place she can go to (such as a friend’s home or church).",
+      "reference": ""
+    },
+    {
+      "condition": "\"Has the physical violence happened more often or gotten worse over the past 6 months?\"  = TRUE",
+      "sortie": "",
+      "action": "",
+      "annotation": "",
+      "reference": ""
+    },
+    {
+      "condition": "\"Has the physical violence happened more often or gotten worse over the past 6 months?\"  = TRUE",
+      "sortie": "",
+      "action": "",
+      "annotation": "",
+      "reference": ""
+    },
+    {
+      "condition": "\"Has the physical violence happened more often or gotten worse over the past 6 months?\"  = TRUE",
+      "sortie": "",
+      "action": "",
+      "annotation": "",
+      "reference": ""
+    },
+    {
+      "condition": "\"Has he ever used a weapon or threatened you with a weapon? \"  = TRUE",
+      "sortie": "",
+      "action": "",
+      "annotation": "",
+      "reference": ""
+    },
+    {
+      "condition": "\"Has he ever used a weapon or threatened you with a weapon? \"  = TRUE",
+      "sortie": "",
+      "action": "",
+      "annotation": "",
+      "reference": ""
+    },
+    {
+      "condition": "\"Has he ever used a weapon or threatened you with a weapon? \"  = TRUE",
+      "sortie": "",
+      "action": "",
+      "annotation": "",
+      "reference": ""
+    },
+    {
+      "condition": "\"Has he ever used a weapon or threatened you with a weapon? \"  = TRUE",
+      "sortie": "",
+      "action": "",
+      "annotation": "",
+      "reference": ""
+    },
+    {
+      "condition": "\"Do you believe he could kill you?\"  = TRUE",
+      "sortie": "",
+      "action": "",
+      "annotation": "",
+      "reference": ""
+    },
+    {
+      "condition": "\"Do you believe he could kill you?\"  = TRUE",
+      "sortie": "",
+      "action": "",
+      "annotation": "",
+      "reference": ""
+    }
+  ]
+}

@@ -1,0 +1,117 @@
+{
+  "id": "PROT-OMS-ANC.DT.01-DANGER-SIGNS",
+  "titre": "ANC.DT.01 Danger signs",
+  "source": {
+    "organisation": "OMS",
+    "document": "WHO SMART Guidelines — Antenatal Care (DAK L2)",
+    "fichier": "WHO-SRH-21.2-eng.xlsx",
+    "licence": "CC BY-NC-SA 3.0 IGO"
+  },
+  "statut": "source_externe_non_validee",
+  "version": "2021.1",
+  "pays_applicable": [
+    "*"
+  ],
+  "declencheur": "ANC.B5 Quick check",
+  "regle_metier": "Before each contact, during the Quick Check, the health worker should check whether the woman has any of the danger signs listed here – if yes, she should be referred to the hospital urgently; if no, the normal contact should be continued as normal",
+  "regles": [
+    {
+      "condition": "\"Danger signs\" = \"No danger signs\"",
+      "sortie": "Proceed with ANC contact",
+      "action": "Proceed with ANC contact",
+      "annotation": "If no danger signs are present, the health worker can continue with the normal ANC contact",
+      "reference": "Pregnancy, childbirth, postpartum and newborn care guide (IMPAC) (2015) (1)"
+    },
+    {
+      "condition": "\"Danger signs\" = \"Central cyanosis\"",
+      "sortie": "Follow-up steps/investigations: clinician's discretion for Central cyanosis",
+      "action": "Proceed with ANC contact OR  Referral for Central cyanosis",
+      "annotation": "Bluish discolouration around the mucous membranes in the mouth, lips and tongue.",
+      "reference": "Pregnancy, childbirth, postpartum and newborn care guide (IMPAC) (2015) (1)"
+    },
+    {
+      "condition": "\"Danger signs\" = \"Bleeding vaginally\"",
+      "sortie": "Follow-up steps/investigations: clinician's discretion",
+      "action": "Proceed with ANC contact OR  Referral",
+      "annotation": "This is a danger sign that indicates that the woman needs urgent management",
+      "reference": "Pregnancy, childbirth, postpartum and newborn care guide (IMPAC) (2015) (1)"
+    },
+    {
+      "condition": "\"Danger signs\" = \"Convulsing\"",
+      "sortie": "Follow-up steps/investigations: clinician's discretion",
+      "action": "Proceed with ANC contact OR  Referral",
+      "annotation": "This is a danger sign that indicates that the woman needs urgent management",
+      "reference": "Pregnancy, childbirth, postpartum and newborn care guide (IMPAC) (2015) (1)"
+    },
+    {
+      "condition": "\"Danger signs\" = \"Fever\"",
+      "sortie": "Follow-up steps/investigations: clinician's discretion",
+      "action": "Proceed with ANC contact OR  Referral",
+      "annotation": "This is a danger sign that indicates that the woman needs urgent management",
+      "reference": "Pregnancy, childbirth, postpartum and newborn care guide (IMPAC) (2015) (1)"
+    },
+    {
+      "condition": "\"Danger signs\" = \"Severe headache\"",
+      "sortie": "Follow-up steps/investigations: clinician's discretion",
+      "action": "Proceed with ANC contact OR  Referral",
+      "annotation": "This is a danger sign that indicates that the woman needs urgent management",
+      "reference": "Pregnancy, childbirth, postpartum and newborn care guide (IMPAC) (2015) (1)"
+    },
+    {
+      "condition": "\"Danger signs\" = \"Visual disturbance\"",
+      "sortie": "Follow-up steps/investigations: clinician's discretion",
+      "action": "Proceed with ANC contact OR  Referral",
+      "annotation": "This is a danger sign that indicates that the woman needs urgent management",
+      "reference": "Pregnancy, childbirth, postpartum and newborn care guide (IMPAC) (2015) (1)"
+    },
+    {
+      "condition": "\"Danger signs\" = \"Imminent delivery\"",
+      "sortie": "Follow-up steps/investigations: clinician's discretion",
+      "action": "Proceed with ANC contact OR  Referral",
+      "annotation": "This is a danger sign that indicates that the woman needs urgent management",
+      "reference": "Pregnancy, childbirth, postpartum and newborn care guide (IMPAC) (2015) (1)"
+    },
+    {
+      "condition": "\"Danger signs\" = \"Labour\"",
+      "sortie": "Follow-up steps/investigations: clinician's discretion",
+      "action": "Proceed with ANC contact OR  Referral",
+      "annotation": "This is a danger sign that indicates that the woman needs urgent management",
+      "reference": "Pregnancy, childbirth, postpartum and newborn care guide (IMPAC) (2015) (1)"
+    },
+    {
+      "condition": "\"Danger signs\" = \"Looks very ill\"",
+      "sortie": "Follow-up steps/investigations: clinician's discretion",
+      "action": "Proceed with ANC contact OR  Referral",
+      "annotation": "This is a danger sign that indicates that the woman needs urgent management",
+      "reference": "Pregnancy, childbirth, postpartum and newborn care guide (IMPAC) (2015) (1)"
+    },
+    {
+      "condition": "\"Danger signs\" = \"Severe vomiting\"",
+      "sortie": "Follow-up steps/investigations: clinician's discretion",
+      "action": "Proceed with ANC contact OR  Referral",
+      "annotation": "This is a danger sign that indicates that the woman needs urgent management",
+      "reference": "Pregnancy, childbirth, postpartum and newborn care guide (IMPAC) (2015) (1)"
+    },
+    {
+      "condition": "\"Danger signs\" = \"Severe pain\"",
+      "sortie": "Follow-up steps/investigations: clinician's discretion",
+      "action": "Proceed with ANC contact OR  Referral",
+      "annotation": "This is a danger sign that indicates that the woman needs urgent management",
+      "reference": "Pregnancy, childbirth, postpartum and newborn care guide (IMPAC) (2015) (1)"
+    },
+    {
+      "condition": "\"Danger signs\" = \"Severe abdominal pain\"",
+      "sortie": "Follow-up steps/investigations: clinician's discretion",
+      "action": "Proceed with ANC contact OR  Referral",
+      "annotation": "This is a danger sign that indicates that the woman needs urgent management",
+      "reference": "Pregnancy, childbirth, postpartum and newborn care guide (IMPAC) (2015) (1)"
+    },
+    {
+      "condition": "\"Danger signs\" = \"Unconscious\"",
+      "sortie": "Follow-up steps/investigations: clinician's discretion",
+      "action": "Proceed with ANC contact OR  Referral",
+      "annotation": "This is a danger sign that indicates that the woman needs urgent management",
+      "reference": "Pregnancy, childbirth, postpartum and newborn care guide (IMPAC) (2015) (1)"
+    }
+  ]
+}

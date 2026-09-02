@@ -1,0 +1,82 @@
+{
+  "id": "PROT-OMS-ANC.DT.32-TETANUS-TOXOID-CONTAINING-VACCINATION",
+  "titre": "ANC.DT.31–32 Immunizations",
+  "source": {
+    "organisation": "OMS",
+    "document": "WHO SMART Guidelines — Antenatal Care (DAK L2)",
+    "fichier": "WHO-SRH-21.2-eng.xlsx",
+    "licence": "CC BY-NC-SA 3.0 IGO"
+  },
+  "statut": "source_externe_non_validee",
+  "version": "2021.1",
+  "pays_applicable": [
+    "*"
+  ],
+  "declencheur": "ANC.B10.7. Immunizations",
+  "regle_metier": "If the woman has not yet been fully immunized against tetanus, she should be immunized",
+  "regles": [
+    {
+      "condition": "\"Flu immunization history\" = \"No doses\"",
+      "sortie": "\"Flu immunization history\" = \"No doses\"",
+      "action": "Provide seasonal flu immunization",
+      "annotation": "Pregnant women should be vaccinated with trivalent inactivated influenza vaccine at any stage of pregnancy",
+      "reference": "Vaccines against influenza WHO position paper (2012) (10)"
+    },
+    {
+      "condition": "\"Flu immunization history\" = \"Unknown\"",
+      "sortie": "\"Flu immunization history\" = \"Unknown\"",
+      "action": "Provide seasonal flu immunization",
+      "annotation": "",
+      "reference": "Vaccines against influenza WHO position paper (2012) (10)"
+    },
+    {
+      "condition": "\"Tetanus toxoid-containing vaccine (TTCV) immunization history\" = \"Under-immunized\"",
+      "sortie": "\"Tetanus toxoid-containing vaccine (TTCV) immunization history\" = \"Under-immunized\"",
+      "action": "Provide tetanus toxoid immunizations – using the \"Tetanus toxoid-containing vaccine (TTCV) immunization – NO PREVIOUS\" schedule (3 dose scheme)",
+      "annotation": "Tetanus toxoid (TT) vaccination is recommended for all pregnant women who are not fully immunised against TT to prevent neonatal mortality from tetanus",
+      "reference": "WHO ANC recommendations (2016): C.5. Tetanus toxoid vaccination (3)  Maternal immunization against tetanus (IMPAC) (2006) (11)"
+    },
+    {
+      "condition": "\"Tetanus toxoid-containing vaccine (TTCV) immunization history\" = \"No doses\"",
+      "sortie": "\"Tetanus toxoid-containing vaccine (TTCV) immunization history\" = \"No doses\"",
+      "action": "Provide tetanus toxoid immunizations – using the \"Tetanus toxoid-containing vaccine (TTCV) immunization – NO PREVIOUS\" schedule (3 dose scheme)",
+      "annotation": "Tetanus toxoid (TT) vaccination is recommended for all pregnant women who are not fully immunised against TT to prevent neonatal mortality from tetanus",
+      "reference": "WHO ANC recommendations (2016): C.5. Tetanus toxoid vaccination (3)  Maternal immunization against tetanus (IMPAC) (2006) (11)"
+    },
+    {
+      "condition": "\"Tetanus toxoid-containing vaccine (TTCV) immunization history\" = \"Unknown\"",
+      "sortie": "\"Tetanus toxoid-containing vaccine (TTCV) immunization history\" = \"Unknown\"",
+      "action": "Provide tetanus toxoid immunizations – using the \"Tetanus toxoid-containing vaccine (TTCV) immunization – NO PREVIOUS\" schedule (3 dose scheme)",
+      "annotation": "Tetanus toxoid (TT) vaccination is recommended for all pregnant women who are not fully immunised against TT to prevent neonatal mortality from tetanus",
+      "reference": "WHO ANC recommendations (2016): C.5. Tetanus toxoid vaccination (3)  Maternal immunization against tetanus (IMPAC) (2006) (11)"
+    },
+    {
+      "condition": "\"Tetanus toxoid-containing vaccine (TTCV) 1 immunization provided\" = TRUE",
+      "sortie": "\"Tetanus toxoid-containing vaccine (TTCV) immunization history\" = \"Under-immunized\"",
+      "action": "Provide tetanus toxoid immunizations – using the \"Tetanus toxoid-containing vaccine (TTCV) immunization – WITH PREVIOUS\" schedule (1 dose scheme)",
+      "annotation": "1–4 doses of TTCV in the past: – 1 dose scheme: Woman should receive one dose of TTCV during each subsequent pregnancy to a total of five doses (five doses protects throughout the childbearing years)",
+      "reference": "WHO ANC recommendations (2016): C.5. Tetanus toxoid vaccination (3)  Maternal immunization against tetanus (IMPAC) (2006) (11)"
+    },
+    {
+      "condition": "\"Tetanus toxoid-containing vaccine (TTCV) 1 immunization provided\" = TRUE",
+      "sortie": "\"Tetanus toxoid-containing vaccine (TTCV) immunization history\" = \"Under-immunized\"",
+      "action": "Provide tetanus toxoid immunizations – using the \"Tetanus toxoid-containing vaccine (TTCV) immunization – WITH PREVIOUS\" schedule (1 dose scheme)",
+      "annotation": "1–4 doses of TTCV in the past: – 1 dose scheme: Woman should receive one dose of TTCV during each subsequent pregnancy to a total of five doses (five doses protects throughout the childbearing years)",
+      "reference": "WHO ANC recommendations (2016): C.5. Tetanus toxoid vaccination (3)  Maternal immunization against tetanus (IMPAC) (2006) (11)"
+    },
+    {
+      "condition": "\"Tetanus toxoid-containing vaccine (TTCV) 1 immunization provided\" = TRUE",
+      "sortie": "\"Tetanus toxoid-containing vaccine (TTCV) immunization history\" = \"Under-immunized\"",
+      "action": "Provide tetanus toxoid immunizations – using the \"Tetanus toxoid-containing vaccine (TTCV) immunization – WITH PREVIOUS\" schedule (1 dose scheme)",
+      "annotation": "1–4 doses of TTCV in the past: – 1 dose scheme: Woman should receive one dose of TTCV during each subsequent pregnancy to a total of five doses (five doses protects throughout the childbearing years)",
+      "reference": "WHO ANC recommendations (2016): C.5. Tetanus toxoid vaccination (3)  Maternal immunization against tetanus (IMPAC) (2006) (11)"
+    },
+    {
+      "condition": "\"Tetanus toxoid-containing vaccine (TTCV) 1 immunization provided\" = TRUE",
+      "sortie": "\"Tetanus toxoid-containing vaccine (TTCV) immunization history\" = \"Under-immunized\"",
+      "action": "Provide tetanus toxoid immunizations – using the \"Tetanus toxoid-containing vaccine (TTCV) immunization – WITH PREVIOUS\" schedule (1 dose scheme)",
+      "annotation": "1–4 doses of TTCV in the past: – 1 dose scheme: Woman should receive one dose of TTCV during each subsequent pregnancy to a total of five doses (five doses protects throughout the childbearing years)",
+      "reference": "WHO ANC recommendations (2016): C.5. Tetanus toxoid vaccination (3)  Maternal immunization against tetanus (IMPAC) (2006) (11)"
+    }
+  ]
+}
