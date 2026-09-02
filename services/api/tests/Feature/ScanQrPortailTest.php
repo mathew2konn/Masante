@@ -58,7 +58,7 @@ class ScanQrPortailTest extends TestCase
             'structure_id' => $service->structure_id,
             'service_id' => $service->id,
         ]);
-        $u->assignRole('agent_garde');
+        $u->assignRole('personnel_accueil');
 
         return $u;
     }

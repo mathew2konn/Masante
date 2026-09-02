@@ -3,17 +3,49 @@
  * Ces états sont FOURNIS PAR LE BACKEND ; l'interface les affiche, ne les déduit jamais.
  */
 
-/** États d'un rendez-vous (workflow de validation à deux étapes). */
+// Permissions RBAC (P11.0) — liste gardée contre la divergence par un test PHP.
+export * from './permissions';
+
+/**
+ * États d'un rendez-vous (`rendez_vous.statut`) — B1-a.
+ *
+ * ═══ CET ENUM REMPLACE UNE CLÉ MORTE ═══
+ *
+ * `RendezVousStatut` existait depuis P0 avec sept valeurs (`PREVALIDE_SECRETAIRE` compris) et
+ * n'était importé NULLE PART dans le monorepo — le G0 de B1 l'a confirmé par recherche
+ * exhaustive. Pendant ce temps, le vrai contrat (cinq valeurs, aucune pré-validation) était
+ * dupliqué INDÉPENDAMMENT trois fois : `RendezVousValidationService::STATUTS` (PHP),
+ * `apps/web/src/lib/rdv-types.ts`, `apps/mobile/src/types/structure.ts`. Même défaut que
+ * `TypeAccesDossier` avant l'incrément D2 (P7) : une source unique qui n'est consommée par
+ * personne n'est pas une source unique.
+ *
+ * Miroir PHP : `App\Services\RendezVousValidationService::STATUTS`.
+ */
 export const RendezVousStatut = {
-  EN_ATTENTE_VALIDATION: 'EN_ATTENTE_VALIDATION',
-  PREVALIDE_SECRETAIRE: 'PREVALIDE_SECRETAIRE',
-  CONFIRME_EN_ATTENTE_PAIEMENT: 'CONFIRME_EN_ATTENTE_PAIEMENT',
-  PAYE: 'PAYE',
-  ANNULE: 'ANNULE',
-  REFUSE: 'REFUSE',
-  TERMINE: 'TERMINE',
+  /** Créé par le patient, pas encore traité. */
+  EN_ATTENTE: 'en_attente',
+  /** Pré-validé par l'accueil (CDC_11 §9.1) — reste à confirmer par le médecin. */
+  PREVALIDE: 'prevalide',
+  /** Confirmé par le médecin : validation finale. */
+  CONFIRME: 'confirme',
+  /** Refusé par l'accueil (d'emblée) ou par le médecin (au dernier moment). */
+  REFUSE: 'refuse',
+  /** Annulé par le patient. */
+  ANNULE: 'annule',
+  /** Le patient s'est présenté et a été pris en charge. */
+  HONORE: 'honore',
 } as const;
 export type RendezVousStatut = (typeof RendezVousStatut)[keyof typeof RendezVousStatut];
+
+/** Libellés destinés au patient et au staff (mêmes mots des deux côtés — aucun jargon métier ici). */
+export const LIBELLE_RDV: Record<RendezVousStatut, string> = {
+  [RendezVousStatut.EN_ATTENTE]: 'En attente',
+  [RendezVousStatut.PREVALIDE]: 'Pré-validé',
+  [RendezVousStatut.CONFIRME]: 'Confirmé',
+  [RendezVousStatut.REFUSE]: 'Refusé',
+  [RendezVousStatut.ANNULE]: 'Annulé',
+  [RendezVousStatut.HONORE]: 'Honoré',
+};
 
 /** États d'une transaction de paiement (machine à états stricte — CDC_06 §4.2). */
 export const PaiementStatut = {
@@ -104,18 +136,46 @@ export type TriageNiveauHospitalier =
 /**
  * Rôles RBAC (CDC_10 §3.6). Valeurs = noms spatie côté backend (snake_case minuscule,
  * guard `web`), tels que renvoyés par `getRoleNames()`. Le mobile n'utilise que `patient` ;
- * les autres servent aux portails web (ADR-011).
+ * les autres servent au portail web (ADR-011).
+ *
+ * ═══ P11.0 — ONZE RÔLES, UN NOM PAR MÉTIER, TROIS DOUBLONS RETIRÉS ═══
+ *
+ * Cette liste et celle de Laravel avaient divergé, et la divergence était structurelle : cet
+ * enum énumérait onze rôles dont **trois n'ont jamais rien porté**, pendant que les trois rôles
+ * qui font réellement tourner le portail (`admin_ivoirsante`, `gestionnaire_etablissement`,
+ * `agent_garde`) **n'y figuraient pas du tout**. Une source unique qui ignore les seuls acteurs
+ * en service n'est pas une source unique.
+ *
+ * Trois réconciliations, et le principe est toujours le même — on ADOPTE le nom qui porte déjà
+ * quelque chose, on n'en réinvente aucun (précédent P6.8a) :
+ *
+ *  1. `secretaire` (0 permission) ⟶ **`personnel_accueil`**, qui est l'ancien `agent_garde`
+ *     renommé. Ce n'était pas deux métiers mais un seul écrit deux fois : le commentaire de
+ *     `Portail\AuthController` désignait déjà `agent_garde` comme « l'identité d'un agent
+ *     d'accueil ». Le terme retenu est celui du propriétaire (décision B1), parce que « agent de
+ *     garde » évoque une astreinte alors que ce rôle vérifie une fiche de rendez-vous au guichet.
+ *
+ *  2. `admin_etablissement` (0 permission, **aucun consommateur**) ⟶
+ *     **`gestionnaire_etablissement`** (8 permissions, portail, seeders, suites de tests).
+ *
+ *  3. `super_admin` (0 permission) ⟶ **`admin_ivoirsante`** (40 permissions). Celui-là avait un
+ *     consommateur réel — la garde du module fraude (ADR-020 §B2), qui l'avait choisi faute de
+ *     mieux : `admin_finance` n'existait pas dans cet enum. La garde nomme désormais le rôle
+ *     survivant ; le contrôleur indépendant reste `ministere`, comme ADR-017 §7 l'exige.
+ *
+ * Les comptes déjà porteurs d'un nom retiré sont **transférés** vers son survivant par migration,
+ * jamais laissés orphelins.
  */
 export const Role = {
   PATIENT: 'patient',
   MEDECIN: 'medecin',
   INFIRMIER: 'infirmier',
-  SECRETAIRE: 'secretaire',
+  PERSONNEL_ACCUEIL: 'personnel_accueil',
   PHARMACIEN: 'pharmacien',
   LABORANTIN: 'laborantin',
   RADIOLOGUE: 'radiologue',
-  ADMIN_ETABLISSEMENT: 'admin_etablissement',
-  SUPER_ADMIN: 'super_admin',
+  GESTIONNAIRE_ETABLISSEMENT: 'gestionnaire_etablissement',
+  ADMIN_IVOIRSANTE: 'admin_ivoirsante',
   MINISTERE: 'ministere',
   ASSURANCE: 'assurance',
 } as const;
@@ -172,6 +232,33 @@ export const TypeNotification = {
    * le carnet, après authentification.
    */
   ECHEANCE_VACCINALE: 'ECHEANCE_VACCINALE',
+  /**
+   * Lot 9 (post-facturation) — facture patient émise / relancée. Ni acte, ni service, ni
+   * spécialité, ni établissement dans le corps (§2.7) : montant et libellé générique seulement.
+   */
+  FACTURE_PATIENT_EMISE: 'FACTURE_PATIENT_EMISE',
+  FACTURE_PATIENT_RELANCE: 'FACTURE_PATIENT_RELANCE',
+  /**
+   * Alertes INTERNES au back-office MaSanté (lot 9) — jamais envoyées à un patient, jamais
+   * affichées par le mobile citoyen. Mirroir gardé pour la source unique, sans écran consommateur.
+   */
+  STRUCTURE_SUSPENDUE_IMPAYE: 'STRUCTURE_SUSPENDUE_IMPAYE',
+  STRUCTURE_REACTIVEE: 'STRUCTURE_REACTIVEE',
+  /**
+   * P10c-3-i — un modèle IA candidat attend une revue de gouvernance (CDC_05 §8/§9). Interne au
+   * back-office, jamais envoyée à un patient, jamais affichée par le mobile citoyen — même mirroir
+   * gardé pour la source unique que les deux ci-dessus, sans écran consommateur.
+   */
+  MODELE_IA_CANDIDAT: 'MODELE_IA_CANDIDAT',
+  /** P10c-3-ii lot B — une dérive constatée sur le modèle en service. Prévient, ne décide pas. */
+  DERIVE_MODELE_IA: 'DERIVE_MODELE_IA',
+  /**
+   * B1-d (D15) — le rendez-vous est clos (`honore`). N'annonce PAS une facture nouvelle : depuis
+   * B1-c le règlement précède déjà le check-in, cette notification confirme la fin de la
+   * consultation et rappelle le montant déjà réglé (§2.7 : ni acte, ni service, ni spécialité, ni
+   * établissement).
+   */
+  RENDEZ_VOUS_TERMINE: 'RENDEZ_VOUS_TERMINE',
 } as const;
 export type TypeNotification = (typeof TypeNotification)[keyof typeof TypeNotification];
 
@@ -196,6 +283,8 @@ export const TypeAccesDossier = {
   BRIS_DE_GLACE: 'bris_de_glace',
   /** Accès exceptionnel d'un administrateur de la plateforme. */
   ADMIN: 'admin',
+  /** B1-c — le médecin de CE rendez-vous a ouvert un accès de 30 min (jamais permanent). */
+  RDV_PARTAGE: 'rdv_partage',
 } as const;
 export type TypeAccesDossier = (typeof TypeAccesDossier)[keyof typeof TypeAccesDossier];
 
@@ -214,6 +303,7 @@ export const LIBELLE_TYPE_ACCES: Record<TypeAccesDossier, string> = {
   [TypeAccesDossier.DELEGATION]: 'Consultation par un proche',
   [TypeAccesDossier.BRIS_DE_GLACE]: "Accès d'urgence vitale",
   [TypeAccesDossier.ADMIN]: 'Accès administrateur MaSanté',
+  [TypeAccesDossier.RDV_PARTAGE]: 'Consultation pour votre rendez-vous',
 };
 
 /**

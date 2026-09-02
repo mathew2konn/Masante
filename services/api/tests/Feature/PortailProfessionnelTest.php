@@ -370,8 +370,23 @@ class PortailProfessionnelTest extends TestCase
         $this->assertTrue($role->hasPermissionTo('qr.scan'));
         $this->assertTrue($role->hasPermissionTo('dossier.referent'));
 
-        // Ce qu'il ne reçoit pas : l'accueil, le secrétariat et l'annuaire national.
-        $this->assertFalse($role->hasPermissionTo('rdv.validate'));
+        // P11.0 — `rdv.validate` PASSE DE FAUX À VRAI, ET CE VECTEUR EST RÉÉCRIT POUR DIRE LA
+        // GARANTIE NEUVE plutôt que corrigé pour passer (précédent P6.4d).
+        //
+        // P6.5a écrivait ici : « `rdv.validate` reste à l'accueil : CDC_11 §9 prévoit bien une
+        // validation finale par le médecin, mais ce circuit est celui de P4, validé G5, et on ne
+        // le rouvre pas au détour d'un incrément sur les référentiels. » C'était une dette
+        // annoncée avec son porteur ; P11.0 est ce porteur. Le §9.1 est littéral : « Le médecin
+        // fait la validation finale. » Jusqu'ici l'accueil pouvait confirmer un rendez-vous et le
+        // praticien concerné, non.
+        $this->assertTrue(
+            $role->hasPermissionTo('rdv.validate'),
+            'CDC_11 §9.1 confie la validation finale au médecin.',
+        );
+
+        // Ce qu'il ne reçoit toujours pas, et le titre de ce vecteur reste donc vrai : ouvrir des
+        // créneaux est un acte d'organisation du service, que le §9.1 confie explicitement à
+        // l'accueil ; et un praticien ne se décrit pas lui-même dans l'annuaire national.
         $this->assertFalse($role->hasPermissionTo('disponibilite.manage'));
         $this->assertFalse($role->hasPermissionTo('medecin.manage'));
         // Et surtout pas l'habilitation : un praticien ne se déclare pas lui-même autorisé.
@@ -382,7 +397,7 @@ class PortailProfessionnelTest extends TestCase
     {
         // Cinquième occurrence du précédent `urgence.bris_de_glace` / `dossier.ecrire` /
         // `referentiel.*` : la permission existe, elle s'accorde nominativement.
-        foreach (['gestionnaire_etablissement', 'agent_garde', 'medecin'] as $nom) {
+        foreach (['gestionnaire_etablissement', 'personnel_accueil', 'medecin'] as $nom) {
             $this->assertFalse(
                 Role::findByName($nom, 'web')->hasPermissionTo('professionnel.habiliter'),
                 "Le rôle « {$nom} » ne doit pas porter `professionnel.habiliter`.",

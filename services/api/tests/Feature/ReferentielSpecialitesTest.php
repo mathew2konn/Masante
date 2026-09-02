@@ -363,7 +363,7 @@ class ReferentielSpecialitesTest extends TestCase
     {
         $this->seed(PortailRolesSeeder::class);
 
-        foreach (['gestionnaire_etablissement', 'agent_garde', 'medecin'] as $role) {
+        foreach (['gestionnaire_etablissement', 'personnel_accueil', 'medecin'] as $role) {
             $this->assertFalse(
                 \Spatie\Permission\Models\Role::findByName($role, 'web')->hasPermissionTo('specialite.referentiel'),
                 "Le rôle {$role} ne doit pas porter `specialite.referentiel`.",

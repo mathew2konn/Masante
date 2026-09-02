@@ -6,9 +6,12 @@ use App\Models\AccesDossier;
 use App\Models\Contribution;
 use App\Models\Delegation;
 use App\Models\MembreFamille;
+use App\Models\RendezVous;
 use App\Models\ResponsableFamille;
+use App\Models\ServiceEtablissement;
 use App\Models\StructureSanitaire;
 use App\Models\User;
+use App\Services\RecuRdvService;
 use App\Services\ServiceNotification;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Sanctum\Sanctum;
@@ -42,11 +45,11 @@ class FicheParcoursTest extends TestCase
 
         Delegation::create([
             'titulaire_user_id' => $parent->id,
-            'delegue_user_id'   => $delegue->id,
-            'membre_id'         => $membre->id,
-            'droits'            => $droits,
-            'invitee_at'        => now(),
-            'acceptee_at'       => now(),
+            'delegue_user_id' => $delegue->id,
+            'membre_id' => $membre->id,
+            'droits' => $droits,
+            'invitee_at' => now(),
+            'acceptee_at' => now(),
         ]);
 
         return $delegue;
@@ -64,25 +67,29 @@ class FicheParcoursTest extends TestCase
         string $type = 'qr_scan',
         ?string $etablissement = 'CHU de Cocody',
         ?array $donneesAjoutees = null,
+        ?int $rendezVousId = null,
     ): AccesDossier {
         $ouverture = AccesDossier::create([
-            'membre_id'     => $membre->id,
-            'agent_id'      => $agent->id,
-            'type_acces'    => $type,
+            'membre_id' => $membre->id,
+            'agent_id' => $agent->id,
+            'type_acces' => $type,
             'etablissement' => $etablissement,
-            'ip_address'    => '10.0.0.7',
+            // B1-d (D12) — un identifiant sans clé étrangère (ADR-042 D1), comme `triage_id`.
+            'rendez_vous_id' => $rendezVousId,
+            'ip_address' => '10.0.0.7',
         ]);
 
         AccesDossier::create([
-            'membre_id'           => $membre->id,
-            'agent_id'            => $agent->id,
-            'type_acces'          => $type,
-            'etablissement'       => $etablissement,
-            'acces_ouverture_id'  => $ouverture->id,
+            'membre_id' => $membre->id,
+            'agent_id' => $agent->id,
+            'type_acces' => $type,
+            'etablissement' => $etablissement,
+            'acces_ouverture_id' => $ouverture->id,
+            'rendez_vous_id' => $rendezVousId,
             'sections_consultees' => ['dossier', 'ordonnances'],
-            'donnees_ajoutees'    => $donneesAjoutees,
-            'ip_address'          => '10.0.0.7',
-            'duree_minutes'       => 12,
+            'donnees_ajoutees' => $donneesAjoutees,
+            'ip_address' => '10.0.0.7',
+            'duree_minutes' => 12,
         ]);
 
         return $ouverture;
@@ -122,9 +129,9 @@ class FicheParcoursTest extends TestCase
         $second = User::factory()->create();
 
         ResponsableFamille::create([
-            'titulaire_user_id'   => $parent->id,
+            'titulaire_user_id' => $parent->id,
             'responsable_user_id' => $second->id,
-            'designe_le'          => now(),
+            'designe_le' => now(),
         ]);
 
         Sanctum::actingAs($second);
@@ -173,11 +180,11 @@ class FicheParcoursTest extends TestCase
         $delegue = $this->delegue($parent, $enfant, Delegation::DROIT_LECTURE_ECRITURE);
 
         $contribution = Contribution::create([
-            'membre_id'      => $enfant->id,
+            'membre_id' => $enfant->id,
             'auteur_user_id' => $delegue->id,
-            'section'        => 'antecedents',
-            'donnees'        => ['type' => 'autre', 'description' => 'Vu aux urgences'],
-            'statut'         => Contribution::BROUILLON,
+            'section' => 'antecedents',
+            'donnees' => ['type' => 'autre', 'description' => 'Vu aux urgences'],
+            'statut' => Contribution::BROUILLON,
         ]);
 
         Sanctum::actingAs($delegue);
@@ -224,9 +231,9 @@ class FicheParcoursTest extends TestCase
         [$parent, $enfant] = $this->famille();
 
         AccesDossier::create([
-            'membre_id'     => $enfant->id,
-            'agent_id'      => User::factory()->create()->id,
-            'type_acces'    => 'qr_scan',
+            'membre_id' => $enfant->id,
+            'agent_id' => User::factory()->create()->id,
+            'type_acces' => 'qr_scan',
             'etablissement' => 'CHU de Cocody',
         ]);
 
@@ -249,9 +256,9 @@ class FicheParcoursTest extends TestCase
 
         foreach (['dossier', 'antecedents', 'ordonnances'] as $section) {
             AccesDossier::create([
-                'membre_id'           => $enfant->id,
-                'agent_id'            => $delegue->id,
-                'type_acces'          => 'delegation',
+                'membre_id' => $enfant->id,
+                'agent_id' => $delegue->id,
+                'type_acces' => 'delegation',
                 'sections_consultees' => [$section],
             ]);
         }
@@ -290,10 +297,10 @@ class FicheParcoursTest extends TestCase
         // pour combler une ligne ancienne. C'est tout l'enjeu de la copie à l'écriture.
         $agent = User::factory()->create();
         $agent->structure_id = StructureSanitaire::create([
-            'nom'      => 'Centre de santé de Port-Bouët',
-            'type'     => 'centre_sante',
-            'commune'  => 'Port-Bouët',
-            'adresse'  => 'Abidjan',
+            'nom' => 'Centre de santé de Port-Bouët',
+            'type' => 'centre_sante',
+            'commune' => 'Port-Bouët',
+            'adresse' => 'Abidjan',
             'latitude' => 5.25,
             'longitude' => -3.93,
         ])->id;
@@ -316,12 +323,12 @@ class FicheParcoursTest extends TestCase
         [$parent, $enfant] = $this->famille();
 
         $ordonnance = $enfant->ordonnances()->create([
-            'medecin_nom'         => 'Dr Aka Konan',
+            'medecin_nom' => 'Dr Aka Konan',
             'structure_sanitaire' => 'CHU de Cocody',
-            'date_prescription'   => now()->toDateString(),
-            'medicaments_json'    => [['nom' => 'Artemether-Lumefantrine']],
-            'source'              => 'medecin',
-            'added_by'            => 'medecin',
+            'date_prescription' => now()->toDateString(),
+            'medicaments_json' => [['nom' => 'Artemether-Lumefantrine']],
+            'source' => 'medecin',
+            'added_by' => 'medecin',
         ]);
 
         $this->consultation($enfant, User::factory()->create(), donneesAjoutees: [
@@ -350,11 +357,11 @@ class FicheParcoursTest extends TestCase
         [$parent, $enfant] = $this->famille();
 
         $enfant->vaccinations()->create([
-            'vaccin_nom'          => 'Rougeole-Rubéole',
-            'statut'              => 'fait',
+            'vaccin_nom' => 'Rougeole-Rubéole',
+            'statut' => 'fait',
             'date_administration' => now()->toDateString(),
-            'source'              => 'medecin',
-            'added_by'            => 'medecin',
+            'source' => 'medecin',
+            'added_by' => 'medecin',
         ]);
 
         Sanctum::actingAs($parent);
@@ -371,8 +378,8 @@ class FicheParcoursTest extends TestCase
         [$parent, $enfant] = $this->famille();
 
         $enfant->vaccinations()->create([
-            'vaccin_nom'          => 'BCG (carnet papier)',
-            'statut'              => 'fait',
+            'vaccin_nom' => 'BCG (carnet papier)',
+            'statut' => 'fait',
             'date_administration' => now()->toDateString(),
         ]);
 
@@ -393,11 +400,11 @@ class FicheParcoursTest extends TestCase
         $proche = $this->delegue($parent, $enfant);
 
         $contribution = Contribution::create([
-            'membre_id'      => $enfant->id,
+            'membre_id' => $enfant->id,
             'auteur_user_id' => $auteur->id,
-            'section'        => 'antecedents',
-            'donnees'        => ['type' => 'autre', 'description' => 'Paludisme confirmé'],
-            'statut'         => Contribution::VALIDEE,
+            'section' => 'antecedents',
+            'donnees' => ['type' => 'autre', 'description' => 'Paludisme confirmé'],
+            'statut' => Contribution::VALIDEE,
         ]);
 
         app(ServiceNotification::class)->contributionDecidee($contribution, $parent);
@@ -419,11 +426,11 @@ class FicheParcoursTest extends TestCase
         $this->delegue($parent, $enfant);
 
         $contribution = Contribution::create([
-            'membre_id'      => $enfant->id,
+            'membre_id' => $enfant->id,
             'auteur_user_id' => $auteur->id,
-            'section'        => 'antecedents',
-            'donnees'        => ['type' => 'autre', 'description' => 'Paludisme confirmé'],
-            'statut'         => Contribution::VALIDEE,
+            'section' => 'antecedents',
+            'donnees' => ['type' => 'autre', 'description' => 'Paludisme confirmé'],
+            'statut' => Contribution::VALIDEE,
         ]);
 
         app(ServiceNotification::class)->contributionDecidee($contribution, $parent);
@@ -431,5 +438,94 @@ class FicheParcoursTest extends TestCase
         foreach (\DB::table('notifications')->pluck('data') as $charge) {
             $this->assertStringNotContainsString('Paludisme', (string) $charge);
         }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // B1-d (D12) — « RDV vérifiés » : `rendez_vous_verifie` sur une visite `rdv_partage`
+    // ─────────────────────────────────────────────────────────────────────────
+
+    private function rdvRegle(MembreFamille $membre): RendezVous
+    {
+        $structure = StructureSanitaire::create([
+            'nom' => 'CHU de Cocody', 'type' => 'chu', 'adresse' => 'Abidjan',
+            'commune' => 'Cocody', 'latitude' => 5.35, 'longitude' => -3.98, 'actif' => true,
+        ]);
+        $service = ServiceEtablissement::create([
+            'structure_id' => $structure->id, 'nom_service' => 'Cardiologie',
+            'specialite' => 'cardiologie', 'actif' => true, 'tarif_consultation_cfa' => 5000,
+        ]);
+        $rdv = RendezVous::create([
+            'membre_id' => $membre->id, 'structure_id' => $structure->id, 'service_id' => $service->id,
+            'motif' => 'Suivi', 'date_souhaitee' => now()->addDays(2)->toDateString(),
+            'mode_attribution' => 'etablissement_attribue', 'statut' => 'confirme',
+            'date_confirmee' => now()->addDay(),
+        ]);
+
+        app(RecuRdvService::class)->payer($rdv, 'especes');
+
+        return $rdv->fresh();
+    }
+
+    public function test_une_visite_rdv_partage_reglee_est_marquee_verifiee(): void
+    {
+        [$parent, $enfant] = $this->famille();
+        $rdv = $this->rdvRegle($enfant);
+        $medecin = User::factory()->create();
+        $this->consultation($enfant, $medecin, 'rdv_partage', 'CHU de Cocody', null, $rdv->id);
+
+        Sanctum::actingAs($parent);
+        $this->getJson("/api/v1/membres/{$enfant->id}/parcours")
+            ->assertOk()
+            ->assertJsonPath('visites.0.rendez_vous_verifie', true);
+    }
+
+    /**
+     * NULL, jamais `false` : les cinq voies qui ne désignent pas un rendez-vous n'ont simplement
+     * rien à vérifier — affirmer `false` dirait « non réglé » là où la question ne se pose pas.
+     */
+    public function test_une_visite_hors_rdv_partage_ne_porte_aucune_verification(): void
+    {
+        [$parent, $enfant] = $this->famille();
+        $this->consultation($enfant, User::factory()->create());   // qr_scan, par défaut
+
+        Sanctum::actingAs($parent);
+        $this->getJson("/api/v1/membres/{$enfant->id}/parcours")
+            ->assertOk()
+            ->assertJsonPath('visites.0.rendez_vous_verifie', null);
+    }
+
+    /**
+     * Le rendez-vous a disparu depuis (l'identifiant n'a pas de clé étrangère, ADR-042 D1) : la
+     * fiche dit qu'elle ne sait plus, jamais qu'il n'était pas réglé.
+     */
+    public function test_un_rendez_vous_disparu_rend_null_et_jamais_false(): void
+    {
+        [$parent, $enfant] = $this->famille();
+        $this->consultation($enfant, User::factory()->create(), 'rdv_partage', 'CHU de Cocody', null, 999999);
+
+        Sanctum::actingAs($parent);
+        $this->getJson("/api/v1/membres/{$enfant->id}/parcours")
+            ->assertOk()
+            ->assertJsonPath('visites.0.rendez_vous_verifie', null);
+    }
+
+    /**
+     * LE VECTEUR QUI ISOLE VRAIMENT LA GARDE `type_acces` (et non la seule absence de
+     * `rendez_vous_id`, motif « le vecteur prouve autre chose » — trouvé PAR LA MUTATION : sans ce
+     * vecteur, retirer la vérification `type_acces === RDV_PARTAGE` ne faisait échouer aucun test,
+     * parce qu'aucune consultation `qr_scan` de ce fichier ne porte jamais de `rendez_vous_id`).
+     * Ici un `qr_scan` porte malgré tout un `rendez_vous_id` réglé — rien ne l'interdit en base —
+     * et la fiche doit rester NULL : seule la voie `rdv_partage` répond à cette question.
+     */
+    public function test_un_rendez_vous_id_hors_voie_rdv_partage_ne_declenche_aucune_verification(): void
+    {
+        [$parent, $enfant] = $this->famille();
+        $rdv = $this->rdvRegle($enfant);
+        $this->consultation($enfant, User::factory()->create(), 'qr_scan', 'CHU de Cocody', null, $rdv->id);
+
+        Sanctum::actingAs($parent);
+        $this->getJson("/api/v1/membres/{$enfant->id}/parcours")
+            ->assertOk()
+            ->assertJsonPath('visites.0.rendez_vous_verifie', null);
     }
 }

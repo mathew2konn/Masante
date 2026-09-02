@@ -205,7 +205,7 @@ class PrescripteurSignatureTest extends TestCase
     public function test_un_compte_sans_la_permission_n_atteint_pas_l_ecran(): void
     {
         $compte = User::factory()->create(['structure_id' => $this->structure->id]);
-        $compte->assignRole('agent_garde');
+        $compte->assignRole('personnel_accueil');
 
         $this->actingAs($compte)->get(route('portail.signature.index'))->assertForbidden();
     }

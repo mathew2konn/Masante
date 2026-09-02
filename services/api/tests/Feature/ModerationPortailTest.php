@@ -70,7 +70,7 @@ class ModerationPortailTest extends TestCase
         $this->actingAs($gestionnaire)->get(route('portail.moderation.index'))->assertForbidden();
 
         $agent = User::factory()->create(['structure_id' => $structure->id]);
-        $agent->assignRole('agent_garde');
+        $agent->assignRole('personnel_accueil');
         $this->actingAs($agent)->get(route('portail.moderation.index'))->assertForbidden();
 
         $this->actingAs($this->admin())->get(route('portail.moderation.index'))->assertOk();

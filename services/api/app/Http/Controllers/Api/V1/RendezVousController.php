@@ -8,6 +8,7 @@ use App\Models\MembreFamille;
 use App\Models\RendezVous;
 use App\Models\ServiceEtablissement;
 use App\Models\Triage;
+use App\Services\RecuRdvService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
@@ -22,18 +23,44 @@ use Illuminate\Validation\ValidationException;
  */
 class RendezVousController extends Controller
 {
-    /** Liste des RDV des membres du compte authentifié. */
+    public function __construct(private readonly RecuRdvService $recus) {}
+
+    /**
+     * Liste des RDV des membres du compte authentifié.
+     *
+     * B1-b (D7) — chaque RDV porte désormais un APERÇU du tarif (`tarif`/`tarif_source`, calculé
+     * par `RecuRdvService::tarifPour()`, jamais persisté ici) et `regle` (un reçu existe-t-il déjà
+     * ?) : c'est ce qui permet à la fiche mobile d'afficher le montant SANS naviguer vers l'écran
+     * de paiement, et de distinguer « Payer » de « Voir le reçu ».
+     *
+     * Les colonnes des relations sont volontairement ÉLARGIES par rapport à avant B1-b :
+     * `tarifPour()` lit `service.tarif_consultation_cfa`/`medecin.tarif_consultation`/
+     * `structure.tarif_min_cfa`, et la fiche affiche désormais `medecin.numero_professionnel` et
+     * `medecin.photo_uuid` (D5) — un chargement à colonnes restreintes qui les omettrait rendrait
+     * ces champs silencieusement NULL (l'accesseur `photo_url` en particulier, voir `Medecin`).
+     */
     public function index(Request $request): JsonResponse
     {
         $rdv = RendezVous::whereHas('membre', fn ($m) => $m->where('user_id', $request->user()->id))
             ->with([
                 'membre:id,nom,prenom',
-                'structure:id,nom,commune',
-                'service:id,nom_service,specialite',
-                'medecin:id,titre,nom,prenom,specialite',
+                'structure:id,nom,commune,tarif_min_cfa',
+                'service:id,nom_service,specialite,tarif_consultation_cfa',
+                'medecin:id,titre,nom,prenom,specialite,numero_professionnel,photo_uuid,tarif_consultation',
+                'recu:id,rendez_vous_id',
             ])
             ->latest()
             ->get();
+
+        $rdv->each(function (RendezVous $r) {
+            $tarif = $this->recus->tarifPour($r);
+            $r->setAttribute('tarif', $tarif[0] ?? null);
+            $r->setAttribute('tarif_source', $tarif[1] ?? null);
+            $r->setAttribute('regle', $r->recu !== null);
+            // Le détail du reçu n'a rien à faire dans la liste (montant/QR/transaction) : seul son
+            // EXISTENCE importe ici. Le charger n'était qu'un moyen d'éviter un N+1.
+            $r->makeHidden('recu');
+        });
 
         return response()->json(['rendez_vous' => $rdv]);
     }
@@ -42,13 +69,18 @@ class RendezVousController extends Controller
     public function store(Request $request): JsonResponse
     {
         $data = $request->validate([
-            'membre_id'      => ['required', 'integer', 'exists:membres_famille,id'],
-            'structure_id'   => ['required', 'integer', 'exists:structures_sanitaires,id'],
-            'service_id'     => ['required', 'integer', 'exists:services_etablissement,id'],
-            'medecin_id'     => ['nullable', 'integer', 'exists:medecins,id'],
-            'triage_id'      => ['nullable', 'integer', 'exists:triages,id'],
-            'motif'          => ['required', 'string', 'max:2000'],
+            'membre_id' => ['required', 'integer', 'exists:membres_famille,id'],
+            'structure_id' => ['required', 'integer', 'exists:structures_sanitaires,id'],
+            'service_id' => ['required', 'integer', 'exists:services_etablissement,id'],
+            'medecin_id' => ['nullable', 'integer', 'exists:medecins,id'],
+            'triage_id' => ['nullable', 'integer', 'exists:triages,id'],
+            'motif' => ['required', 'string', 'max:2000'],
             'date_souhaitee' => ['required', 'date', 'after_or_equal:today'],
+            // B1-b (D6) — texte libre et facultatif, DISTINCT du médecin référent (table
+            // `referents`, propre à ADR non touchée ici). Ne conditionne aucune règle métier :
+            // affichage seul sur la fiche staff.
+            'motif_orientation' => ['nullable', 'string', 'max:150'],
+            'message_orientation' => ['nullable', 'string', 'max:1000'],
         ]);
 
         $user = $request->user();
@@ -90,18 +122,52 @@ class RendezVousController extends Controller
         $medecinId = $data['medecin_id'] ?? null;
 
         $rdv = RendezVous::create([
-            'membre_id'        => $data['membre_id'],
-            'structure_id'     => $data['structure_id'],
-            'service_id'       => $data['service_id'],
-            'medecin_id'       => $medecinId,
+            'membre_id' => $data['membre_id'],
+            'structure_id' => $data['structure_id'],
+            'service_id' => $data['service_id'],
+            'medecin_id' => $medecinId,
             'mode_attribution' => $medecinId ? 'patient_choisit' : 'etablissement_attribue',
-            'triage_id'        => $data['triage_id'] ?? null,
-            'motif'            => $data['motif'],
-            'date_souhaitee'   => $data['date_souhaitee'],
-            'statut'           => 'en_attente',
+            'triage_id' => $data['triage_id'] ?? null,
+            'motif_orientation' => $data['motif_orientation'] ?? null,
+            'message_orientation' => $data['message_orientation'] ?? null,
+            'motif' => $data['motif'],
+            'date_souhaitee' => $data['date_souhaitee'],
+            'statut' => 'en_attente',
         ]);
 
         return response()->json(['rendez_vous' => $rdv], 201);
+    }
+
+    /**
+     * B1-b (D6) — Associe un triage APRÈS COUP : le lien existe depuis toujours (`triage_id`,
+     * déjà posé par `store()` à la création), mais rien ne permettait de l'ajouter plus tard —
+     * un patient qui réalise après coup que son triage éclaire ce RDV devait recommencer une
+     * demande entière. Mêmes vérifications anti-IDOR que `store()`, à l'identique.
+     */
+    public function associerTriage(Request $request, RendezVous $rendezVous): JsonResponse
+    {
+        if ($rendezVous->membre->user_id !== $request->user()->id) {
+            abort(403, 'Accès refusé.');
+        }
+
+        if (in_array($rendezVous->statut, ['annule', 'refuse', 'honore'], true)) {
+            throw ValidationException::withMessages([
+                'statut' => 'Ce rendez-vous ne peut plus être modifié.',
+            ]);
+        }
+
+        $data = $request->validate([
+            'triage_id' => ['required', 'integer', 'exists:triages,id'],
+        ]);
+
+        $triage = Triage::findOrFail($data['triage_id']);
+        if ($triage->user_id !== $request->user()->id) {
+            abort(403, 'Ce triage n\'appartient pas à votre compte.');
+        }
+
+        $rendezVous->update(['triage_id' => $triage->id]);
+
+        return response()->json(['rendez_vous' => $rendezVous]);
     }
 
     /** Annulation par le patient (RDV en attente ou confirmé d'un de ses membres). */
@@ -112,7 +178,7 @@ class RendezVousController extends Controller
             abort(403, 'Accès refusé.');
         }
 
-        if (! in_array($rendezVous->statut, ['en_attente', 'confirme'], true)) {
+        if (! in_array($rendezVous->statut, ['en_attente', 'prevalide', 'confirme'], true)) {
             throw ValidationException::withMessages([
                 'statut' => 'Ce rendez-vous ne peut plus être annulé.',
             ]);

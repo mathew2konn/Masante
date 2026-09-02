@@ -45,7 +45,7 @@ class DispoRdvPortailTest extends TestCase
         $u = User::factory()->create([
             'password' => Hash::make('Agent@2026!'), 'structure_id' => $service->structure_id, 'service_id' => $service->id,
         ]);
-        $u->assignRole('agent_garde');
+        $u->assignRole('personnel_accueil');
 
         return $u;
     }
@@ -54,6 +54,16 @@ class DispoRdvPortailTest extends TestCase
     {
         $u = User::factory()->create(['password' => Hash::make('Gestion@2026!'), 'structure_id' => $s->id]);
         $u->assignRole('gestionnaire_etablissement');
+
+        return $u;
+    }
+
+    private function medecin(ServiceEtablissement $service): User
+    {
+        $u = User::factory()->create([
+            'password' => Hash::make('Medecin@2026!'), 'structure_id' => $service->structure_id, 'service_id' => $service->id,
+        ]);
+        $u->assignRole('medecin');
 
         return $u;
     }
@@ -106,14 +116,39 @@ class DispoRdvPortailTest extends TestCase
             ->assertOk()->assertSee('Urgences')->assertSee('Cardiologie');
     }
 
-    // ---- Validation RDV -----------------------------------------------------
+    // ---- Validation RDV (workflow à deux étapes, B1-a) -----------------------
 
-    public function test_agent_confirme_un_rdv_de_son_service(): void
+    public function test_agent_previsalide_un_rdv_de_son_service(): void
     {
         $service = $this->service($this->structure());
         $rdv = $this->rdv($service);
 
         $this->actingAs($this->agent($service))
+            ->patch(route('portail.rdv.previsalider', $rdv), ['message_agent' => 'Dossier vérifié.'])
+            ->assertRedirect(route('portail.rdv.index'));
+
+        $this->assertEquals('prevalide', $rdv->refresh()->statut);
+    }
+
+    public function test_agent_ne_peut_pas_confirmer_directement(): void
+    {
+        $service = $this->service($this->structure());
+        $rdv = $this->rdv($service); // en_attente
+
+        // L'accueil n'a plus `rdv.validate` depuis B1-a : refusé au niveau autorisation (403).
+        $this->actingAs($this->agent($service))
+            ->patch(route('portail.rdv.confirmer', $rdv), ['date_confirmee' => now()->addDays(3)->format('Y-m-d H:i')])
+            ->assertStatus(403);
+
+        $this->assertEquals('en_attente', $rdv->refresh()->statut);
+    }
+
+    public function test_medecin_confirme_un_rdv_previsalide_de_son_service(): void
+    {
+        $service = $this->service($this->structure());
+        $rdv = $this->rdv($service, 'prevalide');
+
+        $this->actingAs($this->medecin($service))
             ->patch(route('portail.rdv.confirmer', $rdv), [
                 'date_confirmee' => now()->addDays(3)->format('Y-m-d H:i'),
                 'message_agent' => 'Présentez-vous 15 min avant.',
@@ -151,9 +186,69 @@ class DispoRdvPortailTest extends TestCase
         $service = $this->service($this->structure());
         $rdv = $this->rdv($service, 'confirme');
 
-        $this->actingAs($this->agent($service))
+        // Sur un compte qui A la permission (`medecin`) : c'est bien le STATUT qui refuse (409).
+        $this->actingAs($this->medecin($service))
             ->patch(route('portail.rdv.confirmer', $rdv), ['date_confirmee' => now()->addDay()->format('Y-m-d H:i')])
             ->assertStatus(409);
+    }
+
+    // ---- Fiche Blade — B1-b, correction d'un défaut réel de B1-a --------------
+    //
+    // La vue `show.blade.php` proposait TOUJOURS le formulaire de confirmation dès `en_attente`
+    // (héritage du workflow à une étape) alors que `confirmer()` exige désormais `prevalide` —
+    // un accueil qui suivait l'écran tel quel aurait reçu un 409. Ces vecteurs exercent le RENDU,
+    // pas seulement les actions PATCH (déjà couvertes plus haut) : c'est précisément ce que 46
+    // vecteurs d'action n'avaient jamais vérifié.
+
+    public function test_la_fiche_en_attente_propose_la_pre_validation_pas_la_confirmation(): void
+    {
+        $service = $this->service($this->structure());
+        $rdv = $this->rdv($service); // en_attente
+
+        $reponse = $this->actingAs($this->agent($service))->get(route('portail.rdv.show', $rdv));
+
+        $reponse->assertOk();
+        $reponse->assertSee('Pré-valider (accueil)');
+        $reponse->assertDontSee('Confirmer (médecin)');
+        $reponse->assertSee(route('portail.rdv.previsalider', $rdv), false);
+    }
+
+    public function test_la_fiche_previsalidee_propose_la_confirmation_pas_la_pre_validation(): void
+    {
+        $service = $this->service($this->structure());
+        $rdv = $this->rdv($service, 'prevalide');
+
+        $reponse = $this->actingAs($this->medecin($service))->get(route('portail.rdv.show', $rdv));
+
+        $reponse->assertOk();
+        $reponse->assertSee('Confirmer (médecin)');
+        $reponse->assertDontSee('Pré-valider (accueil)');
+        $reponse->assertSee(route('portail.rdv.confirmer', $rdv), false);
+    }
+
+    public function test_la_fiche_traitee_ne_propose_plus_aucune_action(): void
+    {
+        $service = $this->service($this->structure());
+        $rdv = $this->rdv($service, 'confirme');
+
+        $reponse = $this->actingAs($this->medecin($service))->get(route('portail.rdv.show', $rdv));
+
+        $reponse->assertOk();
+        $reponse->assertDontSee('Pré-valider (accueil)');
+        $reponse->assertDontSee('Confirmer (médecin)');
+        $reponse->assertDontSee('Refuser', false); // le bloc « Refuser » entier a disparu
+    }
+
+    public function test_l_index_affiche_le_libelle_pre_valide_jamais_le_mot_technique_brut(): void
+    {
+        $service = $this->service($this->structure());
+        $this->rdv($service, 'prevalide');
+
+        $reponse = $this->actingAs($this->agent($service))
+            ->get(route('portail.rdv.index', ['statut' => 'prevalide']));
+
+        $reponse->assertOk();
+        $reponse->assertSee('Pré-validé');
     }
 
     public function test_medecin_d_un_autre_service_est_refuse_a_la_confirmation(): void

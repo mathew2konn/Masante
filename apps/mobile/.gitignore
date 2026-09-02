@@ -39,3 +39,6 @@ yarn-error.*
 # generated native folders
 /ios
 /android
+
+# Journaux de demarrage Expo (poste de developpement)
+expo_start_log.txt

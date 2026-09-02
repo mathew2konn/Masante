@@ -55,7 +55,7 @@ class MedecinReferentTest extends TestCase
         $this->compteMedecin = User::factory()->create([
             'structure_id' => $structure->id, 'service_id' => $service->id,
         ]);
-        $this->compteMedecin->assignRole('agent_garde');
+        $this->compteMedecin->assignRole('personnel_accueil');
 
         $this->medecin = Medecin::create([
             'structure_id' => $structure->id, 'service_id' => $service->id,
@@ -201,7 +201,7 @@ class MedecinReferentTest extends TestCase
             'structure_id' => $this->medecin->structure_id,
             'service_id'   => $this->medecin->service_id,
         ]);
-        $agent->assignRole('agent_garde');
+        $agent->assignRole('personnel_accueil');
 
         $this->actingAs($agent)->get('/portail/mes-patients')->assertForbidden();
         $this->actingAs($agent)

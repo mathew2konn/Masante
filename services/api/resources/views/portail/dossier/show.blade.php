@@ -253,6 +253,58 @@
                       <button type="submit" class="btn btn-sm btn-outline-primary">Enregistrer</button>
                     </div>
                   </div>
+
+                  {{--
+                    P10c-3-ii (F32→F34) — ce que le §5.5.4 demande d'accumuler : « le diagnostic
+                    final posé par le médecin ». Les trois champs sont FACULTATIFS ; le diagnostic
+                    et la spécialité se CHOISISSENT dans une liste, jamais en texte libre.
+                  --}}
+                  <div class="row g-2 align-items-start mt-1">
+                    <div class="col-md-4">
+                      <label class="form-label small mb-1" for="niveau-reel-{{ $t->id }}">
+                        Le niveau que vous auriez retenu <span class="text-muted">(facultatif)</span>
+                      </label>
+                      <select class="form-select form-select-sm" name="niveau_reel" id="niveau-reel-{{ $t->id }}">
+                        <option value="">— non renseigné —</option>
+                        @foreach (\App\Support\NiveauTriage::PATIENT as $niveau)
+                          <option value="{{ $niveau }}">{{ $niveauxReels[$niveau] ?? $niveau }}</option>
+                        @endforeach
+                      </select>
+                    </div>
+                    <div class="col-md-4">
+                      <label class="form-label small mb-1" for="maladie-{{ $t->id }}">
+                        Diagnostic final <span class="text-muted">(facultatif)</span>
+                      </label>
+                      <select class="form-select form-select-sm" name="maladie_id" id="maladie-{{ $t->id }}">
+                        <option value="">— non renseigné —</option>
+                        @foreach ($maladiesReferentiel as $maladie)
+                          <option value="{{ $maladie['id'] ?? $maladie->id }}">{{ $maladie['libelle'] ?? $maladie->libelle }}</option>
+                        @endforeach
+                      </select>
+                      @if (count($maladiesReferentiel) === 0)
+                        <div class="form-text small text-warning">
+                          Aucune version du référentiel des maladies n'est en vigueur : le diagnostic
+                          ne peut pas être rattaché tant qu'elle n'est pas publiée.
+                        </div>
+                      @endif
+                    </div>
+                    <div class="col-md-4">
+                      <label class="form-label small mb-1" for="specialite-{{ $t->id }}">
+                        Spécialité ayant pris en charge <span class="text-muted">(facultatif)</span>
+                      </label>
+                      <select class="form-select form-select-sm" name="specialite_id" id="specialite-{{ $t->id }}">
+                        <option value="">— non renseigné —</option>
+                        @foreach ($specialitesReferentiel as $specialite)
+                          <option value="{{ $specialite->id }}">{{ $specialite->libelle }}</option>
+                        @endforeach
+                      </select>
+                    </div>
+                  </div>
+                  <div class="form-text small">
+                    Le niveau que vous indiquez doit s'accorder avec votre verdict : si les deux se
+                    contredisent, l'enregistrement est refusé plutôt qu'arbitré — vous seul savez
+                    lequel des deux dit ce que vous pensez.
+                  </div>
                   <div class="form-text small">
                     Votre retour n'est pas un diagnostic&nbsp;: il dit si le niveau proposé au patient
                     correspondait à son état réel. Il est journalisé à votre nom et servira à améliorer

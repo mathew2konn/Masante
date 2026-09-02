@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\AccesDossier;
 use App\Models\Contribution;
 use App\Models\MembreFamille;
+use App\Models\RendezVous;
 use App\Support\RegistreSectionsCarnet;
 use App\Support\TypeAccesDossier;
 use Illuminate\Support\Carbon;
@@ -30,6 +31,8 @@ use Illuminate\Support\Collection;
  */
 class ServiceFicheParcours
 {
+    public function __construct(private readonly RecuRdvService $recus) {}
+
     /**
      * Assemble la fiche de parcours d'un membre.
      *
@@ -48,17 +51,17 @@ class ServiceFicheParcours
 
         return [
             'membre' => [
-                'id'     => $membre->id,
+                'id' => $membre->id,
                 'prenom' => $membre->prenom,
-                'nom'    => $membre->nom,
+                'nom' => $membre->nom,
             ],
-            'depuis'   => $depuis->toIso8601String(),
-            'visites'  => $visites->values()->all(),
+            'depuis' => $depuis->toIso8601String(),
+            'visites' => $visites->values()->all(),
             // Bloc SÉPARÉ, et au niveau de la fiche — jamais sous une visite. Le placer sous une
             // visite suggérerait le rattachement que précisément on ne connaît pas (décision
             // propriétaire du G1 : « lien non affirmé »).
             'autres_entrees' => $this->autresEntrees($membre, $depuis, $dejaLiees),
-            'contributions'  => $this->contributions($membre, $depuis),
+            'contributions' => $this->contributions($membre, $depuis),
         ];
     }
 
@@ -91,7 +94,7 @@ class ServiceFicheParcours
         [$clotures, $ouvertures] = $lignes->partition(fn (AccesDossier $l) => $l->duree_minutes !== null);
 
         $reclamees = [];
-        $visites   = collect();
+        $visites = collect();
 
         foreach ($clotures as $cloture) {
             $ouverture = $this->ouvertureDe($cloture, $ouvertures);
@@ -148,25 +151,45 @@ class ServiceFicheParcours
     private function composer(MembreFamille $membre, AccesDossier $ouverture, ?AccesDossier $cloture): array
     {
         $porteuse = $cloture ?? $ouverture;
-        $agent    = $ouverture->agent ?? $porteuse->agent;
+        $agent = $ouverture->agent ?? $porteuse->agent;
 
         return [
-            'id'            => $ouverture->id,
-            'type'          => $ouverture->type_acces,
-            'type_libelle'  => TypeAccesDossier::libelleDe($ouverture->type_acces),
-            'a'             => $ouverture->created_at?->toIso8601String(),
-            'agent'         => $agent !== null ? trim($agent->prenom.' '.$agent->nom) : null,
+            // B1-d (D12) — « RDV vérifiés » : NULL (jamais `false`) sur les cinq voies qui ne
+            // désignent pas un rendez-vous, ET quand le RDV lui-même a disparu depuis (l'identifiant
+            // n'a pas de clé étrangère, ADR-042 D1 — le journal doit survivre à sa suppression, mais
+            // ne peut plus répondre). `false` affirmerait « non réglé » alors qu'on ne sait
+            // simplement plus — précédent P10c-3-ii, « null n'est pas 0 ». La MÊME méthode que le
+            // paiement ({@see \App\Services\RecuRdvService::estRegle()}) tranche, jamais une
+            // seconde façon de répondre à « ce rendez-vous est-il réglé ? ».
+            'rendez_vous_verifie' => $this->rendezVousVerifie($ouverture),
+            'id' => $ouverture->id,
+            'type' => $ouverture->type_acces,
+            'type_libelle' => TypeAccesDossier::libelleDe($ouverture->type_acces),
+            'a' => $ouverture->created_at?->toIso8601String(),
+            'agent' => $agent !== null ? trim($agent->prenom.' '.$agent->nom) : null,
             // NULL sur les lignes écrites avant D2 : la fiche dira « établissement non enregistré »
             // plutôt que de le déduire du compte de l'agent, qui a pu changer d'hôpital depuis.
             'etablissement' => $porteuse->etablissement,
-            'cloturee'      => $cloture !== null,
+            'cloturee' => $cloture !== null,
             'duree_minutes' => $cloture?->duree_minutes,
             // Le motif d'un accès d'urgence vitale est montré à toute l'audience de la fiche : un
             // accès sans consentement doit rester explicable par ceux qu'il concerne.
-            'motif_urgence'       => $porteuse->motif_urgence,
+            'motif_urgence' => $porteuse->motif_urgence,
             'sections_consultees' => $cloture?->sections_consultees ?? [],
-            'entrees'             => $this->entreesEcrites($membre, $cloture),
+            'entrees' => $this->entreesEcrites($membre, $cloture),
         ];
+    }
+
+    /** B1-d (D12) — voir le commentaire au point d'appel : NULL hors voie `rdv_partage`. */
+    private function rendezVousVerifie(AccesDossier $ouverture): ?bool
+    {
+        if ($ouverture->type_acces !== TypeAccesDossier::RDV_PARTAGE->value || $ouverture->rendez_vous_id === null) {
+            return null;
+        }
+
+        $rdv = RendezVous::find($ouverture->rendez_vous_id);
+
+        return $rdv !== null ? $this->recus->estRegle($rdv) : null;
     }
 
     /**
@@ -184,7 +207,7 @@ class ServiceFicheParcours
 
         foreach ($cloture?->donnees_ajoutees ?? [] as $trace) {
             $section = $trace['section'] ?? null;
-            $id      = $trace['id'] ?? null;
+            $id = $trace['id'] ?? null;
 
             if ($section === null || $id === null || ! RegistreSectionsCarnet::existe($section)) {
                 continue;
@@ -195,10 +218,10 @@ class ServiceFicheParcours
             // Une entrée supprimée depuis reste tracée dans le journal immuable, mais n'a plus de
             // contenu. On l'annonce comme telle plutôt que de faire disparaître la trace.
             $entrees[] = [
-                'section'         => $section,
-                'id'             => $id,
-                'a'              => $trace['a'] ?? null,
-                'libelle'        => $ligne !== null ? $this->libelleEntree($section, $ligne) : 'Entrée supprimée depuis',
+                'section' => $section,
+                'id' => $id,
+                'a' => $trace['a'] ?? null,
+                'libelle' => $ligne !== null ? $this->libelleEntree($section, $ligne) : 'Entrée supprimée depuis',
                 'toujours_au_carnet' => $ligne !== null,
             ];
         }
@@ -237,8 +260,8 @@ class ServiceFicheParcours
 
                 $entrees[] = [
                     'section' => $section,
-                    'id'      => $ligne->id,
-                    'a'       => $ligne->created_at?->toIso8601String(),
+                    'id' => $ligne->id,
+                    'a' => $ligne->created_at?->toIso8601String(),
                     'libelle' => $this->libelleEntree($section, $ligne),
                 ];
             }
@@ -264,11 +287,11 @@ class ServiceFicheParcours
             ->orderByDesc('created_at')
             ->get()
             ->map(fn (Contribution $c) => [
-                'id'      => $c->id,
+                'id' => $c->id,
                 'section' => $c->section,
-                'statut'  => $c->statut,
-                'auteur'  => $c->auteur !== null ? trim($c->auteur->prenom.' '.$c->auteur->nom) : null,
-                'a'       => $c->created_at?->toIso8601String(),
+                'statut' => $c->statut,
+                'auteur' => $c->auteur !== null ? trim($c->auteur->prenom.' '.$c->auteur->nom) : null,
+                'a' => $c->created_at?->toIso8601String(),
             ])
             ->all();
     }
@@ -309,11 +332,11 @@ class ServiceFicheParcours
     private function libelleEntree(string $section, mixed $ligne): string
     {
         return match ($section) {
-            'antecedents'        => 'Antécédent : '.str_replace('_', ' ', (string) $ligne->type),
-            'vaccinations'       => 'Vaccination : '.$ligne->vaccin_nom,
-            'ordonnances'        => 'Ordonnance'.($ligne->medecin_nom !== null ? ' du '.$ligne->medecin_nom : ''),
+            'antecedents' => 'Antécédent : '.str_replace('_', ' ', (string) $ligne->type),
+            'vaccinations' => 'Vaccination : '.$ligne->vaccin_nom,
+            'ordonnances' => 'Ordonnance'.($ligne->medecin_nom !== null ? ' du '.$ligne->medecin_nom : ''),
             'resultats-analyses' => 'Analyse : '.$ligne->intitule,
-            default              => ucfirst($section),
+            default => ucfirst($section),
         };
     }
 }

@@ -3,15 +3,20 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/Button';
-import type { MedecinReservable } from '@/lib/rdv-types';
+import type { MedecinReservable, StatutRdv } from '@/lib/rdv-types';
 
 /**
- * Actions staff sur un RDV en attente : confirmer (date définitive + médecin optionnel + message)
- * ou refuser (motif obligatoire). Appelle les proxys ; la décision d'état est backend (frontière).
+ * Actions staff — workflow à deux étapes (B1-a, CDC_11 §9.1) :
+ *  - `en_attente` : « Pré-valider » (accueil) ou « Refuser » ;
+ *  - `prevalide`  : « Confirmer » (médecin, date définitive + médecin optionnel + message) ou
+ *    « Refuser ».
+ * Le bouton affiché dépend du STATUT, pas du rôle du compte connecté — c'est l'API qui refuse
+ * (403) si la permission ne correspond pas ; ce composant ne fait qu'éviter de proposer une
+ * action qui échouerait à coup sûr (409, statut incompatible).
  */
-export function RdvActions({ id, medecins }: { id: number; medecins: MedecinReservable[] }) {
+export function RdvActions({ id, statut, medecins }: { id: number; statut: StatutRdv; medecins: MedecinReservable[] }) {
   const router = useRouter();
-  const [mode, setMode] = useState<'idle' | 'confirmer' | 'refuser'>('idle');
+  const [mode, setMode] = useState<'idle' | 'previsalider' | 'confirmer' | 'refuser'>('idle');
   const [dateConfirmee, setDateConfirmee] = useState('');
   const [medecinId, setMedecinId] = useState('');
   const [message, setMessage] = useState('');
@@ -48,7 +53,8 @@ export function RdvActions({ id, medecins }: { id: number; medecins: MedecinRese
   if (mode === 'idle') {
     return (
       <div className="flex gap-3">
-        <Button onClick={() => setMode('confirmer')}>Confirmer</Button>
+        {statut === 'en_attente' ? <Button onClick={() => setMode('previsalider')}>Pré-valider</Button> : null}
+        {statut === 'prevalide' ? <Button onClick={() => setMode('confirmer')}>Confirmer</Button> : null}
         <Button variant="secondary" onClick={() => setMode('refuser')}>
           Refuser
         </Button>
@@ -64,7 +70,40 @@ export function RdvActions({ id, medecins }: { id: number; medecins: MedecinRese
         </p>
       ) : null}
 
-      {mode === 'confirmer' ? (
+      {mode === 'previsalider' ? (
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            void envoyer(
+              `/api/portail/rendez-vous/${id}/previsalider`,
+              { message_agent: message || null },
+              'La pré-validation a échoué.',
+            );
+          }}
+          className="space-y-3"
+        >
+          <div>
+            <label htmlFor="message-prevalidation" className="mb-1 block text-sm font-semibold text-ink-700">
+              Message pour le médecin (optionnel)
+            </label>
+            <textarea
+              id="message-prevalidation"
+              rows={3}
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
+              className={champ}
+            />
+          </div>
+          <div className="flex gap-3">
+            <Button type="submit" loading={chargement}>
+              Pré-valider
+            </Button>
+            <Button type="button" variant="secondary" onClick={() => setMode('idle')}>
+              Annuler
+            </Button>
+          </div>
+        </form>
+      ) : mode === 'confirmer' ? (
         <form
           onSubmit={(e) => {
             e.preventDefault();

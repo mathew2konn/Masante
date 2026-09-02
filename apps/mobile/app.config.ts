@@ -11,6 +11,15 @@ import { ExpoConfig, ConfigContext } from 'expo/config';
 // Peut être surchargée sans toucher au code via la variable d'env EXPO_PUBLIC_API_URL.
 const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'https://bettye-nonchalant-neriah.ngrok-free.dev';
 
+// B1-c (D9) — Reverb écoute un PORT DIFFÉRENT de l'API HTTP : en test réel (Expo Go + Ngrok),
+// un second tunnel est nécessaire (`ngrok http 8085`) — dit en limite du guide de test, pas
+// masqué. Vides par défaut : {@see presenceConfiguree} refuse alors toute tentative de connexion
+// plutôt que de composer une URL invalide.
+const REVERB_HOST = process.env.EXPO_PUBLIC_REVERB_HOST ?? '';
+const REVERB_PORT = Number(process.env.EXPO_PUBLIC_REVERB_PORT ?? '8085');
+const REVERB_SCHEME = process.env.EXPO_PUBLIC_REVERB_SCHEME ?? 'wss';
+const REVERB_KEY = process.env.EXPO_PUBLIC_REVERB_KEY ?? '';
+
 export default ({ config }: ConfigContext): ExpoConfig => ({
   ...config,
   name: 'MaSante',
@@ -88,6 +97,10 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   // Valeurs lues à l'exécution côté app via expo-constants (voir src/config/api.ts).
   extra: {
     apiUrl: API_URL,
+    reverbHost: REVERB_HOST,
+    reverbPort: REVERB_PORT,
+    reverbScheme: REVERB_SCHEME,
+    reverbKey: REVERB_KEY,
     // Identifiant du projet EAS (config dynamique : à renseigner à la main, cf. `eas init`).
     eas: {
       projectId: '6647289e-ee43-4b20-9fd9-34ef98b68b97',

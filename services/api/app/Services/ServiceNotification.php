@@ -4,12 +4,21 @@ namespace App\Services;
 
 use App\Models\Contribution;
 use App\Models\Delegation;
+use App\Models\FacturePatient;
 use App\Models\MembreFamille;
+use App\Models\RendezVous;
 use App\Models\ResponsableFamille;
+use App\Models\SpecialiteMedicale;
+use App\Models\StructureSanitaire;
 use App\Models\User;
+use App\Models\VersionModeleIa;
 use App\Notifications\NotificationMasante;
+use App\Support\StatutFacturePatient;
 use App\Support\TypeNotification;
 use Illuminate\Support\Facades\Notification;
+use RuntimeException;
+use Spatie\Permission\Exceptions\PermissionDoesNotExist;
+use Spatie\Permission\Exceptions\RoleDoesNotExist;
 
 /**
  * Qui est prévenu, de quoi, et en quels termes (incrément D1).
@@ -75,8 +84,8 @@ class ServiceNotification
         }
 
         $validee = $contribution->statut === Contribution::VALIDEE;
-        $type    = $validee ? TypeNotification::CONTRIBUTION_VALIDEE : TypeNotification::CONTRIBUTION_REJETEE;
-        $verbe   = $validee ? 'validé' : 'refusé';
+        $type = $validee ? TypeNotification::CONTRIBUTION_VALIDEE : TypeNotification::CONTRIBUTION_REJETEE;
+        $verbe = $validee ? 'validé' : 'refusé';
 
         $corps = sprintf(
             '%s a %s l\'ajout au carnet de %s proposé par %s.',
@@ -110,7 +119,7 @@ class ServiceNotification
         );
 
         $this->envoyer($destinataires, $type, $corps, [
-            'membre_id'       => $membre->id,
+            'membre_id' => $membre->id,
             'contribution_id' => $contribution->id,
         ]);
     }
@@ -138,11 +147,11 @@ class ServiceNotification
                 $this->nomDuMembre($membre),
             ),
             [
-                'membre_id'     => $membre->id,
+                'membre_id' => $membre->id,
                 'delegation_id' => $delegation->id,
                 // L'écran de revendication (incrément B) doit passer AVANT la complétion du
                 // profil : après, un second NIS existe et un NIS ne se libère jamais.
-                'revendicable'  => (bool) $delegation->est_le_dossier_du_delegue,
+                'revendicable' => (bool) $delegation->est_le_dossier_du_delegue,
             ],
         );
     }
@@ -213,7 +222,7 @@ class ServiceNotification
         $urgent = $voie === 'bris_de_glace';
 
         $etablissement = $agent?->structure?->nom;
-        $lieu          = $etablissement !== null ? ' à '.$etablissement : '';
+        $lieu = $etablissement !== null ? ' à '.$etablissement : '';
 
         $corps = match ($voie) {
             'bris_de_glace' => sprintf(
@@ -250,8 +259,8 @@ class ServiceNotification
             $corps,
             [
                 'membre_id' => $membre->id,
-                'voie'      => $voie,
-                'urgent'    => $urgent,
+                'voie' => $voie,
+                'urgent' => $urgent,
             ],
         );
     }
@@ -349,23 +358,278 @@ class ServiceNotification
         );
     }
 
+    // ═══════════════════════════════════════════════════════════════════════════════════════
+    // Lot 9 (post-facturation) — Notifications de facturation.
+    //
+    // RÈGLE INVIOLABLE PROPRE À CE DOMAINE (§2.7) : « Notification interdite : tout libellé
+    // d'acte, de service, de spécialité ou d'établissement. » Plus stricte que la règle générale
+    // de D1 (qui autorise déjà, ailleurs dans ce fichier, à NOMMER un établissement — voir
+    // `dossierConsulte()`/`carnetEnrichi()`). Les deux méthodes patient ci-dessous passent donc
+    // par un garde-fou de contenu dédié, PAS appliqué aux deux méthodes back-office qui suivent
+    // (une alerte interne au back-office DOIT nommer la structure concernée).
+    // ═══════════════════════════════════════════════════════════════════════════════════════
+
+    /** Une facture patient vient d'être émise, en attente de règlement. */
+    public function facturePatientEmise(FacturePatient $facture): void
+    {
+        $this->envoyerFacturationPatient($facture, TypeNotification::FACTURE_PATIENT_EMISE);
+    }
+
+    /**
+     * Relance TOUTES les factures A_REGLER dont l'échéance est dépassée et qui n'ont jamais été
+     * relancées (`relance_envoyee_le` encore nul) — UNE SEULE fois par facture (R18) : l'horodatage
+     * posé ici EST le garde-fou, pas un compteur qu'un appelant pourrait oublier de lire.
+     *
+     * Appelée par la commande planifiée `masante:facturation:relancer-patients`.
+     */
+    public function relancerFacturesEnRetard(): int
+    {
+        $facturesEnRetard = FacturePatient::query()
+            ->where('statut', StatutFacturePatient::A_REGLER->value)
+            ->whereNull('relance_envoyee_le')
+            ->whereNotNull('date_echeance')
+            ->whereDate('date_echeance', '<', now()->toDateString())
+            ->get();
+
+        foreach ($facturesEnRetard as $facture) {
+            $this->envoyerFacturationPatient($facture, TypeNotification::FACTURE_PATIENT_RELANCE);
+            $facture->update(['relance_envoyee_le' => now()]);
+        }
+
+        return $facturesEnRetard->count();
+    }
+
+    /**
+     * B1-d (D15) — le rendez-vous est clos (`honore`).
+     *
+     * ═══ POURQUOI CE N'EST PAS `facturePatientEmise()` REJOUÉE ═══
+     *
+     * Depuis B1-c, le règlement précède TOUJOURS le check-in : la facture existe déjà, `PAYEE`,
+     * bien avant qu'un RDV puisse être clos. Réutiliser `facturePatientEmise()` ici affirmerait
+     * qu'une facture NOUVELLE vient d'apparaître — un mensonge. Cette notification confirme la fin
+     * de la consultation et rappelle le montant déjà réglé ; elle ne se déclenche qu'une fois, au
+     * moment où `terminer()` l'appelle (aucun autre chemin n'écrit `statut = honore`).
+     *
+     * Mêmes destinataires que `carnetEnrichi()`/`dossierConsulte()` — titulaire ET délégués en
+     * lecture : une consultation menée à son terme est le même type d'événement qu'un dossier
+     * ouvert ou enrichi, et un proche qui a emmené le patient doit le savoir sans avoir à demander.
+     *
+     * `$facture` est nullable : un très ancien RDV réglé par le seul chemin legacy (`Paiement`,
+     * avant `factures_patient` — repli documenté dans {@see RecuRdvService::estRegle()}) n'a pas de
+     * ligne `FacturePatient` à citer. Le montant disparaît alors du corps plutôt que d'être inventé.
+     */
+    public function rendezVousTermine(RendezVous $rdv, ?FacturePatient $facture): void
+    {
+        $membre = $rdv->membre;
+
+        if ($membre === null) {
+            return;
+        }
+
+        $corps = $facture !== null
+            ? sprintf('Votre rendez-vous est terminé · %d FCFA réglés.', $facture->montant_brut)
+            : 'Votre rendez-vous est terminé.';
+
+        $this->verifierContenuFacturation($corps);
+
+        $this->envoyer(
+            array_merge([$membre->user_id], Delegation::lecteursDe($membre->id)),
+            TypeNotification::RENDEZ_VOUS_TERMINE,
+            $corps,
+            ['membre_id' => $membre->id, 'rendez_vous_id' => $rdv->id, 'facture_patient_id' => $facture?->id],
+        );
+    }
+
+    /** Contenu partagé par `facturePatientEmise()`/`relancerFacturesEnRetard()` — même libellé, pas de ton différent. */
+    private function envoyerFacturationPatient(FacturePatient $facture, TypeNotification $type): void
+    {
+        $beneficiaire = $facture->beneficiaire_id !== null ? $facture->beneficiaire : null;
+
+        $corps = $beneficiaire !== null
+            ? sprintf('Facture pour %s · %d FCFA', $beneficiaire->prenom, $facture->montant_reste_a_charge)
+            : sprintf('Vous avez une nouvelle facture · %d FCFA', $facture->montant_reste_a_charge);
+
+        $this->verifierContenuFacturation($corps);
+
+        $this->envoyer(
+            [$facture->patient_id],
+            $type,
+            $corps,
+            ['facture_patient_id' => $facture->id],
+        );
+    }
+
+    /** Une structure vient de basculer au Palier 0 (suspension pour impayé, lot 1) — back-office uniquement. */
+    public function structureSuspendue(int $structureSanitaireId, int $montantDu, \DateTimeInterface $dateBascule): void
+    {
+        $structure = StructureSanitaire::find($structureSanitaireId);
+        if ($structure === null) {
+            return;
+        }
+
+        $corps = sprintf(
+            'Structure %s suspendue pour impayé (%d FCFA dû) le %s.',
+            $structure->nom,
+            $montantDu,
+            $dateBascule instanceof \DateTimeInterface ? $dateBascule->format('d/m/Y') : (string) $dateBascule,
+        );
+
+        $this->envoyer(
+            $this->backOffice(),
+            TypeNotification::STRUCTURE_SUSPENDUE_IMPAYE,
+            $corps,
+            ['structure_sanitaire_id' => $structureSanitaireId, 'montant_du' => $montantDu],
+        );
+    }
+
+    /**
+     * P10c-3-i (F19) — un modèle IA candidat attend une revue de gouvernance (CDC_05 §8/§9).
+     *
+     * Destinataires : ceux qui PORTENT la permission `ia_triage.valider` — orpheline (attribuée à
+     * aucun rôle métier, motif constant de ce projet), donc introuvable par `User::role()`. Le
+     * corps NOMME un numéro de version, jamais une métrique (§2.7 transposé à une donnée de
+     * gouvernance IA plutôt qu'à un contenu clinique — les chiffres se lisent à l'écran, après
+     * authentification et habilitation).
+     */
+    public function modeleIaCandidat(VersionModeleIa $version): void
+    {
+        try {
+            $destinataires = User::permission('ia_triage.valider')->pluck('id')->all();
+        } catch (PermissionDoesNotExist) {
+            // Même prudence que `backOffice()` ci-dessous : une permission pas encore seedée ne
+            // doit jamais faire échouer l'entraînement qui déclenche cette notification.
+            return;
+        }
+
+        $this->envoyer(
+            $this->sauf($destinataires, [$version->entraine_par]),
+            TypeNotification::MODELE_IA_CANDIDAT,
+            sprintf(
+                'Un modèle IA candidat (version %d, %s) attend votre revue.',
+                $version->numero_version,
+                $version->pays_code,
+            ),
+            ['version_id' => $version->id],
+        );
+    }
+
+    /**
+     * P10c-3-ii lot B (F39) — Une dérive constatée sur le modèle en service.
+     *
+     * ═══ ELLE PRÉVIENT, ELLE NE DÉCIDE PAS ═══
+     *
+     * Aucun modèle n'est désactivé : retirer un modèle du service sur un indice statistique serait
+     * une décision d'exploitation prise par une machine (ligne tenue depuis ADR-017). Le message
+     * dit **combien** de dérives et **sur quelle version**, jamais « il faut agir ».
+     *
+     * ═══ AUCUN CONTENU CLINIQUE, ET C'EST VÉRIFIÉ PAR UN VECTEUR ═══
+     *
+     * Ni symptôme, ni constante, ni diagnostic — la règle inviolable de P7-D1 vaut ici comme
+     * ailleurs : une notification s'affiche sur un écran verrouillé. Le détail chiffré se lit à
+     * l'écran de gouvernance, derrière une authentification.
+     */
+    public function deriveModeleIaDetectee(VersionModeleIa $version, int $nbAlertes): void
+    {
+        try {
+            $destinataires = User::permission('ia_triage.valider')->pluck('id')->all();
+        } catch (PermissionDoesNotExist) {
+            return;
+        }
+
+        $this->envoyer(
+            $destinataires,
+            TypeNotification::DERIVE_MODELE_IA,
+            sprintf(
+                '%d dérive(s) constatée(s) sur le modèle en service (version %d, %s). Le modèle '
+                .'reste actif : la décision vous appartient.',
+                $nbAlertes,
+                $version->numero_version,
+                $version->pays_code,
+            ),
+            ['version_id' => $version->id],
+        );
+    }
+
+    /** Une structure suspendue pour impayé vient d'être réactivée (solde soldé, lot 1) — back-office uniquement. */
+    public function structureReactivee(int $structureSanitaireId): void
+    {
+        $structure = StructureSanitaire::find($structureSanitaireId);
+        if ($structure === null) {
+            return;
+        }
+
+        $this->envoyer(
+            $this->backOffice(),
+            TypeNotification::STRUCTURE_REACTIVEE,
+            sprintf('Structure %s réactivée : solde soldé.', $structure->nom),
+            ['structure_sanitaire_id' => $structureSanitaireId],
+        );
+    }
+
+    /**
+     * GARDE-FOU DE CONTENU (Phase 2 du lot 9) — point de code UNIQUE, appelé avant tout envoi
+     * d'une notification de facturation vers un PATIENT. Ce n'est pas une confiance aveugle dans
+     * les méthodes ci-dessus : c'est un filet de sécurité au dernier point avant l'envoi.
+     *
+     * Data-driven, pas une liste en dur : interroge les deux référentiels réels de ce projet
+     * (spécialités, établissements). Aucun catalogue d'actes n'existe encore dans ce projet
+     * (P6.8 l'a explicitement renvoyé à un incrément de paiement séparé, non fait) — ce garde-fou
+     * ne peut donc pas le vérifier, faute de source de vérité, et ne prétend pas le faire.
+     *
+     * @throws RuntimeException un motif interdit a été trouvé — l'envoi n'a PAS lieu
+     */
+    private function verifierContenuFacturation(string $corps): void
+    {
+        $corpsNormalise = mb_strtolower($corps);
+
+        $motifsInterdits = SpecialiteMedicale::query()->pluck('libelle')
+            ->merge(StructureSanitaire::query()->pluck('nom'))
+            ->filter(fn ($motif) => is_string($motif) && trim($motif) !== '');
+
+        foreach ($motifsInterdits as $motif) {
+            if (str_contains($corpsNormalise, mb_strtolower($motif))) {
+                throw new RuntimeException(
+                    'Notification de facturation bloquée : le corps contient un libellé interdit '.
+                    "(§2.7 — ni acte, ni service, ni spécialité, ni établissement) : « {$motif} »."
+                );
+            }
+        }
+    }
+
+    /**
+     * Destinataires des alertes internes de facturation : le back-office MaSanté (lot 8).
+     *
+     * `User::role()` LÈVE si le rôle n'existe pas encore en base (spatie) — un contexte où il n'a
+     * pas été seedé (ex. tests antérieurs au lot 9, environnement non provisionné) ne doit jamais
+     * faire échouer la bascule/réactivation qui déclenche cette alerte : une notification qu'on ne
+     * peut adresser à personne se tait, elle ne casse pas l'opération financière.
+     */
+    private function backOffice(): array
+    {
+        try {
+            return User::role('admin_ivoirsante')->pluck('id')->all();
+        } catch (RoleDoesNotExist) {
+            return [];
+        }
+    }
+
     /** Libellé lisible d'une section — présentation, aucune règle. */
     private function libelleSection(string $section): string
     {
         return match ($section) {
-            'antecedents'        => 'un antécédent',
-            'vaccinations'       => 'une vaccination',
-            'ordonnances'        => 'une ordonnance',
+            'antecedents' => 'un antécédent',
+            'vaccinations' => 'une vaccination',
+            'ordonnances' => 'une ordonnance',
             'resultats-analyses' => 'un résultat d\'analyse',
-            default              => 'un élément',
+            default => 'un élément',
         };
     }
 
     /**
      * Envoi effectif — dédoublonné, débarrassé des identifiants nuls.
      *
-     * @param  array<int, int|null>   $userIds
-     * @param  array<string, mixed>   $donnees
+     * @param  array<int, int|null>  $userIds
+     * @param  array<string, mixed>  $donnees
      */
     private function envoyer(array $userIds, TypeNotification $type, string $corps, array $donnees = []): void
     {

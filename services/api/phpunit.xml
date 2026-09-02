@@ -18,6 +18,17 @@
         </include>
     </source>
     <php>
+        <!-- B1-c — la suite dépasse désormais 1500 tests dans un seul processus PHP CLI non
+             isolé (RefreshDatabase + fixtures accumulent sans jamais être libérés entre tests) :
+             le défaut CLI de 128M finit par exploser à un point QUASI ALÉATOIRE du run (une
+             classe différente à chaque tentative — trouvé en re-jouant la suite complète deux
+             fois de suite, `ProtocoleSelecteurTest` puis `QuestionnaireAdaptatifTest`, aucun lien
+             avec ce qu'elles testent). `php -d memory_limit=...` sur la commande externe n'a
+             AUCUN EFFET : `artisan test` ré-exécute PHPUnit dans son propre processus, qui ne
+             hérite pas du flag. Seule une directive `ini` DANS ce fichier atteint le processus
+             qui compte réellement, quel que soit l'appelant (`artisan test` ou `vendor/bin/phpunit`
+             direct). -->
+        <ini name="memory_limit" value="512M"/>
         <env name="APP_ENV" value="testing"/>
         <env name="APP_MAINTENANCE_DRIVER" value="file"/>
         <env name="BCRYPT_ROUNDS" value="4"/>
@@ -29,6 +40,8 @@
         <env name="MAIL_MAILER" value="array"/>
         <env name="QUEUE_CONNECTION" value="sync"/>
         <env name="SESSION_DRIVER" value="array"/>
+        <!-- Lot 6 — secret de test du canal interne (principal signé), jamais un secret réel. -->
+        <env name="MASANTE_PAYMENT_PRINCIPAL_SECRET" value="dGVzdC1zZWNyZXQtbG90Ni1jYW5hbC1pbnRlcm5l"/>
         <env name="PULSE_ENABLED" value="false"/>
         <env name="TELESCOPE_ENABLED" value="false"/>
         <env name="NIGHTWATCH_ENABLED" value="false"/>

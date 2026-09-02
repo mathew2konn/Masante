@@ -2,9 +2,12 @@
 
 namespace App\Services;
 
+use App\Models\FacturePatient;
 use App\Models\Paiement;
 use App\Models\RecuRdv;
 use App\Models\RendezVous;
+use App\Support\MomentPaiement;
+use App\Support\StatutFacturePatient;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -33,26 +36,52 @@ class RecuRdvService
      */
     public function payer(RendezVous $rdv, string $mode): RecuRdv
     {
-        $rdv->loadMissing(['medecin', 'structure', 'recu']);
+        $rdv->loadMissing(['medecin', 'structure', 'service', 'recu', 'membre']);
 
         if ($rdv->recu !== null) {
             throw ValidationException::withMessages(['paiement' => 'Ce rendez-vous a déjà un reçu.']);
         }
 
-        $montant = $this->montantPour($rdv);
-        if ($montant === null) {
+        $tarif = $this->tarifPour($rdv);
+        if ($tarif === null) {
             throw ValidationException::withMessages([
                 'montant' => 'Aucun tarif de consultation n\'est défini pour ce rendez-vous.',
             ]);
         }
+        [$montant, $tarifSource] = $tarif;
 
-        return DB::transaction(function () use ($rdv, $mode, $montant) {
+        return DB::transaction(function () use ($rdv, $mode, $montant, $tarifSource) {
             $paiement = Paiement::create([
                 'rendez_vous_id'  => $rdv->id,
                 'montant'         => $montant,
                 'mode'            => $mode,
                 'statut'          => 'paye',                                // simulé
                 'transaction_ref' => 'SIM-'.strtoupper(Str::random(12)),   // factice
+            ]);
+
+            // Lot 5 (reprise du flux RDV, v2 — 2026-08-27) : ÉCRITURE ADDITIONNELLE, jamais un
+            // remplacement — le `Paiement` ci-dessus n'est ni modifié ni retiré, c'est toujours
+            // lui que lit le reçu (`vue()`, inchangée). `factures_patient` devient EN PLUS la
+            // source interrogée par les lots de recouvrement/reporting. Ce point d'entrée EST le
+            // règlement (simulé, toujours immédiat et complet) : la facture naît déjà soldée,
+            // `statut = PAYEE` d'emblée, jamais `A_REGLER`. Aucun calcul CMU n'existe dans ce
+            // flux : simple report du montant.
+            $membre = $rdv->membre;
+            FacturePatient::create([
+                'structure_sanitaire_id'     => $rdv->structure_id,
+                'patient_id'                 => $membre->user_id,
+                'beneficiaire_id'            => $membre->est_titulaire ? null : $membre->id,
+                'rendez_vous_id'             => $rdv->id,
+                'reference'                  => $this->genererReferenceFacturePatient(),
+                'moment_paiement'            => MomentPaiement::AVANT_ACTE,
+                'montant_brut'               => $montant,
+                'tarif_source'               => $tarifSource,
+                'montant_pris_en_charge_cmu' => 0,
+                'montant_reste_a_charge'     => $montant,
+                'statut'                     => StatutFacturePatient::PAYEE,
+                'paiement_en_ligne_autorise' => true,
+                'date_emission'              => now(),
+                'date_reglement'             => now(),
             ]);
 
             return RecuRdv::create([
@@ -63,6 +92,24 @@ class RecuRdvService
                 'expires_at'     => $this->expirationPour($rdv),
             ]);
         });
+    }
+
+    /**
+     * Ce rendez-vous est-il réglé ? Source de vérité : `factures_patient` (lot 5, 2026-08-27).
+     *
+     * // TODO repli historique — supprimable après une date à définir avec Mathieu, une fois
+     * qu'aucun rendez-vous actif ne dépend plus de `paiements` (RDV réglés avant ce lot, qui
+     * n'ont qu'un couple `Paiement`+`RecuRdv`, sans `facture_patient`).
+     */
+    public function estRegle(RendezVous $rdv): bool
+    {
+        if (FacturePatient::where('rendez_vous_id', $rdv->id)->exists()) {
+            return true;
+        }
+
+        // TODO repli historique — supprimable après une date à définir avec Mathieu, une fois
+        // qu'aucun rendez-vous actif ne dépend plus de `paiements`.
+        return Paiement::where('rendez_vous_id', $rdv->id)->where('statut', 'paye')->exists();
     }
 
     /**
@@ -134,12 +181,42 @@ class RecuRdvService
         return $recu;
     }
 
-    /** Montant = tarif du médecin choisi (F3.5) sinon tarif plancher de la structure ; null si aucun. */
-    private function montantPour(RendezVous $rdv): ?int
+    /** Référence unique FPA-AAAA-XXXXXX (opaque), même forme que `genererReference()` du reçu. */
+    private function genererReferenceFacturePatient(): string
     {
-        $tarif = $rdv->medecin?->tarif_consultation ?? $rdv->structure?->tarif_min_cfa;
+        do {
+            $ref = 'FPA-'.date('Y').'-'.strtoupper(Str::random(6));
+        } while (FacturePatient::where('reference', $ref)->exists());
 
-        return $tarif !== null ? (int) $tarif : null;
+        return $ref;
+    }
+
+    /**
+     * B1-a — Le tarif est désormais PORTÉ PAR LE SERVICE (D3 du plan G1), avec repli sur le
+     * médecin puis la structure : un refus bruyant casserait tous les établissements dont le
+     * service n'a pas encore de tarif configuré. La SOURCE retenue est toujours renvoyée — un
+     * montant ne doit jamais mentir sur d'où il vient (précédent `delai_source` P6.7b,
+     * `provenance` P6.8d) — et posée sur la facture (`factures_patient.tarif_source`).
+     *
+     * PUBLIQUE depuis B1-b (D7) : APERÇU du tarif AVANT paiement, affiché sur la fiche RDV
+     * (patient comme staff) — même méthode, jamais une seconde façon de calculer le même montant.
+     * Elle ne crée rien : c'est `payer()` qui persiste, cette lecture est sans effet de bord.
+     *
+     * @return array{0: int, 1: string}|null [montant, source] ; null si aucun tarif exploitable.
+     */
+    public function tarifPour(RendezVous $rdv): ?array
+    {
+        if ($rdv->service?->tarif_consultation_cfa !== null) {
+            return [(int) $rdv->service->tarif_consultation_cfa, 'service'];
+        }
+        if ($rdv->medecin?->tarif_consultation !== null) {
+            return [(int) $rdv->medecin->tarif_consultation, 'medecin'];
+        }
+        if ($rdv->structure?->tarif_min_cfa !== null) {
+            return [(int) $rdv->structure->tarif_min_cfa, 'structure'];
+        }
+
+        return null;
     }
 
     /** Le reçu expire à la fin de la journée du RDV (date confirmée sinon souhaitée). */

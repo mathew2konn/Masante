@@ -59,7 +59,7 @@ class PortailMedecinTest extends TestCase
             'structure_id' => $this->structure->id,
             'service_id'   => $this->service->id,
         ]);
-        $agent->assignRole('agent_garde');
+        $agent->assignRole('personnel_accueil');
 
         return $agent;
     }

@@ -50,7 +50,7 @@ class BrisDeGlacePortailTest extends TestCase
     private function agent(ServiceEtablissement $service, bool $habilite = true): User
     {
         $u = User::factory()->create(['structure_id' => $service->structure_id, 'service_id' => $service->id]);
-        $u->assignRole('agent_garde');
+        $u->assignRole('personnel_accueil');
 
         if ($habilite) {
             $u->givePermissionTo('urgence.bris_de_glace');

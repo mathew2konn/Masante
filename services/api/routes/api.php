@@ -7,6 +7,7 @@ use App\Http\Controllers\Api\V1\AppareilPushController;
 use App\Http\Controllers\Api\V1\AssuranceController;
 use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\AvisController;
+use App\Http\Controllers\Api\V1\Backoffice\FacturationController as BackofficeFacturationController;
 use App\Http\Controllers\Api\V1\Carnet\CalendrierVaccinalController;
 use App\Http\Controllers\Api\V1\Carnet\ContactUrgenceController;
 use App\Http\Controllers\Api\V1\Carnet\DocumentMedicalController;
@@ -18,12 +19,16 @@ use App\Http\Controllers\Api\V1\CarteCmuController;
 use App\Http\Controllers\Api\V1\ContributionCarnetController;
 use App\Http\Controllers\Api\V1\CouvertureMembreController;
 use App\Http\Controllers\Api\V1\DelegationController;
+use App\Http\Controllers\Api\V1\DemandeInscriptionController;
 use App\Http\Controllers\Api\V1\DonSangController;
 use App\Http\Controllers\Api\V1\DossierTitulaireController;
+use App\Http\Controllers\Api\V1\Etablissement\FacturationController as EtablissementFacturationController;
 use App\Http\Controllers\Api\V1\FicheParcoursController;
 use App\Http\Controllers\Api\V1\FicheVitaleController;
 use App\Http\Controllers\Api\V1\GouvernanceReferentielController;
 use App\Http\Controllers\Api\V1\ImageEtablissementController;
+use App\Http\Controllers\Api\V1\Integration\StockOfficineController;
+use App\Http\Controllers\Api\V1\Interne\PaiementNotificationController;
 use App\Http\Controllers\Api\V1\MaladieController;
 use App\Http\Controllers\Api\V1\MedecinController;
 use App\Http\Controllers\Api\V1\MedicamentController;
@@ -33,7 +38,9 @@ use App\Http\Controllers\Api\V1\NisController;
 use App\Http\Controllers\Api\V1\NotificationController;
 use App\Http\Controllers\Api\V1\NumeroUrgenceController;
 use App\Http\Controllers\Api\V1\PasswordController;
+use App\Http\Controllers\Api\V1\PhotoMedecinController;
 use App\Http\Controllers\Api\V1\PhotoMembreController;
+use App\Http\Controllers\Api\V1\Portail\DemandeInscriptionController as PortailDemandeInscriptionController;
 use App\Http\Controllers\Api\V1\Portail\RendezVousController as PortailRendezVousController;
 use App\Http\Controllers\Api\V1\ProtocoleController;
 use App\Http\Controllers\Api\V1\QrController;
@@ -51,6 +58,7 @@ use App\Http\Controllers\Api\V1\VaccinController;
 use App\Http\Controllers\Api\V1\VilleController;
 use App\Http\Controllers\HealthController;
 use App\Support\RegistreSectionsCarnet;
+use Illuminate\Broadcasting\BroadcastController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -75,6 +83,18 @@ Route::middleware('throttle:api')->group(function () {
     Route::get('/user', function (Request $request) {
         return $request->user();
     })->middleware('auth:sanctum');
+
+    /*
+    |----------------------------------------------------------------------
+    | Canal interne — lot 6 (Java → Laravel)
+    |----------------------------------------------------------------------
+    | Authentifié par principal signé (VerificateurPrincipalSigne), JAMAIS par Sanctum : cet
+    | appelant est le microservice de paiement, sans session utilisateur. Préfixe SIBLING de
+    | `v1` (et non nichée dedans), conformément au chemin exact du lot 6.
+    */
+    Route::prefix('interne/v1')->group(function () {
+        Route::post('paiements/notification', PaiementNotificationController::class);
+    });
 
     /*
     |----------------------------------------------------------------------
@@ -142,18 +162,35 @@ Route::middleware('throttle:api')->group(function () {
 
         /*
         |------------------------------------------------------------------
-        | Module 4 / 4.4 — Portail pro : validation des RDV (workflow staff).
+        | Module 4 / 4.4 — Portail pro : validation des RDV (workflow staff, deux étapes — B1-a).
         |------------------------------------------------------------------
         | API du portail Next.js. Mêmes règles/transitions que le Blade (service
-        | partagé). Garde : token Bearer + permission `rdv.validate` vérifiée DANS le
-        | contrôleur (le middleware spatie viserait le guard web/session, pas Sanctum).
-        | Le périmètre (services gérés) est appliqué côté service.
+        | partagé). Garde : token Bearer + permission (`rdv.prevalider` en lecture ET pour
+        | `previsalider`, `rdv.validate` pour `confirmer`) vérifiée DANS le contrôleur/service (le
+        | middleware spatie viserait le guard web/session, pas Sanctum). `refuser` accepte l'une
+        | ou l'autre. Le périmètre (services gérés) est appliqué côté service.
         */
         Route::middleware('auth:sanctum')->prefix('portail')->group(function () {
             Route::get('rendez-vous', [PortailRendezVousController::class, 'index']);
             Route::get('rendez-vous/{rdv}', [PortailRendezVousController::class, 'show']);
+            Route::patch('rendez-vous/{rdv}/previsalider', [PortailRendezVousController::class, 'previsalider']);
             Route::patch('rendez-vous/{rdv}/confirmer', [PortailRendezVousController::class, 'confirmer']);
             Route::patch('rendez-vous/{rdv}/refuser', [PortailRendezVousController::class, 'refuser']);
+            // B1-d (D10) — parité avec le Blade, aucune UI Next construite pour cette action (le
+            // plan ne l'exige pas, précédent B1-c : `rdv_partage` est resté Blade-seul).
+            Route::patch('rendez-vous/{rdv}/terminer', [PortailRendezVousController::class, 'terminer']);
+
+            /*
+             * P11.1 — Traitement des candidatures (CDC_11 §3, méthode 2). Aucune permission
+             * neuve : approuver une demande, c'est créer un établissement, donc
+             * `etablissement.manage`. Elle est vérifiée DANS le contrôleur — ces routes sont
+             * authentifiées par Sanctum alors que les permissions vivent sur le guard `web`
+             * (piège de P4).
+             */
+            Route::get('demandes-inscription', [PortailDemandeInscriptionController::class, 'index']);
+            Route::get('demandes-inscription/{demande}', [PortailDemandeInscriptionController::class, 'show']);
+            Route::post('demandes-inscription/{demande}/approuver', [PortailDemandeInscriptionController::class, 'approuver']);
+            Route::post('demandes-inscription/{demande}/rejeter', [PortailDemandeInscriptionController::class, 'rejeter']);
         });
 
         /*
@@ -288,6 +325,15 @@ Route::middleware('throttle:api')->group(function () {
             // l'enregistrement fonctionne, l'envoi attend un development build (dette D1).
             Route::post('appareils-push', [AppareilPushController::class, 'store']);
             Route::delete('appareils-push', [AppareilPushController::class, 'destroy']);
+
+            // B1-c (D9) — autorisation du canal de présence temps réel. Contrôleur NATIF de
+            // Laravel (`illuminate/broadcasting`, présent avec `laravel/framework` — indépendant
+            // du pilote Reverb) : il lit `routes/channels.php` et applique la garde qui y est
+            // écrite (D9, « le seul titulaire/patient concerné »). Route délibérément PAS posée
+            // via `Broadcast::routes()` (son défaut historique vise le guard `web`) : ici c'est
+            // le compte MOBILE, authentifié par jeton Bearer, qui doit s'autoriser — même piège
+            // de guard que `rdv.validate` en P4.
+            Route::post('broadcasting/auth', [BroadcastController::class, 'authenticate']);
 
             /*
             |--------------------------------------------------------------
@@ -478,9 +524,36 @@ Route::middleware('throttle:api')->group(function () {
             Route::post('rendez-vous', [RendezVousController::class, 'store']);             // F3.6
             Route::patch('rendez-vous/{rendezVous}/annuler', [RendezVousController::class, 'annuler']);
 
+            // B1-b / D6 — Associer un triage APRÈS COUP (le lien `triage_id` existe depuis
+            // toujours ; store() le posait déjà à la création, ceci le pose plus tard). Mêmes
+            // vérifications anti-IDOR que store() : membre du compte, triage du compte.
+            Route::patch('rendez-vous/{rendezVous}/triage', [RendezVousController::class, 'associerTriage']);
+
             // Paiement (simulé) + reçu de RDV avec QR de check-in (N1/N2/N3).
             Route::post('rendez-vous/{rendezVous}/paiement', [RecuRdvController::class, 'store']);
             Route::get('rendez-vous/{rendezVous}/recu', [RecuRdvController::class, 'show']);
+        });
+
+        /*
+        |------------------------------------------------------------------
+        | Lot 8 (post-facturation) — API de facturation partenaire.
+        |------------------------------------------------------------------
+        | Établissement : lecture seule, périmètre TOUJOURS celui de l'utilisateur authentifié
+        | (`structure_id`), jamais un id reçu du client (sauf la ressource elle-même sur
+        | `factures/{facture}`, vérifiée explicitement dans le contrôleur — anti-IDOR).
+        | Back-office : `POST .../reglements` — jamais accessible à l'établissement, vérifié dans
+        | le contrôleur via `can('recouvrement.manage')` et non par le middleware `permission:`
+        | (piège de P4 : permissions posées sur le guard `web`, ces routes sont Sanctum).
+        */
+        Route::middleware('auth:sanctum')->prefix('etablissement/facturation')->group(function () {
+            Route::get('tableau-bord', [EtablissementFacturationController::class, 'tableauBord']);
+            Route::get('transactions', [EtablissementFacturationController::class, 'transactions']);
+            Route::get('factures', [EtablissementFacturationController::class, 'factures']);
+            Route::get('factures/{facture}', [EtablissementFacturationController::class, 'facture']);
+        });
+
+        Route::middleware('auth:sanctum')->prefix('backoffice/facturation')->group(function () {
+            Route::post('factures/{facture}/reglements', [BackofficeFacturationController::class, 'enregistrerReglement']);
         });
 
         /*
@@ -504,6 +577,42 @@ Route::middleware('throttle:api')->group(function () {
         */
         Route::get('/villes', [VilleController::class, 'index']);
         Route::get('/villes/localiser', [VilleController::class, 'localiser']);
+
+        /*
+        |------------------------------------------------------------------
+        | P11.1 — Demande d'inscription d'un établissement (CDC_11 §3, méthode 2).
+        |------------------------------------------------------------------
+        | PUBLICS, et c'est tout le point : « Clinique Saint Joseph souhaite rejoindre la
+        | plateforme » vient de quelqu'un qui n'a ni compte ni contact préalable. Exiger un
+        | jeton ici reviendrait à la méthode 1, celle où l'administrateur crée lui-même.
+        |
+        | Limiteur STRICT (5 dépôts par heure) : c'est un formulaire public qui écrit en base.
+        | Le service ajoute « une seule demande en attente par adresse », et rien de ce qui est
+        | déposé n'atteint `structures_sanitaires` avant qu'un humain habilité n'approuve.
+        |
+        | Le suivi rend le seul état de la décision, jamais le contenu déposé — et 404 sur une
+        | référence inconnue, jamais 403 : un 403 confirmerait qu'une demande existe là.
+        */
+        /*
+        |------------------------------------------------------------------
+        | P11.2 — API D'INGESTION PARTENAIRE (CDC_11 §2/§7.7, ADR-030).
+        |------------------------------------------------------------------
+        | HORS `auth:sanctum`, et ce n'est pas un oubli : un logiciel de caisse n'a pas de
+        | session, et un jeton de citoyen n'a rien à faire ici. C'est la TROISIÈME population
+        | d'authentification du projet — clé de client + signature HMAC, vérifiée dans le
+        | contrôleur par `AuthentificationClientApi` (ADR-030 : « trois populations d'auth,
+        | jamais étirées en une »).
+        |
+        | Limiteur large : un partenaire pousse un catalogue entier, pas une requête d'écran.
+        | L'anti-rejeu, la fraîcheur et l'idempotence font le reste.
+        */
+        Route::post('/integration/stock-officine', StockOfficineController::class)
+            ->middleware('throttle:120,1');
+
+        Route::post('/etablissements/demandes', [DemandeInscriptionController::class, 'store'])
+            ->middleware('throttle:5,60');
+        Route::get('/etablissements/demandes/{reference}', [DemandeInscriptionController::class, 'suivi'])
+            ->middleware('throttle:30,1');
 
         /*
         |------------------------------------------------------------------
@@ -592,6 +701,10 @@ Route::middleware('throttle:api')->group(function () {
         // Module 5 / 5.6 — Recherche par nom dans l'annuaire des praticiens (choix d'un référent).
         // Mêmes données que la fiche d'une structure (F3.5), avec une entrée par nom : public.
         Route::get('/medecins', [MedecinController::class, 'index']);
+
+        // B1-b — Photo de profil d'un médecin (D5). Publique comme le reste de l'annuaire ; le
+        // dépôt/retrait relèvent du portail (routes/web.php, permission:medecin.manage).
+        Route::get('/medecins/{medecin}/photo', [PhotoMedecinController::class, 'show']);
 
         /*
         |------------------------------------------------------------------

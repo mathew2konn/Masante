@@ -4,12 +4,14 @@ namespace App\Http\Controllers\Portail;
 
 use App\Http\Controllers\Controller;
 use App\Models\MembreFamille;
+use App\Models\SpecialiteMedicale;
 use App\Models\Triage;
 use App\Services\EcritureSoignantService;
 use App\Services\Maladie\ServiceMaladies;
 use App\Services\Pki\ServiceSignature;
 use App\Services\SessionDossierService;
 use App\Services\Triage\ServiceRetourTriage;
+use App\Support\NiveauTriage;
 use App\Support\RegistreRetourTriage;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -138,9 +140,23 @@ class DossierController extends Controller
             // DEPUIS LA VERSION PUBLIÉE, et sans lever de 503 : une liste vide veut dire « aucune
             // version en vigueur », et le formulaire le dit. Le lien reste facultatif — le serveur
             // ne devine jamais une maladie depuis la description (CDC_00 §4).
-            'maladiesReferentiel' => $section === 'antecedents'
+            'maladiesReferentiel' => in_array($section, ['antecedents', 'triage'], true)
                 ? app(ServiceMaladies::class)->listePubliee()
                 : [],
+            // ═══ P10c-3-ii (F32→F34) — LES TROIS FAITS DU §5.5.4 ═══
+            //
+            // Le diagnostic et la spécialité se CHOISISSENT dans une liste : saisis librement, ils
+            // rendraient insoluble « combien de paludismes parmi les triages sous-évalués ? » et
+            // feraient d'une faute de frappe une catégorie (motif ADR-037/P6.8a). Le serveur ne
+            // devine jamais un diagnostic depuis les symptômes — ce serait une affirmation clinique
+            // posée par une machine.
+            //
+            // Les trois restent FACULTATIFS : les exiger changerait le contrat d'un module validé
+            // G5 et bloquerait un retour par ailleurs valide.
+            'specialitesReferentiel' => $section === 'triage'
+                ? SpecialiteMedicale::where('actif', true)->orderBy('libelle')->get(['id', 'code', 'libelle'])
+                : collect(),
+            'niveauxReels' => $section === 'triage' ? NiveauTriage::LIBELLES : [],
         ]);
     }
 
@@ -281,6 +297,15 @@ class DossierController extends Controller
                 $triage,
                 (string) $request->input('retour', ''),
                 $request->input('justification'),
+                // P10c-3-ii (F32) — les trois faits du §5.5.4. Facultatifs : un retour reste
+                // valide sans eux (le contrat de P10c-2-i, validé G5, ne bouge pas). Le service
+                // les relit au référentiel et refuse toute incohérence — le contrôleur ne fait que
+                // transmettre, il ne juge rien.
+                [
+                    'niveau_reel' => $request->input('niveau_reel'),
+                    'maladie_id' => $request->input('maladie_id'),
+                    'specialite_id' => $request->input('specialite_id'),
+                ],
             );
         } catch (\RuntimeException $e) {
             // Refus métier (habilitation, triage hors dossier, motif manquant) : un message à

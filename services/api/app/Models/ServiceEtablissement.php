@@ -34,12 +34,17 @@ class ServiceEtablissement extends Model
         // RÉSOLVENT le terme au lieu de croire le client — chacun avec son vecteur de test.
         'specialite_id',
         'actif',
+        // B1-a — le tarif de consultation se déplace ici (D3, plan G1 B1) : jusqu'ici porté par le
+        // médecin, avec repli sur le plancher de la structure. `RecuRdvService::tarifPour()` lit
+        // cette colonne en premier et trace la source retenue sur la facture.
+        'tarif_consultation_cfa',
     ];
 
     protected function casts(): array
     {
         return [
             'actif' => 'boolean',
+            'tarif_consultation_cfa' => 'integer',
         ];
     }
 

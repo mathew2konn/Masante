@@ -42,6 +42,8 @@ export default function RendezVousForm() {
   // null = « Peu importe » (l'établissement attribue le médecin). Sinon id du praticien choisi (F3.5).
   const [medecinId, setMedecinId] = useState<number | null>(null);
   const [motif, setMotif] = useState('');
+  const [motifOrientation, setMotifOrientation] = useState('');
+  const [messageOrientation, setMessageOrientation] = useState('');
   const [date, setDate] = useState('');
   const [envoi, setEnvoi] = useState(false);
   const [erreur, setErreur] = useState<string | null>(null);
@@ -101,6 +103,10 @@ export default function RendezVousForm() {
         ...(medecinId ? { medecin_id: medecinId } : {}),
         motif: motif.trim(),
         date_souhaitee: date.trim(),
+        // B1-b (D6) — facultatif, distinct du médecin référent : affichage seul sur la fiche
+        // staff, aucune règle métier n'en dépend.
+        ...(motifOrientation.trim() ? { motif_orientation: motifOrientation.trim() } : {}),
+        ...(messageOrientation.trim() ? { message_orientation: messageOrientation.trim() } : {}),
       });
       Alert.alert('Demande envoyée', 'Votre demande de rendez-vous est en attente de confirmation.', [
         { text: 'Voir mes rendez-vous', onPress: () => router.replace('/(app)/structures/mes-rendez-vous') },
@@ -230,6 +236,25 @@ export default function RendezVousForm() {
         placeholder="AAAA-MM-JJ"
         keyboardType="numbers-and-punctuation"
         erreur={erreur}
+      />
+
+      {/* B1-b (D6) — facultatif : distinct du médecin référent, affichage seul pour le staff. */}
+      <TextField
+        label="Orienté par (facultatif)"
+        value={motifOrientation}
+        onChangeText={setMotifOrientation}
+        placeholder="Ex. médecin traitant, examen antérieur…"
+        maxLength={150}
+        autoCapitalize="sentences"
+      />
+      <TextField
+        label="Précisions sur l'orientation (facultatif)"
+        value={messageOrientation}
+        onChangeText={setMessageOrientation}
+        multiline
+        numberOfLines={2}
+        maxLength={1000}
+        autoCapitalize="sentences"
       />
     </Screen>
   );

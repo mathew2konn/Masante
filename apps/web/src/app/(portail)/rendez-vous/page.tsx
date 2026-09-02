@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { getFileRdv } from '@/lib/rdv';
 import { LIBELLE_RDV, STATUTS_FILE, type StatutRdv } from '@/lib/rdv-types';
 import { Card } from '@/components/ui/Card';
+import { exigerZone } from '@/lib/session';
 
 /**
  * File d'attente staff des RDV (Module 4 / 4.4). Serveur : la garde `rdv.validate` et le périmètre
@@ -12,6 +13,10 @@ export default async function FileRdvPage({
 }: {
   searchParams: Promise<{ statut?: string }>;
 }) {
+  // P11.0 — garde de zone : la permission qui ouvre « rendez-vous » est déclarée une seule
+  // fois, dans le registre. Le backend reste l'autorité et refuse de son côté (branche
+  // `interdit` plus bas, conservée comme filet) ; ici on évite d'afficher une page vide.
+  await exigerZone('rendez-vous');
   const sp = await searchParams;
   const statut: StatutRdv = STATUTS_FILE.includes(sp.statut as StatutRdv)
     ? (sp.statut as StatutRdv)

@@ -3,12 +3,15 @@
 @section('titre', 'Rendez-vous')
 
 @php
+  // B1-a — `prevalide` ajouté aux DEUX tables : sans lui, ce statut (que
+  // `RendezVousValidationService::STATUTS` produit désormais) tombait sur le repli
+  // `$libelleStatut[$statut] ?? $statut`, affichant le mot technique brut.
   $badgeStatut = [
-    'en_attente' => 'bg-warning text-dark', 'confirme' => 'bg-success',
+    'en_attente' => 'bg-warning text-dark', 'prevalide' => 'bg-info text-dark', 'confirme' => 'bg-success',
     'refuse' => 'bg-danger', 'annule' => 'bg-secondary', 'honore' => 'bg-primary',
   ];
   $libelleStatut = [
-    'en_attente' => 'En attente', 'confirme' => 'Confirmé', 'refuse' => 'Refusé',
+    'en_attente' => 'En attente', 'prevalide' => 'Pré-validé', 'confirme' => 'Confirmé', 'refuse' => 'Refusé',
     'annule' => 'Annulé', 'honore' => 'Honoré',
   ];
 @endphp
@@ -58,7 +61,7 @@
             </td>
             <td class="text-end">
               <a href="{{ route('portail.rdv.show', $rdv) }}" class="btn btn-sm btn-outline-secondary">
-                {{ $statut === 'en_attente' ? 'Traiter' : 'Détails' }} <i class="bi bi-arrow-right"></i>
+                {{ in_array($statut, ['en_attente', 'prevalide'], true) ? 'Traiter' : 'Détails' }} <i class="bi bi-arrow-right"></i>
               </a>
             </td>
           </tr>

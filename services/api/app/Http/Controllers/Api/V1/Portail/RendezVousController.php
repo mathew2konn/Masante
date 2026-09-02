@@ -5,6 +5,8 @@ namespace App\Http\Controllers\Api\V1\Portail;
 use App\Http\Controllers\Controller;
 use App\Models\Medecin;
 use App\Models\RendezVous;
+use App\Services\RecuRdvService;
+use App\Services\ReferentService;
 use App\Services\RendezVousValidationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -12,24 +14,25 @@ use Illuminate\Http\Request;
 /**
  * API staff du portail Next.js — validation des RDV (Module 4 / 4.4). Mêmes règles et transitions
  * que le portail Blade (via {@see RendezVousValidationService}) : aucune logique métier ici, le
- * contrôleur ne fait qu'exposer en JSON. Auth Sanctum + `permission:rdv.validate` (routes).
+ * contrôleur ne fait qu'exposer en JSON. Auth Sanctum, permission vérifiée en service (guard
+ * Sanctum — le middleware `permission:` spatie viserait le guard `web`, piège P4).
+ *
+ * B1-a — la lecture (`index`/`show`) reste ouverte aux DEUX permissions (`rdv.prevalider` OU
+ * `rdv.validate`) : l'accueil et le médecin doivent tous deux voir la file. Les actions
+ * d'écriture (`previsalider`/`confirmer`/`refuser`) délèguent leur propre autorisation au
+ * service — c'est lui qui distingue l'étape 1 de l'étape 2, pas ce contrôleur.
  */
 class RendezVousController extends Controller
 {
-    public function __construct(private readonly RendezVousValidationService $rdvs)
-    {
-    }
+    public function __construct(private readonly RendezVousValidationService $rdvs) {}
 
-    /**
-     * Garde de permission (guard-agnostique : `can()` passe par la Gate spatie et vérifie les
-     * permissions du compte quelle que soit la façon dont il s'est authentifié — ici Sanctum).
-     */
+    /** Lecture : accessible à qui peut traiter un RDV, à N'IMPORTE quelle étape. */
     private function autoriser(Request $request): void
     {
         abort_unless(
-            $request->user()->can('rdv.validate'),
+            $request->user()->can('rdv.prevalider') || $request->user()->can('rdv.validate'),
             403,
-            'Action réservée à la validation des rendez-vous.',
+            'Action réservée au traitement des rendez-vous.',
         );
     }
 
@@ -51,8 +54,15 @@ class RendezVousController extends Controller
         return response()->json($rdvs);
     }
 
-    /** Détail d'un RDV du périmètre + médecins réservables du service (attribution éventuelle). */
-    public function show(Request $request, RendezVous $rdv): JsonResponse
+    /**
+     * Détail d'un RDV du périmètre + médecins réservables du service (attribution éventuelle).
+     *
+     * B1-b — fiche enrichie : référent (D6, {@see ReferentService}, aucun nouveau mécanisme) et
+     * aperçu du tarif avec sa source (D7, `RecuRdvService::tarifPour()` — la MÊME méthode que
+     * `RecuRdvService::payer()`, sans effet de bord, jamais une seconde façon de calculer le même
+     * montant).
+     */
+    public function show(Request $request, RendezVous $rdv, ReferentService $referents, RecuRdvService $recus): JsonResponse
     {
         $this->autoriser($request);
         $this->rdvs->assertPerimetre($request->user(), $rdv);
@@ -63,26 +73,54 @@ class RendezVousController extends Controller
             ->orderBy('nom')
             ->get();
 
-        return response()->json(['rendez_vous' => $rdv, 'medecins' => $medecins]);
+        $referent = $rdv->membre !== null ? $referents->actif($rdv->membre) : null;
+        $tarif = $recus->tarifPour($rdv);
+
+        return response()->json([
+            'rendez_vous' => $rdv,
+            'medecins' => $medecins,
+            'referent' => $referent,
+            'tarif' => $tarif[0] ?? null,
+            'tarif_source' => $tarif[1] ?? null,
+        ]);
     }
 
-    /** Confirme un RDV en attente : date définitive + médecin optionnel + message. */
+    /** Étape 1 (accueil) — pré-valide un RDV en attente. */
+    public function previsalider(Request $request, RendezVous $rdv): JsonResponse
+    {
+        $this->autoriser($request);
+        $this->rdvs->assertPerimetre($request->user(), $rdv);
+        $data = $request->validate(['message_agent' => ['nullable', 'string', 'max:1000']]);
+
+        return response()->json(['rendez_vous' => $this->rdvs->previsalider($request->user(), $rdv, $data)]);
+    }
+
+    /** Étape 2 (médecin) — confirme un RDV pré-validé : date définitive + médecin optionnel + message. */
     public function confirmer(Request $request, RendezVous $rdv): JsonResponse
     {
         $this->autoriser($request);
         $this->rdvs->assertPerimetre($request->user(), $rdv);
         $data = $request->validate(RendezVousValidationService::reglesConfirmer($rdv));
 
-        return response()->json(['rendez_vous' => $this->rdvs->confirmer($rdv, $data)]);
+        return response()->json(['rendez_vous' => $this->rdvs->confirmer($request->user(), $rdv, $data)]);
     }
 
-    /** Refuse un RDV en attente : motif obligatoire (communiqué au patient). */
+    /** Refuse un RDV en attente ou pré-validé : motif obligatoire (communiqué au patient). */
     public function refuser(Request $request, RendezVous $rdv): JsonResponse
     {
         $this->autoriser($request);
         $this->rdvs->assertPerimetre($request->user(), $rdv);
         $data = $request->validate(RendezVousValidationService::reglesRefuser());
 
-        return response()->json(['rendez_vous' => $this->rdvs->refuser($rdv, $data)]);
+        return response()->json(['rendez_vous' => $this->rdvs->refuser($request->user(), $rdv, $data)]);
+    }
+
+    /** B1-d (D10) — clôt le rendez-vous (`confirme → honore`). Voir {@see RendezVousValidationService::terminer()}. */
+    public function terminer(Request $request, RendezVous $rdv): JsonResponse
+    {
+        $this->autoriser($request);
+        $this->rdvs->assertPerimetre($request->user(), $rdv);
+
+        return response()->json(['rendez_vous' => $this->rdvs->terminer($request->user(), $rdv)]);
     }
 }

@@ -18,6 +18,7 @@ use App\Services\Protocole\JournalProtocole;
 use App\Services\Referentiel\JournalReferentiel;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use RuntimeException;
 use Tests\TestCase;
 
@@ -400,18 +401,79 @@ class ChaineAuditTest extends TestCase
     }
 
     // ═══════════════════════════════════════════════════════════════════════════════════════
-    //  LES QUATRE JOURNAUX SONT COUVERTS
+    //  TOUT JOURNAL DU REGISTRE EST COUVERT — QUEL QUE SOIT LEUR NOMBRE
     // ═══════════════════════════════════════════════════════════════════════════════════════
 
-    public function test_les_quatre_journaux_declarent_leur_origine_a_l_installation(): void
+    /**
+     * ═══ RÉÉCRIT EN P10c-3-ii POUR DIRE LA GARANTIE, PAS POUR PASSER ═══
+     *
+     * La version d'ADR-042 finissait par `assertCount(4, …)`. Deux journaux se sont ajoutés
+     * (`predictions_ia`, `retours_cliniques_triage`) et le vecteur est devenu rouge — non parce
+     * qu'une garantie avait cédé, mais parce qu'il comptait au lieu de vérifier.
+     *
+     * Ce que le projet doit protéger n'a jamais été « il y a quatre journaux » : c'est **aucun
+     * journal du registre ne vit sans origine déclarée**. Écrit ainsi, le vecteur devient plus fort
+     * qu'avant — il tombera le jour où quelqu'un inscrira un journal dans `ChaineAudit::JOURNAUX`
+     * en oubliant de déclarer son origine, c'est-à-dire précisément le trou qu'ADR-042 a refermé.
+     *
+     * Précédent explicite : le vecteur hérité de P6.4d, réécrit pour dire la garantie neuve plutôt
+     * que corrigé pour redevenir vert.
+     */
+    public function test_tout_journal_du_registre_declare_son_origine_a_l_installation(): void
     {
+        $this->assertNotEmpty(ChaineAudit::noms(), 'un registre vide ne prouverait rien');
+
         foreach (ChaineAudit::noms() as $nom) {
             $this->assertTrue(
                 ChaineAudit::origineDeclaree($nom, 1),
                 "le journal « {$nom} » doit déclarer son origine sur une base neuve"
             );
         }
+    }
 
-        $this->assertCount(4, ChaineAudit::noms());
+    /**
+     * ═══ AJOUTÉ APRÈS UN ÉCHEC EN BASE RÉELLE, PAS APRÈS UNE RELECTURE ═══
+     *
+     * `audit_chaines.motif` est un `string(300)`. Une déclaration d'origine plus longue passait
+     * ici sans un mot — **SQLite n'impose pas la longueur d'un `VARCHAR`, MySQL si** — et la
+     * migration de P10c-3-ii a échoué au premier contact avec la base réelle
+     * (`1406 Data too long`), après avoir posé une partie du schéma puisque le DDL MySQL n'est pas
+     * transactionnel.
+     *
+     * Ce vecteur rend la longueur vérifiable des deux côtés. Il vaut pour toute déclaration
+     * future, pas seulement pour celles d'aujourd'hui.
+     */
+    public function test_aucune_declaration_d_origine_ne_depasse_la_capacite_de_sa_colonne(): void
+    {
+        $declarations = AuditChaine::query()->get(['journal', 'motif', 'acteur_nom']);
+
+        $this->assertNotEmpty($declarations);
+
+        foreach ($declarations as $declaration) {
+            $this->assertLessThanOrEqual(
+                300, mb_strlen((string) $declaration->motif),
+                "le motif du journal « {$declaration->journal} » dépasse la colonne : MySQL le "
+                .'refuserait alors que SQLite l\'accepte'
+            );
+            $this->assertLessThanOrEqual(150, mb_strlen((string) $declaration->acteur_nom));
+        }
+    }
+
+    /**
+     * Le registre et les tables réellement chaînées ne doivent pas diverger.
+     *
+     * Un journal inscrit au registre sans ses colonnes de chaîne échouerait à la première écriture,
+     * en production et pas forcément en test — on le constate ici, avant.
+     */
+    public function test_chaque_journal_du_registre_porte_ses_colonnes_de_chaine(): void
+    {
+        foreach (ChaineAudit::noms() as $nom) {
+            foreach (['chaine', 'empreinte', 'empreinte_precedente'] as $colonne) {
+                $this->assertTrue(
+                    Schema::hasColumn($nom, $colonne),
+                    "le journal « {$nom} » doit porter la colonne « {$colonne} »"
+                );
+            }
+        }
     }
 }

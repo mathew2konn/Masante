@@ -11,7 +11,7 @@
   ];
   $libellesTriage = ['leger' => 'Léger', 'modere' => 'Modéré', 'urgent' => 'Urgent'];
   $libellesRole = [
-    'admin_ivoirsante' => 'Admins', 'gestionnaire_etablissement' => 'Gestionnaires', 'agent_garde' => 'Agents',
+    'admin_ivoirsante' => 'Admins', 'gestionnaire_etablissement' => 'Gestionnaires', 'personnel_accueil' => 'Accueil',
   ];
 @endphp
 

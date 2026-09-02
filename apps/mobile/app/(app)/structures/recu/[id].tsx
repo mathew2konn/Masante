@@ -43,8 +43,11 @@ const STATUT_RECU: Record<string, { label: string; bg: string; text: string }> =
  * dossier médical — il ne sert qu'au check-in à l'accueil (scan/validation = Module 4).
  */
 export default function RecuRdvEcran() {
-  const { id, nom } = useLocalSearchParams<{ id: string; nom: string }>();
+  const { id, nom, tarif } = useLocalSearchParams<{ id: string; nom: string; tarif?: string }>();
   const rdvId = Number(id);
+  // B1-b (D7) — aperçu transmis par la fiche (déjà calculé côté serveur, jamais recalculé ici) :
+  // affiché AVANT paiement, ce que l'écran ne faisait pas.
+  const montantAPayer = tarif ? Number(tarif) : null;
 
   const [recu, setRecu] = useState<RecuRdv | null>(null);
   const [aPayer, setAPayer] = useState(false);
@@ -112,6 +115,9 @@ export default function RecuRdvEcran() {
               Paiement de démonstration : aucun débit réel n'est effectué.
             </Text>
           </View>
+          {montantAPayer != null ? (
+            <Text style={styles.montant}>Montant à payer : {formatFcfa(montantAPayer)}</Text>
+          ) : null}
           <Text style={styles.label}>Mode de paiement</Text>
           <View style={styles.chips}>
             {MODES.map((m) => (
@@ -206,6 +212,7 @@ const styles = StyleSheet.create({
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing[2] },
   avert: { flexDirection: 'row', alignItems: 'center', gap: spacing[2] },
   avertTxt: { ...typography.caption, color: colors.blue[700], flex: 1 },
+  montant: { ...typography.bodyStrong, color: colors.blue[900] },
   erreur: { ...typography.body, color: colors.danger.solid, textAlign: 'center' },
   qrCard: { marginBottom: spacing[4], alignItems: 'center', gap: spacing[3] },
   qrWrap: { padding: spacing[3], backgroundColor: '#FFFFFF', borderRadius: radius.card },

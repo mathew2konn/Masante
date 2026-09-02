@@ -82,6 +82,16 @@ return [
             'report' => false,
         ],
 
+        // B1-b — Photo de profil des médecins (D5). Même raisonnement que le disque
+        // `etablissements` juste au-dessus : privé mais non chiffré, servi par un contrôleur pour
+        // une URL relative stable.
+        'medecins' => [
+            'driver' => 'local',
+            'root' => storage_path('app/medecins'),
+            'throw' => true,
+            'report' => false,
+        ],
+
         's3' => [
             'driver' => 's3',
             'key' => env('AWS_ACCESS_KEY_ID'),

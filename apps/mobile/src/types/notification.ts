@@ -35,7 +35,8 @@ export type RouteNotification =
   | '/(app)/contributions'
   | '/(app)/revendiquer-carnet'
   | '/(app)/partages'
-  | '/(app)/carnet';
+  | '/(app)/carnet'
+  | '/(app)/structures/mes-rendez-vous';
 
 /**
  * L'écran vers lequel ouvrir à l'appui.
@@ -53,6 +54,8 @@ export function routeDe(notification: Notification): RouteNotification {
         : '/(app)/partages';
     case TypeNotification.RESPONSABLE_DESIGNE:
       return '/(app)/contributions';
+    case TypeNotification.RENDEZ_VOUS_TERMINE:
+      return '/(app)/structures/mes-rendez-vous';
     case TypeNotification.CONTRIBUTION_VALIDEE:
     case TypeNotification.CONTRIBUTION_REJETEE:
     case TypeNotification.DOSSIER_CONSULTE:
@@ -76,6 +79,8 @@ export function iconeDe(type: TypeNotification): string {
       return 'shield-checkmark-outline';
     case TypeNotification.DOSSIER_CONSULTE:
       return 'eye-outline';
+    case TypeNotification.RENDEZ_VOUS_TERMINE:
+      return 'checkmark-done-outline';
     default:
       return 'notifications-outline';
   }

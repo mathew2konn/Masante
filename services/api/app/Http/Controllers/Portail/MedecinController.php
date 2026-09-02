@@ -10,6 +10,7 @@ use App\Models\SpecialiteMedicale;
 use App\Models\StructureSanitaire;
 use App\Models\User;
 use App\Services\Professionnel\AttributeurNumeroProfessionnel;
+use App\Services\Professionnel\PhotoMedecin;
 use App\Support\ProfessionsSante;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -78,7 +79,14 @@ class MedecinController extends Controller
             ->where('id', '!=', $medecin?->id ?? 0)
             ->pluck('user_id');
 
-        return User::role(['agent_garde', 'medecin'])
+        // P11.0 — les rôles soignants dotés par cet incrément entrent dans la liste : une fiche
+        // d'annuaire peut légitimement être reliée au compte d'un infirmier, d'un laborantin ou
+        // d'un radiologue, qui exercent dans l'établissement au même titre. `personnel_accueil`
+        // (ex-`agent_garde`) reste proposé, sans quoi les fiches déjà reliées à un tel compte
+        // perdraient le leur.
+        return User::role([
+            'personnel_accueil', 'medecin', 'infirmier', 'laborantin', 'radiologue',
+        ])
             ->where('structure_id', $this->structureId())
             ->whereNotIn('id', $relies)
             ->orderBy('nom')
@@ -248,6 +256,30 @@ class MedecinController extends Controller
         $exercice->delete();
 
         return back()->with('statut', "Lieu d'exercice retiré.");
+    }
+
+    /**
+     * Dépose (ou remplace) la photo de la fiche (B1-b / D5). Toute l'habilitation vient d'ailleurs
+     * — le groupe de routes exige `medecin.manage`, et `fichePossedee()` ci-dessus cloisonne par
+     * établissement ; ce contrôleur ne fait que transmettre le fichier à `PhotoMedecin`.
+     */
+    public function uploaderPhoto(Request $request, Medecin $medecin, PhotoMedecin $photos): RedirectResponse
+    {
+        $this->fichePossedee($medecin);
+        $data = $request->validate(['photo' => ['required', 'file']]);
+
+        $photos->deposer($data['photo'], $medecin);
+
+        return back()->with('statut', 'Photo mise à jour.');
+    }
+
+    /** Retire la photo (blob + colonnes). */
+    public function retirerPhoto(Medecin $medecin, PhotoMedecin $photos): RedirectResponse
+    {
+        $this->fichePossedee($medecin);
+        $photos->supprimer($medecin);
+
+        return back()->with('statut', 'Photo retirée.');
     }
 
     /**

@@ -36,6 +36,16 @@ enum TypeAccesDossier: string
     case ADMIN = 'admin';
 
     /**
+     * B1-c — accès ouvert par LE MÉDECIN de ce rendez-vous précis, 30 minutes (D8, CDC_11 §9).
+     *
+     * Miroir de REFERENT (même mécanisme d'ouverture, même fenêtre de 30 minutes) mais jamais
+     * permanent : la voie référent désigne un médecin une fois pour toutes ; celle-ci ne vaut que
+     * pour LE rendez-vous qui l'a rendue possible (`rendez_vous_id`, posé sur la ligne — la seule
+     * voie qui en porte un), et seulement une fois le patient enregistré à l'accueil.
+     */
+    case RDV_PARTAGE = 'rdv_partage';
+
+    /**
      * Ce que lit le CITOYEN (décision propriétaire, 2026-08-12).
      *
      * « Bris de glace » est un terme de métier. « Accès d'urgence vitale » dit en trois mots
@@ -50,6 +60,7 @@ enum TypeAccesDossier: string
             self::DELEGATION    => 'Consultation par un proche',
             self::BRIS_DE_GLACE => "Accès d'urgence vitale",
             self::ADMIN         => 'Accès administrateur MaSanté',
+            self::RDV_PARTAGE   => 'Consultation pour votre rendez-vous',
         };
     }
 

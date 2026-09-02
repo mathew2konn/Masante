@@ -77,7 +77,7 @@ class Medecin extends Model
     ];
 
     /** Champs dérivés exposés au mobile (choix d'un référent dans l'annuaire). */
-    protected $appends = ['nom_complet', 'consulte_en_ligne'];
+    protected $appends = ['nom_complet', 'consulte_en_ligne', 'photo_url'];
 
     protected function casts(): array
     {
@@ -109,6 +109,20 @@ class Medecin extends Model
     public function getConsulteEnLigneAttribute(): bool
     {
         return $this->user_id !== null;
+    }
+
+    /**
+     * URL relative de la photo (B1-b / D5), ou NULL si le praticien n'en a pas déposé.
+     *
+     * Relative, comme `ImageEtablissement::url` (P6.4c) : une URL absolue serait bâtie sur l'URL
+     * Ngrok du moment et deviendrait fausse au prochain redémarrage du tunnel. Nécessite que
+     * `photo_uuid` ait été SÉLECTIONNÉ par la requête qui a chargé ce modèle — un chargement à
+     * colonnes restreintes qui l'omet rend cet accesseur silencieusement NULL (piège documenté au
+     * point d'appel : `Api\V1\RendezVousController::index()`).
+     */
+    public function getPhotoUrlAttribute(): ?string
+    {
+        return $this->photo_uuid !== null ? "/api/v1/medecins/{$this->id}/photo" : null;
     }
 
     /** Compte portail du praticien (5.6). NULL = fiche d'annuaire sans compte. */

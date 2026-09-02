@@ -44,6 +44,10 @@ export interface Medecin {
   prenom: string;
   specialite: string;
   tarif_consultation: number | null;
+  /** B1-b (D5) — numéro national, exposé pour la première fois côté mobile. Transparence patient. */
+  numero_professionnel?: string | null;
+  /** B1-b (D5) — URL relative, ou absente si le praticien n'a pas déposé de photo. */
+  photo_url?: string | null;
 }
 
 /** Service médical d'une structure (avec sa disponibilité du jour et ses médecins réservables). */
@@ -163,18 +167,34 @@ export interface SignalementPublic {
   created_at: string;
 }
 
-/** Statut d'un rendez-vous (F3.6, enum backend ; validation agent → Module 4). */
-export type StatutRdv = 'en_attente' | 'confirme' | 'refuse' | 'annule' | 'honore';
+/**
+ * Statut d'un rendez-vous (F3.6, enum backend ; validation staff → Module 4, workflow à deux
+ * étapes depuis B1-a). Vient de `@masante/shared` — précédent défaut : ce type était dupliqué à
+ * la main ici, dans le web, ET dans le PHP, pendant que le VRAI enum partagé (`PREVALIDE_SECRETAIRE`)
+ * n'était consommé nulle part.
+ */
+import type { RendezVousStatut } from '@masante/shared';
+export type StatutRdv = RendezVousStatut;
 
 /** Mode d'attribution du médecin (F3.5). `etablissement_attribue` = médecin fixé par l'agent au M4. */
 export type ModeAttribution = 'patient_choisit' | 'etablissement_attribue';
 
-/** Rendez-vous tel que renvoyé par GET /v1/rendez-vous (avec relations légères). */
+/**
+ * Rendez-vous tel que renvoyé par GET /v1/rendez-vous (avec relations légères).
+ *
+ * B1-b — `tarif`/`tarif_source`/`regle` sont un APERÇU calculé à chaque lecture
+ * (`RecuRdvService::tarifPour()`), jamais une valeur stockée : ils peuvent changer tant que le
+ * RDV n'est pas payé. `triage_id` permet à l'écran de proposer « Associer un triage » seulement
+ * quand il est absent (D6).
+ */
 export interface RendezVous {
   id: number;
   statut: StatutRdv;
   mode_attribution: ModeAttribution;
   motif: string;
+  motif_orientation: string | null;
+  message_orientation: string | null;
+  triage_id: number | null;
   date_souhaitee: string;
   date_confirmee: string | null;
   message_agent: string | null;
@@ -182,7 +202,10 @@ export interface RendezVous {
   membre: { id: number; nom: string; prenom: string } | null;
   structure: { id: number; nom: string; commune: string } | null;
   service: { id: number; nom_service: string; specialite: string } | null;
-  medecin: { id: number; titre: string; nom: string; prenom: string; specialite: string } | null;
+  medecin: { id: number; titre: string; nom: string; prenom: string; specialite: string; numero_professionnel?: string | null; photo_url?: string | null } | null;
+  tarif: number | null;
+  tarif_source: 'service' | 'medecin' | 'structure' | null;
+  regle: boolean;
 }
 
 /** Mode de paiement (N1, simulé). */
@@ -232,6 +255,9 @@ export interface RendezVousPayload {
   triage_id?: number;
   motif: string;
   date_souhaitee: string; // AAAA-MM-JJ
+  /** B1-b (D6) — texte libre et facultatif, distinct du médecin référent. Affichage staff seul. */
+  motif_orientation?: string;
+  message_orientation?: string;
 }
 
 /** Libellés lisibles des types de signalement. */
@@ -243,14 +269,8 @@ export const LIBELLE_SIGNALEMENT: Record<TypeSignalement, string> = {
   autre: 'Autre',
 };
 
-/** Libellé + couleur sémantique du statut de RDV. */
-export const LIBELLE_RDV: Record<StatutRdv, string> = {
-  en_attente: 'En attente',
-  confirme: 'Confirmé',
-  refuse: 'Refusé',
-  annule: 'Annulé',
-  honore: 'Honoré',
-};
+/** Libellé du statut de RDV — source unique `@masante/shared` (B1-a). */
+export { LIBELLE_RDV } from '@masante/shared';
 
 /** Paliers de budget max pour le filtre tarif (F3.2), en FCFA. `valeur: null` = « Tous tarifs ». */
 export const BUDGETS: readonly { label: string; valeur: number | null }[] = [

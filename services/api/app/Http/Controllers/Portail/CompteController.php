@@ -30,7 +30,7 @@ class CompteController extends Controller
     public const ROLES = [
         'admin_ivoirsante'           => 'Admin IVOIRSANTÉ',
         'gestionnaire_etablissement' => 'Gestionnaire',
-        'agent_garde'                => 'Agent de garde',
+        'personnel_accueil'          => "Personnel d'accueil",
     ];
 
     public function index(Request $request): View

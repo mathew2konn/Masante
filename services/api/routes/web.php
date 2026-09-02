@@ -11,6 +11,7 @@ use App\Http\Controllers\Portail\DashboardController;
 use App\Http\Controllers\Portail\DisponibiliteController;
 use App\Http\Controllers\Portail\DossierController;
 use App\Http\Controllers\Portail\EtablissementController;
+use App\Http\Controllers\Portail\GouvernanceModeleIaController;
 use App\Http\Controllers\Portail\MedecinController as PortailMedecinController;
 use App\Http\Controllers\Portail\MesPatientsController;
 use App\Http\Controllers\Portail\ModerationController;
@@ -151,12 +152,28 @@ Route::prefix('portail')->name('portail.')->group(function () {
             Route::put('disponibilites/{service}', [DisponibiliteController::class, 'update'])->name('disponibilites.update');
         });
 
-        // 4.4 — Validation des rendez-vous (AGENT / GESTIONNAIRE, permission rdv.validate, cloisonné).
-        Route::middleware('permission:rdv.validate')->group(function () {
+        // 4.4 — Validation des rendez-vous, workflow à deux étapes (B1-a, CDC_11 §9.1). Le groupe
+        // accepte L'UNE OU L'AUTRE permission (lecture commune) ; `previsalider`/`confirmer`
+        // exigent chacune LA SIENNE, vérifiée dans le service, pas ici.
+        Route::middleware('permission:rdv.prevalider|rdv.validate')->group(function () {
             Route::get('rendez-vous', [RendezVousController::class, 'index'])->name('rdv.index');
             Route::get('rendez-vous/{rdv}', [RendezVousController::class, 'show'])->name('rdv.show');
+            Route::patch('rendez-vous/{rdv}/previsalider', [RendezVousController::class, 'previsalider'])->name('rdv.previsalider');
             Route::patch('rendez-vous/{rdv}/confirmer', [RendezVousController::class, 'confirmer'])->name('rdv.confirmer');
             Route::patch('rendez-vous/{rdv}/refuser', [RendezVousController::class, 'refuser'])->name('rdv.refuser');
+
+            // B1-c (D8) — partage temporaire d'accès (30 min) vers le médecin de CE rendez-vous.
+            // Dans le même groupe que ce qui précède : l'autorisation RÉELLE (médecin de CE rdv,
+            // rdv confirmé, patient enregistré) vit dans {@see \App\Services\PartageRdvService},
+            // pas ici — précédent `rdv.prevalider|rdv.validate` juste au-dessus.
+            Route::post('rendez-vous/{rdv}/partage', [RendezVousController::class, 'ouvrirPartage'])->name('rdv.partage.ouvrir');
+            Route::delete('rendez-vous/{rdv}/partage', [RendezVousController::class, 'fermerPartage'])->name('rdv.partage.fermer');
+
+            // B1-d (D10) — clôture du RDV lui-même (`confirme → honore`), distincte de la clôture
+            // de l'accès partagé juste au-dessus : un médecin peut refermer SON accès (D8) sans que
+            // la consultation soit terminée (D13 laisse la porte ouverte à d'autres intervenants,
+            // limite dite). L'autorisation réelle vit dans le service, pas ici.
+            Route::patch('rendez-vous/{rdv}/terminer', [RendezVousController::class, 'terminer'])->name('rdv.terminer');
         });
 
         // 4.5 — Scan des QR à l'accueil (AGENT DE GARDE, permission qr.scan).
@@ -182,6 +199,13 @@ Route::prefix('portail')->name('portail.')->group(function () {
             Route::get('medecins/{medecin}/editer', [PortailMedecinController::class, 'edit'])->name('medecins.edit');
             Route::put('medecins/{medecin}', [PortailMedecinController::class, 'update'])->name('medecins.update');
             Route::patch('medecins/{medecin}/actif', [PortailMedecinController::class, 'toggleActif'])->name('medecins.toggle');
+
+            // B1-b — Photo de profil (D5). Dépôt/retrait seulement : la diffusion est publique,
+            // voir routes/api.php (source unique de lecture, comme les images d'établissement).
+            Route::post('medecins/{medecin}/photo', [PortailMedecinController::class, 'uploaderPhoto'])
+                ->name('medecins.photo.store');
+            Route::delete('medecins/{medecin}/photo', [PortailMedecinController::class, 'retirerPhoto'])
+                ->name('medecins.photo.destroy');
 
             // P6.5a — lieux d'exercice (§5.2, « établissements d'exercice »). Gardées par
             // `professionnel.habiliter` EN PLUS de `medecin.manage`, et vérifiées dans le
@@ -345,6 +369,31 @@ Route::prefix('portail')->name('portail.')->group(function () {
                 Route::get('/', [ValidationApprentissageController::class, 'index'])->name('index');
                 Route::post('{jeu}/valider', [ValidationApprentissageController::class, 'valider'])->name('valider');
                 Route::post('{jeu}/rejeter', [ValidationApprentissageController::class, 'rejeter'])->name('rejeter');
+            });
+
+        // ═══ P10c-3-i (F19) — GOUVERNANCE DES MODÈLES IA : EXPORT, ENTRAÎNEMENT, VALIDATION ═══
+        //
+        // `ia_triage.valider` n'est portée par AUCUN rôle métier (QUATORZIÈME occurrence, motif
+        // dans PortailRolesSeeder). Même garde que ci-dessus : le middleware n'évite qu'un écran
+        // inutile, l'habilitation qui fait autorité est celle des services.
+        Route::middleware('permission:ia_triage.valider')
+            ->prefix('modeles-ia')->name('modeles-ia.')->group(function () {
+                Route::get('/', [GouvernanceModeleIaController::class, 'index'])->name('index');
+                Route::post('exporter', [GouvernanceModeleIaController::class, 'exporter'])->name('exporter');
+                Route::post('{export}/entrainer', [GouvernanceModeleIaController::class, 'entrainer'])->name('entrainer');
+                Route::post('{version}/valider', [GouvernanceModeleIaController::class, 'valider'])->name('valider');
+
+                // P10c-3-ii — mise en service (et rollback : c'est le même geste, §8).
+                Route::post('{version}/activer', [GouvernanceModeleIaController::class, 'activer'])->name('activer');
+
+                // Lot B — la confrontation après coup et la surveillance de dérive.
+                //
+                // `derive` est déclarée AVANT `{version}/comparaison` : sans cela, « derive »
+                // serait pris pour un identifiant de version par la route paramétrée. Piège déjà
+                // payé en P7-D0, P6.5b et P6.6b — il se rejoue à chaque route littérale ajoutée à
+                // côté d'une route à paramètre.
+                Route::post('derive', [GouvernanceModeleIaController::class, 'analyserDerive'])->name('derive');
+                Route::get('{version}/comparaison', [GouvernanceModeleIaController::class, 'comparaison'])->name('comparaison');
             });
 
         // ═══ P10b-3-ii — L'ÉCRAN DES QUATRE VALIDATIONS DU §7 : LIRE ET SIGNER ═══

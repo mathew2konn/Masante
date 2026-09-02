@@ -106,7 +106,7 @@ class ServiceAgentPortailTest extends TestCase
         $this->assertNull($agent->password);
         $this->assertEquals($structure->id, $agent->structure_id);
         $this->assertEquals($service->id, $agent->service_id);
-        $this->assertTrue($agent->hasRole('agent_garde'));
+        $this->assertTrue($agent->hasRole('personnel_accueil'));
         $this->assertDatabaseHas('activations_portail', ['user_id' => $agent->id, 'used_at' => null]);
     }
 
@@ -129,7 +129,7 @@ class ServiceAgentPortailTest extends TestCase
     {
         $structure = $this->structure();
         $agent = User::factory()->create(['password' => Hash::make('Agent@2026!'), 'structure_id' => $structure->id]);
-        $agent->assignRole('agent_garde');
+        $agent->assignRole('personnel_accueil');
 
         $this->actingAs($agent)->get('/portail/services')->assertForbidden();
         $this->actingAs($agent)->get('/portail/agents')->assertForbidden();

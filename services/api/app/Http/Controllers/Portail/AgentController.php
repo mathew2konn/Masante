@@ -70,7 +70,7 @@ class AgentController extends Controller
     private function agentPossede(User $agent): User
     {
         abort_if(
-            $agent->structure_id !== $this->structureId() || ! $agent->hasRole('agent_garde'),
+            $agent->structure_id !== $this->structureId() || ! $agent->hasRole('personnel_accueil'),
             Response::HTTP_NOT_FOUND,
         );
 
@@ -79,7 +79,7 @@ class AgentController extends Controller
 
     public function index(): View
     {
-        $agents = User::role('agent_garde')
+        $agents = User::role('personnel_accueil')
             ->where('structure_id', $this->structureId())
             ->with('service')
             ->orderBy('nom')
@@ -109,7 +109,7 @@ class AgentController extends Controller
             'service_id'   => $data['service_id'],
             'actif'        => true,
         ]);
-        $agent->assignRole('agent_garde');
+        $agent->assignRole('personnel_accueil');
 
         // 5.6 — « ce compte est le Dr X » : rend la voie du médecin référent opérante pour ce praticien.
         $this->lierFicheMedecin($agent, $data['medecin_id'] ?? null);

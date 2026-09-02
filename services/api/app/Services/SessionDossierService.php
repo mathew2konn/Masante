@@ -57,6 +57,11 @@ class SessionDossierService
             // P10c-2-i — le triage auquel le soignant déclare que cette consultation répond.
             // NULL tant qu'il ne l'a pas désigné : on ne devine jamais ce lien (décision F1).
             'triage_id' => null,
+            // B1-c — le rendez-vous qui a rendu CET accès possible (voie `rdv_partage` seule ;
+            // NULL sur les cinq autres voies). Repris de l'ouverture, jamais deviné : c'est ce
+            // qui permet au contrôleur d'écriture de savoir sur quel canal Reverb diffuser
+            // l'événement de présence, sans coupler {@see EcritureSoignantService} à la voie.
+            'rdv_id' => $ouverture->rendez_vous_id,
         ]);
     }
 
@@ -184,6 +189,14 @@ class SessionDossierService
         return $triageId === null ? null : (int) $triageId;
     }
 
+    /** B1-c — le rendez-vous de la session active, ou `null` hors voie `rdv_partage`. */
+    public function rdvDeclare(): ?int
+    {
+        $rdvId = Session::get(self::CLE.'.rdv_id');
+
+        return $rdvId === null ? null : (int) $rdvId;
+    }
+
     /**
      * Ferme la session et écrit la ligne d'audit de CLÔTURE. Idempotent : sans session ouverte,
      * ne fait rien. `$motif` n'est pas journalisé en base (le schéma d'audit est figé) mais tracé
@@ -236,6 +249,9 @@ class SessionDossierService
             // §10 au moment où le médecin le donne, précisément pour ne pas dépendre d'une clôture
             // qui peut ne jamais venir.
             'triage_id'           => $etat['triage_id'] ?? null,
+            // B1-c — même raisonnement que `etablissement` juste au-dessus : les deux lignes
+            // d'un accès partagé doivent désigner le même rendez-vous.
+            'rendez_vous_id'      => $ouverture->rendez_vous_id,
             'sections_consultees' => $etat['sections'],
             // D0 — `null` plutôt qu'un tableau vide : une session sans écriture n'a rien ajouté,
             // et le journal doit le dire sans ambiguïté.

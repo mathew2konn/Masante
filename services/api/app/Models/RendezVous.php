@@ -22,6 +22,8 @@ class RendezVous extends Model
         'medecin_id',
         'mode_attribution',
         'triage_id',
+        'motif_orientation',
+        'message_orientation',
         'motif',
         'date_souhaitee',
         'date_confirmee',
@@ -29,6 +31,9 @@ class RendezVous extends Model
         'message_agent',
         'checked_in_at',
         'checked_in_by_agent_id',
+        'prevalide_par_agent_id',
+        'termine_le',
+        'termine_par_agent_id',
     ];
 
     protected function casts(): array
@@ -36,7 +41,8 @@ class RendezVous extends Model
         return [
             'date_souhaitee' => 'date',
             'date_confirmee' => 'datetime',
-            'checked_in_at'  => 'datetime',
+            'checked_in_at' => 'datetime',
+            'termine_le' => 'datetime',
         ];
     }
 

@@ -45,8 +45,8 @@ return [
      *  - `alerte_expiration_jours` : fenêtre du rappel « expiration proche » (cohérent alerte 30 j).
      */
     'cmu' => [
-        'exiger_palier_verifie'   => env('MASANTE_CMU_EXIGER_PALIER_VERIFIE', false),
-        'code_ttl_minutes'        => (int) env('MASANTE_CMU_CODE_TTL_MIN', 10),
+        'exiger_palier_verifie' => env('MASANTE_CMU_EXIGER_PALIER_VERIFIE', false),
+        'code_ttl_minutes' => (int) env('MASANTE_CMU_CODE_TTL_MIN', 10),
         'alerte_expiration_jours' => (int) env('MASANTE_CMU_ALERTE_JOURS', 30),
     ],
 
@@ -55,7 +55,7 @@ return [
      * Liste blanche de MIME réels (validés via finfo) ; taille max (l'image est déjà réduite à l'upload).
      */
     'photo' => [
-        'max_ko'    => (int) env('MASANTE_PHOTO_MAX_KO', 5120), // 5 Mo
+        'max_ko' => (int) env('MASANTE_PHOTO_MAX_KO', 5120), // 5 Mo
         'mimetypes' => ['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif'],
     ],
 
@@ -69,7 +69,17 @@ return [
      * ne sait pas afficher reviendrait à publier une image invisible.
      */
     'etablissement_images' => [
-        'max_ko'    => (int) env('MASANTE_ETAB_IMAGE_MAX_KO', 4096), // 4 Mo
+        'max_ko' => (int) env('MASANTE_ETAB_IMAGE_MAX_KO', 4096), // 4 Mo
+        'mimetypes' => ['image/jpeg', 'image/png', 'image/webp'],
+    ],
+
+    /*
+     * B1-b — Photo de profil d'un médecin de l'annuaire (D5). UNE photo par praticien (pas une
+     * galerie) : même liste blanche que les images d'établissement, plafond plus bas — un
+     * portrait, pas une vitrine.
+     */
+    'medecin_photo' => [
+        'max_ko' => (int) env('MASANTE_MEDECIN_PHOTO_MAX_KO', 2048), // 2 Mo
         'mimetypes' => ['image/jpeg', 'image/png', 'image/webp'],
     ],
 
@@ -103,8 +113,8 @@ return [
      * l'immunologie et non d'une politique.
      */
     'don_sang' => [
-        'age_min'     => (int) env('MASANTE_DON_AGE_MIN', 18),
-        'age_max'     => (int) env('MASANTE_DON_AGE_MAX', 65),
+        'age_min' => (int) env('MASANTE_DON_AGE_MIN', 18),
+        'age_max' => (int) env('MASANTE_DON_AGE_MAX', 65),
         'delai_jours' => (int) env('MASANTE_DON_DELAI_JOURS', 90),
 
         /*
@@ -126,10 +136,10 @@ return [
      * `fraicheur_jours` : au-delà, un relevé n'est plus affiché. Un prix sans date ne vaut rien.
      */
     'prix' => [
-        'plancher_cfa'    => (int) env('MASANTE_PRIX_PLANCHER', 50),
-        'plafond_cfa'     => (int) env('MASANTE_PRIX_PLAFOND', 500000),
-        'facteur_min'     => (float) env('MASANTE_PRIX_FACTEUR_MIN', 0.2),
-        'facteur_max'     => (float) env('MASANTE_PRIX_FACTEUR_MAX', 5.0),
+        'plancher_cfa' => (int) env('MASANTE_PRIX_PLANCHER', 50),
+        'plafond_cfa' => (int) env('MASANTE_PRIX_PLAFOND', 500000),
+        'facteur_min' => (float) env('MASANTE_PRIX_FACTEUR_MIN', 0.2),
+        'facteur_max' => (float) env('MASANTE_PRIX_FACTEUR_MAX', 5.0),
         'fraicheur_jours' => (int) env('MASANTE_PRIX_FRAICHEUR_JOURS', 90),
     ],
 
@@ -156,11 +166,11 @@ return [
      */
     'notifications' => [
         'push' => [
-            'enabled'   => env('MASANTE_PUSH_ENABLED', false),
-            'url'       => env('MASANTE_PUSH_URL', 'https://exp.host/--/api/v2/push/send'),
+            'enabled' => env('MASANTE_PUSH_ENABLED', false),
+            'url' => env('MASANTE_PUSH_URL', 'https://exp.host/--/api/v2/push/send'),
             'timeout_s' => (float) env('MASANTE_PUSH_TIMEOUT', 5),
             // Expo refuse au-delà de 100 messages par requête (PUSH_TOO_MANY_NOTIFICATIONS).
-            'lot_max'   => 100,
+            'lot_max' => 100,
         ],
     ],
 
@@ -179,11 +189,33 @@ return [
     ],
 
     'ocr' => [
-        'binaire'   => env('MASANTE_TESSERACT_BIN', 'C:\\Program Files\\Tesseract-OCR\\tesseract.exe'),
-        'tessdata'  => env('MASANTE_TESSDATA_DIR', storage_path('app/tessdata')),
-        'langue'    => env('MASANTE_TESSERACT_LANG', 'fra'),
+        'binaire' => env('MASANTE_TESSERACT_BIN', 'C:\\Program Files\\Tesseract-OCR\\tesseract.exe'),
+        'tessdata' => env('MASANTE_TESSDATA_DIR', storage_path('app/tessdata')),
+        'langue' => env('MASANTE_TESSERACT_LANG', 'fra'),
         'timeout_s' => (float) env('MASANTE_TESSERACT_TIMEOUT', 20),
-        'max_ko'    => (int) env('MASANTE_RECU_MAX_KO', 8192),   // 8 Mo : une photo de ticket
+        'max_ko' => (int) env('MASANTE_RECU_MAX_KO', 8192),   // 8 Mo : une photo de ticket
+    ],
+
+    /*
+     * Lot 6 (v2) — canal interne paiement-service (Java) → Laravel.
+     *
+     * SENS UNIQUE, ET C'EST DÉLIBÉRÉ. Le sens Laravel → Java a été retiré du lot : rien n'initie de
+     * paiement depuis Laravel aujourd'hui (Phase 0 : `apps/web/src/lib/paiement.ts` n'expose qu'un
+     * `paiementFetch` générique, consommé par le seul module fraude), et l'endpoint `/interne/v1/
+     * paiements` supposé exister côté Java n'existe pas. Le client d'émission et ses réglages —
+     * URL, délais, identité d'appelant — ont donc été supprimés plutôt que laissés en place à
+     * appeler dans le vide.
+     *
+     * Il ne reste que ce dont l'endpoint ENTRANT a besoin : le secret de vérification.
+     *
+     * `principal_secret` est PARTAGÉ tel quel avec `apps/web` (`MASANTE_PAYMENT_PRINCIPAL_SECRET`,
+     * déjà utilisé par `paiement.ts`) et le microservice Java — même nom de variable, jamais un
+     * secret distinct par consommateur (Phase 0 du lot 6, interdiction n°2). Aucune valeur par
+     * défaut : un secret manquant doit faire échouer bruyamment la vérification, jamais
+     * silencieusement l'accepter avec une chaîne vide.
+     */
+    'paiement_service' => [
+        'principal_secret' => env('MASANTE_PAYMENT_PRINCIPAL_SECRET', ''),
     ],
 
     /*
@@ -207,6 +239,52 @@ return [
         'timeout_lecture_s' => (float) env('TRIAGE_IA_TIMEOUT_LECTURE', 3),
         'disjoncteur_seuil_echecs' => (int) env('TRIAGE_IA_DISJONCTEUR_SEUIL', 3),
         'disjoncteur_duree_ouverture_s' => (int) env('TRIAGE_IA_DISJONCTEUR_DUREE', 60),
+
+        /*
+         * P10c-3-i (F15/F17/F20) — l'export anonymisant + l'entraînement réel.
+         *
+         * `seuil_min_entrainement` : arbitraire, et c'est dit (le corpus n'en fixe aucun — Y9 du
+         * plan G1). Vérifié ici AVANT tout appel réseau, ET indépendamment par `triage-service`
+         * (défense en profondeur, motif « dédoublé, une couche un vecteur » de P6.6b).
+         *
+         * `timeout_entrainement_s` : distinct du timeout de `/score` (un entraînement XGBoost+SHAP
+         * prend largement plus qu'un scoring unitaire) — un seul `base_url`, deux usages, deux
+         * horloges.
+         *
+         * `bandes_age` : un paramètre de CONFIDENTIALITÉ (généralisation d'un quasi-identifiant,
+         * CDC_13 §12), pas une donnée clinique — à la différence des référentiels gouvernés du
+         * projet (P6.x), ce n'est délibérément PAS un référentiel à quatre-yeux : changer une
+         * bande ne modifie aucune règle médicale, seulement le degré de généralisation d'un export.
+         */
+        'seuil_min_entrainement' => (int) env('TRIAGE_IA_SEUIL_MIN_ENTRAINEMENT', 30),
+
+        // ═══ P10c-3-ii lot B — LA DÉRIVE (CDC_05 §8) ═══
+        //
+        // Les deux seuils PSI sont les repères USUELS de la littérature (0,1 « à surveiller »,
+        // 0,25 « a changé »), pas une vérité mesurée sur cette population — et c'est pour cela
+        // qu'ils sont des données : le jour où l'exploitation aura de quoi les calibrer, c'est la
+        // donnée qui changera, pas le code.
+        'seuil_psi_leger' => (float) env('TRIAGE_IA_PSI_LEGER', 0.1),
+        'seuil_psi_fort' => (float) env('TRIAGE_IA_PSI_FORT', 0.25),
+
+        // Une chute de rappel sur `sous_triage` au-delà de ce point est signalée. Plus bas que les
+        // seuils PSI, délibérément : rater davantage le seul cas dangereux se remarque plus tôt
+        // qu'un déplacement de population.
+        'seuil_chute_rappel' => (float) env('TRIAGE_IA_CHUTE_RAPPEL', 0.15),
+
+        // La fenêtre d'observation. Trop courte, elle prendrait un creux de week-end pour une
+        // dérive ; trop longue, elle noierait un changement réel dans des semaines de normalité.
+        'fenetre_derive_jours' => (int) env('TRIAGE_IA_FENETRE_DERIVE_JOURS', 30),
+        'timeout_entrainement_s' => (float) env('TRIAGE_IA_TIMEOUT_ENTRAINEMENT', 30),
+        'bandes_age' => [
+            ['label' => '0-1', 'min' => 0, 'max' => 1],
+            ['label' => '2-4', 'min' => 2, 'max' => 4],
+            ['label' => '5-14', 'min' => 5, 'max' => 14],
+            ['label' => '15-24', 'min' => 15, 'max' => 24],
+            ['label' => '25-44', 'min' => 25, 'max' => 44],
+            ['label' => '45-64', 'min' => 45, 'max' => 64],
+            ['label' => '65+', 'min' => 65, 'max' => 130],
+        ],
     ],
 
 ];

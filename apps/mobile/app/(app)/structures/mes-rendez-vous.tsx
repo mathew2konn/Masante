@@ -1,5 +1,5 @@
 import React, { useCallback, useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Screen } from '../../../src/components/Screen';
@@ -7,6 +7,7 @@ import { Card } from '../../../src/components/Card';
 import { ScreenHeader } from '../../../src/components/ScreenHeader';
 import { VerrouGate } from '../../../src/components/VerrouGate';
 import { listerRendezVous, annulerRendezVous } from '../../../src/api/rendezvous';
+import { API_URL } from '../../../src/config/api';
 import { messageErreur } from '../../../src/utils/erreurs';
 import { formatDateFr } from '../../../src/utils/dates';
 import { LIBELLE_RDV, type RendezVous, type StatutRdv } from '../../../src/types/structure';
@@ -15,6 +16,7 @@ import { colors, radius, spacing, typography } from '../../../src/theme/theme';
 /** Couleurs sémantiques du statut de RDV (réutilise les familles success/warning/danger). */
 const COULEUR_RDV: Record<StatutRdv, { bg: string; text: string }> = {
   en_attente: { bg: colors.warning.bg, text: colors.warning.text },
+  prevalide: { bg: colors.warning.bg, text: colors.warning.text },
   confirme: { bg: colors.success.bg, text: colors.success.text },
   honore: { bg: colors.blue[50], text: colors.blue[700] },
   refuse: { bg: colors.danger.bg, text: colors.danger.text },
@@ -97,11 +99,22 @@ export default function MesRendezVous() {
   );
 }
 
+/** Formate un montant en FCFA avec séparateur de milliers (Hermes n'a pas toujours toLocaleString). */
+function formatFcfa(montant: number): string {
+  return `${montant.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ' ')} FCFA`;
+}
+
 function LigneRdv({ item, onAnnuler }: { item: RendezVous; onAnnuler: () => void }) {
   const couleur = COULEUR_RDV[item.statut];
-  const annulable = item.statut === 'en_attente' || item.statut === 'confirme';
+  const annulable = item.statut === 'en_attente' || item.statut === 'prevalide' || item.statut === 'confirme';
   // Reçu/paiement disponible tant que le RDV n'est pas annulé/refusé.
   const reglable = item.statut !== 'annule' && item.statut !== 'refuse';
+  // B1-b (D6) — proposer d'associer un triage tant que rien n'est encore attaché et que le RDV
+  // n'est pas clos (l'associer à un RDV déjà honoré/refusé/annulé n'aurait plus de sens).
+  const triageAssociable = item.triage_id == null && item.statut !== 'annule' && item.statut !== 'refuse' && item.statut !== 'honore';
+  // B1-c (D9) — le suivi en direct n'a de sens que pendant la fenêtre où le médecin peut ouvrir
+  // un accès partagé (§ PartageRdvService::ouvrir : RDV confirmé, patient enregistré à l'accueil).
+  const suiviPossible = item.statut === 'confirme';
   return (
     <Card style={styles.card}>
       <View style={styles.haut}>
@@ -115,17 +128,24 @@ function LigneRdv({ item, onAnnuler }: { item: RendezVous; onAnnuler: () => void
 
       <Ligne icone="medkit-outline" texte={item.service?.nom_service ?? '—'} />
       {item.medecin ? (
-        <Ligne
-          icone="person-circle-outline"
-          texte={`${item.medecin.titre} ${item.medecin.prenom} ${item.medecin.nom}`}
-        />
+        <View style={styles.ligne}>
+          <PhotoMedecinMini url={item.medecin.photo_url ?? null} />
+          <Text style={styles.ligneTxt}>
+            {item.medecin.titre} {item.medecin.prenom} {item.medecin.nom}
+            {item.medecin.numero_professionnel ? ` · n° ${item.medecin.numero_professionnel}` : ''}
+          </Text>
+        </View>
       ) : (
         <Ligne icone="person-circle-outline" texte="Médecin attribué par l'établissement" />
       )}
       <Ligne icone="person-outline" texte={item.membre ? `${item.membre.prenom} ${item.membre.nom}` : '—'} />
       <Ligne icone="calendar-outline" texte={`Souhaité le ${formatDateFr(item.date_souhaitee)}`} />
       {item.date_confirmee && <Ligne icone="checkmark-circle-outline" texte={`Confirmé le ${formatDateFr(item.date_confirmee)}`} />}
+      {/* B1-b (D7) — le tarif est visible directement sur la fiche, plus besoin de naviguer vers
+          le reçu pour le connaître. */}
+      {item.tarif != null && <Ligne icone="cash-outline" texte={`Tarif : ${formatFcfa(item.tarif)}`} />}
       {item.motif ? <Text style={styles.motif}>« {item.motif} »</Text> : null}
+      {item.motif_orientation ? <Text style={styles.message}>Orientation : {item.motif_orientation}</Text> : null}
       {item.message_agent ? <Text style={styles.message}>Réponse : {item.message_agent}</Text> : null}
 
       <View style={styles.actions}>
@@ -134,14 +154,43 @@ function LigneRdv({ item, onAnnuler }: { item: RendezVous; onAnnuler: () => void
             onPress={() =>
               router.push({
                 pathname: '/(app)/structures/recu/[id]',
-                params: { id: String(item.id), nom: item.structure?.nom ?? 'Structure' },
+                params: {
+                  id: String(item.id),
+                  nom: item.structure?.nom ?? 'Structure',
+                  ...(item.tarif != null ? { tarif: String(item.tarif) } : {}),
+                },
               })
             }
             accessibilityRole="button"
             style={styles.action}
           >
             <Ionicons name="receipt-outline" size={16} color={colors.blue[600]} />
-            <Text style={styles.actionTxt}>Reçu / paiement</Text>
+            <Text style={styles.actionTxt}>{item.regle ? 'Voir le reçu' : 'Payer'}</Text>
+          </Pressable>
+        )}
+        {triageAssociable && (
+          <Pressable
+            onPress={() =>
+              router.push({
+                pathname: '/(app)/structures/associer-triage/[id]',
+                params: { id: String(item.id), membreId: String(item.membre?.id ?? '') },
+              })
+            }
+            accessibilityRole="button"
+            style={styles.action}
+          >
+            <Ionicons name="clipboard-outline" size={16} color={colors.blue[600]} />
+            <Text style={styles.actionTxt}>Associer un triage</Text>
+          </Pressable>
+        )}
+        {suiviPossible && (
+          <Pressable
+            onPress={() => router.push({ pathname: '/(app)/structures/suivi-rdv/[id]', params: { id: String(item.id) } })}
+            accessibilityRole="button"
+            style={styles.action}
+          >
+            <Ionicons name="radio-outline" size={16} color={colors.blue[600]} />
+            <Text style={styles.actionTxt}>Suivre en direct</Text>
           </Pressable>
         )}
         {annulable && (
@@ -152,6 +201,28 @@ function LigneRdv({ item, onAnnuler }: { item: RendezVous; onAnnuler: () => void
         )}
       </View>
     </Card>
+  );
+}
+
+/**
+ * Miniature de la photo du médecin (B1-b / D5). URL relative composée avec `API_URL`, comme
+ * `ImageEtablissementView` (P6.4c) — un seul endroit sait le faire, et l'échec (hors ligne,
+ * fichier introuvable) retombe sur l'icône plutôt qu'un rectangle vide.
+ */
+function PhotoMedecinMini({ url }: { url: string | null }) {
+  const [echec, setEchec] = useState(false);
+
+  if (!url || echec) {
+    return <Ionicons name="person-circle-outline" size={15} color={colors.ink[500]} />;
+  }
+
+  return (
+    <Image
+      source={{ uri: `${API_URL}${url}` }}
+      style={styles.photoMedecin}
+      onError={() => setEchec(true)}
+      accessibilityLabel="Photo du médecin"
+    />
   );
 }
 
@@ -173,6 +244,7 @@ const styles = StyleSheet.create({
   badge: { paddingVertical: 4, paddingHorizontal: 10, borderRadius: radius.pill },
   badgeTxt: { ...typography.caption, fontWeight: '700' },
   ligne: { flexDirection: 'row', alignItems: 'center', gap: spacing[2] },
+  photoMedecin: { width: 15, height: 15, borderRadius: 8 },
   ligneTxt: { ...typography.body, color: colors.ink[700], flex: 1 },
   motif: { ...typography.body, color: colors.ink[900], fontStyle: 'italic', marginTop: 2 },
   message: { ...typography.caption, color: colors.ink[700], marginTop: 2 },

@@ -39,6 +39,9 @@ class AccesDossier extends Model
         // (§5.5.4). Un identifiant, sans clé étrangère : le journal survit au triage supprimé
         // (ADR-042 D1).
         'triage_id',
+        // B1-c — le rendez-vous qui a rendu cet accès possible (voie `rdv_partage` seule).
+        // Même statut que `triage_id` : un identifiant, sans clé étrangère (ADR-042 D1).
+        'rendez_vous_id',
         'sections_consultees',
         'donnees_ajoutees',
         'ip_address',

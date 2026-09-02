@@ -27,13 +27,25 @@ class AuthController extends Controller
      * d'accueil. Tant qu'il en allait ainsi, aucune signature électronique n'aurait pu désigner un
      * professionnel — elle aurait désigné un guichet.
      *
-     * LES DIX AUTRES MÉTIERS DU §5.1 RESTENT DEHORS, et c'est une limite annoncée, pas un oubli :
-     * `infirmier`, `pharmacien`, `laborantin` et `radiologue` existent aussi depuis P1, mais leur
-     * ouvrir le portail sans définir ni prouver ce qu'ils y font produirait des comptes capables
-     * d'entrer sans que quiconque ait décidé de ce qu'ils peuvent y faire.
+     * P11.0 — LA LIMITE ANNONCÉE ICI EST LEVÉE. Le commentaire d'origine disait : « les dix
+     * autres métiers du §5.1 restent dehors [...] leur ouvrir le portail sans définir ni prouver
+     * ce qu'ils y font produirait des comptes capables d'entrer sans que quiconque ait décidé de
+     * ce qu'ils peuvent y faire. » La condition qu'il posait est désormais remplie :
+     * `PortailRolesSeeder` décide, rôle par rôle et avec sa raison, de ce que chacun peut faire.
+     *
+     * La porte ne donne d'ailleurs sur rien de plus : chaque route reste gardée par SA
+     * permission. Un `radiologue` entre, et ne voit que ce que `qr.scan` et `triage.view` lui
+     * ouvrent. C'est la défense en profondeur habituelle du projet — la liste ci-dessous dit qui
+     * est un professionnel, les permissions disent qui peut quoi.
+     *
+     * `assurance` y figure alors qu'il ne porte AUCUNE permission (cf. `PortailRolesSeeder`) :
+     * l'exclure ferait passer pour un défaut de compte ce qui est un défaut d'application. Il
+     * entrera et lira, sur son propre tableau de bord, que son portail n'existe pas encore.
+     * `patient` reste dehors : le mobile est son application (ADR-011).
      */
     private const ROLES_PORTAIL = [
-        'admin_ivoirsante', 'gestionnaire_etablissement', 'agent_garde', 'medecin',
+        'admin_ivoirsante', 'gestionnaire_etablissement', 'personnel_accueil', 'medecin',
+        'infirmier', 'pharmacien', 'laborantin', 'radiologue', 'ministere', 'assurance',
     ];
 
     public function showLogin(): View|RedirectResponse

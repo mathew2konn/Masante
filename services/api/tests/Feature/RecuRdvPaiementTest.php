@@ -87,6 +87,44 @@ class RecuRdvPaiementTest extends TestCase
         $this->assertDatabaseHas('recus_rdv', ['rendez_vous_id' => $rdv->id, 'statut' => 'paye']);
     }
 
+    public function test_montant_prend_le_tarif_du_service_en_priorite(): void
+    {
+        // B1-a — le service prime sur le médecin ET sur la structure ; la source est tracée.
+        $user = User::factory()->create();
+        Sanctum::actingAs($user);
+        $s = $this->structure(8000);
+        $sv = $this->service($s);
+        $sv->update(['tarif_consultation_cfa' => 12000]);
+        $med = $this->medecin($s, $sv, 15000);
+        $rdv = $this->rdv($this->membre($user), $s, $sv, $med);
+
+        $this->postJson("/api/v1/rendez-vous/{$rdv->id}/paiement", ['mode' => 'mobile_money'])
+            ->assertCreated()
+            ->assertJsonPath('recu.montant', 12000);
+
+        $this->assertDatabaseHas('factures_patient', [
+            'rendez_vous_id' => $rdv->id, 'montant_brut' => 12000, 'tarif_source' => 'service',
+        ]);
+    }
+
+    public function test_montant_retombe_sur_le_medecin_si_le_service_n_a_pas_de_tarif(): void
+    {
+        $user = User::factory()->create();
+        Sanctum::actingAs($user);
+        $s = $this->structure(8000);
+        $sv = $this->service($s); // tarif_consultation_cfa = null
+        $med = $this->medecin($s, $sv, 15000);
+        $rdv = $this->rdv($this->membre($user), $s, $sv, $med);
+
+        $this->postJson("/api/v1/rendez-vous/{$rdv->id}/paiement", ['mode' => 'mobile_money'])
+            ->assertCreated()
+            ->assertJsonPath('recu.montant', 15000);
+
+        $this->assertDatabaseHas('factures_patient', [
+            'rendez_vous_id' => $rdv->id, 'montant_brut' => 15000, 'tarif_source' => 'medecin',
+        ]);
+    }
+
     public function test_montant_retombe_sur_le_tarif_structure_sans_medecin(): void
     {
         $user = User::factory()->create();

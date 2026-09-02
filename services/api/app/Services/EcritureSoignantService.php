@@ -2,10 +2,13 @@
 
 namespace App\Services;
 
+use App\Events\PartageRdvEcriture;
 use App\Models\Medecin;
 use App\Models\MembreFamille;
 use App\Models\User;
+use App\Support\DiffusionPresence;
 use App\Support\RegistreSectionsCarnet;
+use App\Support\TypeAccesDossier;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\ValidationException;
@@ -39,7 +42,9 @@ class EcritureSoignantService
     /**
      * Voies d'accès autorisées à écrire — celles où le patient a CONSENTI.
      *
-     * `qr_scan` : il a présenté son QR. `referent` : il a désigné ce médecin.
+     * `qr_scan` : il a présenté son QR. `referent` : il a désigné ce médecin. `rdv_partage`
+     * (B1-c) : il s'est présenté à un rendez-vous CONFIRMÉ et enregistré à l'accueil — le
+     * consentement est celui donné en prenant et en honorant ce rendez-vous précis.
      *
      * `bris_de_glace` en est exclu, et c'est une décision, pas un oubli (G1, choix propriétaire) :
      * cette voie ouvre le vital minimal, 15 minutes, SANS le consentement du patient (voie 4,
@@ -48,10 +53,12 @@ class EcritureSoignantService
      *
      * `admin` en est exclu pour la même raison : c'est une voie de dépannage, pas de soin.
      */
-    public const VOIES_ECRITURE = ['qr_scan', 'referent'];
+    public const VOIES_ECRITURE = ['qr_scan', 'referent', 'rdv_partage'];
 
-    public function __construct(private readonly ServiceNotification $notifications)
-    {
+    public function __construct(
+        private readonly ServiceNotification $notifications,
+        private readonly SessionDossierService $session,
+    ) {
     }
 
     /**
@@ -156,7 +163,21 @@ class EcritureSoignantService
         // une garantie qui ne vaudrait que sur celui du patient n'en serait pas une.
         $valide = $controleur->preparerDonnees($valide, $membre);
 
-        return $membre->{$controleur->nomRelation()}()->create($valide);
+        $entree = $membre->{$controleur->nomRelation()}()->create($valide);
+
+        // B1-c (D9) — présence temps réel, UNIQUEMENT pendant une session `rdv_partage` : les cinq
+        // autres voies n'ont pas de canal ouvert pour ce membre, et un patient qui consulte son
+        // carnet en `qr_scan` ne doit voir aucune diffusion. `rdvDeclare()` reste NULL sur toute
+        // autre voie ({@see SessionDossierService}). Posé ICI et non dans le contrôleur : la
+        // frontière de cette classe promet que « tout le jugement est ici ».
+        if ($voie === TypeAccesDossier::RDV_PARTAGE->value) {
+            $rdvId = $this->session->rdvDeclare();
+            if ($rdvId !== null) {
+                DiffusionPresence::diffuser(new PartageRdvEcriture($rdvId));
+            }
+        }
+
+        return $entree;
     }
 
     /**

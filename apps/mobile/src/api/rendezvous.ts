@@ -28,9 +28,18 @@ export async function demanderRendezVous(payload: RendezVousPayload): Promise<Re
   return data.rendez_vous;
 }
 
-/** F3.6 — Annule un rendez-vous en attente ou confirmé. */
+/** F3.6 — Annule un rendez-vous en attente, pré-validé ou confirmé (B1-a). */
 export async function annulerRendezVous(id: number): Promise<RendezVous> {
   const { data } = await api.patch<{ rendez_vous: RendezVous }>(`/v1/rendez-vous/${id}/annuler`);
+  return data.rendez_vous;
+}
+
+/** B1-b (D6) — Associe un triage après coup (le lien existe déjà en base, `store()` le pose à la
+ * création ; ceci le pose plus tard, mêmes vérifications anti-IDOR). */
+export async function associerTriage(id: number, triageId: number): Promise<RendezVous> {
+  const { data } = await api.patch<{ rendez_vous: RendezVous }>(`/v1/rendez-vous/${id}/triage`, {
+    triage_id: triageId,
+  });
   return data.rendez_vous;
 }
 
