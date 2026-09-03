@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Events\PartageRdvEcriture;
+use App\Models\Consultation;
 use App\Models\Medecin;
 use App\Models\MembreFamille;
 use App\Models\User;
@@ -156,6 +157,40 @@ class EcritureSoignantService
             if (array_key_exists('structure_sanitaire', $valide) && $fiche->structure?->nom !== null) {
                 $valide['structure_sanitaire'] = $fiche->structure->nom;
             }
+
+            // ═══ B2-c — LE LIEN, LÀ OÙ IL Y AVAIT UNE CHAÎNE (constat Y2) ═══
+            //
+            // `medecin_nom` est fiable depuis P6.5a, mais une valeur fiable n'est pas un lien :
+            // « toutes les ordonnances du Dr X » et « ce prescripteur exerce-t-il encore ? »
+            // restaient insolubles. Geste identique à celui de P6.7b sur `resultats_analyses`.
+            //
+            // SEULEMENT SUR LES SECTIONS OÙ L'AUTEUR EST LE PRESCRIPTEUR, et la liste est DÉCLARÉE
+            // au registre plutôt que codée ici : sur un résultat d'analyse, celui qui consigne est
+            // souvent quelqu'un d'autre, et poser son identifiant y inscrirait le mauvais médecin —
+            // c'est précisément la faute que P6.7b a corrigée pour le nom.
+            if (RegistreSectionsCarnet::auteurEstPrescripteur($section)) {
+                $valide['medecin_id'] = $fiche->id;
+                $valide['structure_id'] = $fiche->structure?->id;
+            }
+        }
+
+        // Le rattachement à l'acte de soin en cours, s'il y en a un (B2-a). Repris de la SESSION,
+        // jamais déclaré : c'est le serveur qui sait quelle consultation est ouverte. Une écriture
+        // hors consultation reste possible et laisse simplement ce lien nul — l'ordonnance vit dans
+        // le carnet du patient, pas dans la consultation.
+        if (RegistreSectionsCarnet::auteurEstPrescripteur($section)) {
+            // POURQUOI UNE REQUÊTE ET NON `ServiceConsultation::enCoursPourLaSession()` : ce
+            // service-là injecte `EcritureSoignantService` depuis B2-b (la promotion d'un
+            // diagnostic passe par le chemin d'écriture soignant, plutôt que d'accéder au modèle
+            // directement). L'injecter en retour ferait un CYCLE de dépendances. On lit donc la
+            // consultation depuis la session que ce service porte déjà — c'est une requête, pas un
+            // jugement dupliqué : la décision « une consultation par accès » reste en B2-a, et
+            // c'est son index unique qui la garantit.
+            $accesId = $this->session->accesId();
+
+            $valide['consultation_id'] = $accesId === null
+                ? null
+                : Consultation::where('acces_dossier_id', $accesId)->value('id');
         }
 
         // P6.6b — dérivations serveur de la section (pour une ordonnance : résolution du lien au

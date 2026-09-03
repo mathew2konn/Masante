@@ -43,6 +43,31 @@ final class RegistreSectionsCarnet
     ];
 
     /**
+     * Sections où CELUI QUI ÉCRIT EST LE PRESCRIPTEUR (B2-c).
+     *
+     * LA DISTINCTION N'EST PAS INVENTÉE ICI, ELLE EST DÉCLARÉE. P6.7b l'avait établie en corrigeant
+     * P6.7a : « pour une ordonnance, celui qui écrit EST le prescripteur — rédiger l'ordonnance est
+     * l'acte de prescrire. Pour un résultat d'analyse, celui qui consigne est souvent QUELQU'UN
+     * D'AUTRE ». Elle vivait dans un commentaire ; elle vit désormais dans une liste que le code
+     * peut lire, plutôt que dans un `if section === 'ordonnances'` disséminé.
+     *
+     * C'est ce qui autorise `EcritureSoignantService` à poser `medecin_id`/`structure_id` SANS
+     * demander au soignant de les déclarer — et à ne surtout pas le faire sur les résultats
+     * d'analyse, où ce serait inscrire le nom du mauvais médecin.
+     *
+     * @var array<int, string>
+     */
+    public const SECTIONS_AUTEUR_EST_PRESCRIPTEUR = [
+        'ordonnances',
+    ];
+
+    /** L'auteur d'une écriture dans cette section en est-il le prescripteur ? */
+    public static function auteurEstPrescripteur(string $section): bool
+    {
+        return in_array($section, self::SECTIONS_AUTEUR_EST_PRESCRIPTEUR, true);
+    }
+
+    /**
      * Sections qu'un SOIGNANT peut remplir depuis le portail (incrément D0).
      *
      * Sous-ensemble strict, et la différence est intentionnelle : `rappels` en est exclu — un

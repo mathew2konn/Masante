@@ -1,7 +1,7 @@
 # ADR-054 — La consultation : un acte de soin distinct du journal d'accès (B2-a)
 
-**Statut : Accepté — B2-a et B2-b VALIDÉS (G5, 2026-09-03).** G4 propriétaire OK sur les deux.
-Suite complète **1584/1584**, 17 636 assertions ; mutation 6/6 sur chacun.
+**Statut : Accepté — B2-a, B2-b et B2-c VALIDÉS (G5, 2026-09-03).** G4 propriétaire OK sur les
+trois. **Le lot B2 est COMPLET.** Suite complète **1595/1595**, 17 668 assertions.
 Contexte : CDC_11 §5.2 (étape 5 de §12), CDC_04 §12 étape 7 · Plan G1 :
 [`docs/PLAN_G1_B2_Consultation_Diagnostic_Prescription.md`](../PLAN_G1_B2_Consultation_Diagnostic_Prescription.md)
 · Suite de [ADR-053](ADR-053-rdv-cloture-verification-notification.md) (lot B1).
@@ -288,3 +288,82 @@ est de **66 insertions, 0 suppression**.
   un acte délibéré. Les fondre déduirait un jugement ; les rapprocher à l'écran est possible, ce
   n'est pas fait ici.
 - **Aucun écran mobile** : le diagnostic est un acte professionnel.
+
+
+---
+
+## 9. B2-c — l'ordonnance désigne son prescripteur (✅ VALIDÉ G5, 2026-09-03)
+
+**Referme le constat Y2**, ouvert au G0 de B2 : `ordonnances.medecin_nom` est une CHAÎNE. Fiable
+depuis P6.5a — le serveur la réécrit — mais **une valeur fiable n'est pas un lien** : « toutes les
+ordonnances du D<sup>r</sup> X » et « ce prescripteur exerce-t-il encore ? » étaient insolubles.
+Trois colonnes (`medecin_id`, `structure_id`, `consultation_id`), geste identique à celui de P6.7b
+sur `resultats_analyses`.
+
+### 9.1 Ce qui n'entre PAS dans la signature, et c'est le point le plus sensible
+
+`DocumentOrdonnance::contenuCanonique()` signe « tout ce dont la modification changerait le sens de
+la prescription ». Les trois colonnes sont des **rattachements**, au même titre que `triage_id` que
+ce contenu exclut déjà en le nommant « un rattachement de navigation ». Les y ajouter ferait passer
+« altérée » **chaque ordonnance signée avant ce jour** — *une signature qui casse toute seule ne
+prouve plus rien, et pire, elle accuse* (P6.5b). Le contenu canonique n'est pas modifié.
+
+### 9.2 La distinction de P6.7b passe du commentaire à une liste que le code lit
+
+P6.7b avait établi que « pour une ordonnance, celui qui écrit EST le prescripteur ; pour un
+résultat d'analyse, celui qui consigne est souvent quelqu'un d'autre ». Cette phrase vivait dans un
+commentaire ; elle vit désormais dans `RegistreSectionsCarnet::SECTIONS_AUTEUR_EST_PRESCRIPTEUR`,
+plutôt que dans un `if section === 'ordonnances'` disséminé.
+
+### 9.3 Périmètre réduit, et la raison est écrite
+
+Le plan G1 annonçait « prescription rattachée **+ demandes d'examens** ». Les demandes d'examens
+sont **écartées** : `RegistreDocumentsSignables` dit déjà pourquoi — « ce n'est pas un document
+mais une DEMANDE qui ouvre un circuit (médecin → laboratoire → résultat, §7.4) », et ce circuit est
+un module que P6.7 avait explicitement mis à part. Les livrer ici serait ouvrir un module dans un
+autre. `ordonnance_lignes` reste écartée pour la raison de D3 : aucun consommateur.
+
+### 9.4 Trois défauts de méthode, tous trouvés par la mutation
+
+1. **Un cycle de dépendances évité de justesse.** `ServiceConsultation` injecte
+   `EcritureSoignantService` depuis B2-b ; l'injecter en retour aurait bouclé. La consultation est
+   donc lue depuis la session que ce service porte déjà — une requête, pas un jugement dupliqué.
+2. **Un vecteur qui prouvait la validation, pas le service** (onzième occurrence).
+   `EcritureSoignantService::ecrire()` VALIDE en interne avec les règles de la section : les clés
+   de liens n'atteignent jamais le code qui pose. Il n'y a donc **qu'une couche qui mord**, et le
+   commentaire du modèle qui en promettait deux a été corrigé — *décrire une garde jamais
+   sollicitée, c'est se raconter une protection*.
+3. **LE VECTEUR OBLIGATOIRE NE REPRODUISAIT PAS SON PROPRE CAS.** Il signait une ordonnance qui
+   portait **déjà** les liens (écrite par le chemin soignant), donc « reposer » la même valeur ne
+   changeait rien : la mutation qui ajoutait `medecin_id` au contenu signé **survivait**. Une
+   ordonnance d'avant B2-c n'a aucun lien — le vecteur part désormais d'une ordonnance sans lien,
+   et la mutation meurt.
+
+### 9.5 Ce qui a été prouvé
+
+**G3** — suite complète **1595/1595, 17 668 assertions, 0 échec** ; 11 vecteurs dédiés ;
+**mutation 4 tueuses + 1 témoin vert**, toutes conformes. Une
+cinquième définition a été retirée : son ancre (`'ordonnances',`) n'est pas unique dans le fichier,
+donc le harnais la déclarait « non appliquée » — défaut de définition, pas de code, et elle faisait
+double emploi avec la mutation de la méthode elle-même.
+
+**G2 live MySQL** — schéma et cinq clés étrangères vérifiés ; ordonnance écrite **par le vrai
+portail** pendant une consultation réelle, avec `medecin_id`, `structure_id` et `consultation_id`
+envoyés à `999999` par le client : **tous ignorés**, les liens posés désignent la bonne fiche, le
+bon établissement et la bonne consultation, et `medecin_nom` porte « Dr Sekou Bamba » au lieu du
+nom envoyé. Base restaurée compte pour compte (133 tables, 0 résidu).
+
+**Baseline Pint respectée** : `EcritureSoignantService`, `RegistreSectionsCarnet` et `Ordonnance`
+échouaient **déjà** — ils ne sont pas reformatés. Diff final sur ces trois fichiers : **98
+insertions, 0 suppression**.
+
+### 9.6 Limites
+
+- **Demandes d'examens non livrées** (voir §9.3) : elles supposent le circuit §7.4.
+- **`ordonnance_lignes` et `delivrances` non livrées** : aucun consommateur (lot pharmacie).
+- **Les ordonnances antérieures gardent leurs liens nuls** : aucun rattrapage rétroactif n'est
+  fait. Les rattacher supposerait de deviner quel praticien a écrit quoi à partir d'un nom — ce
+  serait inventer une donnée. Le vecteur de signature prouve seulement qu'un tel rattrapage, s'il
+  était fait un jour à partir d'une source sûre, ne casserait aucune signature.
+- **Rien ne relie encore une ordonnance à sa délivrance** : le §5.4 décrit
+  `Médecin → Patient → Pharmacie`, et seul le premier maillon existe.

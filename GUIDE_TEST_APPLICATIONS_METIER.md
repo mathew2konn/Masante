@@ -1016,3 +1016,74 @@ désormais.
    faits différents : l'un dit ce qu'a le patient, l'autre juge une orientation pour l'apprentissage
    de l'IA. Les fondre reviendrait à déduire un jugement.
 5. **Aucun écran mobile.**
+
+---
+
+## Partie 10 — B2-c : l'ordonnance désigne son prescripteur (CDC_11 §5.4)
+
+> **Périmètre** : une ordonnance écrite par un soignant **désigne** désormais sa fiche
+> professionnelle, son établissement et la consultation qui l'a produite — là où il n'y avait
+> qu'un nom en toutes lettres. Dernier sous-incrément du lot B2.
+> **✅ VALIDÉ (G5, 2026-09-03, suite complète 1595/1595) — G4 propriétaire OK. Le lot B2 est COMPLET (a, b, c).**
+
+### Ce qu'il faut savoir avant de commencer
+
+**Ce qui change n'est pas visible à l'écran.** `medecin_nom` s'affichait déjà, et il reste affiché
+à l'identique. Ce qui change est en dessous : l'ordonnance **pointe** maintenant vers la fiche du
+praticien, son établissement et la consultation. C'est ce qui rendra possible, plus tard,
+« toutes les ordonnances du D<sup>r</sup> X » ou « ce prescripteur exerce-t-il encore ? ».
+
+**Le point le plus sensible est ce qui ne devait PAS bouger : les signatures.** Une ordonnance
+signée porte une empreinte de son contenu. Si les nouveaux liens y entraient, **toute ordonnance
+signée avant aujourd'hui deviendrait « altérée »** alors que personne n'y a touché. Ils n'y entrent
+pas — et c'est le cas n° 5 ci-dessous qui le vérifie.
+
+### Prérequis
+
+1. `php artisan migrate` (les trois migrations du lot B2).
+2. Un compte médecin habilité et **relié à une fiche de l'annuaire** — sans fiche, aucun lien n'est
+   posé, et c'est le comportement attendu (cas n° 3).
+
+### Cas à vérifier
+
+| # | Ce que vous faites | Ce qui doit se produire |
+|---|---|---|
+| 1 | Ouvrir une consultation, puis écrire une ordonnance depuis la section « Ordonnances » | Elle est enregistrée normalement — **rien ne change à l'écran** |
+| 2 | Regarder la fiche du patient côté mobile ou API | L'ordonnance s'affiche comme avant, avec le nom du prescripteur |
+| 3 | Écrire une ordonnance avec un compte **sans fiche** de l'annuaire | Elle passe quand même. Aucun lien n'est posé, et **rien n'est inventé** |
+| 4 | Écrire une ordonnance **hors** consultation (dossier ouvert, aucune consultation) | Elle passe ; le rattachement à la consultation reste vide — une ordonnance vit dans le carnet, pas dans la consultation |
+| 5 | **Le cas qui compte** : vérifier une ordonnance **déjà signée** avant aujourd'hui | Elle doit rester **intègre**. Les liens ne font pas partie de ce qui est signé |
+| 6 | Modifier un dosage sur une ordonnance signée | Elle doit devenir **altérée** — la signature protège toujours ce qu'elle doit protéger |
+
+### Ce qui a été prouvé automatiquement
+
+- Suite complète **1595/1595**, 17 668 assertions ; **11 vecteurs** dédiés ; **mutation : 4 tueuses + 1 témoin volontairement vert**.
+- **G2 live** : ordonnance écrite par le **vrai portail** pendant une consultation réelle, avec des
+  identifiants de liens envoyés à `999999` par le client — **tous ignorés**. Les liens posés
+  désignent la bonne fiche, le bon établissement, la bonne consultation.
+- Vérifié en base : `medecin_nom` porte le nom réécrit par le serveur, jamais celui envoyé.
+
+### Trois défauts de méthode trouvés, et ce qu'ils disent
+
+1. **Un cycle de dépendances évité** : le service de consultation dépend déjà du service
+   d'écriture (depuis B2-b) ; l'inverse aurait bouclé.
+2. **Un test qui prouvait autre chose** : il vérifiait que le service « repose » les liens face à un
+   client malveillant — mais la validation les écarte bien avant, donc ce code n'était jamais
+   atteint. Le commentaire qui promettait « deux couches » a été corrigé : il n'y en a qu'une, et
+   c'est la validation.
+3. **Le test le plus important ne testait pas son propre cas** : il partait d'une ordonnance qui
+   portait déjà les liens, donc les reposer ne changeait rien. Une ordonnance d'avant B2-c n'en a
+   aucun. Corrigé — et c'est seulement là que la vérification est devenue réelle.
+
+### Ce que B2-c NE fait PAS
+
+1. **Aucune demande d'examen.** Le plan les annonçait ; le G0 a établi qu'une demande d'examen
+   ouvre un circuit médecin → laboratoire → résultat (§7.4), qui est un module à part. Les livrer
+   ici reviendrait à ouvrir un module dans un autre.
+2. **Aucune ligne d'ordonnance structurée** (`ordonnance_lignes`) : elles n'ont de sens qu'avec la
+   délivrance en pharmacie, qui n'existe pas.
+3. **Les ordonnances anciennes gardent leurs liens vides.** Aucun rattrapage automatique : les
+   rattacher supposerait de deviner quel praticien a écrit quoi à partir d'un nom, c'est-à-dire
+   d'inventer une donnée.
+4. **Rien ne relie encore une ordonnance à sa délivrance.** Le §5.4 décrit
+   `Médecin → Patient → Pharmacie` ; seul le premier maillon existe.
