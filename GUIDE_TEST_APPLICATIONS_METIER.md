@@ -850,3 +850,89 @@ ci-dessous pour la raison de chacun, trouvée en implémentant, pas devinée au 
    depuis le G1 initial, non rouverts ici.
 5. Aucune UI Next.js pour `terminer()` — la route API existe (parité avec Blade), non consommée
    par le portail Next (précédent B1-c : `rdv_partage` est resté Blade-seul).
+
+---
+
+## Partie 8 — B2-a : la consultation, un acte de soin distinct du journal d'accès (CDC_11 §5.2)
+
+> **Périmètre** : le médecin ouvre une **consultation** pendant qu'un dossier lui est ouvert,
+> y consigne des **observations**, puis la clôture. C'est le premier morceau de l'étape 5 de
+> CDC_11 §12 (« Consultation + diagnostic + prescription électronique »), et il referme un trou
+> que **trois modules validés G5 nommaient comme leur propre verrou**.
+> **✅ VALIDÉ (G5, 2026-09-03, suite complète 1567/1567) — G4 propriétaire OK.**
+
+### Ce qu'il faut savoir avant de commencer
+
+**Une consultation n'est PAS un accès au dossier, et les deux existent côte à côte.** Le bandeau
+du haut (« Dossier ouvert · accès journalisé ») parle de la **fenêtre de lecture** : qui a ouvert
+ce dossier, quand, par quelle voie, et combien de temps il reste. La carte « Consultation » parle
+de **l'acte de soin** : ce que le médecin fait pendant que la fenêtre est ouverte. Un accès peut
+exister sans consultation — une lecture familiale, un accès d'urgence, ou simplement un médecin
+qui ouvre puis referme sans rien faire.
+
+**Une session d'accès porte au plus UNE consultation.** Si vous écrivez une ordonnance ET un
+antécédent pendant la même fenêtre, ce sont deux actes de la même consultation, pas deux
+consultations.
+
+**Le bris de glace ne permet pas de mener une consultation.** Cette voie ouvre le vital minimal
+sans le consentement du patient ; y autoriser un acte de soin ferait d'un accès d'exception un
+droit de soigner. C'est une décision, pas un oubli.
+
+### Prérequis
+
+1. `php artisan migrate` (la migration `2026_09_02_000004_consultations`).
+2. Un compte portail avec le rôle `medecin` **et** la permission `dossier.ecrire`
+   (`PortailRolesSeeder` la donne au rôle `medecin`).
+3. Ce compte doit être relié à une **fiche de l'annuaire** (`medecins.user_id`) pour que la
+   consultation porte son nom professionnel et son établissement — sinon elle portera le nom du
+   compte, ce qui est le repli prévu.
+4. Un patient dont ce médecin est **référent** (le plus simple pour ouvrir un dossier sans QR).
+
+### Cas à vérifier
+
+| # | Ce que vous faites | Ce qui doit se produire |
+|---|---|---|
+| 1 | Ouvrir le dossier d'un de vos patients depuis « Mes patients » | La carte **« Consultation »** apparaît, avec un champ « Motif » et un bouton « Ouvrir la consultation » |
+| 2 | Ouvrir la consultation avec un motif | La carte affiche « **En cours** », votre nom professionnel, votre établissement, l'heure d'ouverture et le motif |
+| 3 | Consigner une observation | Elle apparaît sous la carte, horodatée |
+| 4 | Consigner une observation **vide** (que des espaces) | Refus **visible à l'écran** : « Une observation ne peut pas être vide. » — et rien n'est enregistré |
+| 5 | Clôturer la consultation | La carte passe à « **Clôturée** », l'heure de clôture s'affiche, le champ d'observation **disparaît** |
+| 6 | Recharger la page | La consultation reste clôturée ; aucun bouton ne permet de la rouvrir |
+| 7 | Fermer le dossier, le rouvrir (nouvel accès) | Une **nouvelle** carte « Consultation » est proposée : l'ancienne appartenait à l'ancien accès |
+| 8 | Ouvrir un dossier par **bris de glace** | La carte « Consultation » **n'apparaît pas** |
+| 9 | Se connecter avec un compte sans `dossier.ecrire` | Aucune carte « Consultation » ; et la route refuse (403) même appelée directement |
+
+### Ce qui a été prouvé automatiquement (vous n'avez pas à le refaire)
+
+- **21 vecteurs** dédiés, dont un par garde ; **mutation 6/6 conforme**, avec un témoin
+  volontairement vert.
+- **G2 live MySQL** : les quatre gardes du moteur (`1644` sur une clôture sans heure, `1644` sur
+  une consultation en cours qui en porte une, `1062` sur deux consultations pour un même accès),
+  puis le parcours réel au portail par la voie référent.
+- Un client qui envoie `membre_id` ou `soignant_nom` en plus du motif : **les deux sont ignorés**,
+  la consultation porte le patient de la session et votre nom.
+- Le contenu des observations est **chiffré en base** (vérifié en SQL direct).
+
+### Deux défauts réels trouvés pendant ce lot, et ce qu'ils changent pour vous
+
+1. **Le refus d'une observation vide était muet.** Le serveur refusait correctement — la base le
+   confirmait — mais l'écran ne disait rien : vous auriez vu votre page recharger sans votre texte
+   et sans explication. Corrigé ; c'est le **cas n° 4** ci-dessus qui le vérifie.
+2. **Le message s'affichait en anglais** (« The contenu field is required. ») sur un portail
+   francophone. Corrigé pour cet écran. **Le défaut est plus large que ce lot** : ce projet n'a pas
+   de fichiers de traduction, donc d'autres écrans peuvent encore afficher des messages de
+   validation en anglais. C'est signalé, pas corrigé ici.
+
+### Ce que B2-a NE fait PAS — à ne pas chercher
+
+1. **Aucun diagnostic.** Poser un diagnostic est B2-b. La consultation enregistre le motif et les
+   observations, elle ne nomme aucune maladie.
+2. **Aucune prescription rattachée.** Une ordonnance écrite pendant la consultation est enregistrée
+   comme avant, mais elle ne pointe pas encore vers l'acte — c'est B2-c.
+3. **Aucune vérification d'allergies ni de contre-indications** (CDC_11 §5.4). Les allergies sont
+   aujourd'hui du texte libre : une vérification ne couvrirait que celles saisies après ce lot et
+   afficherait « aucune allergie signalée » sur un patient qui en a une, écrite en prose. C'est
+   plus dangereux que pas de vérification du tout — donc ce n'est pas fait, et c'est dit.
+4. **Aucune transmission en pharmacie** (lot pharmacie).
+5. **Aucune aide au diagnostic IA** (§5.3) : CDC_05, et une IA ne décide jamais seule (CDC_00 §4).
+6. **Aucun écran mobile** : la consultation est un acte professionnel, elle vit au portail.

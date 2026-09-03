@@ -9,6 +9,7 @@ use App\Models\Triage;
 use App\Services\EcritureSoignantService;
 use App\Services\Maladie\ServiceMaladies;
 use App\Services\Pki\ServiceSignature;
+use App\Services\ServiceConsultation;
 use App\Services\SessionDossierService;
 use App\Services\Triage\ServiceRetourTriage;
 use App\Support\NiveauTriage;
@@ -84,8 +85,10 @@ class DossierController extends Controller
         'ordonnances' => \App\Services\Pki\DocumentOrdonnance::CODE,
     ];
 
-    public function __construct(private readonly SessionDossierService $session)
-    {
+    public function __construct(
+        private readonly SessionDossierService $session,
+        private readonly ServiceConsultation $consultations,
+    ) {
     }
 
     /** Ouvre le dossier sur la fiche vitale. */
@@ -112,6 +115,20 @@ class DossierController extends Controller
             'sections' => self::SECTIONS,
             'donnees'  => $donnees,
             'restant'  => $this->session->secondesRestantes(),
+
+            // ═══ B2-a — LA CONSULTATION (CDC_11 §5.2) ═══
+            //
+            // La consultation de CET accès, s'il y en a une. Le formulaire n'est proposé qu'au
+            // compte habilité et sur une voie consentie ; le service revérifie les deux de toute
+            // façon — celle qui fait autorité est là-bas, l'écran ne fait qu'éviter de proposer
+            // un bouton qui répondrait par un refus (patron du retour clinique ci-dessous).
+            'consultation' => $this->consultations->enCoursPourLaSession(),
+            'peutMenerConsultation' => auth()->user()?->can('dossier.ecrire') === true
+                && in_array(
+                    $this->session->typeAcces(),
+                    EcritureSoignantService::VOIES_ECRITURE,
+                    true
+                ),
 
             // ═══ P10c-2-i — LE RETOUR CLINIQUE SUR L'ORIENTATION (CDC_05 §5.5.4, §9.1) ═══
             //

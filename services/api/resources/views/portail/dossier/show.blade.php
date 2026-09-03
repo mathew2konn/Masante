@@ -38,6 +38,108 @@
   </div>
 </div>
 
+{{-- B2-a — LA CONSULTATION (CDC_11 §5.2).
+
+     Distincte du bandeau ci-dessus, qui parle de l'ACCÈS au dossier (une fenêtre de lecture,
+     journalisée). Celle-ci parle de l'ACTE DE SOIN : ce que le médecin fait pendant que la
+     fenêtre est ouverte. Les deux ne se confondent pas — un accès existe sans consultation. --}}
+@if (session('succes'))
+  <div class="alert alert-success py-2">{{ session('succes') }}</div>
+@endif
+
+@if ($peutMenerConsultation)
+  <div class="card border-0 shadow-sm mb-3">
+    <div class="card-body">
+      {{-- Défaut trouvé AU G2 LIVE, invisible en test : le service refusait correctement une
+           observation vide, la base le confirmait — et l'écran ne disait RIEN. Le médecin voyait
+           sa page recharger sans son texte et sans explication. Les clés sont NOMMÉES plutôt que
+           `$errors->any()` : `formulaire.blade.php`, incluse plus bas, affiche déjà les erreurs
+           de section, et un bloc global les montrerait deux fois. --}}
+      @foreach (['consultation', 'motif', 'contenu'] as $cle)
+        @error($cle)
+          <div class="alert alert-danger py-2">{{ $message }}</div>
+        @enderror
+      @endforeach
+      @if ($consultation === null)
+        <h2 class="h6 text-ms mb-2"><i class="bi bi-clipboard2-pulse"></i> Consultation</h2>
+        <p class="text-muted small">
+          Ouvrez une consultation pour rattacher à un même acte les observations et ce que vous
+          consignerez dans le carnet.
+        </p>
+        <form method="POST" action="{{ route('portail.dossier.consultation.ouvrir') }}"
+              class="row g-2 align-items-end m-0">
+          @csrf
+          <div class="col-md-9">
+            <label for="motif" class="form-label small mb-1">Motif de consultation (facultatif)</label>
+            <input type="text" class="form-control" id="motif" name="motif" maxlength="500"
+                   value="{{ old('motif') }}" placeholder="Ce que le patient rapporte">
+          </div>
+          <div class="col-md-3 d-grid">
+            <button class="btn btn-ms" type="submit">
+              <i class="bi bi-play-circle"></i> Ouvrir la consultation
+            </button>
+          </div>
+        </form>
+      @else
+        <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-3">
+          <div>
+            <h2 class="h6 text-ms mb-1">
+              <i class="bi bi-clipboard2-pulse"></i> Consultation
+              @if ($consultation->estEnCours())
+                <span class="badge bg-success-subtle text-success-emphasis">En cours</span>
+              @else
+                <span class="badge bg-secondary-subtle text-secondary-emphasis">Clôturée</span>
+              @endif
+            </h2>
+            <p class="text-muted small mb-0">
+              Menée par {{ $consultation->soignant_nom }}
+              @if ($consultation->structure_nom)· {{ $consultation->structure_nom }}@endif
+              · ouverte à {{ $consultation->debutee_le?->format('H:i') }}
+              @if ($consultation->cloturee_le)
+                · clôturée à {{ $consultation->cloturee_le->format('H:i') }}
+              @endif
+            </p>
+            @if ($consultation->motif)
+              <p class="small mb-0 mt-1"><span class="text-muted">Motif :</span> {{ $consultation->motif }}</p>
+            @endif
+          </div>
+          @if ($consultation->estEnCours())
+            <form method="POST" action="{{ route('portail.dossier.consultation.cloturer') }}" class="m-0">
+              @csrf
+              <button class="btn btn-outline-secondary btn-sm" type="submit">
+                <i class="bi bi-check2-circle"></i> Clôturer la consultation
+              </button>
+            </form>
+          @endif
+        </div>
+
+        @if ($consultation->estEnCours())
+          <form method="POST" action="{{ route('portail.dossier.consultation.observer') }}" class="m-0">
+            @csrf
+            <label for="contenu" class="form-label small mb-1">Observation</label>
+            <div class="input-group">
+              <textarea class="form-control" id="contenu" name="contenu" rows="2" maxlength="5000"
+                        placeholder="Ce que vous constatez">{{ old('contenu') }}</textarea>
+              <button class="btn btn-ms" type="submit"><i class="bi bi-plus-lg"></i> Consigner</button>
+            </div>
+          </form>
+        @endif
+
+        @if ($consultation->observations->isNotEmpty())
+          <ul class="list-group list-group-flush mt-3">
+            @foreach ($consultation->observations->sortByDesc('created_at') as $observation)
+              <li class="list-group-item px-0">
+                <div class="small text-muted">{{ $observation->created_at?->format('d/m/Y H:i') }}</div>
+                <div>{{ $observation->contenu }}</div>
+              </li>
+            @endforeach
+          </ul>
+        @endif
+      @endif
+    </div>
+  </div>
+@endif
+
 <div class="row g-3">
   {{-- Sections : chaque visite est notée puis inscrite au journal d'audit à la clôture. --}}
   <div class="col-lg-3">

@@ -7,6 +7,7 @@ use App\Http\Controllers\Portail\AuthController;
 use App\Http\Controllers\Portail\BesoinSangController;
 use App\Http\Controllers\Portail\BrisDeGlaceController;
 use App\Http\Controllers\Portail\CompteController;
+use App\Http\Controllers\Portail\ConsultationController;
 use App\Http\Controllers\Portail\DashboardController;
 use App\Http\Controllers\Portail\DisponibiliteController;
 use App\Http\Controllers\Portail\DossierController;
@@ -460,6 +461,23 @@ Route::prefix('portail')->name('portail.')->group(function () {
             Route::post('dossier/triage/{triage}/retour', [DossierController::class, 'retourTriage'])
                 ->middleware('permission:triage.retour')
                 ->name('dossier.triage.retour');
+
+            // B2-a — la consultation (CDC_11 §5.2). Déclarées AVANT `dossier/{section}`, comme
+            // `dossier/fermer` et `dossier/triage/...` : « consultation » serait sinon pris pour
+            // une section à écrire. Aucun identifiant dans l'URL : la consultation est celle de la
+            // session, l'anti-IDOR reste structurel.
+            //
+            // AUCUNE PERMISSION NEUVE : mener une consultation, c'est consigner un acte dans le
+            // carnet — ce que `dossier.ecrire` dit déjà. Deux clés pour une seule porte laisseraient
+            // « qui peut poser un acte de soin ? » avoir deux réponses (refus de P11.1-D5).
+            Route::middleware('permission:dossier.ecrire')->group(function () {
+                Route::post('dossier/consultation', [ConsultationController::class, 'ouvrir'])
+                    ->name('dossier.consultation.ouvrir');
+                Route::post('dossier/consultation/observation', [ConsultationController::class, 'observer'])
+                    ->name('dossier.consultation.observer');
+                Route::post('dossier/consultation/cloturer', [ConsultationController::class, 'cloturer'])
+                    ->name('dossier.consultation.cloturer');
+            });
 
             // Déclarée AVANT `dossier/{section}` : sans cela, `enregistrer` serait capté.
             Route::post('dossier/{section}', [DossierController::class, 'enregistrer'])

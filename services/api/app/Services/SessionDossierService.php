@@ -71,6 +71,20 @@ class SessionDossierService
         return Session::get(self::CLE.'.type');
     }
 
+    /**
+     * Identifiant de la ligne d'OUVERTURE du journal d'accès de la session en cours (B2-a).
+     *
+     * La session le portait déjà depuis le Module 2 ; il n'était simplement lu qu'ici, par
+     * `fermer()`. La consultation s'y rattache pour dire quel accès l'a rendue possible — un
+     * identifiant, jamais une clé étrangère (ADR-042 D1).
+     */
+    public function accesId(): ?int
+    {
+        $id = Session::get(self::CLE.'.acces_id');
+
+        return $id === null ? null : (int) $id;
+    }
+
     /** Y a-t-il une session dossier encore valide ? (une session expirée est close et purgée) */
     public function estActive(): bool
     {
