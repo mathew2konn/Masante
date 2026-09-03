@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Portail;
 
 use App\Http\Controllers\Controller;
+use App\Models\Diagnostic;
 use App\Services\ServiceConsultation;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -81,6 +82,82 @@ class ConsultationController extends Controller
         return redirect()
             ->route('portail.dossier.show')
             ->with('succes', 'Observation consignée.');
+    }
+
+    /** B2-b — pose un diagnostic dans la consultation en cours. */
+    public function diagnostiquer(Request $request): RedirectResponse
+    {
+        $valide = $request->validate([
+            'libelle' => ['required', 'string', 'max:2000'],
+            // Le lien est FACULTATIF : le référentiel livré est un jeu de démonstration, et une
+            // maladie émergente n'est dans aucune nomenclature au moment où elle émerge.
+            'maladie_id' => ['nullable', 'integer'],
+        ], [
+            'libelle.required' => 'Un diagnostic ne peut pas être vide.',
+            'libelle.max' => 'Un diagnostic ne peut pas dépasser 2000 caractères.',
+        ]);
+
+        $consultation = $this->consultations->enCoursPourLaSession();
+
+        if ($consultation === null) {
+            return back()->withErrors([
+                'consultation' => 'Aucune consultation n\'est ouverte pour cet accès.',
+            ])->withInput();
+        }
+
+        try {
+            $this->consultations->diagnostiquer(
+                $request->user(),
+                $consultation,
+                $valide['libelle'],
+                $valide['maladie_id'] ?? null,
+            );
+        } catch (ValidationException $e) {
+            return back()->withErrors($e->errors())->withInput();
+        }
+
+        return redirect()
+            ->route('portail.dossier.show')
+            ->with('succes', 'Diagnostic enregistré.');
+    }
+
+    /**
+     * B2-b — inscrit un diagnostic aux antécédents du patient.
+     *
+     * Le TYPE est demandé au médecin, jamais déduit : décider qu'un diagnostic est « chronique »
+     * est une affirmation clinique, et ce projet ne les fabrique pas.
+     */
+    public function promouvoir(Request $request, Diagnostic $diagnostic): RedirectResponse
+    {
+        $valide = $request->validate([
+            'type' => ['required', 'in:maladie_chronique,allergie,chirurgie,hospitalisation,autre'],
+        ], [
+            'type.required' => 'Indiquez le type de cet antécédent.',
+            'type.in' => 'Ce type est inconnu.',
+        ]);
+
+        $consultation = $this->consultations->enCoursPourLaSession();
+
+        if ($consultation === null) {
+            return back()->withErrors([
+                'consultation' => 'Aucune consultation n\'est ouverte pour cet accès.',
+            ]);
+        }
+
+        try {
+            $this->consultations->promouvoirEnAntecedent(
+                $request->user(),
+                $consultation,
+                $diagnostic,
+                $valide['type'],
+            );
+        } catch (ValidationException $e) {
+            return back()->withErrors($e->errors());
+        }
+
+        return redirect()
+            ->route('portail.dossier.show')
+            ->with('succes', 'Diagnostic inscrit aux antécédents du patient.');
     }
 
     /** Clôture la consultation en cours. */

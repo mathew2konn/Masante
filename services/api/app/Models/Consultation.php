@@ -60,6 +60,12 @@ class Consultation extends Model
         return $this->belongsTo(User::class, 'soignant_user_id');
     }
 
+    /** Les diagnostics posés pendant cette consultation (B2-b). */
+    public function diagnostics(): HasMany
+    {
+        return $this->hasMany(Diagnostic::class, 'consultation_id');
+    }
+
     /** Les observations consignées pendant cette consultation (Z-a : `notes_observations`). */
     public function observations(): HasMany
     {

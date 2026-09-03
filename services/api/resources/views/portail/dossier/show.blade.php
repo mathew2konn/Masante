@@ -125,6 +125,81 @@
           </form>
         @endif
 
+        {{-- B2-b — LE DIAGNOSTIC. Distinct d'un antécédent : un antécédent SUIT le patient et pèse
+             sur ses triages futurs, un diagnostic DATE de cet épisode. L'inscrire aux antécédents
+             est un geste séparé, et le médecin choisit son type — décider qu'un diagnostic est
+             « chronique » est une affirmation clinique. --}}
+        @if ($consultation->estEnCours())
+          <form method="POST" action="{{ route('portail.dossier.consultation.diagnostiquer') }}"
+                class="row g-2 align-items-end m-0 mt-3 pt-3 border-top">
+            @csrf
+            <div class="col-md-6">
+              <label for="libelle" class="form-label small mb-1">Diagnostic</label>
+              <input type="text" class="form-control" id="libelle" name="libelle" maxlength="2000"
+                     value="{{ old('libelle') }}" placeholder="Ce que vous retenez">
+            </div>
+            <div class="col-md-4">
+              <label for="maladie_id" class="form-label small mb-1">
+                Référentiel national <span class="text-muted">(facultatif)</span>
+              </label>
+              <select class="form-select" id="maladie_id" name="maladie_id">
+                <option value="">— non rattaché —</option>
+                @foreach ($maladiesReferentiel as $maladie)
+                  <option value="{{ $maladie['id'] }}" @selected(old('maladie_id') == $maladie['id'])>
+                    {{ $maladie['libelle'] }}
+                  </option>
+                @endforeach
+              </select>
+            </div>
+            <div class="col-md-2 d-grid">
+              <button class="btn btn-ms" type="submit"><i class="bi bi-plus-lg"></i> Poser</button>
+            </div>
+            <div class="col-12">
+              <div class="form-text small">
+                Le rattachement est facultatif et n'est jamais deviné : si le diagnostic ne figure
+                pas au référentiel, laissez « non rattaché » — vos mots sont conservés tels quels.
+              </div>
+            </div>
+          </form>
+        @endif
+
+        @if ($consultation->diagnostics->isNotEmpty())
+          <ul class="list-group list-group-flush mt-3">
+            @foreach ($consultation->diagnostics as $diagnostic)
+              <li class="list-group-item px-0">
+                <div class="d-flex flex-wrap justify-content-between align-items-start gap-2">
+                  <div>
+                    <span class="fw-semibold">{{ $diagnostic->libelle }}</span>
+                    @if ($diagnostic->estCode())
+                      <span class="badge bg-info-subtle text-info-emphasis ms-1">
+                        {{ $diagnostic->maladie_libelle }} · {{ $diagnostic->maladie_code }}
+                      </span>
+                    @else
+                      <span class="badge bg-secondary-subtle text-secondary-emphasis ms-1">hors référentiel</span>
+                    @endif
+                  </div>
+                  @if ($diagnostic->estPromu())
+                    <span class="small text-success"><i class="bi bi-check2"></i> inscrit aux antécédents</span>
+                  @elseif ($consultation->estEnCours())
+                    <form method="POST" class="d-flex gap-2 m-0"
+                          action="{{ route('portail.dossier.consultation.promouvoir', $diagnostic) }}">
+                      @csrf
+                      <select class="form-select form-select-sm" name="type" style="width:auto">
+                        @foreach ($typesAntecedent as $cle => $libelle)
+                          <option value="{{ $cle }}">{{ $libelle }}</option>
+                        @endforeach
+                      </select>
+                      <button class="btn btn-outline-secondary btn-sm" type="submit">
+                        Inscrire aux antécédents
+                      </button>
+                    </form>
+                  @endif
+                </div>
+              </li>
+            @endforeach
+          </ul>
+        @endif
+
         @if ($consultation->observations->isNotEmpty())
           <ul class="list-group list-group-flush mt-3">
             @foreach ($consultation->observations->sortByDesc('created_at') as $observation)

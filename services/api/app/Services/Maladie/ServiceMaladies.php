@@ -2,6 +2,7 @@
 
 namespace App\Services\Maladie;
 
+use App\Models\Maladie;
 use App\Services\Referentiel\DiffusionReferentiel;
 use App\Services\Referentiel\ReferentielException;
 use App\Services\Referentiel\SourceMaladies;
@@ -113,6 +114,34 @@ final class ServiceMaladies
 
         usort($liste, static fn (array $a, array $b) => [! $a['surveillance_prioritaire'], $a['libelle']]
             <=> [! $b['surveillance_prioritaire'], $b['libelle']]);
+
+        // ═══ DÉFAUT RÉEL TROUVÉ AU G0 DE B2-b, ET IL DATE DE P6.8c ═══
+        //
+        // L'instantané publié ne porte PAS d'`id`, et c'est délibéré : un identifiant technique ne
+        // veut rien dire hors de cette base — raison pour laquelle les interactions de P6.6a sont
+        // portées par code national. Mais les FORMULAIRES, eux, envoient `maladie_id` : c'est le
+        // contrat de {@see ServiceLienMaladie}, qui a besoin de la TABLE pour l'intégrité
+        // référentielle et de la VERSION PUBLIÉE pour le contenu.
+        //
+        // Résultat : `formulaire.blade.php` écrivait `value="{{ $m['id'] }}"` sur une clé absente,
+        // donc CHAQUE OPTION VALAIT LA CHAÎNE VIDE — le rattachement d'un antécédent au référentiel
+        // était INOPÉRANT depuis le portail, sans qu'aucune erreur ne s'affiche. Un défaut muet :
+        // rien ne cassait, la fonctionnalité ne marchait simplement pas.
+        //
+        // L'`id` est résolu ICI, depuis la table, par le code de la version publiée — une seule
+        // requête, et les deux lectures gardent chacune leur rôle. Une entrée publiée dont la ligne
+        // aurait disparu de la table est écartée : la proposer offrirait un choix que
+        // `exigerPubliee()` refuserait ensuite.
+        $ids = Maladie::whereIn('code', array_column($liste, 'code'))->pluck('id', 'code');
+
+        $liste = array_values(array_filter(array_map(
+            static function (array $entree) use ($ids): ?array {
+                $id = $ids[$entree['code']] ?? null;
+
+                return $id === null ? null : ['id' => (int) $id] + $entree;
+            },
+            $liste,
+        )));
 
         return $liste;
     }

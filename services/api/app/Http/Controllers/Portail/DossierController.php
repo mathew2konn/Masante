@@ -158,8 +158,21 @@ class DossierController extends Controller
             // version en vigueur », et le formulaire le dit. Le lien reste facultatif — le serveur
             // ne devine jamais une maladie depuis la description (CDC_00 §4).
             'maladiesReferentiel' => in_array($section, ['antecedents', 'triage'], true)
+                // B2-b — la carte de consultation propose aussi le référentiel pour rattacher un
+                // diagnostic. Le lien reste facultatif et le serveur ne devine jamais : la liste
+                // sert à CHOISIR, elle ne rapproche rien toute seule.
+                || $this->consultations->enCoursPourLaSession()?->estEnCours() === true
                 ? app(ServiceMaladies::class)->listePubliee()
                 : [],
+            // Les types d'antécédent proposés à la promotion d'un diagnostic. Le médecin choisit :
+            // décider qu'un diagnostic est « chronique » est une affirmation clinique.
+            'typesAntecedent' => [
+                'maladie_chronique' => 'Maladie chronique',
+                'allergie' => 'Allergie',
+                'chirurgie' => 'Chirurgie',
+                'hospitalisation' => 'Hospitalisation',
+                'autre' => 'Autre',
+            ],
             // ═══ P10c-3-ii (F32→F34) — LES TROIS FAITS DU §5.5.4 ═══
             //
             // Le diagnostic et la spécialité se CHOISISSENT dans une liste : saisis librement, ils

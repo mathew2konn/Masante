@@ -477,6 +477,14 @@ Route::prefix('portail')->name('portail.')->group(function () {
                     ->name('dossier.consultation.observer');
                 Route::post('dossier/consultation/cloturer', [ConsultationController::class, 'cloturer'])
                     ->name('dossier.consultation.cloturer');
+
+                // B2-b — le diagnostic. La promotion vers les antécédents porte l'identifiant du
+                // DIAGNOSTIC, pas celui du patient : le service vérifie qu'il appartient bien à la
+                // consultation de la session, donc l'anti-IDOR reste porté par la session.
+                Route::post('dossier/consultation/diagnostic', [ConsultationController::class, 'diagnostiquer'])
+                    ->name('dossier.consultation.diagnostiquer');
+                Route::post('dossier/consultation/diagnostic/{diagnostic}/antecedent', [ConsultationController::class, 'promouvoir'])
+                    ->name('dossier.consultation.promouvoir');
             });
 
             // Déclarée AVANT `dossier/{section}` : sans cela, `enregistrer` serait capté.

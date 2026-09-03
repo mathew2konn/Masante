@@ -936,3 +936,83 @@ droit de soigner. C'est une décision, pas un oubli.
 4. **Aucune transmission en pharmacie** (lot pharmacie).
 5. **Aucune aide au diagnostic IA** (§5.3) : CDC_05, et une IA ne décide jamais seule (CDC_00 §4).
 6. **Aucun écran mobile** : la consultation est un acte professionnel, elle vit au portail.
+
+---
+
+## Partie 9 — B2-b : le diagnostic posé en consultation (CDC_11 §5.2)
+
+> **Périmètre** : pendant une consultation ouverte, le médecin **pose un diagnostic** — en toutes
+> lettres, et facultativement rattaché au référentiel national des maladies — puis peut décider de
+> **l'inscrire aux antécédents** du patient. Deuxième sous-incrément du lot B2.
+> **✅ VALIDÉ (G5, 2026-09-03, suite complète 1584/1584) — G4 propriétaire OK.**
+
+### Ce qu'il faut savoir avant de commencer
+
+**Un diagnostic n'est PAS un antécédent, et la différence a des conséquences réelles.** Un
+antécédent SUIT le patient : il pèse sur le score de ses triages futurs. Un diagnostic DATE de
+cette consultation. Si chaque diagnostic devenait un antécédent, une simple grippe pèserait à vie
+sur toutes les orientations du patient — on dégraderait l'orientation qu'on cherche à améliorer.
+
+C'est pourquoi **poser un diagnostic ne crée rien dans les antécédents**. L'inscription est un
+geste séparé, et **c'est vous qui choisissez le type** (maladie chronique, allergie, chirurgie,
+hospitalisation, autre) : décider qu'un diagnostic est « chronique » est un jugement clinique, la
+machine ne le pose pas à votre place.
+
+**Le rattachement au référentiel est facultatif, et jamais deviné.** Si vous écrivez « Paludisme »
+alors que le référentiel contient « Paludisme », **rien n'est rattaché automatiquement** :
+rapprocher un texte d'une entrée serait un diagnostic posé par une machine. Vous choisissez dans la
+liste, ou vous laissez « non rattaché ».
+
+### Prérequis
+
+1. `php artisan migrate` (les migrations `consultations` **et** `diagnostics`).
+2. Un compte médecin habilité et relié à une fiche de l'annuaire (comme en partie 8).
+3. **Pour tester le rattachement** : le référentiel des maladies doit être **en vigueur**. Cela
+   suppose `MaladieSeeder`, **puis** `php artisan masante:maladies:backfill` (le seeder seul laisse
+   les codes nationaux nuls et la publication est alors refusée), puis une publication par le cycle
+   de gouvernance — qui exige **deux agents distincts** (quatre-yeux).
+   *Sans cette publication, la liste sera vide : c'est normal, et le cas n° 2 ci-dessous le teste.*
+
+### Cas à vérifier
+
+| # | Ce que vous faites | Ce qui doit se produire |
+|---|---|---|
+| 1 | Ouvrir une consultation | Un champ « Diagnostic » apparaît, avec une liste « Référentiel national (facultatif) » |
+| 2 | **Sans référentiel publié** : poser un diagnostic en laissant « non rattaché » | Il est **accepté**, et s'affiche avec le badge **« hors référentiel »** |
+| 3 | Poser un diagnostic **vide** | Refus visible : « Un diagnostic ne peut pas être vide. » |
+| 4 | **Référentiel publié** : choisir une maladie dans la liste | Le diagnostic s'affiche avec le **libellé et le code** du référentiel à côté de vos mots |
+| 5 | Écrire un libellé **identique** à une entrée du référentiel, sans rien choisir | **Aucun rattachement** — badge « hors référentiel ». Le serveur ne devine pas |
+| 6 | Vérifier les antécédents du patient après avoir posé un diagnostic | **Rien n'y a été ajouté** |
+| 7 | Cliquer « Inscrire aux antécédents » en choisissant un type | L'antécédent est créé ; le diagnostic affiche « inscrit aux antécédents » |
+| 8 | Réessayer l'inscription sur le même diagnostic | Refus : « Ce diagnostic est déjà inscrit aux antécédents. » |
+| 9 | Clôturer la consultation | Le champ « Diagnostic » disparaît ; les diagnostics restent affichés |
+
+### Ce qui a été prouvé automatiquement
+
+- Suite complète **1584/1584**, 17 636 assertions ; **17 vecteurs** dédiés (38 avec la partie 8) ; **mutation 6/6**, dont un témoin volontairement vert.
+- **G2 live en deux temps** : avant publication du référentiel, zéro option et le diagnostic passe
+  quand même en texte libre ; après publication par un quatre-yeux réel, 21 options, rattachement
+  effectif, code et libellé figés en base.
+- Vérifié en base : le libellé est **chiffré**, la provenance de l'antécédent promu est **réécrite
+  par le serveur** (`source = medecin`), et **2 diagnostics n'ont produit qu'1 antécédent**.
+
+### Un défaut réel corrigé au passage — il datait de P6.8c
+
+**Le rattachement d'un antécédent au référentiel ne fonctionnait pas depuis le portail.** Le
+formulaire construisait ses options avec un identifiant que la liste publiée ne fournit pas : toutes
+les options valaient une valeur vide. Rien ne cassait, rien ne s'affichait en erreur — la
+fonctionnalité ne marchait simplement pas. Corrigé à la source, donc **le formulaire d'antécédent
+en bénéficie aussi** : si vous testez la section « Antécédents », le rattachement y fonctionne
+désormais.
+
+### Ce que B2-b NE fait PAS
+
+1. **Aucune prescription rattachée à la consultation** — c'est B2-c.
+2. **Ni « diagnostic principal », ni « certitude »** : le corpus ne les demande pas, et inventer
+   une hiérarchie clinique serait une affirmation non sourcée.
+3. **Les codes CIM restent vides.** Le diagnostic est codé au sens du référentiel national, pas au
+   sens de la CIM — les charger est de la donnée, pas du code.
+4. **Le diagnostic de consultation et celui du retour de triage restent deux saisies.** Ce sont deux
+   faits différents : l'un dit ce qu'a le patient, l'autre juge une orientation pour l'apprentissage
+   de l'IA. Les fondre reviendrait à déduire un jugement.
+5. **Aucun écran mobile.**

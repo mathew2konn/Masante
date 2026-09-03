@@ -2,11 +2,14 @@
 
 namespace App\Services;
 
+use App\Models\Antecedent;
 use App\Models\Consultation;
+use App\Models\Diagnostic;
 use App\Models\Medecin;
 use App\Models\MembreFamille;
 use App\Models\NoteObservation;
 use App\Models\User;
+use App\Services\Maladie\ServiceLienMaladie;
 use App\Support\StatutConsultation;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -51,7 +54,14 @@ use Illuminate\Validation\ValidationException;
  */
 class ServiceConsultation
 {
-    public function __construct(private readonly SessionDossierService $session) {}
+    public function __construct(
+        private readonly SessionDossierService $session,
+        // B2-b — le lien au référentiel des maladies passe par le service de P6.8c, jamais par une
+        // seconde mécanique ; et l'inscription aux antécédents par le chemin d'écriture soignant de
+        // P7-D0, avec ses trois gardes, plutôt que par un accès direct au modèle.
+        private readonly ServiceLienMaladie $liens,
+        private readonly EcritureSoignantService $ecritures,
+    ) {}
 
     /**
      * Ouvre la consultation de la session de dossier en cours.
@@ -170,6 +180,117 @@ class ServiceConsultation
         return $consultation;
     }
 
+    /**
+     * B2-b — pose un diagnostic dans la consultation.
+     *
+     * LE LIEN AU RÉFÉRENTIEL EST FACULTATIF, ET LE SERVEUR NE DEVINE JAMAIS. Aucun rapprochement
+     * entre les mots du médecin et une entrée du référentiel : ce serait un diagnostic posé par une
+     * machine (CDC_00 §4, décision P6.8c). Quand le lien EST fourni, code et libellé sont relus à la
+     * version publiée et FIGÉS — et `libelle`, les mots du médecin, n'est jamais réécrit : le lien
+     * s'ajoute À CÔTÉ (leçon P6.7a).
+     *
+     * @throws ValidationException
+     */
+    public function diagnostiquer(
+        User $soignant,
+        Consultation $consultation,
+        string $libelle,
+        ?int $maladieId = null,
+    ): Diagnostic {
+        $this->assertHabilite($soignant);
+        $this->assertVoieConsentie();
+        $this->assertAuteur($soignant, $consultation);
+        $this->assertEnCours($consultation);
+
+        $texte = $this->texteOuNull($libelle);
+
+        if ($texte === null) {
+            $this->refus('Un diagnostic ne peut pas être vide.', 'libelle');
+        }
+
+        // Le lien passe par le service de P6.8c, jamais par une seconde mécanique : `maladie_code`
+        // et `maladie_libelle` y sont effacés puis reposés depuis la version PUBLIÉE, de sorte
+        // qu'un client ne puisse pas les déclarer lui-même.
+        $resolu = $this->liens->resoudreDiagnostic(['maladie_id' => $maladieId]);
+
+        $diagnostic = new Diagnostic;
+        $diagnostic->consultation_id = $consultation->id;
+        $diagnostic->libelle = $texte;
+        $diagnostic->maladie_id = $resolu['maladie_id'] ?? null;
+        $diagnostic->maladie_code = $resolu['maladie_code'] ?? null;
+        $diagnostic->maladie_libelle = $resolu['maladie_libelle'] ?? null;
+        $diagnostic->save();
+
+        return $diagnostic;
+    }
+
+    /**
+     * B2-b — inscrit un diagnostic aux ANTÉCÉDENTS du patient.
+     *
+     * ═══ POURQUOI CE N'EST PAS AUTOMATIQUE, ET NE DOIT JAMAIS L'ÊTRE ═══
+     *
+     * `antecedents.impact_triage` alimente le score des triages suivants. Y verser chaque
+     * diagnostic ferait d'une grippe un antécédent permanent pesant sur toutes les orientations
+     * futures du patient : *on dégraderait l'orientation qu'on cherche à améliorer*
+     * (`RegistreRetourTriage`, P10c-2-i). Ce qui suit le patient à vie relève d'un jugement
+     * clinique, pas d'une conséquence de saisie.
+     *
+     * LE TYPE EST CHOISI PAR LE MÉDECIN, jamais déduit : décider qu'un diagnostic est « chronique »
+     * est une affirmation clinique, et ce projet ne les fabrique pas.
+     *
+     * L'ÉCRITURE PASSE PAR LE CHEMIN EXISTANT (`EcritureSoignantService`, P7-D0) : les trois gardes
+     * de l'écriture soignant s'appliquent sans être réécrites, `source`/`added_by` sont réécrits
+     * par le serveur, et la notification part comme pour toute autre écriture au carnet.
+     *
+     * @throws ValidationException
+     */
+    public function promouvoirEnAntecedent(
+        User $soignant,
+        Consultation $consultation,
+        Diagnostic $diagnostic,
+        string $type,
+    ): Antecedent {
+        $this->assertHabilite($soignant);
+        $this->assertVoieConsentie();
+        $this->assertAuteur($soignant, $consultation);
+
+        if ($diagnostic->consultation_id !== $consultation->id) {
+            $this->refus('Ce diagnostic appartient à une autre consultation.');
+        }
+
+        if ($diagnostic->estPromu()) {
+            $this->refus('Ce diagnostic est déjà inscrit aux antécédents.');
+        }
+
+        $membre = $consultation->membre;
+
+        if ($membre === null) {
+            $this->refus('Le dossier de ce patient est introuvable.');
+        }
+
+        /** @var Antecedent $antecedent */
+        $antecedent = $this->ecritures->ecrire(
+            $soignant,
+            $membre,
+            (string) $this->session->typeAcces(),
+            'antecedents',
+            [
+                'type' => $type,
+                // Les mots du médecin, repris tels quels. Le lien au référentiel est repris aussi :
+                // il a déjà été vérifié à la pose du diagnostic, le re-résoudre ici n'apporterait
+                // rien et pourrait donner un libellé différent si le référentiel a changé entre-temps.
+                'description' => $diagnostic->libelle,
+                'maladie_id' => $diagnostic->maladie_id,
+                'date_diagnostic' => ($consultation->debutee_le ?? now())->toDateString(),
+            ],
+        );
+
+        $diagnostic->antecedent_id = $antecedent->id;
+        $diagnostic->save();
+
+        return $antecedent;
+    }
+
     /** La consultation ouverte pour la session de dossier en cours, s'il y en a une. */
     public function enCoursPourLaSession(): ?Consultation
     {
@@ -179,7 +300,9 @@ class ServiceConsultation
             return null;
         }
 
-        return Consultation::where('acces_dossier_id', $accesId)->first();
+        return Consultation::with(['observations', 'diagnostics'])
+            ->where('acces_dossier_id', $accesId)
+            ->first();
     }
 
     /** Les consultations d'un membre, la plus récente d'abord. */

@@ -49,6 +49,43 @@ final class ServiceLienMaladie
      */
     public function resoudreAntecedent(array $valide): array
     {
+        return $this->resoudreCodeEtLibelle($valide);
+    }
+
+    /**
+     * Résout le lien d'un DIAGNOSTIC de consultation (B2-b).
+     *
+     * MÊME MÉCANIQUE QUE L'ANTÉCÉDENT, ET C'EST VOULU : les deux inscrivent une maladie codée dans
+     * le dossier d'un patient, avec code et libellé FIGÉS à côté des mots du soignant, qui ne sont
+     * jamais réécrits. L'écrire une seconde fois la laisserait diverger — et elle divergerait du
+     * côté qu'on regarde le moins.
+     *
+     * CE QUI DIFFÈRE N'EST PAS ICI MAIS DANS LA TABLE : un antécédent SUIT le patient et pèse sur
+     * ses triages futurs (`impact_triage`), un diagnostic DATE d'un épisode. C'est pourquoi
+     * `diagnostics` est une table à part, et pourquoi la promotion de l'un vers l'autre est un acte
+     * délibéré du médecin, jamais une conséquence de la saisie.
+     *
+     * @param  array<string, mixed>  $valide
+     * @return array<string, mixed>
+     *
+     * @throws ValidationException si le lien ne désigne rien dans la version en vigueur
+     */
+    public function resoudreDiagnostic(array $valide): array
+    {
+        return $this->resoudreCodeEtLibelle($valide);
+    }
+
+    /**
+     * Le geste commun aux deux : effacer ce que le client aurait pu déclarer, puis reposer ce que
+     * la version publiée du référentiel dit.
+     *
+     * @param  array<string, mixed>  $valide
+     * @return array<string, mixed>
+     *
+     * @throws ValidationException
+     */
+    private function resoudreCodeEtLibelle(array $valide): array
+    {
         // JAMAIS du client, sur aucun chemin : on les efface avant de les reposer nous-mêmes. C'est
         // la SECONDE couche, celle qui tient face à un import ou à un appel direct au service — la
         // première étant les règles de validation. Leçon de la mutation de P6.6b : un vecteur qui ne
