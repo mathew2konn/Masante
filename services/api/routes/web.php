@@ -17,6 +17,7 @@ use App\Http\Controllers\Portail\GouvernanceModeleIaController;
 use App\Http\Controllers\Portail\MedecinController as PortailMedecinController;
 use App\Http\Controllers\Portail\MesPatientsController;
 use App\Http\Controllers\Portail\ModerationController;
+use App\Http\Controllers\Portail\PrixOfficineController;
 use App\Http\Controllers\Portail\ProtocoleValidationController;
 use App\Http\Controllers\Portail\ReferentielAnalyseController;
 use App\Http\Controllers\Portail\ReferentielAssuranceController;
@@ -30,7 +31,7 @@ use App\Http\Controllers\Portail\ScanController;
 use App\Http\Controllers\Portail\ServiceController;
 use App\Http\Controllers\Portail\SignatureController;
 use App\Http\Controllers\Portail\StatistiqueController;
-use App\Http\Controllers\Portail\StockPharmacieController;
+use App\Http\Controllers\Portail\StockOfficineController;
 use App\Http\Controllers\Portail\ValidationApprentissageController;
 use Illuminate\Support\Facades\Route;
 
@@ -240,8 +241,18 @@ Route::prefix('portail')->name('portail.')->group(function () {
         // Le pharmacien fait autorité sur SA officine : sa déclaration prime sur les relevés des
         // patients. Réservé aux structures de type `pharmacie` (revérifié dans le contrôleur).
         Route::middleware('permission:medicament.manage')->group(function () {
-            Route::get('stock', [StockPharmacieController::class, 'index'])->name('stock.index');
-            Route::post('stock/{medicament}', [StockPharmacieController::class, 'declarer'])->name('stock.declarer');
+            // B3-b — RENOMMÉ : ces routes déclarent un PRIX, pas un stock. Garder le mot
+            // « stock » ici ferait chercher l'inventaire au mauvais endroit, maintenant qu'il
+            // existe vraiment.
+            // B3-b — L'INVENTAIRE, distinct du relevé de prix ci-dessous. Aucun identifiant
+            // d'officine dans l'URL : on tient le stock de SA structure, celle que porte le compte.
+            Route::get('officine/stock', [StockOfficineController::class, 'index'])->name('stock-officine.index');
+            Route::post('officine/stock', [StockOfficineController::class, 'ajouter'])->name('stock-officine.ajouter');
+            Route::post('officine/stock/{article}/mouvement', [StockOfficineController::class, 'mouvement'])->name('stock-officine.mouvement');
+            Route::post('officine/stock/{article}/parametres', [StockOfficineController::class, 'parametrer'])->name('stock-officine.parametrer');
+
+            Route::get('prix-officine', [PrixOfficineController::class, 'index'])->name('prix-officine.index');
+            Route::post('prix-officine/{medicament}', [PrixOfficineController::class, 'declarer'])->name('prix-officine.declarer');
         });
 
         // B3-a — LE COMPTOIR : servir une ordonnance présentée par un patient (CDC_11 §7.1).

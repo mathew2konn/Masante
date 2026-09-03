@@ -105,7 +105,10 @@ class PrixMedicamentTest extends TestCase
         $gestionnaire->assignRole('gestionnaire_etablissement');
 
         $this->actingAs($gestionnaire)
-            ->post("/portail/stock/{$this->paracetamol->id}", ['etat' => 'en_stock', 'prix_cfa' => 350])
+            // B3-b — l'URL a changé : cet écran déclare un PRIX, il ne gère aucun stock, et son
+            // ancien nom faisait chercher l'inventaire au mauvais endroit. Le comportement
+            // testé ici est INCHANGÉ ; seule l'adresse a suivi le renommage.
+            ->post("/portail/prix-officine/{$this->paracetamol->id}", ['etat' => 'en_stock', 'prix_cfa' => 350])
             ->assertRedirect();
 
         // Sa déclaration prime sur le relevé du patient, quelle que soit la chronologie.

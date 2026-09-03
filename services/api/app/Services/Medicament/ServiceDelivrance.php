@@ -142,7 +142,15 @@ final class ServiceDelivrance
                 $servie->save();
             }
 
-            return $delivrance->fresh(['lignes']);
+            $delivrance = $delivrance->fresh(['lignes.ligne']);
+
+            // B3-b — la delivrance SORT du stock, si l'officine tient son inventaire. Sinon elle
+            // passe sans rien decrementer : refuser de servir parce qu'une pharmacie ne tient pas
+            // son stock dans notre application priverait un patient de son traitement pour une
+            // raison qui ne le concerne pas (meme esprit qu'en P7-D0).
+            app(ServiceStockOfficine::class)->sortirPourDelivrance($pharmacien, $delivrance);
+
+            return $delivrance;
         });
     }
 

@@ -1,7 +1,6 @@
-# ADR-055 — Servir une ordonnance sans ouvrir le dossier (B3-a)
+# ADR-055 — La pharmacie : servir une ordonnance, puis tenir son stock (B3-a, B3-b)
 
-**Statut : Accepté — B3-a VALIDÉ (G5, 2026-09-03).** G4 propriétaire OK.
-Suite complète **1616/1616**, 17 717 assertions ; mutation 7/7.
+**Statut : Accepté.** **B3-a et B3-b VALIDÉS (G5, 2026-09-03)** — G4 propriétaire OK (B3-b : §9).
 Contexte : CDC_11 §7.1 et §7.2 (étape 7 de §12), CDC_04 §105 · Plan G1 :
 [`docs/PLAN_G1_B3_Pharmacie.md`](../PLAN_G1_B3_Pharmacie.md) · **Lève le report de
 [ADR-054 §9](ADR-054-consultation-acte-de-soin.md)** en nommant le consommateur qui manquait.
@@ -120,7 +119,7 @@ anti-divergence de P11.0 casse le build.
 | Le §7.2 demande | Livré | |
 |---|---|---|
 | Authenticité | ✅ | Le jeton prouve l'origine, la signature (P6.5b) l'intégrité |
-| Disponibilité | ⏳ | Depuis `stocks_pharmacie` — **B3-b** |
+| Disponibilité | ✅ | Depuis `stocks_officine` — refermée par **B3-b** |
 | Interactions | ✅ | **Consultation explicite**, jamais un calcul : le choix de P6.6b n'est pas rouvert, calculer rapprocherait le module d'une aide à la décision (CDC_05/CDC_08) |
 | Contre-indications | ❌ | **Impossible** : les allergies sont du texte libre chiffré (constat Y4 de B2). Une vérification partielle afficherait « aucune contre-indication » sur un patient qui en a une — *plus dangereux que pas de vérification du tout* |
 
@@ -168,3 +167,159 @@ en base **20 sur 20**, **deux** délivrances et non trois. Et surtout : **zéro 
   garantit vraiment : qu'une ligne servie appartient à l'ordonnance de sa délivrance, et qu'une
   quantité servie n'est pas nulle.
 - **Aucun écran mobile** : le patient présente son code, il ne sert pas lui-même.
+
+
+---
+
+## 9. B3-b — le stock réel de l'officine (✅ VALIDÉ G5, 2026-09-03)
+
+**Referme cinq des neuf manques du G0** : `stocks_pharmacie` et `lots_medicaments` (**P1**), le
+relevé pris pour un stock (**P2**), l'écran dont le nom mentait (**P3**), la fiche médicament de
+l'officine (**P4**), et le mode 1 du §7.7 (**P8**).
+
+### 9.1 Une table à part, et `prix_pharmacie` ne change pas de nature
+
+`prix_pharmacie` mélange déjà deux sources : le relevé d'un patient et la déclaration de l'officine.
+Y ajouter lots et péremption ferait porter à une table **déclarative** des données dont **l'officine
+seule répond** — la ligne que ce projet trace depuis P6.4a.
+
+| | |
+|---|---|
+| `prix_pharmacie` | le **relevé public**, que lit le comparateur. Contrat inchangé (module G5) |
+| `stocks_officine` | l'**inventaire** tenu par la pharmacie (§7.5) |
+
+**L'inventaire ALIMENTE le relevé, il ne le double pas** : une seule valeur publique de prix et de
+disponibilité, écrite par le service qui l'écrit déjà (`PrixMedicamentService`, jamais réécrit).
+Sans cela, le comparateur et la fiche officine pourraient se contredire, et *le patient ne saurait
+pas laquelle croire* (motif P6.7b).
+
+### 9.2 Le stock est une SOMME, jamais une colonne
+
+Aucune colonne `quantite` sur l'article : une entrée, une sortie, une péremption sont des **faits
+datés**, et le stock courant en est la somme. C'est la partie double du wallet (P5.3a) — *une valeur
+stockée recalculable finit par diverger de ce qu'elle résume*, et l'écart ne se voit qu'au moment où
+il coûte cher.
+
+`quantite` est **signée**, comme les contributions du grand livre de P5.5b-1 (« Σ = 0 par
+contributions signées, aucun `abs()` »). **Le signe est déduit du TYPE**, jamais demandé à
+l'appelant : une « entrée de −5 » n'a pas de sens, et laisser l'appelant choisir ferait dépendre
+l'intégrité du stock de la discipline de chaque site d'appel. Le moteur refuse de toute façon un
+signe contraire au type — les deux gardes ne se rattrapent pas, elles se confirment.
+
+### 9.3 Append-only, à deux niveaux
+
+Un mouvement ne se modifie ni ne s'efface : une erreur se corrige par un **ajustement**, qui la
+laisse visible. Refusé par le modèle **et** par le moteur, comme `protocole_applications` (P10b-2) —
+le second tient même face à un accès direct.
+
+### 9.4 La délivrance sort du stock — mais ne s'y heurte pas
+
+B3-a enregistrait ce que le pharmacien **déclarait** avoir servi. Désormais, une délivrance
+**décrémente** le stock — **si l'officine tient son inventaire**. Sinon elle passe sans rien
+décrémenter, et c'est délibéré : *refuser de servir parce qu'une pharmacie ne tient pas son stock
+dans notre application priverait un patient de son traitement pour une raison qui ne le concerne
+pas* (même esprit qu'en P7-D0, où un échec de signature ne défait pas l'écriture).
+
+### 9.5 Renommer ce qui mentait
+
+`StockPharmacieController` **ne gérait aucun stock** : il déclarait un prix. Le garder ainsi à côté
+d'un vrai stock aurait fait chercher l'inventaire au mauvais endroit. Renommé
+`PrixOfficineController` (routes `prix-officine.*`), **comportement strictement inchangé** — c'est
+un renommage, pas une refonte (précédent P11.0, qui a renommé trois rôles). Déplacé par `git mv`
+pour que l'historique suive.
+
+### 9.6 La fiche officine (§7.4), et le critère d'ADR-026 appliqué tel quel
+
+Quatre champs manquaient, et ils ne sont pas de même nature :
+
+| Champ | Dans la projection gouvernée ? |
+|---|---|
+| `pharmacien_responsable`, `numero_licence` | **Oui** — ils ENGAGENT une autorité, comme un numéro d'autorisation. **Cela fait diverger le référentiel** jusqu'à la publication suivante : ce n'est pas une dérive, c'est ce que la projection est censée porter (précédent `forme_juridique`, P6.4d) |
+| `livraison_disponible`, `rayon_livraison_km` | **Non** — opérationnels, comme les horaires. Les gouverner ferait d'un changement de zone de livraison un acte soumis au quatre-yeux |
+
+### 9.7 Ce qui a été prouvé
+
+**G3** — 22 vecteurs dédiés ; **mutation 6 tueuses + 1 témoin volontairement vert**, toutes
+conformes, arbre restauré et vérifié par `diff`. **Baseline Pint établie avant de toucher au
+formatage** : le contrôleur renommé échouait **déjà**, il n'est pas reformaté.
+
+**Défaut trouvé par les vecteurs** : `firstOrCreate()` pose `structure_id` et `medicament_id` par
+**assignation de masse** — hors `$fillable`, elles auraient été écartées. Ici la contrainte NOT NULL
+a levé plutôt que de laisser passer en silence, ce qui vaut mieux ; c'est le piège de P6.7b, revu en
+B2-c, rencontré une troisième fois.
+
+**Erreur de diagnostic, dite plutôt que tue** : après avoir branché la délivrance sur le stock, un
+test est passé de 11 s à plus de 4 minutes, et j'ai d'abord accusé ce branchement. Bissection faite,
+**le code n'était pas en cause** : plusieurs exécutions de PHPUnit tournaient en parallèle et se
+concurrençaient. Le même test, seul, prend 3,2 s. *Une mesure prise pendant qu'autre chose tourne ne
+mesure pas ce qu'on croit.*
+
+**CONSTAT DU G0 FAUX, CORRIGÉ PAR LA SUITE COMPLÈTE.** Le G0 affirmait qu'« aucun test ne couvre cet
+écran », sur la foi d'une recherche du NOM DE ROUTE (`portail.stock`). C'était faux :
+`PrixMedicamentTest::test_le_pharmacien_fait_autorite_sur_sa_pharmacie` le couvrait bel et bien —
+par l'**URL littérale** `/portail/stock/{id}`, qu'aucune recherche sur le nom de route ne pouvait
+trouver. Le renommage l'a cassé, et **c'est la suite complète qui l'a rattrapé**, pas la relecture.
+
+Deux choses à en retenir. D'abord : *chercher le nom d'une route ne suffit jamais avant de la
+renommer — il faut chercher aussi son adresse écrite en toutes lettres.* Ensuite : le test hérité a
+été **mis à jour pour suivre la nouvelle adresse**, son comportement restant inchangé — il n'a pas
+été affaibli pour passer (précédent P6.4d).
+
+**DEUXIÈME DÉFAUT TROUVÉ PAR LE G2 LIVE, INVISIBLE AUX 22 VECTEURS.** Le message du déclencheur de
+suppression disait « *un mouvement de stock ne se **efface** pas* » — une faute de français, corrigée
+en « ne s'efface pas ». Cette correction a rendu **la migration impossible à rejouer** : le texte
+part dans une chaîne SQL délimitée par des apostrophes, et l'apostrophe de « s'efface » y refermait
+la chaîne. Doublée (`''`), elle passe.
+
+Rien de tout cela n'était visible en test : SQLite reçoit le même texte par un chemin différent, et
+aucun vecteur ne relit le **message** d'un refus du moteur. *Une chaîne qu'un moteur assemble à
+partir d'un texte français est une chaîne qu'il faut échapper* — et c'est le G2 qui le montre, en
+refusant de dérouler.
+
+*Corollaire de méthode* : une migration ne se déclare pas bonne parce qu'elle est passée **une**
+fois. Elle doit se **rejouer**.
+
+**G2 live** — base MySQL de développement réelle, sauvegardée puis **restaurée compte pour compte**,
+`php artisan serve` réel, trois comptes de portail réels (un pharmacien de l'officine 9, un confrère
+de l'officine 10, un personnel d'accueil **rattaché à l'officine 9 mais non habilité**).
+
+*Schéma* — `stocks_officine` 7 colonnes, `mouvements_stock` 11, **3 déclencheurs**, l'unicité
+`uq_stock_officine_produit`, et les 4 colonnes de fiche officine sur `structures_sanitaires`.
+
+*Les gardes du moteur, éprouvées en SQL direct* — entrée négative → `ERROR 1644` « Une entrée de
+stock est positive » ; quantité nulle → `1644` ; **modification** d'un mouvement → `1644` ;
+**suppression** → `1644` (message corrigé, apostrophe comprise), le stock restant à 30.
+
+*Le parcours réel, par le vrai portail* — un produit ajouté naît **à 0** ; entrée de 40 → 40 ;
+sortie saisie **`10` et non `-10`** → stock 30 et **`-10` enregistré** (le signe est déduit du type),
+les **deux** mouvements conservés ; sortie de 100 → refus **nommant le produit et le stock réel**
+(« Le stock de « Paracétamol 500 mg » est de 30 »), stock inchangé ; prix 1500 + seuil 20 →
+`prix_pharmacie` porte **1500, disponible, source `pharmacie_portail`** ; descendre à 15 → bandeau
+**« Sous le seuil d'alerte »** ; **vider le stock → le relevé public passe en rupture sans qu'on
+l'ait déclaré**, et une nouvelle entrée le **remet à disponible avec son prix** ; entrée avec lot →
+`LOT-G2-441` sous « proches de la péremption ».
+
+*Anti-IDOR, contre un article RÉEL de confrère* (pas un identifiant inventé) — mouvement sur
+l'article de l'officine 10 → **404**, son stock inchangé, et cet article **n'apparaît pas** dans mon
+inventaire.
+
+*Habilitation* — un compte **rattaché à l'officine** mais sans `medicament.manage` reçoit **403** sur
+l'inventaire *et* sur la délivrance.
+
+*La jonction avec B3-a* — une ordonnance de deux lignes servie en une fois : le Paracétamol **tenu**
+en rayon sort tout seul (stock **25 → 19**, mouvement portant `delivrance_id` et le motif
+« Délivrance d'ordonnance »), l'Ibuprofène **absent de l'inventaire** est servi **quand même** et
+**aucun article n'est fabriqué** pour lui. C'est la décision de §9.4, vérifiée en direct.
+
+### 9.8 Limites
+
+- **Aucun code-barres, aucune traçabilité nationale** (§7.6) — c'est **B3-c**.
+- **Ni photo, ni TVA** sur l'article : le §7.5 les nomme, mais la TVA n'a aucun consommateur (il
+  n'existe pas de facturation en officine) et la photo appartiendrait au produit national. Les
+  créer serait le « socle à vide » refusé par P6.3-D3.
+- **Aucun panier ni commande** (§7.7, CDC_01 §17 module 7) — c'est **B3-d**.
+- **Le stock n'est pas suivi par lot** : les lots sont enregistrés sur les mouvements d'entrée et
+  servent aux alertes de péremption, mais le stock courant reste global. Un vrai suivi FEFO
+  (premier périmé, premier sorti) supposerait d'imputer chaque sortie à un lot — non fait, et dit.
+- **La borne « pas de stock négatif » est applicative** : elle dépend d'une somme, qu'un déclencheur
+  ne peut pas calculer sans lire la table qu'il garde (erreur 1442, précédent P6.4c).

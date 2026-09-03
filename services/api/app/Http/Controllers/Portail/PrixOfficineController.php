@@ -16,6 +16,12 @@ use Symfony\Component\HttpFoundation\Response;
  * Module 5 / 5.8 — Prix et stock d'une PHARMACIE partenaire (CdC FN7/FN8).
  *
  * C'est le « modèle freemium » du CdC : la pharmacie rejoint volontairement la plateforme, tient ses
+ * B3-b — RENOMMÉ. Cette classe s'appelait `StockPharmacieController` et NE GÉRAIT AUCUN STOCK :
+ * elle déclare un PRIX ou une RUPTURE. Le nom faisait chercher la gestion de stock ici, alors
+ * qu'elle n'existait pas — et maintenant qu'elle existe (`ServiceStockOfficine`), garder deux
+ * « stocks » côte à côte aurait rendu le code illisible. COMPORTEMENT INCHANGÉ : c'est un
+ * renommage, pas une refonte (précédent P11.0, qui a renommé trois rôles pour la même raison).
+ *
  * prix à jour et déclare ses ruptures ; en échange, elle apparaît au comparateur avec la source la
  * plus fiable. Le pharmacien fait autorité sur SA propre officine : son relevé prime sur ceux des
  * patients ({@see PrixMedicamentService}).
@@ -26,7 +32,7 @@ use Symfony\Component\HttpFoundation\Response;
  * On n'ÉCRASE jamais un relevé : chaque enregistrement en AJOUTE un, daté. C'est ce qui permet de
  * dire au patient depuis quand on sait — et de ne pas réécrire l'histoire d'un prix.
  */
-class StockPharmacieController extends Controller
+class PrixOfficineController extends Controller
 {
     public function __construct(private readonly PrixMedicamentService $prix)
     {
@@ -74,7 +80,7 @@ class StockPharmacieController extends Controller
             ->groupBy('medicament_id')
             ->map(fn ($releves) => $releves->first());
 
-        return view('portail.stock.index', [
+        return view('portail.prix-officine.index', [
             'pharmacie'   => $pharmacie,
             'medicaments' => $medicaments,
             'etats'       => $etats,

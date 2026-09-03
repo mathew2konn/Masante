@@ -68,7 +68,7 @@
               @endif
             </td>
             <td>
-              <form method="POST" action="{{ route('portail.stock.declarer', $medicament) }}" class="d-flex gap-2">
+              <form method="POST" action="{{ route('portail.prix-officine.declarer', $medicament) }}" class="d-flex gap-2">
                 @csrf
                 <select name="etat" class="form-select form-select-sm" style="max-width:9rem">
                   <option value="en_stock">En stock</option>

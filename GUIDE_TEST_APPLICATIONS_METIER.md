@@ -1153,3 +1153,106 @@ elle sert ce qu'elle a ; le patient repassera chercher le reste, et le système 
 5. **Aucune traçabilité nationale** (§7.6) : la trace de délivrance suit l'ordonnance, et le patient
    reste maître de son carnet. Le registre qui doit survivre est **B3-c**.
 6. **Aucun écran mobile** : le patient présente son code, il ne sert pas lui-même.
+
+---
+
+## Partie 12 — B3-b : le stock réel de l'officine (CDC_11 §7.3 et §7.5)
+
+> **Périmètre** : une pharmacie tient enfin un vrai inventaire — entrées, sorties, péremptions,
+> seuil d'alerte — et une délivrance en sort automatiquement. L'écran qui s'appelait « stock » sans
+> en gérer un est renommé. Deuxième sous-incrément du lot **B3**.
+> **✅ VALIDÉ G5 le 2026-09-03 — G4 propriétaire OK.**
+
+### Ce qu'il faut savoir avant de commencer
+
+**Deux écrans différents, et c'est tout l'objet du renommage.**
+
+| Écran | Ce qu'il fait |
+|---|---|
+| **Mes prix** (avant : « Prix & stock ») | déclare un **prix** ou une **rupture** au comparateur public |
+| **Mon stock** (nouveau) | tient l'**inventaire** : entrées, sorties, péremptions, seuils |
+
+Le premier existait déjà et **n'a pas changé de comportement** — seul son nom a changé, parce qu'il
+faisait chercher la gestion de stock au mauvais endroit.
+
+**Le stock est une somme, pas une case à corriger.** Vous n'écrivez jamais « j'ai 40 boîtes » : vous
+enregistrez une entrée de 40. Si vous constatez un écart, vous faites un **ajustement**, qui reste
+visible dans l'historique. C'est ce qui rend l'inventaire vérifiable.
+
+**Le signe est déduit de la nature du mouvement.** Vous saisissez toujours une quantité positive :
+une entrée ajoute, une sortie retire. Seul l'ajustement accepte un nombre négatif.
+
+### Prérequis
+
+`php artisan migrate`. Un compte pharmacien rattaché à une structure de type **pharmacie**.
+
+### Cas à vérifier
+
+| # | Ce que vous faites | Ce qui doit se produire |
+|---|---|---|
+| 1 | Ouvrir « Mon stock » et ajouter un produit | Il apparaît avec **0 en rayon** |
+| 2 | Enregistrer une entrée de 40 | Le stock passe à 40 |
+| 3 | Enregistrer une sortie de 10 | Le stock passe à 30 — et l'historique garde les **deux** mouvements |
+| 4 | Tenter une sortie de 100 | Refus **qui nomme le produit et le stock réel** |
+| 5 | Fixer un prix et un seuil de 20, puis descendre sous 20 | Un bandeau **« sous le seuil d'alerte »** apparaît |
+| 6 | Fixer un prix, puis regarder le comparateur public | Le prix y figure — l'inventaire **alimente** le relevé |
+| 7 | Vider le stock à 0 | Le comparateur passe en **rupture**, sans que vous ayez à le déclarer |
+| 8 | Enregistrer une entrée avec un lot et une date de péremption proche | Elle apparaît dans **« lots proches de la péremption »** |
+| 9 | Servir une ordonnance (partie 11) pour un produit que vous tenez | Le stock **diminue tout seul** |
+| 10 | Servir une ordonnance pour un produit **absent** de votre inventaire | La délivrance passe quand même — elle ne se heurte pas à un stock que vous ne tenez pas |
+
+### Ce qui a été prouvé automatiquement
+
+- **22 vecteurs** dédiés ; **mutation : 6 tueuses + 1 témoin volontairement vert**.
+- Un mouvement **ne se modifie ni ne s'efface** — refusé par le code **et** par la base.
+- L'article d'un confrère répond **404**, jamais « accès refusé » : un refus dirait ce qu'une autre
+  officine tient en rayon.
+
+### Ce qui a été rejoué en direct sur la vraie base (G2)
+
+Sur la base MySQL de développement, avec le vrai portail et trois comptes réels — un pharmacien, un
+confrère d'une autre officine, et un agent d'accueil **rattaché à la même officine mais non
+habilité**. La base a été **restaurée à l'identique** ensuite.
+
+- Les quatre refus de la base : entrée négative, quantité nulle, modification, suppression.
+- Le parcours entier des cas 1 à 8, y compris la sortie saisie **`10`** qui s'enregistre **`-10`**.
+- **Le comparateur suit tout seul** : à zéro il passe en rupture, à la réapprovisionnement il
+  redevient disponible avec son prix — sans que le pharmacien ait rien déclaré.
+- L'article d'un **confrère réel** (pas un numéro inventé) répond **404**, son stock ne bouge pas, et
+  il n'apparaît pas dans l'inventaire.
+- L'agent d'accueil non habilité reçoit **403**, sur l'inventaire comme sur la délivrance.
+- Une ordonnance de deux produits servie en une fois : celui qui est **en rayon** sort tout seul
+  (25 → 19), celui qui **n'est pas tenu** est servi quand même — et aucun article fantôme n'est créé.
+
+### Un défaut que seul le G2 pouvait montrer
+
+Le message affiché quand la base refuse d'effacer un mouvement disait « ne se **efface** pas ». En
+corrigeant cette faute de français, la migration a cessé de pouvoir se rejouer : l'apostrophe de
+« s'efface » refermait la chaîne SQL dans laquelle ce texte est écrit. Elle est désormais doublée.
+
+Aucun des 22 vecteurs ne pouvait le voir — ils vérifient qu'un refus se produit, pas le texte que la
+base emploie pour le dire.
+
+### Deux erreurs de ma part, dites plutôt que tues
+
+**Le G0 affirmait qu'aucun test ne couvrait l'écran renommé. C'était faux.** Un test existait et
+l'appelait par son **adresse écrite en toutes lettres**, que ma recherche — portant sur le nom de la
+route — ne pouvait pas trouver. Le renommage l'a cassé, et c'est la suite complète qui l'a rattrapé.
+Le test a été mis à jour pour suivre la nouvelle adresse, sans rien perdre de ce qu'il vérifiait.
+
+### Une erreur de diagnostic, dite plutôt que tue
+
+Après avoir branché la délivrance sur le stock, un test est passé de 11 secondes à plus de 4
+minutes, et j'ai d'abord accusé ce branchement. Après vérification, **le code n'était pas en
+cause** : plusieurs exécutions de tests tournaient en parallèle et se gênaient. Le même test, seul,
+prend 3 secondes.
+
+### Ce que B3-b NE fait PAS
+
+1. **Aucun code-barres, aucune traçabilité nationale** (§7.6) — c'est B3-c.
+2. **Ni photo, ni TVA** sur l'article : le corpus les nomme, mais la TVA n'a aucun usage (il n'y a
+   pas de facturation en officine) et la photo appartiendrait au produit national.
+3. **Le stock n'est pas suivi lot par lot.** Les lots servent aux alertes de péremption ; le stock
+   courant reste global. Un vrai « premier périmé, premier sorti » supposerait d'imputer chaque
+   sortie à un lot — non fait.
+4. **Aucun panier ni commande** — c'est B3-d.
