@@ -32,6 +32,11 @@ class PortailRolesSeeder extends Seeder
         'medecin.manage',         // annuaire des praticiens de SON établissement (RDV F3.5 + référent 5.6)
         'don_sang.manage',        // publier les besoins en sang de SON établissement (FN6)
         'medicament.manage',      // prix et ruptures de SA pharmacie (FN7/FN8, modèle freemium)
+        // B3-a — servir une ordonnance (CDC_11 §7.1). PERMISSION DISTINCTE de `medicament.manage`,
+        // et ce n'est pas de la prudence décorative : celle-ci appartient AUSSI au gestionnaire
+        // d'établissement (P6.6a), donc la réutiliser laisserait un gestionnaire de CHU délivrer des
+        // ordonnances. Servir une prescription est un acte de dispensation, pas la tenue d'un prix.
+        'ordonnance.delivrer',
         'stats.etablissement',    // statistiques de SON établissement
         // Agent de garde
         'disponibilite.manage',   // mettre à jour la dispo de SON service
@@ -301,7 +306,10 @@ class PortailRolesSeeder extends Seeder
         // et ses interactions ne se décident pas à l'officine (P6.6a, onzième occurrence du
         // précédent « juge et partie »).
         'pharmacien' => [
-            'medicament.manage', 'qr.scan',
+            // B3-a — `ordonnance.delivrer` lui est donnée : c'est SON acte, et le §7.1 le nomme.
+            // Elle n'est donnée à aucun autre rôle — un gestionnaire d'établissement tient des prix,
+            // il ne dispense pas.
+            'medicament.manage', 'qr.scan', 'ordonnance.delivrer',
         ],
         // §8.1 — Le laborantin publie un résultat dans le carnet du patient :
         // `resultats-analyses` figure dans la liste blanche des sections ouvertes au soignant,

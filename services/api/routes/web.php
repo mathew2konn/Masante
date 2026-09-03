@@ -9,6 +9,7 @@ use App\Http\Controllers\Portail\BrisDeGlaceController;
 use App\Http\Controllers\Portail\CompteController;
 use App\Http\Controllers\Portail\ConsultationController;
 use App\Http\Controllers\Portail\DashboardController;
+use App\Http\Controllers\Portail\DelivranceController;
 use App\Http\Controllers\Portail\DisponibiliteController;
 use App\Http\Controllers\Portail\DossierController;
 use App\Http\Controllers\Portail\EtablissementController;
@@ -241,6 +242,21 @@ Route::prefix('portail')->name('portail.')->group(function () {
         Route::middleware('permission:medicament.manage')->group(function () {
             Route::get('stock', [StockPharmacieController::class, 'index'])->name('stock.index');
             Route::post('stock/{medicament}', [StockPharmacieController::class, 'declarer'])->name('stock.declarer');
+        });
+
+        // B3-a — LE COMPTOIR : servir une ordonnance présentée par un patient (CDC_11 §7.1).
+        //
+        // PERMISSION DISTINCTE de `medicament.manage` juste au-dessus : celle-ci appartient AUSSI
+        // au gestionnaire d'établissement (P6.6a), donc la réutiliser laisserait un gestionnaire de
+        // CHU délivrer des ordonnances. Servir une prescription est un acte de dispensation.
+        //
+        // AUCUNE SESSION DE DOSSIER : le pharmacien atteint l'ordonnance par son JETON et ne voit
+        // qu'elle. Ce n'est pas une garde qu'on vérifie, c'est une porte qui n'existe pas.
+        Route::middleware('permission:ordonnance.delivrer')->group(function () {
+            Route::get('delivrance', [DelivranceController::class, 'index'])->name('delivrance.index');
+            Route::get('delivrance/ordonnance', [DelivranceController::class, 'montrer'])
+                ->name('delivrance.montrer')->middleware('throttle:30,1');
+            Route::post('delivrance', [DelivranceController::class, 'servir'])->name('delivrance.servir');
         });
 
         // P6.6a — Référentiel NATIONAL des médicaments (CDC_09 §6.2).

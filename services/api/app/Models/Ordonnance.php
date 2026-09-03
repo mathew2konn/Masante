@@ -2,8 +2,11 @@
 
 namespace App\Models;
 
+use App\Services\Medicament\ProjecteurLignesOrdonnance;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Str;
 
 /**
  * Ordonnance médicale d'un membre (CdC §8.3, F2.5). `medicaments_json` chiffré AES-256
@@ -11,6 +14,30 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  */
 class Ordonnance extends Model
 {
+    /**
+     * B3-a — le jeton de partage vers une officine (patron P10a, non réinventé).
+     *
+     * HORS `$fillable` : un client qui choisirait son propre jeton pourrait le deviner. `$hidden` :
+     * il ne sort jamais d'une lecture ordinaire du carnet — seule la génération du QR l'expose, à
+     * son propriétaire.
+     */
+    protected $hidden = ['jeton_partage'];
+
+    protected static function booted(): void
+    {
+        static::creating(static function (self $ordonnance): void {
+            $ordonnance->jeton_partage ??= Str::random(48);
+        });
+
+        // B3-a — les lignes sont DÉRIVÉES de `medicaments_json`, par un seul crochet. `saved`
+        // et non `created` : le `PUT` doit être couvert au même titre que la création, sinon la
+        // garantie ne vaudrait que sur l'un des chemins (leçon P6.8b, où `update()` avait été
+        // oublié). La projection se refuse d'elle-même sur une ordonnance déjà servie.
+        static::saved(static function (self $ordonnance): void {
+            app(ProjecteurLignesOrdonnance::class)->projeter($ordonnance);
+        });
+    }
+
     protected $fillable = [
         'triage_id',
         'medecin_nom',
@@ -69,6 +96,30 @@ class Ordonnance extends Model
     public function structure(): BelongsTo
     {
         return $this->belongsTo(StructureSanitaire::class, 'structure_id');
+    }
+
+    /** Les lignes de la prescription (B3-a). Vides sur les ordonnances antérieures à ce lot. */
+    public function lignes(): HasMany
+    {
+        return $this->hasMany(OrdonnanceLigne::class, 'ordonnance_id')->orderBy('rang');
+    }
+
+    /** Les délivrances déjà faites en officine (B3-a). */
+    public function delivrances(): HasMany
+    {
+        return $this->hasMany(Delivrance::class, 'ordonnance_id')->orderBy('delivree_le');
+    }
+
+    /**
+     * Cette ordonnance peut-elle être servie électroniquement ?
+     *
+     * NON pour toutes celles écrites avant B3-a : elles n'ont pas de lignes, et on n'en fabrique
+     * pas rétroactivement depuis un JSON saisi librement — ce seraient des lignes que personne n'a
+     * vérifiées, sur un document parfois signé.
+     */
+    public function estDelivrable(): bool
+    {
+        return $this->lignes()->exists();
     }
 
     /** L'acte de soin qui l'a produite, quand elle a été écrite pendant une consultation (B2-a). */

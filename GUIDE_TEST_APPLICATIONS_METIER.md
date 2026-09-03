@@ -1087,3 +1087,69 @@ pas — et c'est le cas n° 5 ci-dessous qui le vérifie.
    d'inventer une donnée.
 4. **Rien ne relie encore une ordonnance à sa délivrance.** Le §5.4 décrit
    `Médecin → Patient → Pharmacie` ; seul le premier maillon existe.
+
+---
+
+## Partie 11 — B3-a : servir une ordonnance en officine (CDC_11 §7.1)
+
+> **Périmètre** : un pharmacien reçoit l'ordonnance que le patient lui présente, la sert — en
+> totalité ou en partie — et le patient peut repasser chercher le reste. Premier sous-incrément du
+> lot **B3 (Pharmacie)**, et il referme le maillon manquant du §5.4 : `Médecin → Patient →
+> Pharmacie`.
+> **✅ VALIDÉ (G5, 2026-09-03, suite complète 1616/1616) — G4 propriétaire OK.**
+
+### Ce qu'il faut savoir avant de commencer
+
+**Le pharmacien ne voit QUE l'ordonnance.** C'est la décision centrale du lot. Le mécanisme qui
+existait (le scan du QR patient) ouvre **tout le carnet** — antécédents, vaccinations, résultats
+d'analyses. *Un pharmacien n'a pas à lire les antécédents pour servir une boîte de paracétamol.*
+
+Il accède donc à l'ordonnance par un **code** que le patient lui présente, et **rien d'autre n'est
+joignable depuis cet écran**. Ce n'est pas une case qu'on a pensé à cocher : il n'y a pas de porte.
+
+**Une délivrance partielle est le cas normal.** Si la pharmacie n'a que deux médicaments sur trois,
+elle sert ce qu'elle a ; le patient repassera chercher le reste, et le système saura ce qui manque.
+
+### Prérequis
+
+1. `php artisan migrate` puis `php artisan db:seed --class=PortailRolesSeeder`
+   (la permission `ordonnance.delivrer` est neuve).
+2. Un compte au rôle **pharmacien**, rattaché à une structure **de type pharmacie**.
+3. Une ordonnance écrite **après** ce lot (voir le cas n° 7 pour les anciennes).
+
+### Cas à vérifier
+
+| # | Ce que vous faites | Ce qui doit se produire |
+|---|---|---|
+| 1 | Ouvrir « Servir une ordonnance » et saisir un code **inventé** | **404** — page introuvable. Jamais « accès refusé » : un refus confirmerait qu'une ordonnance existe |
+| 2 | Saisir le vrai code | L'ordonnance s'affiche avec ses médicaments, et **la mention** que le reste du dossier ne vous est pas accessible |
+| 3 | Chercher un lien vers le dossier du patient depuis cet écran | **Il n'y en a aucun** |
+| 4 | Servir 8 sur 20 d'un médicament | Enregistré. La colonne « déjà servi » affiche 8, le reste 12 |
+| 5 | Essayer d'en servir 13 de plus | Refus **qui nomme le médicament et le reste** : « il ne reste que 12 à servir » |
+| 6 | Servir les 12 restants | Accepté. La ligne passe à « servi » et ne propose plus de champ |
+| 7 | Ouvrir une ordonnance écrite **avant** ce lot | Elle s'affiche, mais **ne peut pas être servie** — et l'écran l'explique |
+| 8 | Se connecter avec un compte d'un **laboratoire** ayant la permission | Refus : « une ordonnance ne se sert que dans une pharmacie » |
+
+### Ce qui a été prouvé automatiquement
+
+- Suite complète **1616/1616**, 17 717 assertions ; **21 vecteurs** dédiés ; **mutation : 6 tueuses + 1 témoin volontairement vert**.
+- **G2 live** : le parcours complet ci-dessus contre un serveur réel — 404 sur code inventé,
+  délivrance partielle, refus du dépassement, complément accepté, **total exact en base** (20 sur
+  20, deux délivrances et non trois).
+- **Le vecteur central vérifié en réel** : après tout le parcours, **zéro ligne** dans le journal
+  d'accès au dossier. Aucun dossier n'a été ouvert, parce qu'aucun ne pouvait l'être.
+
+### Ce que B3-a NE fait PAS — et le premier point compte
+
+1. **Aucune vérification de stock.** Rien n'empêche aujourd'hui d'enregistrer la délivrance d'un
+   médicament que l'officine n'a pas : le système note ce que le pharmacien **déclare** avoir servi,
+   il ne le confronte à aucun inventaire. C'est **B3-b**.
+2. **Aucune vérification de contre-indications.** Les allergies sont du texte libre : une
+   vérification partielle afficherait « aucune contre-indication » sur un patient qui en a une.
+3. **Les interactions sont consultables, pas calculées.** Elles s'affichent si le référentiel en
+   déclare entre les médicaments prescrits — c'est une information, pas une décision.
+4. **Les ordonnances antérieures ne sont pas servables** (cas n° 7). On ne fabrique pas
+   rétroactivement des lignes que personne n'a vérifiées.
+5. **Aucune traçabilité nationale** (§7.6) : la trace de délivrance suit l'ordonnance, et le patient
+   reste maître de son carnet. Le registre qui doit survivre est **B3-c**.
+6. **Aucun écran mobile** : le patient présente son code, il ne sert pas lui-même.

@@ -224,7 +224,7 @@ class PrixMedicamentService
     /** Un prix ne se relève que dans une PHARMACIE (annuaire du Module 3) — pas dans un CHU. */
     private function exigerPharmacie(StructureSanitaire $structure): void
     {
-        if ($structure->type !== 'pharmacie') {
+        if (! $structure->estPharmacie()) {
             throw ValidationException::withMessages([
                 'structure_id' => 'Les prix et les ruptures ne se signalent que dans une pharmacie.',
             ]);

@@ -14,6 +14,18 @@ use Illuminate\Database\Eloquent\Relations\HasManyThrough;
  */
 class StructureSanitaire extends Model
 {
+    /**
+     * Cette structure est-elle une officine ?
+     *
+     * La question se posait déjà dans `PrixMedicamentService::exigerPharmacie()`, en privé. B3-a en
+     * a besoin pour la délivrance : plutôt que de recopier la comparaison — deux endroits qui
+     * pourraient diverger le jour où le type change de nom —, elle vit ici, sur l'objet qui la sait.
+     */
+    public function estPharmacie(): bool
+    {
+        return $this->type === 'pharmacie';
+    }
+
     protected $table = 'structures_sanitaires';
 
     protected $fillable = [
