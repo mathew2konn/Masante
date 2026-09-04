@@ -86,6 +86,11 @@ final class SourceMedicaments implements SourceReferentiel
             'statut_marche'        => $m->statut_marche,
             'statut_generique'     => $m->statut_generique,
             'cename_reference'     => $m->cename_reference,
+            // B3-c (E4) — entre dans la projection : un EAN/GTIN identifie un produit du
+            // fabricant, pas une officine. Reste NULL tant qu'il n'a pas été saisi : renseigner un
+            // code-barres fait DIVERGER l'empreinte, et ce n'est pas une dérive (précédent
+            // `forme_juridique`, P6.4d) — c'est ce que la projection est censée porter.
+            'code_barres'          => $m->code_barres,
         ])->all();
 
         return [

@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Medicament;
 use App\Models\StockOfficine;
 use App\Models\StructureSanitaire;
+use App\Services\Medicament\ServiceCodeBarres;
 use App\Services\Medicament\ServiceStockOfficine;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -26,7 +27,10 @@ use Symfony\Component\HttpFoundation\Response;
  */
 class StockOfficineController extends Controller
 {
-    public function __construct(private readonly ServiceStockOfficine $stocks) {}
+    public function __construct(
+        private readonly ServiceStockOfficine $stocks,
+        private readonly ServiceCodeBarres $codesBarres,
+    ) {}
 
     /** L'inventaire, ses alertes et ses péremptions proches. */
     public function index(Request $request): View
@@ -45,12 +49,20 @@ class StockOfficineController extends Controller
             ->sortBy(fn (StockOfficine $a): string => (string) $a->medicament?->nom_generique)
             ->values();
 
+        // B3-c (E6, E9) — le champ de saisie EST le scanner : trouver un produit par son
+        // code-barres, pour éviter de saisir un identifiant technique à la main. `identifier()`
+        // lit la TABLE, pas l'instantané publié (E9) : la colonne est trop neuve pour y figurer.
+        $scan = trim((string) $request->query('scan', ''));
+        $scanResultat = $scan === '' ? null : $this->codesBarres->identifier($scan);
+
         return view('portail.stock-officine.index', [
             'officine' => $officine,
             'articles' => $articles,
             'recherche' => $recherche,
             'alertes' => $this->stocks->alertes($officine),
             'peremptions' => $this->stocks->peremptions($officine),
+            'scanSaisie' => $scan,
+            'scanResultat' => $scanResultat,
         ]);
     }
 

@@ -39,6 +39,9 @@ class Medicament extends Model
         'disponible_generique',
         'statut_generique',
         'cename_reference',
+        // B3-c — SAISI PAR UN AGENT HABILITÉ, à la différence de `code` : sa garde est la
+        // permission `medicament.referentiel` + la validation `ReglesCodeBarres`.
+        'code_barres',
     ];
 
     protected $appends = ['libelle'];

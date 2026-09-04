@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Portail;
 
 use App\Http\Controllers\Controller;
+use App\Services\Medicament\ServiceCodeBarres;
 use App\Services\Medicament\ServiceDelivrance;
 use App\Services\Medicament\ServiceInteractions;
 use Illuminate\Http\RedirectResponse;
@@ -26,6 +27,7 @@ class DelivranceController extends Controller
     public function __construct(
         private readonly ServiceDelivrance $delivrances,
         private readonly ServiceInteractions $interactions,
+        private readonly ServiceCodeBarres $codesBarres,
     ) {}
 
     /** Le formulaire de saisie du jeton (ou de scan du QR patient). */
@@ -46,10 +48,17 @@ class DelivranceController extends Controller
         // calculer rapprocherait ce module d'une aide à la décision (CDC_05/CDC_08).
         $codes = $ordonnance->lignes->pluck('medicament_id')->filter()->values()->all();
 
+        // B3-c (E6) — le champ de saisie EST le scanner : un lecteur de comptoir se comporte comme
+        // un clavier, aucune dépendance ni caméra n'est nécessaire pour vérifier une boîte au
+        // référentiel avant de la remettre au patient.
+        $scan = trim((string) $request->query('scan', ''));
+
         return view('portail.delivrance.montrer', [
             'ordonnance' => $ordonnance,
             'jeton' => (string) $request->query('jeton'),
             'interactions' => count($codes) > 1 ? $this->interactions->entre($codes) : [],
+            'scanSaisie' => $scan,
+            'scanResultat' => $scan === '' ? null : $this->codesBarres->identifier($scan),
         ]);
     }
 

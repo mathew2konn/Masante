@@ -11,6 +11,7 @@ use App\Models\StructureSanitaire;
 use App\Models\TokenQr;
 use App\Models\Triage;
 use App\Models\User;
+use App\Services\Medicament\ServiceTracabiliteMedicament;
 use Illuminate\View\View;
 use Symfony\Component\HttpFoundation\Response;
 
@@ -42,6 +43,8 @@ class StatistiqueController extends Controller
         'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre',
     ];
 
+    public function __construct(private readonly ServiceTracabiliteMedicament $tracabilite) {}
+
     /** Vue globale de la plateforme (admin). */
     public function global(): View
     {
@@ -71,6 +74,11 @@ class StatistiqueController extends Controller
             'brisDeGlaceTotal'     => AccesDossier::where('type_acces', 'bris_de_glace')
                 ->whereNull('duree_minutes')
                 ->count(),
+            // B3-c (§7.6) — troisième finalité du lot : « statistiques nationales », DÉRIVÉES du
+            // registre append-only, jamais stockées (P5.3a). `nonRattachees` compte ce qu'on ne
+            // devine pas (E8), `couvertureCodeBarres` ce qui manque encore au référentiel (E4).
+            'consommationMedicaments' => $this->tracabilite->consommation($debutMois->toDateString()),
+            'couvertureCodeBarres'    => $this->tracabilite->couvertureCodeBarres(),
         ]);
     }
 

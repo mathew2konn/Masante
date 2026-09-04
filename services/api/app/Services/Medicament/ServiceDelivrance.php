@@ -150,6 +150,11 @@ final class ServiceDelivrance
             // raison qui ne le concerne pas (meme esprit qu'en P7-D0).
             app(ServiceStockOfficine::class)->sortirPourDelivrance($pharmacien, $delivrance);
 
+            // B3-c — le registre national (§7.6) : une trace DÉNOMINALISÉE par ligne servie, qui
+            // survivra à la suppression de cette ordonnance. `inscrire()` ne décide rien, il
+            // enregistre ce que cette délivrance vient d'établir (motif Q9 du G0 de B3-c).
+            app(ServiceTracabiliteMedicament::class)->inscrire($delivrance);
+
             return $delivrance;
         });
     }

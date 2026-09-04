@@ -33,6 +33,33 @@
   </div>
 </div>
 
+{{-- B3-c (E6) — le champ de saisie EST le scanner : un lecteur de comptoir tape le code puis un
+     retour chariot, ce simple champ texte le reçoit, sans caméra ni connexion. --}}
+<div class="card border-0 shadow-sm mb-3">
+  <div class="card-body">
+    <h2 class="h6 mb-2"><i class="bi bi-upc-scan"></i> Vérifier une boîte au référentiel</h2>
+    <form method="GET" action="{{ route('portail.delivrance.montrer') }}" class="d-flex gap-2">
+      <input type="hidden" name="jeton" value="{{ $jeton }}">
+      <input type="text" name="scan" class="form-control form-control-sm" autocomplete="off"
+             value="{{ $scanSaisie }}" placeholder="Scannez ou saisissez le code-barres" autofocus>
+      <button class="btn btn-outline-secondary btn-sm" type="submit">Vérifier</button>
+    </form>
+    @if ($scanSaisie !== '')
+      <div class="small mt-2">
+        @if ($scanResultat)
+          <span class="text-success"><i class="bi bi-check-circle"></i> Connu du référentiel :
+            {{ $scanResultat->libelle }}</span>
+        @else
+          {{-- E5 — « inconnu » ne veut pas dire falsifié : il peut n'être simplement pas encore
+               saisi au référentiel. On signale, on ne bloque jamais. --}}
+          <span class="text-warning"><i class="bi bi-exclamation-triangle"></i> Inconnu du
+            référentiel — cela ne bloque pas la délivrance.</span>
+        @endif
+      </div>
+    @endif
+  </div>
+</div>
+
 {{-- §7.2 — les interactions sont CONSULTABLES, jamais calculées à la place du pharmacien.
      Le choix de P6.6b (consultation explicite) n'est pas rouvert : calculer rapprocherait ce
      module d'une aide à la décision, terrain de CDC_05 et CDC_08. --}}

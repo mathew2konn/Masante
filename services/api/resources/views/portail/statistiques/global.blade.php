@@ -54,6 +54,50 @@
   </div>
 @endif
 
+{{-- B3-c (§7.6) — « statistiques nationales », troisième finalité du lot. DÉRIVÉES du registre
+     national de traçabilité, jamais stockées. Les deux compteurs d'honnêteté (E4, E8) restent
+     visibles même à zéro : une absence comptée vaut mieux qu'une absence cachée. --}}
+<div class="card border-0 shadow-sm mb-4">
+  <div class="card-body">
+    <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-2">
+      <h2 class="h6 text-ms mb-0"><i class="bi bi-capsule"></i> Consommation de médicaments — {{ $moisCourant }}</h2>
+      <div class="small text-muted">
+        Référentiel : <strong>{{ $couvertureCodeBarres['avec_code_barres'] }} / {{ $couvertureCodeBarres['total'] }}</strong>
+        produit(s) porteur(s) d'un code-barres.
+      </div>
+    </div>
+    @if (empty($consommationMedicaments['par_produit']) && $consommationMedicaments['non_rattachees'] === 0)
+      <p class="text-muted small mb-0">Aucune délivrance enregistrée ce mois-ci.</p>
+    @else
+      @if (! empty($consommationMedicaments['par_produit']))
+        <div class="table-responsive">
+          <table class="table table-sm mb-0 align-middle">
+            <thead class="table-light">
+              <tr><th>Produit</th><th class="text-end">Quantité dispensée</th><th class="text-end">Dispensations</th></tr>
+            </thead>
+            <tbody>
+              @foreach ($consommationMedicaments['par_produit'] as $ligne)
+                <tr>
+                  <td>{{ $ligne['nom'] }} <span class="text-muted small">{{ $ligne['code'] }}</span></td>
+                  <td class="text-end">{{ $ligne['quantite'] }}</td>
+                  <td class="text-end">{{ $ligne['dispensations'] }}</td>
+                </tr>
+              @endforeach
+            </tbody>
+          </table>
+        </div>
+      @endif
+      @if ($consommationMedicaments['non_rattachees'] > 0)
+        <p class="text-muted small mt-2 mb-0">
+          <i class="bi bi-info-circle"></i> {{ $consommationMedicaments['non_rattachees'] }}
+          dispensation(s) non rattachée(s) au référentiel national — le serveur ne devine jamais un
+          produit non désigné à la prescription.
+        </p>
+      @endif
+    @endif
+  </div>
+</div>
+
 <div class="row g-3">
   <div class="col-lg-4">
     <div class="card border-0 shadow-sm h-100">

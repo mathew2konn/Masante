@@ -1256,3 +1256,113 @@ prend 3 secondes.
    courant reste global. Un vrai « premier périmé, premier sorti » supposerait d'imputer chaque
    sortie à un lot — non fait.
 4. **Aucun panier ni commande** — c'est B3-d.
+
+---
+
+## Partie 13 — B3-c : code-barres et traçabilité nationale (CDC_11 §7.6)
+
+> **Périmètre** : chaque médicament peut porter un code-barres, un pharmacien peut vérifier une
+> boîte au comptoir, et chaque délivrance alimente un **registre national** qui survit même si le
+> patient supprime l'ordonnance de son carnet. Troisième et dernier sous-incrément du lot **B3
+> (Pharmacie)**.
+> **✅ VALIDÉ G5 le 2026-09-04 — G4 propriétaire OK.**
+
+### Ce qu'il faut savoir avant de commencer
+
+**Le §7.6 du corpus tient en une phrase** : lutte contre les médicaments falsifiés, suivi de
+consommation, statistiques nationales. Il fallait donc **concevoir**, pas seulement transcrire — et
+une règle a guidé tout le lot : chaque élément livré doit servir l'une de ces trois finalités.
+
+**Le registre national ne contient AUCUNE information sur le patient.** Ni nom, ni dossier, ni
+ordonnance, ni posologie. C'est délibéré : ce registre doit **survivre** à la suppression de
+l'ordonnance qui l'a produit (le patient reste maître de son carnet), et une trace qui survit ne
+peut donc jamais avoir été un dossier médical déguisé. Il dit seulement : quel produit, combien,
+quand, dans quelle officine.
+
+**Un code-barres reconnu n'est pas une preuve d'authenticité.** Un faussaire recopie un code-barres
+sans effort. Le scan dit « ce code est connu du référentiel » — jamais « cette boîte est
+authentique ». Un code inconnu **n'empêche jamais** de servir le patient.
+
+**Le champ de scan EST le lecteur de comptoir.** Un lecteur de codes-barres branché en USB se
+comporte comme un clavier : il tape le code puis appuie sur Entrée. Un simple champ de texte le
+reçoit — pas de caméra, pas de connexion internet nécessaire.
+
+### Prérequis
+
+1. `php artisan migrate` (colonne `code_barres` sur les médicaments + nouvelle table du registre).
+2. Un compte porteur de la permission **référentiel des médicaments** pour saisir un code-barres.
+3. Un compte **pharmacien** pour servir une ordonnance et scanner au comptoir (partie 11).
+4. Un compte porteur des **statistiques globales** pour voir l'écran de consommation.
+
+### Cas à vérifier
+
+| # | Ce que vous faites | Ce qui doit se produire |
+|---|---|---|
+| 1 | Sur la fiche d'un médicament, saisir un code-barres **inventé au hasard** (ex. `123456789`) | Refus **qui nomme la raison** : ce n'est pas un code-barres valide |
+| 2 | Saisir un vrai code-barres (ex. celui d'un produit que vous avez chez vous) | Accepté et enregistré |
+| 3 | Servir une ordonnance (partie 11) et scanner ce code-barres au comptoir | **« Connu du référentiel »**, avec le nom du produit |
+| 4 | Scanner un code-barres qui n'a jamais été saisi | **« Inconnu du référentiel »** — et vous pouvez servir l'ordonnance quand même |
+| 5 | Servir une ordonnance de deux médicaments | Enregistré normalement, comme avant ce lot |
+| 6 | Supprimer cette ordonnance depuis le carnet du patient | Elle disparaît, ainsi que la trace de délivrance — mais **rien ne change** dans les statistiques nationales |
+| 7 | Ouvrir l'écran de statistiques globales | Un bloc **« Consommation de médicaments »** : par produit, un compteur des dispensations **non rattachées** au référentiel, et la couverture en codes-barres (« X / Y produits ») |
+| 8 | Essayer de saisir un code-barres **sans** la permission dédiée | Refus |
+
+### Ce qui a été prouvé automatiquement
+
+- **38 vecteurs dédiés** (14 sur le calcul de la clé de contrôle en isolation, 24 sur le reste) ;
+  **mutation : 7 tueuses + 1 témoin volontairement vert**.
+- **Deux vecteurs centraux, aucun ne suffisant seul** : supprimer l'ordonnance laisse la trace
+  intacte ; et la trace, cherchée dans toute sa charge, ne contient ni le nom du patient, ni son
+  identifiant, ni la posologie.
+- Le registre est **append-only** : ni modifiable ni effaçable, refusé par le code **et** par la
+  base elle-même, y compris contre un accès qui contournerait l'application.
+- Un même code-barres est accepté dans deux pays différents (deux pays, deux catalogues), refusé en
+  doublon dans le même pays.
+
+### Ce qui a été rejoué en direct sur la vraie base (G2)
+
+Sur la base MySQL de développement, avec un serveur réel, de vrais comptes, une vraie session
+connectée et un vrai jeton de sécurité de formulaire (CSRF) — **pas un raccourci technique**. La
+base a été sauvegardée avant, puis **restaurée à l'identique** ensuite.
+
+- Les trois refus de la base : modification, suppression, quantité nulle — chacun avec son message
+  exact. Le doublon de code-barres dans le même pays, refusé lui aussi par la base.
+- Saisie d'un code-barres invalide au vrai formulaire → refus affiché à l'écran, rien enregistré.
+- Saisie d'un code-barres valide → enregistré, et **l'empreinte du référentiel national a changé** —
+  la preuve que renseigner un code-barres compte comme une vraie mise à jour du référentiel.
+- Une ordonnance réelle de deux médicaments (l'un rattaché au référentiel, l'autre non) scannée puis
+  servie au vrai comptoir : le scan a reconnu le premier produit et signalé le second comme inconnu
+  sans bloquer ; la délivrance a créé **deux traces**, vérifiées colonne par colonne en base.
+- **Le vecteur central vérifié en réel** : zéro ligne créée dans le journal d'accès au dossier par
+  cette délivrance.
+- L'ordonnance supprimée pour de vrai : elle et sa délivrance ont disparu, **les deux traces sont
+  restées identiques**, colonne par colonne.
+- L'écran de statistiques, ouvert avec un vrai compte : la consommation du produit servi, le
+  compteur des dispensations non rattachées, et la couverture en codes-barres du référentiel —
+  tous les trois exacts.
+
+### Un défaut trouvé par un vecteur, corrigé avant le G2
+
+Le lien entre une trace et le médicament avait d'abord été prévu comme un lien strict vers la fiche
+du produit — de sorte que supprimer un médicament du référentiel effacerait automatiquement ce lien
+sur ses traces. Un vecteur a montré que cela **empêchait purement et simplement** de supprimer un
+médicament : le registre national, qui refuse toute modification, refusait aussi celle que cette
+suppression aurait déclenchée en arrière-plan. Corrigé : ce lien est désormais un simple numéro de
+référence, comme celui qui relie une trace à l'officine — les informations qui doivent survivre
+(nom, code, dosage) sont de toute façon déjà recopiées sur la trace elle-même.
+
+### Ce que B3-c NE fait PAS — et le premier point compte
+
+1. **La lutte contre les médicaments falsifiés n'est qu'à moitié servie.** Le scan détecte un code
+   inconnu ; il ne prouve jamais qu'une boîte reconnue est authentique. Une vraie preuve
+   d'authenticité supposerait un dispositif national de numérotation unitaire — hors périmètre.
+2. **Aucun code-barres réel n'est préchargé.** La colonne naît vide, et l'écran le dit — tant que
+   personne ne les saisit, le scan ne reconnaît rien.
+3. **Aucun scan par caméra sur le mobile** — seul le champ de saisie existe, pensé pour un lecteur
+   de comptoir.
+4. **Pas de suivi par lot sur le registre national** : B3-b ne suit pas les lots un par un, donc un
+   rappel de lot n'est pas réalisable à partir de ce registre.
+5. **La lecture du code-barres au comptoir n'est pas soumise à la même gouvernance que sa saisie** :
+   la saisie exige une permission et un formulaire dédiés, la lecture consulte directement la fiche
+   du produit — pour qu'un code-barres tout juste saisi soit reconnaissable immédiatement, sans
+   attendre une republication du référentiel.

@@ -140,6 +140,18 @@
         <input type="text" name="cename_reference" class="form-control"
                value="{{ old('cename_reference', $medicament->cename_reference) }}" maxlength="50">
       </div>
+      <div class="col-md-4">
+        <label class="form-label">Code-barres (GTIN)</label>
+        <input type="text" name="code_barres" class="form-control @error('code_barres') is-invalid @enderror"
+               value="{{ old('code_barres', $medicament->code_barres) }}" maxlength="20"
+               placeholder="8, 12, 13 ou 14 chiffres">
+        @error('code_barres')<div class="invalid-feedback">{{ $message }}</div>@enderror
+        <div class="form-text">
+          {{-- B3-c (E5) — dit ce que le code-barres prouve, jamais plus : le scan reconnaît un
+               code au référentiel, il ne certifie pas l'authenticité de la boîte. --}}
+          Sert à reconnaître le produit au comptoir, jamais à en certifier l'authenticité.
+        </div>
+      </div>
       <div class="col-md-4 d-flex flex-column justify-content-end">
         <div class="form-check">
           <input class="form-check-input" type="checkbox" name="ordonnance_requise" value="1" id="ordo"

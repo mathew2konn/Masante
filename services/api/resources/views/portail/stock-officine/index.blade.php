@@ -69,12 +69,40 @@
       <div class="col-md-9">
         <label for="medicament_id" class="form-label small mb-1">Ajouter un produit à l'inventaire</label>
         <input type="number" class="form-control" id="medicament_id" name="medicament_id"
+               value="{{ $scanResultat?->id }}"
                placeholder="Identifiant du médicament au référentiel national">
       </div>
       <div class="col-md-3 d-grid">
         <button class="btn btn-ms" type="submit"><i class="bi bi-plus-lg"></i> Ajouter</button>
       </div>
     </form>
+  </div>
+</div>
+
+{{-- B3-c (E6) — le champ de saisie EST le scanner : un lecteur de comptoir tape le code puis un
+     retour chariot, sans caméra ni connexion. --}}
+<div class="card border-0 shadow-sm mb-3">
+  <div class="card-body">
+    <h2 class="h6 mb-2"><i class="bi bi-upc-scan"></i> Retrouver un produit par son code-barres</h2>
+    <form method="GET" class="d-flex gap-2">
+      <input type="text" name="scan" class="form-control form-control-sm" autocomplete="off"
+             value="{{ $scanSaisie }}" placeholder="Scannez ou saisissez le code-barres">
+      <button class="btn btn-outline-secondary btn-sm" type="submit">Vérifier</button>
+    </form>
+    @if ($scanSaisie !== '')
+      <div class="small mt-2">
+        @if ($scanResultat)
+          <span class="text-success"><i class="bi bi-check-circle"></i> Connu du référentiel :
+            {{ $scanResultat->libelle }} — identifiant {{ $scanResultat->id }}, repris
+            ci-dessus.</span>
+        @else
+          {{-- E5 — « inconnu » ne veut pas dire falsifié : le code-barres du référentiel est
+               encore une colonne neuve, largement vide. On signale, on ne bloque jamais. --}}
+          <span class="text-warning"><i class="bi bi-exclamation-triangle"></i> Inconnu du
+            référentiel — cherchez le produit par son nom ci-dessous.</span>
+        @endif
+      </div>
+    @endif
   </div>
 </div>
 

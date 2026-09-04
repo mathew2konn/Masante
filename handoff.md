@@ -1,182 +1,235 @@
 # Handoff — MaSanté (IVOIRSANTÉ)
 
-> Point de reprise du travail en cours. Dernière mise à jour : **2026-07-04**. Branche : `master`.
+> **Point de reprise.** Écrit pour quelqu'un qui reprendrait le projet demain sans rien en savoir.
+> Dernière mise à jour : **2026-09-04**. Branche : **`feat/masante-p0-socle`**. Avant ce passage, le
+> dernier commit poussé était **`1451ce1`** (B3-b validé G5) — **B3-c est VALIDÉ (G5, 2026-09-04),
+> G4 propriétaire OK, et committé dans ce même passage** (voir §5) ; son hash exact se lit avec
+> `git log -1`.
+>
+> Ce fichier dit **où l'on en est**. Le **journal exhaustif** de chaque module vit dans `CLAUDE.md`.
+> Les **plans de conception** vivent dans `plan.md`. Les **décisions d'architecture** vivent dans
+> `docs/adr/`.
 
-## Objectif
+---
 
-Ajouter au **Module 2 (Carnet de santé familial)** l'incrément **F2.10 → F2.13**, de façon **robuste**
-(données médicales sensibles, loi 2013-450, OWASP). Méthode imposée : pour chaque fonctionnalité, analyse
-approfondie → proposition → discussion/validation → implémentation → **documentation dans `RAPPORT.md`** →
-barrières de validation backend (étape A) puis frontend (étape B).
+## 1. Ce qu'est ce projet
 
-Périmètre de l'incrément :
-- **F2.10** — Documents médicaux importés (import universel sécurisé).
-- **F2.11** — Contacts d'urgence par membre.
-- **F2.12** — Notes & observations médicales.
-- **F2.13** — Traçabilité de la provenance (`source`) sur les tables de dossier existantes.
+Plateforme numérique nationale de santé pour la **Côte d'Ivoire** (conçue multi-pays). Le corpus qui
+fait autorité est constitué des **14 cahiers des charges** de `CDC.md/` (CDC_00 → CDC_13). Ordre de
+résolution des conflits : **CDC_10 Sécurité > CDC_08 Protocoles > CDC_09 Données nationales > ADR
+validé par le propriétaire**. On n'invente jamais : toute ambiguïté devient un ADR.
 
-## État actuel
+### Architecture (monorepo, ADR-003)
 
-| Lot | État |
+```text
+apps/mobile/              Expo SDK 54 — React Native, TS strict, NativeWind, Expo Router
+apps/web/                 Next.js 15 App Router — portail professionnel moderne
+packages/shared/          @masante/shared — SOURCE UNIQUE (tokens, enums, Zod, i18n)
+services/api/             Laravel 13 / PHP 8.3 / MySQL — le cœur
+services/payment/         Java Spring Boot — paiement (ADR-013), Postgres + Redis, Docker
+services/fraud-detection/ Python FastAPI — fraude IA (ADR-017), détection seule
+services/triage-service/  Python FastAPI — triage IA (ADR-043/045/046), mode observation
+CDC.md/                   cahiers des charges (lecture seule)
+```
+
+Gestionnaire **pnpm 9**, `node-linker=hoisted`. MySQL conservé en MVP. Auth **Sanctum + OTP**.
+
+### Les règles qui ne se négocient pas
+
+| | |
 |---|---|
-| Couche données F2.10–F2.13 (migrations + modèles) | ✅ **Implémentée, testée, COMMITÉE** (`bf6bc42`) |
-| Backend runtime **F2.11 / F2.12** (contrôleurs + routes) | ✅ **Validé & COMMITÉ** (`24a8938`, le 2026-07-02) |
-| Frontend **F2.11 / F2.12** (étape B, moteur générique carnet) | ✅ **Validé & COMMITÉ** (`0a24ba4`, le 2026-07-02) |
-| **Révision F2.11** (2 contacts + 15 membres) — backend étape A | ✅ **Validé & COMMITÉ** (`799cd9d`, le 2026-07-03) |
-| **Révision F2.11** — frontend étape B (**écran dédié** 2 blocs) | ✅ **« #1 validé » & COMMITÉ** (`7fe1eca`, le 2026-07-03 ; delta backend `drop_telephone_secondaire` inclus) |
-| **F2.10** backend étape A (upload/chiffrement/antivirus/download) | ✅ **Validé & COMMITÉ** (`7001aea`, le 2026-07-03 ; suite 56/56) |
-| **F2.10** frontend étape B (Expo : picker/compression/liste/visionneuse) | ✅ **« F2.10 validé » & COMMITÉ** (`bb59205`, le 2026-07-04 ; tsc/doctor OK) |
-| **F2.13** provenance `source` (backend A + frontend B, pastille 3 origines) | ✅ **« F2.13 validé » & COMMITÉ** (`7435471`, le 2026-07-04 ; suite 59/59, tsc OK) — **clôt l'incrément F2.10→F2.13** |
-| **F2.3** carte CMU numérique (backend A + frontend B) | ✅ **« F2.3 validé » & COMMITÉ** (`4377440`, le 2026-07-04 ; suite 65/65, tsc OK). N° CMU masqué (`$hidden`+accessor), QR CMU signé autonome, palier vérifié stubbé (flag dev) |
+| **Frontière** | **Aucune logique métier dans le front.** Scores, tarifs, plafonds, éligibilité, transitions d'état : **backend uniquement**. Test de fin de module : « quelles règles métier ce module calcule-t-il ? » → réponse obligatoire **« aucune »** |
+| **Source unique** | Tokens, schémas Zod, enums, i18n : définis **une fois** dans `@masante/shared`. Aucune redéfinition locale, aucune couleur en dur |
+| **Interdits absolus** (CDC_00 §4) | Règle médicale en dur · triage présenté comme diagnostic · IA décidant seule · secret dans le code · fichier médical en base · accès dossier sans lien de prise en charge (hors bris de glace audité) · sortie IA sans explication + confiance + limites. **SAMU 185**, jamais le 15 |
+| **Dépendances** | **Aucune dépendance sans accord écrit du propriétaire** (§2.6). Mobile : `npx expo install` uniquement |
 
-Tests locaux F2.11/F2.12 (via curl/HTTP sur `http://localhost:8000`, tous ✅) :
-création, **invariant « un seul contact principal »**, validation téléphone CI (422), **note append-only** (PUT → 405),
-**auteur injecté serveur** (le client ne peut pas usurper l'auteur), **chiffrement du `contenu`** en base,
-**soft-delete** (liste vide après suppression), **anti-IDOR** (autre compte → 403). Données de test nettoyées.
+---
 
-## Ce qui a changé
+## 2. La méthode de travail (gates bloquantes, CDC_01 §2.4)
 
-### Commité (`bf6bc42` — couche données)
-- Migrations : `2026_07_02_000001_create_documents_medicaux_table.php`,
-  `..._000002_create_contacts_urgence_table.php`, `..._000003_create_notes_observations_table.php`,
-  `..._000004_add_source_to_dossier_tables.php` (colonne `source` sur `antecedents`/`ordonnances`/`resultats_analyses`).
-- Modèles : `DocumentMedical`, `ContactUrgence`, `NoteObservation` + relations `hasMany` sur `MembreFamille`.
-- `RAPPORT.md` (racine) + les 2 docs de spec (`docs/Specification_Module2_F2-10_a_F2-13_MaSante.md`, `docs/Analyse_Delta_RDV_MaSante.md`).
+**G0** Audit — lire réellement le code, ne rien supposer →
+**G1** Plan validé **par écrit** par le propriétaire →
+**G2** Backend prouvé **en direct** contre la vraie base MySQL →
+**G3** Qualité : tests, Pint, typecheck, campagne de mutation →
+**G4** **Test réel par le propriétaire** →
+**G5** « validé » **écrit par le propriétaire**.
 
-### Commité (`799cd9d` — révision F2.11 « 2 contacts » + 15 membres, backend étape A)
-- **Nouveaux** : migration `2026_07_03_000001_drop_email_from_contacts_urgence.php`, `tests/Feature/ContactUrgenceTest.php` (7 tests).
-- **Modifié** : `ContactUrgence` (email hors `$fillable`, hook `deleted` = promotion du secondaire) ;
-  `ContactUrgenceController` (`lien_parente` `Rule::in` 15 valeurs, `est_principal` non client, `store()` plafond 2 +
-  téléphone distinct + rôle par ordre, `update()` distinct) ; `CarnetSectionController::reglesPour` → `protected` ;
-  `StoreMembreRequest::MAX_MEMBRES` 5→15 (+ test membre) ; `RAPPORT.md`. **Suite 48/48 (148 assertions).**
+> **Le G5 n'est JAMAIS auto-déclaré.** Il attend le mot du propriétaire. Aucun module suivant avant
+> le G5 du précédent. Corrections chirurgicales uniquement.
 
-### Commité (`7fe1eca` — révision F2.11 frontend étape B, « #1 validé » le 2026-07-04)
-Écran **sur-mesure** (maquette) qui remplace le moteur générique pour les contacts, DS conservé.
-- **Nouveaux** : `src/screens/ContactsUrgenceEcran.tsx` (2 blocs dépliables Premier/Second contact, menu déroulant
-  lien de parenté via Modal défaut « Papa », `+225` masqué = saisie locale 10 chiffres, 1 bouton « Ajouter » collant,
-  POST/PUT 1er puis 2e) ; `app/(app)/membres/contacts-urgence/[id].tsx` (route).
-- **Modifié** : `registre.ts` (contacts hors `SECTIONS` ; `LIEN_PARENTE` exporté) ; fiche membre (ligne dédiée) ;
-  `types/membre.ts` + `api/membres.ts` (`MAX_MEMBRES` 5→15). **Delta backend inclus** : migration
-  `..._000002_drop_telephone_secondaire_from_contacts_urgence` + `$fillable` + règle (un seul numéro/contact).
-- Photo contact **désactivée « bientôt »** → arrive avec F2.10 (ne pas dupliquer l'infra d'upload).
+### Les trois fichiers de suivi (règle propriétaire du 2026-09-03)
 
-### Commité (`7001aea` — backend F2.10 documents importés, étape A, le 2026-07-04)
-- **Config** : `config/masante.php` (`antivirus.enabled` défaut `false`, `upload.max_ko`=20 Mo, `upload.mimetypes` liste
-  blanche 12 types) ; **disque privé** `documents` dans `config/filesystems.php` (`storage_path('app/documents')`, hors `public/`).
-- **Service** `DocumentStorageService` (chiffrement `Crypt` au repos, nom UUID, `hash_sha256`, MIME finfo).
-- **FormRequest** `StoreDocumentRequest` (`authorize` → `MembreFamillePolicy::update` ; `mimetypes:` réel + `max`).
-- **Job** `ScanDocumentJob` (stub `sain` en dev ; `clamdscan` en prod ; **fail-closed** = reste `en_attente` si indispo).
-- **Contrôleur** `DocumentMedicalController` : `index/store/show/destroy` ; `uploaded_by_user_id` serveur ; **download 423**
-  si `!= sain` ; `destroy` = soft-delete (rétention, blob conservé) ; **pas de route `update`**. Dispatch **sync** en dev.
-- **Routes** `membres/{membre}/documents` (dans `routes/api.php`). **Écart assumé** : pas de Policy dédiée (portée par le membre).
-- Constantes `DocumentMedical::CATEGORIES` / `::SOURCES`. Tests `DocumentMedicalTest` (8). **Suite 56/56 (178 assertions).**
+| Fichier | Rôle | Quand |
+|---|---|---|
+| **`CLAUDE.md`** | Toute décision d'architecture et de conception (nom de classe, raison d'un choix, contrainte) | **AVANT d'écrire la moindre ligne de code** |
+| **`plan.md`** | Le plan de travail et d'exécution détaillé, un bloc par réflexion sous `# PLAN n : …` | Après la décision, avant l'exécution |
+| **`handoff.md`** | Ce fichier : fait, pourquoi, état exact, prochaines étapes | Après l'exécution |
 
-### ⏳ NON COMMITÉ — frontend F2.10 étape B (à figer au « F2.10 validé »)
-Vérifs vertes : **`tsc` 0 · `expo install --check` OK · `expo-doctor` 18/18**.
-- **Nouveaux** : `src/types/document.ts` (types, `CATEGORIES` libellés+icônes, `STATUT_PRESENTATION`) ;
-  `src/api/documents.ts` (liste/suppr axios ; **import multipart via `createUploadTask` legacy** + progression ;
-  **download `File.downloadFileAsync`** nouvelle API + en-têtes Bearer → URI cache) ;
-  `src/documents/selection.ts` (photo/galerie/fichier + **compression 3G** `ImageManipulator.manipulate()...`, si >1600 px) ;
-  `src/screens/DocumentsEcran.tsx` (liste **groupée par catégorie**, badges statut, ouverture via `expo-sharing`, suppr) ;
-  `src/screens/ImportDocumentEcran.tsx` (3 sources, dropdown catégorie, titre, **barre de progression**) ;
-  `src/utils/fichiers.ts` (format taille) ; routes `app/(app)/membres/documents/[id].tsx` + `.../importer/[id].tsx`.
-- **Modifié** : fiche membre `[id].tsx` (ligne « Documents médicaux ») ; `app.config.ts` (plugin `expo-image-picker`) ;
-  `RAPPORT.md`. **`package.json`** : +5 paquets (`expo-document-picker`, `expo-image-picker`, `expo-image-manipulator`,
-  `expo-file-system`, `expo-sharing`) **et `react-dom` réaligné 19.2.7 → 19.1.0** (le 1er `expo install` l'avait cassé →
-  bloquait les installs suivantes ; réalignement sur la version SDK 54).
-- **Date document non saisie** dans l'import : réservée au futur **sélecteur jour/mois/année** uniforme (item différé) ;
-  champ toujours supporté par l'API.
-- ⚠️ Au commit, inclure **aussi** `package-lock.json`. Guide de test Expo Go fourni dans le dernier message avant `/clear`.
+**Ordre contraignant** : décision → `CLAUDE.md` → `plan.md` → exécution → `handoff.md`.
 
-### Décisions actées
-- **F2.13** : colonne `source` **distincte** de `added_by` (axes orthogonaux : provenance ≠ auteur de saisie).
-- **Robustesse** : schéma « robuste complet » retenu (audit `uploaded_by`, `hash_sha256`, `statut_antivirus`,
-  `softDeletes`, etc.) ; `categorie` documents = **superset à 8 valeurs**.
-- **F2.12** : append-only + auteur serveur ; **journal d'audit FT6 des écritures documenté, non implémenté**
-  (cohérence avec les autres sections ; sera fait avec le module d'audit global).
-- **Différé Modules 3/4** : `auteur_agent_id` (notes) — table `agents_garde` inexistante.
+### Habitudes de test qui ont trouvé de vrais défauts
 
-## Endpoints livrés (auth Bearer `auth:sanctum`)
-- `GET|POST /api/v1/membres/{membre}/contacts-urgence` · `GET|PUT|PATCH|DELETE .../contacts-urgence/{id}`
-- `GET|POST /api/v1/membres/{membre}/notes-observations` · `GET|DELETE .../notes-observations/{id}` (pas de `PUT/PATCH`)
-- `GET|POST /api/v1/membres/{membre}/documents` · `GET|DELETE .../documents/{id}` (pas de `PUT` ; `GET/{id}` = **download déchiffré**, 423 si `!= sain`)
+- **Campagne de mutation manuelle** : sauvegarder → muter une garde → **asserter la mutation
+  appliquée** → asserter le **rouge** → restaurer → **vérifier par `diff`**. Toujours **un témoin
+  volontairement vert** : *un harnais qui ne prévoit que des tueuses ne se teste jamais lui-même.*
+- **Vérifier un refus PAR SON MOTIF**, jamais par son seul code HTTP — plusieurs gardes partagent
+  le même 409.
+- **Le G2 live trouve ce que la relecture ne voit pas** — il l'a prouvé une dizaine de fois.
+- **Baseline Pint établie AVANT** de formater : plusieurs fichiers du dépôt échouent **déjà**
+  (style d'alignement délibéré), il ne faut pas les reformater.
 
-## Environnement / commandes utiles (PowerShell)
-- PHP : **toujours** `C:\wamp64\bin\php\php8.3.28\php.exe` avec `$env:XDEBUG_MODE="off"` (jamais le `php` global 8.5).
-- Serveur local : `& "C:\wamp64\bin\php\php8.3.28\php.exe" artisan serve --host=127.0.0.1 --port=8000`
-- Générer un token de test : `... artisan tinker --execute="echo App\Models\MembreFamille::find(1)->user->createToken('local')->plainTextToken;"`
-- Membre de test présent : `id=1` (propriétaire = user `id=2`).
-- Mobile (`ivoirsante-mobile/`) : `npx expo start -c` (cache vidé après changement URL/`app.config`) ;
-  `npx tsc --noEmit` ; `npx expo-doctor` (doit rester 18/18) ; deps **uniquement** via `npx expo install <pkg>`.
-- Test F2.10 sur téléphone : Ngrok requis (`localhost` injoignable depuis Expo Go), URL reportée dans les **deux** `.env`.
+### Guides de test
 
-## Plan validé (2026-07-03) — nouveaux docs de modification intégrés
+Un guide par module, `GUIDE_TEST_<SUJET>.md` à la racine, indexé par `GUIDE_TEST_INDEX.md`. **Un
+module sans guide ne peut pas être déclaré validé.** Un domaine à incréments ajoute une **partie**
+au guide existant.
 
-Le `/clear` a apporté 4 docs nouveaux dans `docs/` (`modification.txt`, `Modification_F2-3_CMU`,
-`Securite_IVOIRSANTE_2.docx`, `Note_Continuite_Acces_Dossier.docx`). Après cartographie, l'utilisateur a
-**validé l'ordre suivant**.
+---
 
-**Phase A — finir le Module 2 (MAINTENANT, dans cet ordre) :**
+## 3. Ce qui a été fait, et pourquoi
 
-1. ✅ **TERMINÉ** — Réviser F2.11 contacts d'urgence (`modification.txt`) : e-mail retiré, **exactement 2 contacts
-   distincts** (1er = principal auto), **liste déroulante lien de parenté**, un seul numéro/contact, **famille 15 max**.
-   Backend `799cd9d` + frontend écran dédié `7fe1eca`.
-2. ✅ **TERMINÉ** — **F2.10 Documents importés** : backend étape A (`7001aea`) + frontend étape B
-   (`bb59205`, « F2.10 validé » le 2026-07-04).
-3. ✅ **TERMINÉ** — **F2.13 badge provenance** : backend A + frontend B (`7435471`, le 2026-07-04). `source`
-   inscriptible/validée sur les 3 sections (défaut modèle `patient`) ; pastille 3 origines (patient atténué,
-   medecin/structure officiels) sur cartes de dossier + documents. **Incrément F2.10→F2.13 CLOS.**
-4. ✅ **TERMINÉ** — **Carte CMU numérique F2.3** (`4377440`, le 2026-07-04). N° masqué (jamais exposé),
-   QR CMU signé autonome (sans n°/matricule, n'ouvre pas le dossier), palier vérifié stubbé (flag dev).
-5. **Profil enrichi (item optionnel)** — audit fait : schéma `membres_famille` porte déjà tous les champs.
-   - **A. Sélecteur de date uniforme** : ✅ **« A validé » & COMMITÉ** (`cdb3310`, le 2026-07-05). Wheel picker
-     custom (`DateWheelPicker` + `DateField`), molette 3 colonnes, ScrollView natif + Animated 2D (scale/opacité,
-     **pas de rotateX** = trop lourd sur entrée de gamme). Câblé MembreForm/CarnetSectionForm/ImportDocument.
-     `datetimepicker` testé puis retiré (net nul). tsc OK.
-   - **B. Photo de profil du membre** : ✅ **« B validé » & COMMITÉ** (backend étape A + frontend étape B,
-     le 2026-07-06). Photo chiffrée au repos (disque privé `avatars`, chaîne F2.10 sans antivirus) ; `photo_url`
-     `$hidden`+hors `$fillable`, accessor booléen `a_photo` ; routes `POST|GET|DELETE /membres/{membre}/photo`
-     (show déchiffré, `no-store`) ; front : avatar photo/initiales + badge appareil, menu Prendre/Choisir/Supprimer,
-     recadrage carré ~512 px. Suite **71/71** (245 assertions), tsc OK. **Clôt la Phase A du Module 2.**
+Le détail exhaustif est dans `CLAUDE.md`. Vue d'ensemble :
 
-**Phase B — EN COURS (cadrage validé) :**
+| Domaine | État |
+|---|---|
+| **P0 → P4** — socle, identité (RBAC + MFA), dossier médical hors ligne chiffré, annuaire + carte, rendez-vous | ✅ validés |
+| **P5** — Paiement, **microservice Java** (ADR-013) : passerelle OCP, facturation, wallet en partie double, fraude, cartes + 3DS, mandats, reversements, rapprochement, **intégration GeniusPay réelle** | ✅ 21 incréments validés |
+| **Fraude IA** — microservice Python (ADR-017), **détection seule**, jamais de gel | ✅ validé (+ extraction réelle, routage, écran) |
+| **P6** — Données nationales CDC_09 : NIS, socle référentiel gouverné, établissements, professionnels + PKI, médicaments, laboratoires, transverses | ✅ **étapes 1 à 8 complètes** |
+| **P7** — Carnet familial partagé (la fusion MPI a été **abandonnée** au profit de deux actes humains) | ✅ complet, 6 incréments |
+| **P10** — Triage : orientation gouvernée, **protocoles médicaux CDC_08**, microservice IA en **mode observation** | ✅ complet dans son découpage annoncé |
+| **P11** — Applications métier CDC_11 : portes du portail, onboarding méthode 2, API d'ingestion partenaire | ✅ validés |
+| **B1** — Refonte du parcours Rendez-vous | ✅ complet (a, b, c, d) |
+| **B2** — Consultation, diagnostic, prescription électronique | ✅ complet (a, b, c) |
+| **B3** — **Pharmacie** | 🔵 a ✅, b ✅, **c ✅ (G5, 2026-09-04)** ; **d (panier/commande, dernier sous-lot annoncé) reste à faire** |
 
-- **B1 — Auth durci : ✅ TERMINÉ & COMMITÉ le 2026-07-07.** Backend étape A (mot de passe oublié OTP 3 étapes +
-  preuve durcie date de naissance / branche CMU dormante + changement connecté + politique MDP forte unifiée
-  `PasswordPolicy` + `NotCompromisedPassword` fail-open + révocation tokens ; suite 80/80). Frontend étape B
-  (barre de force `MotDePasseForce`, écrans oublié/réinitialiser, changer MDP ; tsc OK). Décisions : MDP fort,
-  DDN, bcrypt. **+ 2 correctifs annexes commités** : 401 JSON invité (`bootstrap/app.php`) et photo membre
-  robuste Android (`telechargerPhoto` via téléchargement authentifié au lieu de `<Image headers>`).
-- **B2 — Verrou applicatif : ✅ TERMINÉ & COMMITÉ le 2026-07-07** (frontend seul). PIN 6 chiffres haché SHA-256+sel
-  (secure-store), biométrie `expo-local-authentication`, grâce 2 min, re-verrouillage arrière-plan, anti-force brute
-  5→30 s/1 min/5 min. `VerrouGate` sur fiches membres + « Mes rendez-vous » ; écran Sécurité (opt-in). +2 deps
-  (expo-local-authentication, expo-crypto). tsc OK, doctor 18/18.
-- **B3 — Délégation d'accès : ✅ TERMINÉ & COMMITÉ le 2026-07-07.** Backend étape A `68cf008` (table `delegations`,
-  4 endpoints inviter/accepter/révoquer/lister, `generateQr` ouvert au délégué actif, trace `genere_par_delegue_id`,
-  gate titulaire vérifié par flag ; suite 94/94). Frontend étape B `59dbfde` (écran « Délégués » titulaire, écran
-  « Partages reçus » délégué + génération QR sous verrou B2 ; + fix route `parametres/_layout.tsx`).
-- **→ Phase B COMPLÈTE (B1 + B2 + B3).**
-- **Bloqués (NE PAS anticiper)** : bris de glace (M4/M5), rappels/notes source « médecin » (session QR médecin M3/M4).
+### Deux principes qui reviennent partout, et qu'il faut comprendre pour reprendre
 
-**Dette technique :** ~~`SafeAreaView` déprécié~~ → ✅ **RÉSOLU le 2026-07-07** (`96f7cda`) : migration vers
-`react-native-safe-area-context` (`Screen.tsx` + `carte.tsx` + `itineraire.tsx`), `edges={['top','bottom']}`,
-compensation Android manuelle supprimée. Re-test visuel validé.
+1. **On ne devine jamais.** Le serveur ne rapproche pas un texte libre d'une entrée de référentiel
+   (ce serait un diagnostic posé par une machine) ; il ne déduit pas une provenance ; il ne
+   complète pas une réponse incomplète. **Une absence se dit** — et elle se **compte** à l'écran.
+2. **Une valeur recalculable n'est jamais stockée.** Le solde d'un wallet, le stock d'une officine,
+   le statut d'une vaccination : des **sommes** et des **calculs**, jamais des colonnes — *une
+   valeur stockée finit par diverger de ce qu'elle résume*.
 
-**Reste à cadrer AVEC LE DIRECTEUR avant tout code (rappel) :**
+---
 
-- **Auth** : refonte inscription (barre de force MDP), mot de passe oublié (OTP 3 étapes) + récupération durcie
-  (`Securite_2` : OTP + date naissance / fragment CMU-CNI), **verrou applicatif** biométrie/PIN sur sections sensibles.
-- **Délégation d'accès** (table `delegations`, 4 endpoints) — `Note_Continuite`, prio MOYENNE après le socle.
-- **Bris de glace** (accès urgence, RBAC, audit) — livrable Module 4/5.
-- **Rappels source « système »/« médecin » + notes médecin** — dépendent de la **session QR médecin en écriture** (M3/M4).
+## 4. État exact du système, aujourd'hui
 
-Tenir `RAPPORT.md` à jour à chaque fonctionnalité (méthode de travail imposée).
+### Dépôt
 
-## Attention / pièges
-- Ne **pas** lancer deux `artisan migrate` en parallèle (course déjà rencontrée). Commandes destructives
-  (`migrate:fresh`, etc.) : **jamais sans accord explicite**.
-- `artisan serve` est mono-thread : les séquences curl longues peuvent dépasser les timeouts (fractionner).
-- Ne pas toucher au frontend tant que le backend n'est pas validé (barrières du workflow).
-- **`expo install` en échec ERESOLVE** : cause rencontrée = `react-dom` monté en 19.2.7 (exige react 19.2.7) alors que
-  react est en 19.1.0. Corrigé en réalignant `react-dom` sur **19.1.0** (`npx expo install react-dom <autre-pkg>`).
-  Si ça se reproduit, vérifier `react`/`react-dom` avant d'ajouter des paquets.
+- Branche **`feat/masante-p0-socle`**. Avant ce passage, dernier commit poussé : **`1451ce1`** —
+  *feat(pharmacie) : l'officine tient enfin un vrai stock (B3-b)*.
+- **B3-c est VALIDÉ (G5, 2026-09-04) — G4 propriétaire OK, et committé dans ce passage.** 16 fichiers
+  touchés (7 nouveaux, 9 modifiés — détail dans le commit lui-même).
+- Suite Laravel au dernier passage complet (avec B3-c) : **1676 tests / 17 821 assertions / 0
+  échec**.
+- **Aucun secret suivi par git** (vérifié : 0 correspondance sur les `.env`).
+
+### Base de données de développement — à jour, 0 migration `Pending`
+
+Toutes les migrations sont **`Ran`**, y compris les cinq qu'un précédent G2 avait laissées
+`Pending` (consultations, diagnostics, ordonnance_prescripteur, delivrance_ordonnance,
+stock_officine) et la nouvelle de B3-c (`tracabilite_medicaments`) — le G2 live de B3-c les a
+toutes rejouées avant de sauvegarder la base, et la restauration a donc capturé cet état à jour.
+**L'avertissement d'une précédente version de ce fichier ne s'applique plus.**
+
+Si un futur G2 restaure de nouveau une base ancienne et fait réapparaître des migrations
+`Pending`, la commande reste :
+
+```bash
+cd services/api
+XDEBUG_MODE=off "C:/wamp64/bin/php/php8.3.28/php.exe" artisan migrate
+XDEBUG_MODE=off "C:/wamp64/bin/php/php8.3.28/php.exe" artisan db:seed --class=PortailRolesSeeder
+```
+
+Le seeder de rôles est **nécessaire** : une restauration efface aussi les permissions posées par
+l'incrément.
+
+### Environnement — pièges de poste vérifiés
+
+| | |
+|---|---|
+| **PATH Bash cassé** | `export PATH="/usr/bin:/bin:$PATH"` en tête de chaque commande ; git est dans `/c/Program Files/Git/cmd` |
+| **Python** | `/c/Users/HP/AppData/Local/Programs/Python/Python314` (3.14.7) |
+| **PHP** | `C:/wamp64/bin/php/php8.3.28/php.exe`, toujours préfixé `XDEBUG_MODE=off` |
+| **MySQL** | WAMP 8.4.7, base `ivoirsante` |
+| **`Write` écrit en CRLF** | `Edit` préserve les fins de ligne — plusieurs fichiers ont échoué Pint pour cette seule raison |
+| **PHPUnit** | `memory_limit` doit être dans `phpunit.xml` ; un flag `php -d` n'atteint pas le bon processus |
+| **Mesures de durée** | ne jamais chronométrer pendant qu'une autre exécution tourne |
+
+---
+
+## 5. Où en est le lot B3 (Pharmacie), précisément
+
+Le G0 du lot avait relevé **neuf manques**. État :
+
+| Sous-lot | Contenu | État |
+|---|---|---|
+| **B3-a** | Lignes d'ordonnance, jeton de partage, **délivrance** (§7.1, §7.2 partiel) | ✅ **G5, 2026-09-03** |
+| **B3-b** | Fiche officine, **stock réel**, mouvements, seuils (§7.3, §7.5) + renommage | ✅ **G5, 2026-09-03** |
+| **B3-c** | **Code-barres + traçabilité nationale (§7.6)** | ✅ **G5, 2026-09-04** |
+| **B3-d** | Panier, commande, renouvellement | ⚪ à faire — **prochaine étape** |
+
+### Ce que B3-a, B3-b et B3-c ont acquis, et qu'il ne faut pas défaire
+
+- Le pharmacien **ne voit que l'ordonnance**, jamais le dossier : le jeton de partage porté par
+  l'ordonnance remplace une session de dossier. **Le vecteur central du lot est une absence** :
+  servir ne crée **aucune ligne de journal d'accès**, parce qu'aucun accès n'a lieu.
+- Le **stock est une somme**, jamais une colonne ; le **signe est déduit du type** de mouvement ;
+  l'inventaire **alimente** le relevé public sans le doubler.
+- Une **délivrance passe même si l'officine ne tient pas l'article** : refuser priverait un patient
+  de son traitement pour une raison qui ne le concerne pas.
+- Le §7.2 est atteint **aux trois quarts** : authenticité ✅, disponibilité ✅, interactions ✅ (en
+  consultation explicite), **contre-indications ❌ impossibles** — les allergies sont du texte libre
+  chiffré, et une vérification partielle dirait « aucune contre-indication » à un patient qui en a
+  une : **plus dangereux que pas de vérification du tout**.
+- **B3-c referme §7.6** (falsifiés, consommation, statistiques) : chaque médicament peut porter un
+  code-barres (vide tant que personne ne le saisit, et l'absence est comptée) ; chaque délivrance
+  alimente un **registre national dénominalisé** (`traces_dispensation`) qui **survit** à la
+  suppression de l'ordonnance dans le carnet du patient — sans jamais porter de donnée nominative.
+  Un code-barres reconnu **ne prouve jamais l'authenticité**, seulement que le code est connu.
+- **Défaut réel corrigé pendant l'écriture de B3-c, à retenir pour la suite** : ne jamais mettre une
+  clé étrangère `nullOnDelete` sur une colonne d'une table **append-only** — la nullification
+  déclenchée par le moteur à la suppression du parent est elle-même un `UPDATE`, qu'un déclencheur
+  append-only bloquant tout refuse, empêchant la suppression du parent. Toujours un identifiant
+  **sans contrainte** dans ce cas (ADR-042 D1). Détail : ADR-055 §10.10.
+
+---
+
+## 6. Prochaines étapes
+
+### Immédiat — B3-c est clos, place à B3-d
+
+Le G4 du propriétaire est fait, la validation G5 est écrite, le commit est passé dans cette même
+session. **Il n'y a plus rien à faire sur B3-c.** Prochaine étape : B3-d.
+
+### Ensuite — B3-d
+
+Panier, commande et renouvellement côté mobile. Referme les manques **P1** (commandes,
+renouvellements) et **P5**. **Un G0 propre reste entièrement à faire** : *ne pas partir du plan G1
+du lot sans le confronter au code réel* — sur B3-c, le G0 a corrigé **trois** de ses affirmations, et
+sur B3-c encore, un vecteur de **G3** a corrigé une décision du **G1** que le G0 n'avait pas vue
+(la clé étrangère `nullOnDelete` sur `medicament_id` — §5 ci-dessus). Ce schéma se répétera
+probablement : lire le code réel avant de faire confiance à un plan écrit avant lui.
+
+**Rappel du processus à trois fichiers (règle propriétaire du 2026-09-03), à appliquer dès le début
+de B3-d** : décision → `CLAUDE.md` (avant d'écrire une ligne de code) → `plan.md` (un bloc
+`# PLAN n : …`) → exécution → `handoff.md`. B3-c est le premier incrément mené sous cette règle.
+
+### Après le lot B3
+
+Étapes restantes de CDC_11 §12 et dettes nommées avec leur porteur :
+
+- **Migration du portail Blade vers Next.js** — ADR-011 la tranche, ADR-029 en a fait « un module
+  identifié ». **29 zones, 77 vues**, chacune ayant besoin de son API en plus de son écran. C'est
+  là que le design moderne se fera **une fois**, sur le design system partagé.
+- **Référentiel d'allergènes** — verrou de la vérification des contre-indications (§7.2, §5.4).
+- **Élévation de la gouvernance du socle P6.3** — porteur des asymétries « donnée gouvernée, lecture
+  non gouvernée » (`poids_severite` de P10b-3-ii, `code_barres` de B3-c).
+- **Trois CDN subsistent** au portail (`html5-qrcode`, Chart.js ×2) — même défaut que Bootstrap,
+  corrigé en P6.4d pour lui seul.
+- **Contenus de référentiels** — la plupart sont des **jeux de démonstration** honnêtement
+  étiquetés (médicaments, maladies, vaccins, analyses, assurances, numéros d'urgence). Les charger
+  pour de vrai est **de la donnée, zéro code** — mais tant que ce n'est pas fait, **ce ne sont pas
+  des référentiels nationaux**, et les écrans le disent.

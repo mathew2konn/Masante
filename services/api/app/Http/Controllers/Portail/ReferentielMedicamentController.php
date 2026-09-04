@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\InteractionMedicamenteuse;
 use App\Models\Medicament;
 use App\Services\Medicament\AttributeurCodeMedicament;
+use App\Services\Medicament\ServiceCodeBarres;
 use App\Services\Medicament\ServiceInteractions;
 use App\Support\Medicaments;
 use Illuminate\Http\RedirectResponse;
@@ -40,6 +41,7 @@ class ReferentielMedicamentController extends Controller
     public function __construct(
         private readonly AttributeurCodeMedicament $attributeur,
         private readonly ServiceInteractions $interactions,
+        private readonly ServiceCodeBarres $codesBarres,
     ) {
     }
 
@@ -107,10 +109,19 @@ class ReferentielMedicamentController extends Controller
             'ordonnance_requise'   => ['nullable', 'boolean'],
             'disponible_generique' => ['nullable', 'boolean'],
             'cename_reference'     => ['nullable', 'string', 'max:50'],
+            // B3-c (E4) — un EAN/GTIN, saisi par l'agent lui-même : refus NOMMÉ ci-dessous, la
+            // forme brute n'est jamais celle qu'on écrit (la normalisation retire espaces/tirets).
+            'code_barres'          => ['nullable', 'string', 'max:20'],
         ]);
 
         $donnees['ordonnance_requise']   = $request->boolean('ordonnance_requise');
         $donnees['disponible_generique'] = $request->boolean('disponible_generique');
+
+        // Une saisie vide EFFACE le code-barres (le champ est nullable) ; une saisie non vide doit
+        // avoir la forme d'un GTIN — sinon `assertSaisieValide()` refuse en NOMMANT la raison,
+        // contrairement au scan de `ServiceCodeBarres::identifier()`, qui ne bloque jamais (E5).
+        $saisie = trim((string) ($donnees['code_barres'] ?? ''));
+        $donnees['code_barres'] = $saisie === '' ? null : $this->codesBarres->assertSaisieValide($saisie);
 
         $medicament->update($donnees);
 

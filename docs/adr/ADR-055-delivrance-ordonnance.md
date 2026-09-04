@@ -1,6 +1,7 @@
 # ADR-055 — La pharmacie : servir une ordonnance, puis tenir son stock (B3-a, B3-b)
 
-**Statut : Accepté.** **B3-a et B3-b VALIDÉS (G5, 2026-09-03)** — G4 propriétaire OK (B3-b : §9).
+**Statut : Accepté.** **B3-a et B3-b VALIDÉS (G5, 2026-09-03)**, **B3-c VALIDÉ (G5, 2026-09-04)** —
+G4 propriétaire OK (B3-b : §9 ; B3-c : §10). **Lot B3 (Pharmacie) COMPLET (a, b, c).**
 Contexte : CDC_11 §7.1 et §7.2 (étape 7 de §12), CDC_04 §105 · Plan G1 :
 [`docs/PLAN_G1_B3_Pharmacie.md`](../PLAN_G1_B3_Pharmacie.md) · **Lève le report de
 [ADR-054 §9](ADR-054-consultation-acte-de-soin.md)** en nommant le consommateur qui manquait.
@@ -323,3 +324,179 @@ en rayon sort tout seul (stock **25 → 19**, mouvement portant `delivrance_id` 
   (premier périmé, premier sorti) supposerait d'imputer chaque sortie à un lot — non fait, et dit.
 - **La borne « pas de stock négatif » est applicative** : elle dépend d'une somme, qu'un déclencheur
   ne peut pas calculer sans lire la table qu'il garde (erreur 1442, précédent P6.4c).
+
+## 10. B3-c — code-barres et traçabilité nationale (✅ VALIDÉ G5, 2026-09-04)
+
+**Dernier sous-incrément du lot → B3 (Pharmacie) est COMPLET (a, b, c).** Referme **P5** et **P7**
+du G0 du lot (code-barres, traçabilité nationale §7.6).
+
+### 10.1 Le §7.6 tient en une phrase, et c'est le constat qui commande tout
+
+> « Lutte contre les médicaments falsifiés, suivi de consommation, statistiques nationales. »
+
+Trois finalités, aucun mécanisme. Contrairement à tous les incréments précédents où le corpus
+décrivait un cycle, des états, des champs, ici il fallait **concevoir**, pas transcrire — d'où une
+règle de méthode propre à ce lot : *chaque élément livré doit être justifié par celle des trois
+finalités qu'il sert, et ce qui n'en sert aucune n'entre pas*.
+
+### 10.2 Le G0 corrige trois affirmations du plan G1 du lot
+
+- **Une trace locale partielle existait déjà**, et le plan ne le disait pas : `mouvements_stock.
+  delivrance_id` (B3-b) survit à la suppression d'une ordonnance. Mais elle est **conditionnelle**
+  (seulement si l'officine tient l'article) et **locale** (elle cascade vers `medicaments`) : *elle
+  disparaît avec le produit dont elle devait suivre la consommation* — elle ne peut pas devenir le
+  registre national par extension.
+- **`lots_medicaments` ne devait pas être créée** : B3-b a délibérément fait du lot une colonne de
+  `mouvements_stock`. La créer aurait été un second endroit où dire la même chose (refus P6.6a).
+- **Les « statistiques nationales » n'avaient aucun consommateur** : `StatistiqueController::
+  global()` comptait établissements, RDV, triages, avis — rien sur les médicaments.
+
+### 10.3 La décision centrale : le registre ne porte AUCUNE donnée nominative
+
+Ni patient, ni prescripteur, ni ordonnance, ni posologie, ni instructions. C'est ce qui rend sa
+survie acceptable : autrement on aurait construit un dossier médical qui survit à la suppression du
+dossier médical — l'inverse exact de la loi 2013-450. Il porte le **quoi** (identité de produit
+figée), le **combien**, le **quand**, le **où** (officine).
+
+`delivrances` (B3-a) **cascade sur l'ordonnance**, parce que le patient est maître de son carnet ;
+son droit de supprimer ne doit pas être empêché par un besoin statistique. Or le registre national
+doit survivre **exactement à ce que `delivrances` ne survit pas** → deux tables, deux natures :
+`delivrances` est l'**acte**, rattaché au dossier ; `traces_dispensation` est le **fait national**,
+détaché.
+
+La ligne est construite **par liste blanche explicite**, jamais `toArray()` moins quelques clés :
+*une future colonne fuiterait silencieusement dans un registre qu'on croit dénominalisé* (motif
+exact de l'export anonymisant, P10c-3-i).
+
+### 10.4 Dénominalisé n'est pas anonyme, et c'est dit avant de coder
+
+`delivrance_ligne_id` reste un **identifiant sans clé étrangère** (ADR-042 D1) : il sert la
+réconciliation et l'idempotence. Conséquence énoncée : *tant que la délivrance existe, qui tient la
+base peut remonter au patient* ; une fois l'ordonnance supprimée, la trace devient réellement
+orpheline. Même formulation qu'en P10c-2-i.
+
+### 10.5 `code_barres` sur `medicaments`, jamais sur l'article d'officine
+
+Un EAN/GTIN identifie un **produit du fabricant** : deux officines qui vendent la même boîte
+scannent le même code. Il entre dans la projection gouvernée (`SourceMedicaments::extraire()`) —
+*l'empreinte du référentiel change, ce n'est pas une dérive* (précédent `forme_juridique`, P6.4d).
+Il reste **vide** à la naissance, et l'absence est **comptée et affichée** : 5ᵉ application du motif
+`loinc`/CIM/`numero_agrement`.
+
+### 10.6 Ce que le code-barres prouve, et ce qu'il ne prouve pas
+
+Un falsificateur **recopie** un code-barres. Le scan permet de dire « **ce code n'est pas au
+référentiel** » — **jamais** « cette boîte est authentique ». Ce qui prouverait l'authenticité est
+la **sérialisation unitaire**, écartée par le plan G1 (elle suppose un dispositif national).
+
+> *Un écran qui afficherait « authentique » sur la foi d'un EAN mentirait à un pharmacien sur le
+> seul point où cela compte.*
+
+L'écran dit **« connu du référentiel »** ou **« inconnu »**, et un code inconnu **signale sans
+bloquer** — même raisonnement que B3-b : refuser priverait le patient de son traitement.
+
+### 10.7 Le champ de saisie EST le scanner
+
+Un lecteur de codes-barres USB de comptoir **se comporte comme un clavier** : il tape le code puis
+un retour chariot. Un simple champ texte le reçoit, **sans aucune dépendance et sans internet**. La
+caméra reste un confort, jamais le mécanisme — *faire dépendre une fonction de pharmacie d'un CDN
+reproduirait le défaut que K4 de P6.4d a corrigé pour Bootstrap*.
+
+### 10.8 Une dispensation non rattachée au référentiel entre quand même, et se compte
+
+Le lien ordonnance → référentiel est **facultatif** (B3-a) : une ligne servie peut n'avoir aucun
+`medicament_id`. Ne rien écrire rendrait la consommation nationale **fausse en silence** — la panne
+muette que ce projet refuse partout. `medicament_code IS NULL` **est** le marqueur, aucune colonne
+supplémentaire : l'écran de statistiques compte et affiche « N dispensations non rattachées ».
+
+### 10.9 Append-only à deux niveaux, mais PAS une septième chaîne de hachage
+
+L'append-only (modèle + déclencheurs, motif `mouvements_stock`) empêche une officine de réécrire son
+historique. Une septième chaîne d'audit (ADR-042) protégerait contre un **autre** risque (qui tient
+la base), et ADR-042 vient de montrer ce que coûte une chaîne : déclaration d'origine, ancrage de
+tête, procédure de scellement, piège des identifiants pris dans l'empreinte. *On ne durcit pas par
+symétrie décorative* — précédent P6.4a, qui a refusé le journal de non-réutilisation pour les
+établissements.
+
+### 10.10 Défaut trouvé par un VECTEUR de G3, corrigé pendant l'écriture
+
+Le plan prévoyait `medicament_id` en **clé étrangère `nullOnDelete`**, comme sur
+`ordonnance_lignes`. Un vecteur a montré que c'était faux pour ce cas précis : supprimer le
+médicament parent fait exécuter par le moteur un **UPDATE** (mise à NULL) sur la trace, et le
+déclencheur append-only bloquant tout **refuse cette mise à NULL elle-même** — empêchant purement
+et simplement de retirer un produit du référentiel.
+
+Corrigé en `unsignedBigInteger` **sans contrainte**, même famille que `structure_id` et
+`delivrance_ligne_id` dans la même table : un **identifiant**, jamais une relation vivante
+(ADR-042 D1). Les colonnes figées (`medicament_code`/`nom`/`dci`/`dosage`) portent déjà tout ce qui
+doit survivre — un `medicament_id` devenu orphelin après suppression du produit est **inoffensif**,
+il n'est jamais rejoint après coup.
+
+### 10.11 Ce qui a été prouvé
+
+**G3** — **38 vecteurs dédiés** (24 dans `TracabiliteMedicamentsTest`, 14 dans
+`ReglesCodeBarresTest` en isolation totale, `PHPUnit\Framework\TestCase` et non le TestCase Laravel)
+; suite complète **1676/1676, 17 821 assertions, 0 échec**. **Mutation : 7 tueuses + 1 témoin
+volontairement vert** (réordonnancement de deux affectations indépendantes, sans effet observable —
+*un harnais qui ne prévoit que des tueuses ne se teste jamais lui-même*), chaque mutation **assertée
+appliquée**, arbre **restauré et vérifié par `diff`** après chacune. Baseline Pint établie **avant**
+tout formatage : les fichiers modifiés qui échouaient déjà (alignement `=>`) n'ont pas été
+reformatés, seules les violations réellement neuves l'ont été.
+
+**Un vecteur mal choisi, corrigé pendant l'écriture** : le premier test de la garde de longueur GTIN
+utilisait `'123456789'` (9 chiffres) — mais sans la garde de longueur, ce nombre précis échoue quand
+même sur la clé de contrôle, par pure coïncidence. La mutation qui neutralisait la garde ne tuait
+donc rien : *le vecteur prouvait autre chose*. Remplacé par `'963850742'`, construit pour que sa clé
+de contrôle soit cohérente sur ses 8 premiers chiffres — la seule façon d'exercer réellement la
+garde de longueur elle-même.
+
+**G2 live** — base MySQL de développement réelle, sauvegardée puis **restaurée compte pour compte**,
+`php artisan serve` réel, trois comptes de portail réels (un agent référentiel, un pharmacien, un
+compte à `stats.global`), une chaîne HTTP réelle avec session et jeton CSRF.
+
+*Schéma* — colonne `code_barres` sur `medicaments`, table `traces_dispensation` (`medicament_id`
+**sans** contrainte, vérifié directement par `SHOW COLUMNS`), l'unicité `(pays_code, code_barres)`,
+**3 déclencheurs** posés.
+
+*Les gardes du moteur, éprouvées en SQL direct* — `1644` sur `UPDATE`, sur `DELETE`, sur quantité
+nulle, chacun avec son message exact ; `1062` sur un doublon de code-barres dans le même pays.
+
+*Le parcours réel, par le vrai portail* — GTIN à clé fausse → refus **affiché à l'écran**, rien
+enregistré ; GTIN valide → enregistré, **empreinte du référentiel changée** (vérifiée avant/après,
+deux valeurs distinctes) ; scan d'un code connu → produit nommé ; scan d'un code inconnu →
+« inconnu du référentiel », **sans bloquer** ; délivrance réelle de deux lignes (une rattachée, une
+non) → **deux traces**, vérifiées colonne par colonne (`medicament_id`, `medicament_code`,
+`medicament_nom`, `medicament_dci`, `quantite`, `structure_id`, `delivrance_ligne_id`) ; **le
+vecteur central vérifié en réel** : zéro ligne créée dans `acces_dossier` par cette délivrance.
+
+*La suppression réelle de l'ordonnance* — ordonnance et délivrance disparues (cascade réelle),
+**les deux traces restées identiques**, colonne par colonne.
+
+*L'écran de statistiques, par le vrai portail* — consommation par produit exacte, compteur des
+non-rattachées exact, couverture code-barres du référentiel exacte (« 2 / 18 »).
+
+*Restauration* — base restaurée depuis la sauvegarde `mysqldump`, vérifiée par comptage
+(`users`, `medicaments`, `traces_dispensation`, `ordonnances`, `structures`) et par relecture
+directe des deux fiches produit modifiées pendant le G2, revenues à `code_barres NULL`.
+
+Aucune dépendance nouvelle.
+
+### 10.12 Limites
+
+- **La lutte contre les médicaments falsifiés n'est qu'à moitié servie** : on détecte l'inconnu, on
+  ne prouve pas l'authentique (§10.6). La sérialisation unitaire suppose un dispositif national.
+- **Aucun code-barres réel** : la colonne naît vide, et c'est compté et affiché. Les charger est de
+  la donnée, zéro code — et tant que ce n'est pas fait, le scan ne reconnaît rien.
+- **Aucun scan mobile** : dépendance §2.6, non demandée.
+- **La caméra du portail reste sur un CDN** (`html5-qrcode`) — B3-c ne la corrige pas, il **ne s'y
+  appuie pas** (§10.7). La limite de P6.4d reste ouverte, avec son porteur.
+- **Pas de lot sur la trace** : le stock de B3-b n'est pas suivi lot par lot → un rappel de lot
+  national n'est pas réalisable, et le dire vaut mieux que le suggérer.
+- **Dénominalisé, pas anonyme** (§10.4).
+- **Asymétrie gouvernance / lecture** : `code_barres` entre dans la projection gouvernée, mais le
+  scan lit la table (une colonne neuve n'est dans aucune version publiée ; tout le domaine
+  pharmacie lit déjà la table ; un refus bruyant devant un comptoir bloquerait une dispensation).
+  Même famille que `poids_severite` en P10b-3-ii — porteur : l'élévation de la gouvernance du socle
+  P6.3, déjà nommée par P10b-3-ii (*une dette sans porteur ne se fait jamais*, leçon L1+L2).
+- **`disponibilité des médicaments` du §8.5** (portail Ministère) reste hors périmètre : c'est une
+  autre section du corpus, et B3-c sert le §7.6.
