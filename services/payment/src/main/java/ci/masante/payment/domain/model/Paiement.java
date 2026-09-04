@@ -175,13 +175,32 @@ public class Paiement {
      *
      * <p>La garde {@code statut != nouveau} est le garde-fou de la répétition : repasser un paiement
      * dans l'état qu'il occupe déjà n'est pas un fait nouveau et ne doit rien annoncer.</p>
+     *
+     * <p>Délègue à {@link #setStatut(PaiementStatut, Long)} avec des frais inconnus : c'est la forme
+     * qu'emploient les canaux qui n'ont aucune notion de frais de passerelle (mobile money, carte).</p>
      */
     public void setStatut(PaiementStatut statut) {
+        setStatut(statut, null);
+    }
+
+    /**
+     * Variante portant les frais de passerelle connus AU MOMENT de la transition (B4, GeniusPay,
+     * ADR-056/S3). Seul le canal qui les connaît les fournit ; {@code null} quand ils ne sont pas
+     * encore connus — jamais {@code 0} en devinant, c'est au consommateur de l'événement de décider
+     * comment afficher une absence, pas à l'agrégat de la maquiller en valeur.
+     *
+     * <p>{@code etablissementRef} et {@code factureId} viennent toujours de CET agrégat, jamais d'un
+     * paramètre : ils ont été fixés à la construction (le premier) ou par un appelant qui connaît la
+     * facture soldée (le second), et il n'y a aucune raison qu'un appelant de {@code setStatut} en
+     * connaisse une version différente.</p>
+     */
+    public void setStatut(PaiementStatut statut, Long fraisPasserelle) {
         boolean transitionReelle = this.statut != statut;
         this.statut = statut;
         if (transitionReelle && statut != null && statut.estTerminal()) {
             evenements.add(new TransitionTerminaleEvenement(
-                    id, correlationId, montant, devise, statut, Instant.now()));
+                    id, correlationId, montant, devise, statut, Instant.now(),
+                    etablissementRef, factureId, fraisPasserelle, canal));
         }
     }
 

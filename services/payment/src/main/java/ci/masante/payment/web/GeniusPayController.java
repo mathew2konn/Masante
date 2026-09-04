@@ -106,6 +106,31 @@ public class GeniusPayController {
     }
 
     /**
+     * L'établissement peut-il encaisser en ligne ? (B4, S7, ADR-056). Répond « configuré : oui/non »,
+     * jamais les clés — le contrôleur ne les cite déjà nulle part, et {@code estConfigure} ne les lit
+     * même pas.
+     *
+     * <p><b>C'est la réponse à cette question qui vit ici, et nulle part ailleurs</b> : Laravel
+     * l'interroge et met la réponse en cache quelques minutes (un cache, pas une copie — il se périme
+     * seul et n'est jamais la source). Recopier la liste des marchands côté Laravel produirait deux
+     * réponses possibles à la même question, divergeant le jour où l'une est mise à jour sans
+     * l'autre.</p>
+     */
+    @GetMapping("/marchands/{etablissementRef}")
+    @Operation(summary = "L'établissement est-il configuré pour encaisser en ligne ?")
+    public ResponseEntity<Map<String, Object>> marchandConfigure(
+            @RequestHeader("X-Principal") String xPrincipal,
+            @RequestHeader("X-Principal-Sig") String xSig,
+            @PathVariable String etablissementRef,
+            HttpServletRequest requete) {
+        exiger(xPrincipal, xSig, requete);
+        Map<String, Object> vue = new LinkedHashMap<>();
+        vue.put("etablissementRef", etablissementRef);
+        vue.put("configure", marchands.estConfigure(etablissementRef));
+        return ResponseEntity.ok(vue);
+    }
+
+    /**
      * Dépose le secret webhook d'un établissement. Il n'est renvoyé par le prestataire qu'à la
      * création du webhook, une seule fois : c'est pour cela qu'il entre par un appel dédié plutôt que
      * d'être supposé connu.

@@ -240,7 +240,7 @@ public class ServiceReconciliationGeniusPay {
                     facturation.enregistrerReglement(transaction.getFactureId(), paiement.getMontant());
                 }
             }
-            paiement.setStatut(vise);
+            paiement.setStatut(vise, transaction.getFraisPasserelle());
             paiements.save(paiement);
         }
     }

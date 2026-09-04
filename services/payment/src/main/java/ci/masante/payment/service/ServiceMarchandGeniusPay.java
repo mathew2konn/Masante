@@ -55,6 +55,26 @@ public class ServiceMarchandGeniusPay {
         return marchand;
     }
 
+    /**
+     * L'établissement peut-il encaisser en ligne AUJOURD'HUI ? (B4, S7, ADR-056).
+     *
+     * <p>Deux conditions, les deux réelles : un compte marchand actif chez ce prestataire, ET un
+     * secret webhook déposé — sans lui, un paiement resterait bloqué en attente de confirmation, le
+     * webhook du prestataire étant rejeté à la vérification de signature (§8.4). « configuré » veut
+     * dire « capable d'aller jusqu'au bout », pas seulement « une ligne existe ».</p>
+     *
+     * <p><b>Ne renvoie JAMAIS les clés</b> — cette méthode répond à une question booléenne, elle ne
+     * lit les secrets d'aucune façon (contrairement à {@code GestionnaireSecretsMarchand}, jamais
+     * appelé ici). C'est ce qui rend l'endpoint {@code GET /marchands/{ref}} sûr à exposer à Laravel :
+     * il n'y a rien à fuir dans la réponse par construction, pas seulement par discipline d'écriture.</p>
+     */
+    @Transactional(readOnly = true)
+    public boolean estConfigure(String etablissementRef) {
+        return marchands.findByEtablissementRefAndPspAndActifIsTrue(etablissementRef, AdaptateurGeniusPay.PSP)
+                .map(IdentifiantMarchand::aUnSecretWebhook)
+                .orElse(false);
+    }
+
     @Transactional
     public void deposerSecretWebhook(String etablissementRef, String secretWebhook) {
         IdentifiantMarchand marchand = marchands

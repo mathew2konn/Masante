@@ -24,6 +24,12 @@ use RuntimeException;
  * reconstitution locale du type « 100 F + 1 % ». Reconstituer produirait des écarts au franc que
  * personne ne saurait expliquer, et casserait précisément le reçu ci-dessus.
  *
+ * `frais_connus` (B4, ADR-056, S3) — FAUX quand `frais_passerelle`/`frais_prestataire` valent 0 par
+ * défaut de connaissance et non par constat réel (le canal GeniusPay ne les porte pas toujours au
+ * moment de la transition, dette P5.6b). Distingue « le prestataire n'a rien pris » de « nous ne
+ * savons pas encore ce qu'il a pris » — l'égalité du reçu transparent reste vraie dans les deux cas,
+ * mais un `montant_net_structure` calculé avec des frais inconnus peut être SURESTIMÉ.
+ *
  * ═══ `reference_interne_paiement` PORTE L'IDEMPOTENCE ═══
  * C'est la clé transmise par le microservice Java (`MS-{structure}-{ULID}`). Sa contrainte UNIQUE
  * en base est le garde-fou : un webhook rejoué, une relance réseau ou un renvoi du prestataire ne
@@ -46,6 +52,7 @@ class CommissionTransaction extends Model
         'montant_brut',
         'frais_passerelle',
         'frais_prestataire',
+        'frais_connus',
         'taux_bps_applique',
         'volume_cumule_au_calcul',
         'montant_commission',
@@ -61,6 +68,7 @@ class CommissionTransaction extends Model
             'montant_brut' => 'integer',
             'frais_passerelle' => 'integer',
             'frais_prestataire' => 'integer',
+            'frais_connus' => 'boolean',
             'taux_bps_applique' => 'integer',
             'volume_cumule_au_calcul' => 'integer',
             'montant_commission' => 'integer',

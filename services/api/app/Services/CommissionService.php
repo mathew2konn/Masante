@@ -21,6 +21,13 @@ use RuntimeException;
  * microservice Java. `frais_passerelle` et `frais_prestataire` sont des PARAMÈTRES D'ENTRÉE,
  * jamais recalculés ni estimés (R4) — ils viennent du microservice de paiement.
  *
+ * `fraisConnus` (B4, ADR-056, S3, ADDITIF — jamais requis) — optionnel, `true` par défaut : c'est
+ * le comportement de TOUS les appelants antérieurs à B4, qui fournissaient toujours des frais
+ * réels. Le seul appelant qui le passe explicitement à `false` est
+ * `PaiementNotificationController`, quand le canal GeniusPay ne connaît pas encore les frais au
+ * moment de la transition — la commission est alors calculée avec des frais à 0 EXPLICITE plutôt
+ * que refusée, et la ligne le dit (`frais_connus`) plutôt que de laisser croire qu'ils valaient 0.
+ *
  * ═══ IDEMPOTENCE EN PREMIER GESTE ═══
  * `reference_interne_paiement` est la clé transmise par le microservice Java. Un même appel rejoué
  * (notification renvoyée, relance réseau) doit retourner la ligne déjà écrite SANS la toucher —
@@ -47,6 +54,7 @@ class CommissionService
         $facturePatientId = $donnees['facturePatientId'] ?? null;
         $referenceGeniuspay = $donnees['referenceGeniuspay'] ?? null;
         $dateTransaction = $this->dateObligatoire($donnees, 'dateTransaction');
+        $fraisConnus = $donnees['fraisConnus'] ?? true;
 
         if ($montantBrut <= 0) {
             throw new InvalidArgumentException('montantBrut doit être strictement positif.');
@@ -105,6 +113,7 @@ class CommissionService
             'montant_brut' => $montantBrut,
             'frais_passerelle' => $fraisPasserelle,
             'frais_prestataire' => $fraisPrestataire,
+            'frais_connus' => (bool) $fraisConnus,
             'taux_bps_applique' => $tauxBpsApplique,
             'volume_cumule_au_calcul' => $volumeCumule,
             'montant_commission' => $montantCommission,

@@ -362,8 +362,10 @@ public class ServiceWebhookGeniusPay {
                 }
             }
             // setStatut est le point d'accroche unique du canal interne (lot 6) : la notification au
-            // partenaire part d'ici, au save(), sans une ligne de code de plus.
-            paiement.setStatut(vise);
+            // partenaire part d'ici, au save(), sans une ligne de code de plus. Les frais de la
+            // TRANSACTION (pas ceux, éventuellement absents, du webhook courant) : le webhook qui a
+            // fait passer le paiement à SUCCESS n'est pas forcément celui qui portait "fees" (R4).
+            paiement.setStatut(vise, transaction.getFraisPasserelle());
             paiements.save(paiement);
         }
 

@@ -23,10 +23,14 @@ use Tests\TestCase;
  * documenté dans `paiement.ts`, pas seulement ce que produirait notre propre signeur — un bug
  * partagé entre les deux ne serait sinon jamais vu.
  *
- * CE QUE CETTE SUITE PROUVE EN PLUS DE LA v1 : que l'endpoint ne déclenche RIEN. Le vecteur n°3
- * envoie un payload qui, dans la v1, créait une commission et passait la facture à PAYEE ; il exige
- * désormais l'inverse. Il échouerait sur l'ancienne implémentation — c'est ce qui en fait un vecteur
- * et non une formalité.
+ * ═══ CORRECTION DU 2026-09-04 (B4, ADR-056) ═══
+ * Cette suite affirmait jusqu'ici que l'endpoint « ne déclenche RIEN » — vrai en v2 initiale, faux
+ * depuis B4 : Laravel devient émetteur (canal GeniusPay) et l'endpoint calcule DÉSORMAIS une
+ * commission, mais SEULEMENT quand `canal === 'geniuspay'` ET `statut === 'SUCCESS'` ET
+ * `etablissementRef` se résout à une structure réelle. Le test n°3, historique, prouvait que
+ * l'ancien payload v1 (`statut: 'REUSSIE'`, sans `canal`) ne déclenche RIEN — ce qui reste vrai et
+ * illustre la garde, mais ne suffit plus à décrire tout le contrat. Les vecteurs B4 (fin de fichier)
+ * prouvent le déclenchement RÉEL, et ses refus, chacun par son motif.
  */
 class CanalInternePaiementTest extends TestCase
 {
@@ -133,9 +137,9 @@ class CanalInternePaiementTest extends TestCase
             ->assertJsonMissingPath('motif');
     }
 
-    // ── 3. Aucun appel à CommissionService, et aucun effet de bord observable ───────────────
+    // ── 3. Un payload à l'ANCIEN vocabulaire (v1) ne déclenche toujours rien ────────────────
 
-    public function test_aucun_appel_a_commission_service(): void
+    public function test_payload_ancien_vocabulaire_sans_canal_ne_declenche_aucune_commission(): void
     {
         // Barèmes présents : si l'endpoint appelait le service, le calcul aboutirait vraiment —
         // l'absence de commission ne pourrait donc pas être mise sur le compte d'un barème manquant.
@@ -147,8 +151,10 @@ class CanalInternePaiementTest extends TestCase
 
         $facture = $this->factureARegler($this->structure());
 
-        // Payload de l'ANCIEN contrat (v1) : succès + facture identifiable + frais non nuls. La v1
-        // créait ici une commission et passait la facture à PAYEE. Le contrat v2 les ignore.
+        // Payload de l'ANCIEN contrat (v1) : statut au vocabulaire français, AUCUN `canal` — la
+        // v1 créait ici une commission et passait la facture à PAYEE. Le contrat v2/B4 les ignore
+        // TOUJOURS : `statut` n'est jamais `SUCCESS` (le vrai vocabulaire) ET `canal` est absent, donc
+        // aucune des deux conditions du déclenchement B4 n'est réunie.
         $this->withHeaders($this->entetesSignees())
             ->postJson(self::ENDPOINT, $this->payload('REUSSIE', [
                 'facturePatientId' => $facture->id,
@@ -162,7 +168,7 @@ class CanalInternePaiementTest extends TestCase
         $this->assertSame(
             StatutFacturePatient::A_REGLER,
             $facture->fresh()->statut,
-            'Ce lot transporte : il ne touche à aucun état métier.'
+            'Ce lot transporte : il ne touche à aucun état métier de facture.'
         );
     }
 
@@ -212,5 +218,166 @@ class CanalInternePaiementTest extends TestCase
         $claims = json_decode(base64_decode($principalB64, true), true);
         $this->assertSame(self::CHEMIN_SIGNE, $claims['path']);
         $this->assertSame('POST', $claims['method']);
+    }
+
+    // ── B4 (ADR-056, 2026-09-04) — le déclenchement RÉEL de la commission ──────────────────
+
+    private function structureAvecIdentifiant(string $identifiant, string $pays = 'CI'): StructureSanitaire
+    {
+        $structure = StructureSanitaire::create([
+            'nom' => 'Structure de test '.uniqid(), 'type' => 'pharmacie', 'adresse' => 'Abidjan',
+            'commune' => 'Cocody', 'latitude' => 5.35, 'longitude' => -3.98, 'actif' => true,
+        ]);
+        $structure->forceFill(['identifiant_national' => $identifiant, 'pays_code' => $pays])->save();
+
+        return $structure;
+    }
+
+    /** Payload B4 : vocabulaire RÉEL (`SUCCESS`), `canal` et `etablissementRef` présents. */
+    private function payloadGeniusPay(array $extra = []): array
+    {
+        return $this->payload('SUCCESS', array_merge([
+            'paiementId' => (string) Str::uuid(),
+            'canal' => 'geniuspay',
+            'etablissementRef' => 'CI-ETS900001',
+        ], $extra));
+    }
+
+    public function test_succes_geniuspay_etablissement_resolu_declenche_une_commission(): void
+    {
+        $this->seed(BaremesCommissionSeeder::class);
+        $structure = $this->structureAvecIdentifiant('ETS900001');
+
+        $this->withHeaders($this->entetesSignees())
+            ->postJson(self::ENDPOINT, $this->payloadGeniusPay([
+                'montant' => 10000,
+                'fraisPasserelle' => 100,
+                'fraisPrestataire' => 200,
+            ]))
+            ->assertOk();
+
+        $this->assertSame(1, CommissionTransaction::query()->count());
+        $commission = CommissionTransaction::sole();
+        $this->assertSame($structure->id, $commission->structure_sanitaire_id);
+        $this->assertSame(10000, $commission->montant_brut);
+        $this->assertSame(250, $commission->taux_bps_applique, 'Volume 0 => palier 1 (250 bps).');
+        $this->assertTrue($commission->frais_connus);
+    }
+
+    public function test_succes_carte_meme_avec_etablissement_ne_declenche_aucune_commission(): void
+    {
+        // LE VECTEUR CENTRAL DE LA CORRECTION : trouvé en implémentant, pas au G1. La carte porte
+        // ELLE AUSSI un etablissementRef (ServiceCarte, Java) — seul le canal doit décider.
+        $this->seed(BaremesCommissionSeeder::class);
+        $this->structureAvecIdentifiant('ETS900002');
+
+        $this->withHeaders($this->entetesSignees())
+            ->postJson(self::ENDPOINT, $this->payload('SUCCESS', [
+                'paiementId' => (string) Str::uuid(),
+                'canal' => 'carte',
+                'etablissementRef' => 'CI-ETS900002',
+                'montant' => 10000,
+            ]))
+            ->assertOk();
+
+        $this->assertSame(
+            0,
+            CommissionTransaction::query()->count(),
+            "Aucune politique de commission n'a jamais été décidée pour le canal carte."
+        );
+    }
+
+    public function test_succes_mobile_money_ne_declenche_aucune_commission(): void
+    {
+        $this->seed(BaremesCommissionSeeder::class);
+        $this->structureAvecIdentifiant('ETS900003');
+
+        $this->withHeaders($this->entetesSignees())
+            ->postJson(self::ENDPOINT, $this->payload('SUCCESS', [
+                'paiementId' => (string) Str::uuid(),
+                'canal' => 'orange_money',
+                'etablissementRef' => 'CI-ETS900003',
+                'montant' => 10000,
+            ]))
+            ->assertOk();
+
+        $this->assertSame(0, CommissionTransaction::query()->count());
+    }
+
+    public function test_etablissement_ref_inconnu_ne_declenche_rien_et_journalise(): void
+    {
+        $this->seed(BaremesCommissionSeeder::class);
+        Log::spy();
+
+        $this->withHeaders($this->entetesSignees())
+            ->postJson(self::ENDPOINT, $this->payloadGeniusPay(['etablissementRef' => 'CI-ETS999999']))
+            ->assertOk();
+
+        $this->assertSame(0, CommissionTransaction::query()->count());
+        Log::shouldHaveReceived('error')
+            ->withArgs(fn (string $m, array $c) => str_contains($m, 'etablissementRef inconnu')
+                && ($c['etablissementRef'] ?? null) === 'CI-ETS999999')
+            ->once();
+    }
+
+    public function test_echec_geniuspay_ne_declenche_aucune_commission(): void
+    {
+        $this->seed(BaremesCommissionSeeder::class);
+        $this->structureAvecIdentifiant('ETS900004');
+
+        $this->withHeaders($this->entetesSignees())
+            ->postJson(self::ENDPOINT, $this->payload('FAILED', [
+                'paiementId' => (string) Str::uuid(),
+                'canal' => 'geniuspay',
+                'etablissementRef' => 'CI-ETS900004',
+                'montant' => 10000,
+            ]))
+            ->assertOk();
+
+        $this->assertSame(0, CommissionTransaction::query()->count());
+    }
+
+    public function test_frais_inconnus_commission_calculee_a_zero_et_la_ligne_le_dit(): void
+    {
+        // Décision du propriétaire (2026-09-04) : calculer plutôt que refuser, mais jamais laisser
+        // croire que 0 était une valeur connue.
+        $this->seed(BaremesCommissionSeeder::class);
+        $this->structureAvecIdentifiant('ETS900005');
+
+        $this->withHeaders($this->entetesSignees())
+            ->postJson(self::ENDPOINT, $this->payloadGeniusPay([
+                'etablissementRef' => 'CI-ETS900005',
+                'montant' => 10000,
+                'fraisPasserelle' => null,
+            ]))
+            ->assertOk();
+
+        $commission = CommissionTransaction::sole();
+        $this->assertSame(0, $commission->frais_passerelle);
+        $this->assertFalse($commission->frais_connus);
+        $this->assertSame(250, $commission->montant_commission, 'La commission se calcule quand même.');
+    }
+
+    public function test_rejeu_de_la_meme_notification_ne_cree_pas_une_seconde_commission(): void
+    {
+        $this->seed(BaremesCommissionSeeder::class);
+        $this->structureAvecIdentifiant('ETS900006');
+        $paiementId = (string) Str::uuid();
+
+        $payload = $this->payload('SUCCESS', [
+            'paiementId' => $paiementId,
+            'canal' => 'geniuspay',
+            'etablissementRef' => 'CI-ETS900006',
+            'montant' => 10000,
+        ]);
+
+        $this->withHeaders($this->entetesSignees())->postJson(self::ENDPOINT, $payload)->assertOk();
+        // Second envoi : même paiementId, montant totalement différent. S'il était recalculé, la
+        // ligne changerait — c'est l'idempotence de CommissionService (clé) qui protège ici.
+        $rejeu = array_merge($payload, ['montant' => 999999]);
+        $this->withHeaders($this->entetesSignees())->postJson(self::ENDPOINT, $rejeu)->assertOk();
+
+        $this->assertSame(1, CommissionTransaction::query()->count());
+        $this->assertSame(10000, CommissionTransaction::sole()->montant_brut, 'Aucun recalcul au rejeu.');
     }
 }

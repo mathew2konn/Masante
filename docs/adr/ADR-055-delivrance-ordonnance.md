@@ -1,7 +1,7 @@
 # ADR-055 — La pharmacie : servir une ordonnance, puis tenir son stock (B3-a, B3-b)
 
 **Statut : Accepté.** **B3-a et B3-b VALIDÉS (G5, 2026-09-03)**, **B3-c VALIDÉ (G5, 2026-09-04)** —
-G4 propriétaire OK (B3-b : §9 ; B3-c : §10). **Lot B3 (Pharmacie) COMPLET (a, b, c).**
+G4 propriétaire OK (B3-b : §9 ; B3-c : §10). **CDC_11 §7 (Application Pharmacien) COMPLET (a, b, c)** — **B3-d** (panier et commande, §9.5/§10.5) reste à livrer.
 Contexte : CDC_11 §7.1 et §7.2 (étape 7 de §12), CDC_04 §105 · Plan G1 :
 [`docs/PLAN_G1_B3_Pharmacie.md`](../PLAN_G1_B3_Pharmacie.md) · **Lève le report de
 [ADR-054 §9](ADR-054-consultation-acte-de-soin.md)** en nommant le consommateur qui manquait.
@@ -327,8 +327,12 @@ en rayon sort tout seul (stock **25 → 19**, mouvement portant `delivrance_id` 
 
 ## 10. B3-c — code-barres et traçabilité nationale (✅ VALIDÉ G5, 2026-09-04)
 
-**Dernier sous-incrément du lot → B3 (Pharmacie) est COMPLET (a, b, c).** Referme **P5** et **P7**
-du G0 du lot (code-barres, traçabilité nationale §7.6).
+**Troisième sous-incrément du lot → le §7 (Application Pharmacien) est COMPLET (a, b, c).** Referme
+**P5** et **P7** du G0 du lot (code-barres, traçabilité nationale §7.6).
+
+> **Rectification du 2026-09-04** : cette section a d'abord annoncé « dernier sous-incrément du lot ».
+> C'était faux — le découpage annoncé en §D7 du plan de lot est **a/b/c/d**, et **B3-d** (panier et
+> commande, §9.5/§10.5) reste à livrer. Ce qui est achevé ici est le **§7**, pas le lot.
 
 ### 10.1 Le §7.6 tient en une phrase, et c'est le constat qui commande tout
 

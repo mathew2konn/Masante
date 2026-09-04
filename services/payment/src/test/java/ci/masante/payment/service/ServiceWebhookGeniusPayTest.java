@@ -8,7 +8,9 @@ import ci.masante.payment.domain.model.GeniusPayTransaction;
 import ci.masante.payment.domain.model.IdentifiantMarchand;
 import ci.masante.payment.domain.model.ObjetPaiement;
 import ci.masante.payment.domain.model.Paiement;
+import ci.masante.payment.domain.model.PaiementStatut;
 import ci.masante.payment.domain.model.StatutGeniusPay;
+import ci.masante.payment.domain.model.TransitionTerminaleEvenement;
 import ci.masante.payment.repository.CarteEvenementWebhookRepository;
 import ci.masante.payment.repository.GeniusPayTransactionRepository;
 import ci.masante.payment.repository.IdentifiantMarchandRepository;
@@ -24,6 +26,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
@@ -57,6 +60,7 @@ class ServiceWebhookGeniusPayTest {
     private GeniusPayTransactionRepository transactions;
     private PaiementRepository paiements;
     private GeniusPayTransaction transactionCourante;
+    private Paiement paiementCourant;
     private ServiceWebhookGeniusPay service;
 
     @BeforeEach
@@ -278,7 +282,15 @@ class ServiceWebhookGeniusPayTest {
         Paiement paiement = new Paiement("idem-montant", "CORR", 15000, "XOF",
                 AdaptateurGeniusPay.CANAL, ObjetPaiement.FACTURE, null, "ETS-042", "PAT-1");
         ReflectionTestUtils.setField(paiement, "id", paiementId);
+        // Un paiement RÉEL est déjà PENDING avant qu'un webhook n'arrive (ServiceGeniusPay#executer
+        // le pose à l'ouverture du checkout) — INITIATED → SUCCESS n'est PAS une transition permise
+        // par MachineEtatsPaiement. Sans ce pas, `appliquer()` refuse silencieusement la transition
+        // du paiement (mais termine quand même l'événement webhook en TRAITE), et aucun événement de
+        // domaine ne part jamais — trouvé par les vecteurs B4 qui lisent `evenements()`, invisible
+        // aux vecteurs plus anciens qui ne vérifient que `evenement.getStatutTraitement()`.
+        paiement.setStatut(PaiementStatut.PENDING);
         when(paiements.findById(paiementId)).thenReturn(Optional.of(paiement));
+        paiementCourant = paiement;
         return evenement;
     }
 
@@ -343,5 +355,66 @@ class ServiceWebhookGeniusPayTest {
 
         assertThat(evenement.getStatutTraitement()).isEqualTo("ERREUR");
         assertThat(evenement.getMotifRejet()).contains("14000").contains("15000");
+    }
+
+    // ── B4 (S1/S2/S3, ADR-056) — l'événement terminal porte etablissementRef/factureId/frais ──────
+
+    /**
+     * {@code Paiement#evenements()} est package-private (paquet {@code domain.model}) : cette suite
+     * vit dans {@code service}, donc hors de portée directe — même motif que les autres accès déjà
+     * faits par réflexion dans ce fichier ({@code ReflectionTestUtils.setField}).
+     */
+    @SuppressWarnings("unchecked")
+    private List<TransitionTerminaleEvenement> evenementsDuPaiement() {
+        List<Object> bruts = (List<Object>) ReflectionTestUtils.getField(paiementCourant, "evenements");
+        return bruts.stream().map(TransitionTerminaleEvenement.class::cast).toList();
+    }
+
+    @Test
+    @DisplayName("Les frais du webhook (\"fees\") sont recopiés sur la transaction ET l'événement terminal")
+    void frais_connus_recopies_sur_transaction_et_evenement() {
+        String corps = "{\"id\":\"evt-montant\",\"event\":\"payment.success\",\"environment\":\"sandbox\","
+                + "\"data\":{\"reference\":\"SANDBOX_ABC\",\"amount\":\"15000.00\",\"fees\":250.00,"
+                + "\"metadata\":{\"order_id\":\"MS-ETS042-01K\"}}}";
+        CarteEvenementWebhook evenement = evenementPret(corps);
+
+        service.appliquer(evenement.getId());
+
+        assertThat(transactionCourante.getFraisPasserelle()).isEqualTo(250L);
+        List<TransitionTerminaleEvenement> evenements = evenementsDuPaiement();
+        assertThat(evenements).hasSize(1);
+        assertThat(evenements.get(0).fraisPasserelle()).isEqualTo(250L);
+        assertThat(evenements.get(0).etablissementRef()).isEqualTo("ETS-042");
+    }
+
+    @Test
+    @DisplayName("Frais absents du webhook (cas nominal, dette R4) → NULL sur la transaction ET l'événement, jamais 0")
+    void frais_absents_restent_nuls_jamais_zero() {
+        CarteEvenementWebhook evenement = evenementPret(corpsAvecMontant("\"15000.00\""));
+
+        service.appliquer(evenement.getId());
+
+        assertThat(transactionCourante.getFraisPasserelle()).isNull();
+        assertThat(evenementsDuPaiement().get(0).fraisPasserelle()).isNull();
+    }
+
+    @Test
+    @DisplayName("etablissementRef de l'agrégat porté par l'événement terminal, jamais deviné")
+    void etablissement_ref_porte_par_evenement_terminal() {
+        CarteEvenementWebhook evenement = evenementPret(corpsAvecMontant("\"15000.00\""));
+
+        service.appliquer(evenement.getId());
+
+        assertThat(evenementsDuPaiement().get(0).etablissementRef()).isEqualTo("ETS-042");
+    }
+
+    @Test
+    @DisplayName("Le canal de l'événement terminal est \"geniuspay\" — c'est lui que Laravel filtrera")
+    void canal_geniuspay_porte_par_evenement_terminal() {
+        CarteEvenementWebhook evenement = evenementPret(corpsAvecMontant("\"15000.00\""));
+
+        service.appliquer(evenement.getId());
+
+        assertThat(evenementsDuPaiement().get(0).canal()).isEqualTo(AdaptateurGeniusPay.CANAL);
     }
 }

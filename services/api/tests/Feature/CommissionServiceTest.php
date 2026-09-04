@@ -323,4 +323,49 @@ class CommissionServiceTest extends TestCase
         $this->assertSame(254000, $suivante->volume_cumule_au_calcul);
         $this->assertSame(200, $suivante->taux_bps_applique);
     }
+
+    // ── 9. B4 (S3, 2026-09-04) : `frais_connus` — additif, jamais requis ─────────────────────
+
+    public function test_frais_connus_vaut_vrai_par_defaut_comportement_inchange(): void
+    {
+        $this->seed(BaremesCommissionSeeder::class);
+        $structure = $this->structure();
+
+        // Aucun appelant antérieur à B4 ne fournit `fraisConnus` — le défaut doit préserver leur
+        // comportement à l'identique.
+        $commission = $this->service()->calculerEtEnregistrer([
+            'structureSanitaireId' => $structure->id,
+            'montantBrut' => 10000,
+            'fraisPasserelle' => 50,
+            'fraisPrestataire' => 100,
+            'referenceInternePaiement' => 'MS-FRAISCONNUS-DEFAUT-'.uniqid(),
+            'dateTransaction' => now(),
+            'regleEnLigne' => true,
+        ]);
+
+        $this->assertTrue($commission->frais_connus);
+    }
+
+    public function test_frais_connus_faux_quand_explicitement_fourni_a_zero_par_ignorance(): void
+    {
+        $this->seed(BaremesCommissionSeeder::class);
+        $structure = $this->structure();
+
+        // C'est le cas GeniusPay (PaiementNotificationController) : frais à 0 parce qu'inconnus,
+        // pas parce que nuls. La commission reste calculée normalement — seule la ligne change.
+        $commission = $this->service()->calculerEtEnregistrer([
+            'structureSanitaireId' => $structure->id,
+            'montantBrut' => 10000,
+            'fraisPasserelle' => 0,
+            'fraisPrestataire' => 0,
+            'fraisConnus' => false,
+            'referenceInternePaiement' => 'MS-FRAISCONNUS-FAUX-'.uniqid(),
+            'dateTransaction' => now(),
+            'regleEnLigne' => true,
+        ]);
+
+        $this->assertFalse($commission->frais_connus);
+        $this->assertSame(250, $commission->taux_bps_applique, 'La commission se calcule quand même.');
+        $this->assertSame(250, $commission->montant_commission);
+    }
 }

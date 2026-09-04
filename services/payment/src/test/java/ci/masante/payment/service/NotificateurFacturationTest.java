@@ -40,10 +40,25 @@ class NotificateurFacturationTest {
         notificateur = new NotificateurFacturation(notifications);
     }
 
+    private static final UUID FACTURE = UUID.randomUUID();
+
     @SuppressWarnings("unchecked")
     private Map<String, Object> chargeEmise(PaiementStatut statut) {
+        return chargeEmise(statut, "CI-ETS000001", FACTURE, 250L, "geniuspay");
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> chargeEmise(PaiementStatut statut, String etablissementRef,
+                                            UUID factureId, Long fraisPasserelle) {
+        return chargeEmise(statut, etablissementRef, factureId, fraisPasserelle, "geniuspay");
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> chargeEmise(PaiementStatut statut, String etablissementRef,
+                                            UUID factureId, Long fraisPasserelle, String canal) {
         notificateur.surTransitionTerminale(new TransitionTerminaleEvenement(
-                PAIEMENT, "CORR-42", 15000, "XOF", statut, QUAND));
+                PAIEMENT, "CORR-42", 15000, "XOF", statut, QUAND,
+                etablissementRef, factureId, fraisPasserelle, canal));
 
         ArgumentCaptor<Map<String, Object>> charge = ArgumentCaptor.forClass(Map.class);
         verify(notifications).emettre(
@@ -63,6 +78,7 @@ class NotificateurFacturationTest {
     void test_notification_ecrite_dans_outbox_avec_bon_type_sur_transition_terminale() {
         Map<String, Object> charge = chargeEmise(PaiementStatut.SUCCESS);
 
+        assertThat(charge.get("paiementId")).isEqualTo(PAIEMENT.toString());
         assertThat(charge.get("correlationId")).isEqualTo("CORR-42");
         assertThat(charge.get("montant")).isEqualTo(15000L);
         assertThat(charge.get("devise")).isEqualTo("XOF");
@@ -77,35 +93,98 @@ class NotificateurFacturationTest {
         assertThat(chargeEmise(PaiementStatut.FAILED).get("statut")).isEqualTo("FAILED");
     }
 
-    // ── 3. Frais toujours à zéro, explicites ────────────────────────────────────────────────
+    // ── 3. Frais — B4/S3 (2026-09-04) : réels quand connus, NULL sinon, jamais 0 par défaut ────
 
     @Test
-    @DisplayName("Frais à 0, explicites et jamais omis — coût réel d'une passerelle qui n'existe pas")
-    void test_frais_toujours_zero_pour_adaptateur_simule() {
-        Map<String, Object> charge = chargeEmise(PaiementStatut.SUCCESS);
+    @DisplayName("Frais de passerelle connus → recopiés tels quels, jamais réestimés")
+    void test_frais_passerelle_connus_recopies() {
+        Map<String, Object> charge = chargeEmise(PaiementStatut.SUCCESS, "CI-ETS000001", FACTURE, 250L);
 
-        assertThat(charge).containsKey("fraisPasserelle").containsKey("fraisPrestataire");
-        assertThat(charge.get("fraisPasserelle")).isEqualTo(0);
-        assertThat(charge.get("fraisPrestataire")).isEqualTo(0);
+        assertThat(charge.get("fraisPasserelle")).isEqualTo(250L);
     }
 
     @Test
-    @DisplayName("Rien n'est deviné : ni structure, ni facture patient")
-    void aucuneDonneeInventee() {
+    @DisplayName("Frais de passerelle inconnus → NULL dans la charge, jamais 0 inventé")
+    void test_frais_passerelle_inconnus_restent_nuls() {
+        Map<String, Object> charge = chargeEmise(PaiementStatut.SUCCESS, "CI-ETS000001", FACTURE, null);
+
+        assertThat(charge).containsKey("fraisPasserelle");
+        assertThat(charge.get("fraisPasserelle")).isNull();
+    }
+
+    @Test
+    @DisplayName("Frais prestataire à 0, explicite : ce canal n'a qu'un seul poste de frais réel")
+    void test_frais_prestataire_toujours_zero_un_seul_poste_sur_ce_canal() {
+        Map<String, Object> charge = chargeEmise(PaiementStatut.SUCCESS);
+
+        assertThat(charge).containsKey("fraisPrestataire");
+        assertThat(charge.get("fraisPrestataire")).isEqualTo(0);
+    }
+
+    // ── 4. Établissement et facture — B4/S2 (2026-09-04) : recopiés, jamais devinés ────────────
+
+    @Test
+    @DisplayName("etablissementRef connu → recopié tel quel, à charge pour Laravel de le résoudre")
+    void test_etablissement_ref_connu_recopie() {
+        Map<String, Object> charge = chargeEmise(PaiementStatut.SUCCESS, "CI-ETS000001", FACTURE, 250L);
+
+        assertThat(charge.get("etablissementRef")).isEqualTo("CI-ETS000001");
+    }
+
+    @Test
+    @DisplayName("etablissementRef absent de l'agrégat (canaux simulés) → NULL, jamais deviné")
+    void test_etablissement_ref_absent_reste_nul() {
+        Map<String, Object> charge = chargeEmise(PaiementStatut.SUCCESS, null, null, null);
+
+        assertThat(charge).containsKey("etablissementRef");
+        assertThat(charge.get("etablissementRef")).isNull();
+    }
+
+    @Test
+    @DisplayName("factureId (interne au microservice) recopié en chaîne, jamais réinterprété")
+    void test_facture_id_recopie_en_chaine() {
+        Map<String, Object> charge = chargeEmise(PaiementStatut.SUCCESS, "CI-ETS000001", FACTURE, 250L);
+
+        assertThat(charge.get("factureId")).isEqualTo(FACTURE.toString());
+    }
+
+    @Test
+    @DisplayName("Rien n'est jamais deviné : facturePatientId n'existe pas dans ce domaine, absent")
+    void aucuneDonneePatientInventee() {
         Map<String, Object> charge = chargeEmise(PaiementStatut.SUCCESS);
 
         assertThat(charge)
-                .as("Le domaine ne porte pas ces identifiants : les fabriquer rattacherait "
-                    + "des commissions à la mauvaise structure")
-                .doesNotContainKeys("structureSanitaireId", "facturePatientId", "etablissementRef");
+                .as("Le domaine ne porte pas la facture PATIENT (elle vit côté Laravel) : "
+                    + "l'inventer rattacherait un règlement à la mauvaise facture")
+                .doesNotContainKey("facturePatientId");
     }
 
     @Test
     @DisplayName("Le composant enfile, il ne livre pas")
     void nEnvoieRien() {
         notificateur.surTransitionTerminale(new TransitionTerminaleEvenement(
-                PAIEMENT, "CORR-42", 15000, "XOF", PaiementStatut.SUCCESS, QUAND));
+                PAIEMENT, "CORR-42", 15000, "XOF", PaiementStatut.SUCCESS, QUAND,
+                "CI-ETS000001", FACTURE, 250L, "geniuspay"));
 
         verify(notifications).emettre(any(), anyString(), any(), anyString(), anyMap());
+    }
+
+    // ── 5. Canal — B4 (2026-09-04, ajouté en cours d'exécution) ────────────────────────────────
+
+    @Test
+    @DisplayName("Le canal GeniusPay est recopié tel quel — c'est lui qui décidera côté Laravel")
+    void test_canal_geniuspay_recopie() {
+        Map<String, Object> charge = chargeEmise(PaiementStatut.SUCCESS, "CI-ETS000001", FACTURE, 250L, "geniuspay");
+
+        assertThat(charge.get("canal")).isEqualTo("geniuspay");
+    }
+
+    @Test
+    @DisplayName("Un canal carte porte aussi etablissementRef — SEUL le canal distingue les deux")
+    void test_canal_carte_porte_aussi_etablissement_ref() {
+        Map<String, Object> charge = chargeEmise(PaiementStatut.SUCCESS, "CI-ETS000001", FACTURE, null, "carte");
+
+        assertThat(charge.get("canal")).isEqualTo("carte");
+        assertThat(charge.get("etablissementRef")).isEqualTo("CI-ETS000001");
     }
 }

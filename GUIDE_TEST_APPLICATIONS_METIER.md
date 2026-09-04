@@ -1263,8 +1263,9 @@ prend 3 secondes.
 
 > **Périmètre** : chaque médicament peut porter un code-barres, un pharmacien peut vérifier une
 > boîte au comptoir, et chaque délivrance alimente un **registre national** qui survit même si le
-> patient supprime l'ordonnance de son carnet. Troisième et dernier sous-incrément du lot **B3
-> (Pharmacie)**.
+> patient supprime l'ordonnance de son carnet. Troisième sous-incrément du lot **B3 (Pharmacie)**,
+> qui achève le **§7 (Application Pharmacien)** — le §9.5 « achat d'un médicament », côté patient,
+> reste à **B3-d**.
 > **✅ VALIDÉ G5 le 2026-09-04 — G4 propriétaire OK.**
 
 ### Ce qu'il faut savoir avant de commencer
@@ -1366,3 +1367,121 @@ référence, comme celui qui relie une trace à l'officine — les informations 
    la saisie exige une permission et un formulaire dédiés, la lecture consulte directement la fiche
    du produit — pour qu'un code-barres tout juste saisi soit reconnaissable immédiatement, sans
    attendre une republication du référentiel.
+
+---
+
+## Partie 15 — B4-a : le canal de paiement en ligne réel (GeniusPay)
+
+> **Périmètre** : ce lot ne touche **aucun écran**. Il branche Laravel sur le microservice de
+> paiement Java pour qu'un paiement réel via GeniusPay (compte marchand de l'établissement) puisse
+> déclencher une commission MaSanté correctement calculée. Les écrans qui utiliseront ce canal
+> (rendez-vous, commande de médicaments) sont les incréments suivants (B4-b, B3-d).
+> **✅ VALIDÉ G5 le 2026-09-04 — G4 propriétaire OK.**
+
+### Ce qu'il faut savoir avant de commencer
+
+**Ce lot referme un blocage qui datait du lot 6.** Depuis, une commission MaSanté sur un paiement en
+ligne n'était jamais calculée, faute d'un identifiant d'établissement dans la notification que le
+service de paiement envoie à Laravel. Le champ existait en réalité côté paiement, mais restait
+vide faute d'émetteur — Laravel n'ouvrait encore aucun paiement chez GeniusPay. Ce lot fait de
+Laravel cet émetteur.
+
+**Une commission n'est calculée QUE sur un vrai paiement GeniusPay réussi.** Un paiement par carte
+ou par mobile money, même réussi, ne déclenche rien ici — seul le canal GeniusPay le fait. C'est
+volontaire : aucune décision de facturer une commission sur les autres moyens de paiement n'a été
+prise.
+
+**La disponibilité du paiement en ligne dépend de l'établissement, pas d'un interrupteur général.**
+Un établissement doit avoir un identifiant national **et** un compte marchand déclaré chez
+GeniusPay pour que le paiement en ligne lui soit proposé. Il n'existe **aucun bouton** pour éteindre
+le paiement en ligne globalement — le seul recours, en cas de problème, est de retirer le compte
+marchand de l'établissement concerné chez GeniusPay.
+
+**Ce test se fait sans écran, par des appels signés.** Ce lot ne livre aucune interface : il se
+vérifie en appelant directement les points d'entrée techniques, avec un « principal signé »
+(l'équivalent d'un jeton d'accès entre les deux services). Si vous n'êtes pas familier avec cette
+mécanique, demandez la démonstration plutôt que de la reproduire vous-même.
+
+### Prérequis
+
+1. Le microservice de paiement démarré réellement (`docker compose up -d` dans
+   `services/payment`).
+2. Laravel démarré réellement (`artisan serve --host=0.0.0.0 --port=8000`), et non le serveur WAMP
+   habituel — les deux services doivent pouvoir s'appeler l'un l'autre.
+3. Un établissement portant un identifiant national (le backfill de P6.4a doit avoir été rejoué).
+4. `BaremesCommissionSeeder` joué — sans lui, tout paiement en ligne réel échoue **bruyamment**
+   (c'est le comportement voulu, mais il faut le savoir avant de s'inquiéter).
+
+### Ce qui a été vérifié, et comment
+
+Ce lot n'a pas de « cas à cliquer » comme les précédents. Ce qui suit **a été réellement fait** au
+G2 et au G4, pas seulement décrit :
+
+| # | Ce qui a été vérifié | Ce qui s'est produit |
+|---|---|---|
+| 1 | Interroger si un établissement peut encaisser en ligne, avant tout dépôt de secret | « Non configuré » |
+| 2 | Déposer le secret webhook de l'établissement | Accepté, jamais renvoyé en clair |
+| 3 | Réinterroger le même établissement | « Configuré » — et un second appel immédiat est **servi depuis un cache**, sans repartir vers le microservice |
+| 4 | Ouvrir un vrai checkout GeniusPay, en bac à sable, pour une facture réelle | Une vraie page de paiement, avec sa propre adresse |
+| 5 | Recevoir le signal (« webhook ») annonçant que ce paiement a réussi | Le microservice vérifie sa signature, accepte le paiement |
+| 6 | Attendre que la notification parte automatiquement vers Laravel (elle n'est pas immédiate) | Laravel la reçoit et la vérifie |
+| 7 | Vérifier la commission calculée | Le bon établissement, le bon montant, le bon taux, le net exact |
+| 8 | Refaire le même essai avec un paiement par carte au lieu de GeniusPay | **Aucune commission** |
+| 9 | Refaire le même essai avec un établissement inexistant | **Aucune commission**, refus journalisé nommant l'établissement |
+| 10 | Renvoyer exactement la même notification une seconde fois, avec un montant différent | **Aucune seconde commission** ; le montant enregistré reste celui du premier envoi |
+
+### Ce qui a été prouvé automatiquement
+
+- Suite Java complète verte, suite Laravel complète verte (**1702 tests, 17 882 assertions, 0
+  échec**).
+- **Campagne de mutation : 7 tueuses + 1 témoin volontairement vert** sur les gardes qui décident
+  quand une commission se calcule (le bon canal, le bon statut, l'établissement résolu, les frais
+  inconnus honnêtement inscrits, le rejeu sans double calcul, le pays qui distingue deux
+  établissements, le secret manquant qui refuse de signer).
+
+### Ce qui a été rejoué en direct sur la vraie base (G2)
+
+Sur la base MySQL de développement, avec les deux services **réellement démarrés** — pas de
+simulation à l'intérieur du test.
+
+- Un établissement réel, un compte marchand réellement enregistré, un secret webhook réellement
+  déposé.
+- **Deux paiements GeniusPay réellement ouverts en bac à sable**, avec une vraie adresse de
+  paiement. Un troisième essai, sous une charge réseau inhabituelle de ce poste, est resté « en
+  attente de confirmation » — le système a **refusé de réessayer tout seul** plutôt que de risquer
+  un double débit : c'est le comportement voulu.
+- Deux signaux de paiement réel envoyés, avec la vraie signature du prestataire, réellement
+  vérifiés.
+- La notification automatique du microservice vers Laravel réellement reçue et vérifiée — sans
+  intervention manuelle pour la déclencher.
+- **Une commission réelle enregistrée en base** : montant du paiement 18 000 FCFA, taux de 2,50 %,
+  commission de 450 FCFA, net de 17 350 FCFA pour l'établissement — l'arithmétique exacte.
+- Les trois refus (canal carte, établissement inconnu, renvoi en double) vérifiés en réel, chacun
+  sans effet sur la base.
+
+### Deux défauts trouvés par ce test, invisibles aux vecteurs automatiques
+
+**Un barème de commission manquant.** La base de développement réelle n'avait aucun palier de
+commission enregistré — le premier essai a donc échoué **bruyamment**, avec un message clair, et
+rien n'a été écrit. Corrigé en jouant le semis des barèmes. C'est le comportement voulu : une
+commission calculée à l'aveugle, sans barème, aurait été pire que ce refus.
+
+**Une mise à jour de la base oubliée.** Une colonne neuve, ajoutée par ce lot pour dire si les frais
+étaient connus ou non, n'avait jamais été appliquée à la vraie base de développement — seulement à
+la base de test, qui repart toujours neuve. Le premier essai a donc échoué avec un message
+technique clair (« colonne introuvable »), rien n'a été écrit, et la mise à jour manquante a été
+appliquée. **C'est précisément pour attraper ce genre d'oubli que ce test se fait sur la vraie
+base**, jamais seulement sur les tests automatisés.
+
+### Ce que ce lot NE fait PAS
+
+1. **Aucun écran ne consomme ce canal.** Ni le rendez-vous, ni la pharmacie ne l'utilisent encore —
+   c'est l'objet des lots suivants (B4-b, B3-d).
+2. **Les frais ne sont pas toujours connus.** Quand le microservice ne les connaît pas au moment du
+   paiement, la commission est calculée avec des frais à zéro **explicitement inscrits comme
+   inconnus** — jamais présentés comme une vraie valeur de zéro.
+3. **Aucun remboursement.**
+4. **Aucun interrupteur général pour éteindre le paiement en ligne.** Le seul recours est de
+   retirer le compte marchand d'un établissement précis chez GeniusPay.
+5. **Aucun écran pour enregistrer un compte marchand** : cela se fait en appelant directement le
+   microservice.

@@ -55,24 +55,47 @@ public class NotificateurFacturation {
      * vocabulaire (« REUSSIE »…) créerait une table de correspondance de plus à tenir à jour, pour
      * dire la même chose.</p>
      *
-     * <p><b>Les frais valent 0, explicitement, et ce n'est pas une valeur inventée</b> : le paiement
-     * est simulé ({@code AdaptateurSimule}), il n'y a aucune passerelle réelle, donc aucun frais
-     * réel — c'est le coût exact d'une passerelle qui n'existe pas encore. Les omettre laisserait le
-     * lecteur croire à une information manquante ; les estimer produirait une facturation fausse.</p>
+     * <p><b>Correction du 2026-09-04 (B4, ADR-056)</b> — ce Javadoc affirmait jusqu'ici que les frais
+     * valaient toujours 0 (« le paiement est simulé, il n'y a aucune passerelle réelle ») et que ni
+     * {@code structureSanitaireId} ni {@code facturePatientId} n'étaient portés (« le domaine ne les
+     * porte pas »). C'était vrai pour les canaux simulés (mobile money, carte) ; ce n'est plus vrai
+     * pour GeniusPay, qui EST une passerelle réelle. Les deux affirmations restent EXACTES pour tout
+     * paiement dont {@link TransitionTerminaleEvenement#etablissementRef()} est {@code null} (aucun
+     * émetteur ne l'a fourni) : la charge porte alors {@code fraisPasserelle: null} et
+     * {@code etablissementRef: null}, jamais 0 ni une valeur inventée.</p>
      *
-     * <p>Ni {@code structureSanitaireId} ni {@code facturePatientId} : le domaine ne les porte pas.
-     * Les deviner depuis {@code correlationId} ou {@code factureId} (qui désigne une facture INTERNE
-     * au microservice) rattacherait des commissions à la mauvaise structure.</p>
+     * <p>{@code etablissementRef} : recopié tel quel — c'est à Laravel de le résoudre en
+     * {@code structure_sanitaire_id} local, jamais à ce service de le deviner. {@code factureId} :
+     * l'identifiant INTERNE au microservice (P5.2a) ; Laravel ne l'utilise pas pour rattacher une
+     * facture patient (les deux domaines de facturation sont distincts), mais le porter permet de
+     * retrouver la transaction source en cas de litige. {@code fraisPrestataire} reste à 0,
+     * explicitement : ce canal n'a qu'un seul poste de frais réel ({@code fraisPasserelle}) — il n'y a
+     * pas de second poste « prestataire » distinct à connaître ici, ce n'est donc pas une valeur par
+     * défaut mais un fait du domaine.</p>
+     *
+     * <p>{@code paiementId} — AJOUTÉ EN COURS D'EXÉCUTION DE B4, absent du plan initial. Le champ
+     * existait déjà (c'est le paramètre {@code agregatId} de l'outbox), mais n'était jusqu'ici jamais
+     * mis DANS la charge JSON elle-même. Laravel en a besoin comme clé d'idempotence de la commission
+     * : un {@code Paiement} ne peut atteindre un état terminal qu'UNE SEULE fois (la garde de
+     * répétition de {@code setStatut} l'empêche), donc {@code paiementId} identifie sans ambiguïté LA
+     * transition qui a déclenché cette notification — même après un rejeu du relais.</p>
      */
     private static Map<String, Object> charge(TransitionTerminaleEvenement e) {
         Map<String, Object> m = new LinkedHashMap<>();
+        m.put("paiementId", e.paiementId().toString());
         m.put("correlationId", e.correlationId());
         m.put("montant", e.montant());
         m.put("devise", e.devise());
         m.put("statut", e.statut().name());
         m.put("dateTransaction", e.survenuLe().toString());
-        m.put("fraisPasserelle", 0);
+        m.put("etablissementRef", e.etablissementRef());
+        m.put("factureId", e.factureId() == null ? null : e.factureId().toString());
+        m.put("fraisPasserelle", e.fraisPasserelle());
         m.put("fraisPrestataire", 0);
+        // Discriminant du canal (ajouté en cours d'exécution, cf. Javadoc de l'événement) : Laravel
+        // ne calcule une commission MaSanté QUE sur "geniuspay", jamais sur carte/mobile money —
+        // aucune politique de commission platform-wide n'a été décidée pour ces canaux.
+        m.put("canal", e.canal());
         return m;
     }
 }

@@ -197,25 +197,32 @@ return [
     ],
 
     /*
-     * Lot 6 (v2) — canal interne paiement-service (Java) → Laravel.
+     * Lot 6 (v2) — canal interne paiement-service (Java) ↔ Laravel.
      *
-     * SENS UNIQUE, ET C'EST DÉLIBÉRÉ. Le sens Laravel → Java a été retiré du lot : rien n'initie de
-     * paiement depuis Laravel aujourd'hui (Phase 0 : `apps/web/src/lib/paiement.ts` n'expose qu'un
-     * `paiementFetch` générique, consommé par le seul module fraude), et l'endpoint `/interne/v1/
-     * paiements` supposé exister côté Java n'existe pas. Le client d'émission et ses réglages —
-     * URL, délais, identité d'appelant — ont donc été supprimés plutôt que laissés en place à
-     * appeler dans le vide.
+     * CORRECTION DU 2026-09-04 (B4, ADR-056) — ce bloc affirmait jusqu'ici un SENS UNIQUE délibéré
+     * (« rien n'initie de paiement depuis Laravel », client d'émission RETIRÉ en Phase 0 du lot 6
+     * plutôt que laissé appeler dans le vide, l'endpoint côté Java n'existant pas). Le G0 de B4 a
+     * vérifié le contraire : `POST /api/v1/interne/geniuspay/paiements` EXISTE depuis le lot 7
+     * (GeniusPay, P5.6b) — ce n'est pas le même endpoint que celui qui manquait alors, mais Laravel
+     * a désormais un chemin d'émission réel. Laravel devient ÉMETTEUR pour la première fois :
+     * `base_url` et les délais reviennent, réservés au canal GeniusPay (montage A) — jamais au
+     * mobile money ni à la carte, qui n'ont pas de pendant Laravel-initié.
      *
-     * Il ne reste que ce dont l'endpoint ENTRANT a besoin : le secret de vérification.
+     * `principal_secret` INCHANGÉ : partagé tel quel avec `apps/web` et le microservice Java, jamais
+     * un secret distinct par consommateur (interdiction n°2, tenue). Aucune valeur par défaut : un
+     * secret manquant doit faire échouer bruyamment, jamais silencieusement accepter une chaîne
+     * vide — vrai à l'entrée (déjà le cas) comme à la sortie (S4).
      *
-     * `principal_secret` est PARTAGÉ tel quel avec `apps/web` (`MASANTE_PAYMENT_PRINCIPAL_SECRET`,
-     * déjà utilisé par `paiement.ts`) et le microservice Java — même nom de variable, jamais un
-     * secret distinct par consommateur (Phase 0 du lot 6, interdiction n°2). Aucune valeur par
-     * défaut : un secret manquant doit faire échouer bruyamment la vérification, jamais
-     * silencieusement l'accepter avec une chaîne vide.
+     * `SigneurPrincipalSortant` (S4) en est la QUATRIÈME implémentation du format (Java vérifie,
+     * Node et Python mintent) : une garde d'exécution (`PrincipalSigneSourceUniqueTest`) vérifie
+     * qu'un principal minté ici est accepté par le vérificateur PHP, sous la forme exacte des trois
+     * autres — jamais un sous-ensemble.
      */
     'paiement_service' => [
         'principal_secret' => env('MASANTE_PAYMENT_PRINCIPAL_SECRET', ''),
+        'base_url' => env('MASANTE_PAYMENT_SERVICE_URL', 'http://localhost:8080'),
+        'timeout_connexion_s' => (float) env('MASANTE_PAYMENT_TIMEOUT_CONNEXION', 3),
+        'timeout_lecture_s' => (float) env('MASANTE_PAYMENT_TIMEOUT_LECTURE', 5),
     ],
 
     /*
