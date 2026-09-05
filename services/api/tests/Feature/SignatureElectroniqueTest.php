@@ -678,10 +678,14 @@ class SignatureElectroniqueTest extends TestCase
     {
         // Nommer un manque ne le comble pas, mais un manque nommé ne s'oublie pas — et l'on ne
         // prétend nulle part que « la signature couvre les documents médicaux ».
+        //
+        // B5-a a branché `prescription_biologique`, la garantie neuve tient donc à DEUX branchés
+        // sur sept, pas un seul — la garde qui compte reste que les cinq encore manquants disent
+        // tous pourquoi.
         $etat = RegistreDocumentsSignables::etatDuCorpus();
 
         $this->assertCount(7, $etat);
-        $this->assertCount(1, array_filter($etat, fn (array $d): bool => $d['branche']));
+        $this->assertCount(2, array_filter($etat, fn (array $d): bool => $d['branche']));
 
         foreach ($etat as $document) {
             if (! $document['branche']) {

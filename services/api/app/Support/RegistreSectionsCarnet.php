@@ -4,6 +4,7 @@ namespace App\Support;
 
 use App\Http\Controllers\Api\V1\Carnet\AntecedentController;
 use App\Http\Controllers\Api\V1\Carnet\CarnetSectionController;
+use App\Http\Controllers\Api\V1\Carnet\DemandeAnalyseController;
 use App\Http\Controllers\Api\V1\Carnet\OrdonnanceController;
 use App\Http\Controllers\Api\V1\Carnet\RappelController;
 use App\Http\Controllers\Api\V1\Carnet\ResultatAnalyseController;
@@ -40,6 +41,10 @@ final class RegistreSectionsCarnet
         'ordonnances'        => OrdonnanceController::class,
         'resultats-analyses' => ResultatAnalyseController::class,
         'rappels'            => RappelController::class,
+        // B5-a — analogue exact d'`ordonnances` (décision L1 du plan G1) : un praticien la
+        // produit, un patient peut y recopier une demande papier, un laboratoire la lit ensuite
+        // par jeton (B5-b), sans jamais passer par ce registre.
+        'demandes-analyses'  => DemandeAnalyseController::class,
     ];
 
     /**
@@ -59,6 +64,10 @@ final class RegistreSectionsCarnet
      */
     public const SECTIONS_AUTEUR_EST_PRESCRIPTEUR = [
         'ordonnances',
+        // B5-a — une demande d'examen est prescrite exactement comme une ordonnance : rédiger la
+        // demande EST l'acte de prescrire (à la différence d'un résultat, où celui qui consigne
+        // est souvent quelqu'un d'autre).
+        'demandes-analyses',
     ];
 
     /** L'auteur d'une écriture dans cette section en est-il le prescripteur ? */
@@ -82,6 +91,8 @@ final class RegistreSectionsCarnet
         'vaccinations',
         'ordonnances',
         'resultats-analyses',
+        // B5-a — porte `source`/`added_by` dès l'origine, condition posée par cette liste.
+        'demandes-analyses',
     ];
 
     /** Les sections ouvertes aux contributions d'un délégué. */

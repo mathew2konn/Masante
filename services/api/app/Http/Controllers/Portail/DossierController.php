@@ -45,6 +45,9 @@ class DossierController extends Controller
         'vaccinations' => 'Vaccinations',
         'ordonnances'  => 'Ordonnances',
         'analyses'     => 'Résultats d\'analyses',
+        // B5-a — la demande d'examen, distincte du résultat (L1 : c'est la pièce qui OUVRE le
+        // circuit, le résultat en est l'aboutissement, publié plus tard par le laboratoire).
+        'demandes-analyses' => 'Demandes d\'examens',
         'mesures'      => 'Journal de mesures',
         'notes'        => 'Notes & observations',
         'contacts'     => 'Contacts d\'urgence',
@@ -68,6 +71,9 @@ class DossierController extends Controller
         'vaccinations' => 'vaccinations',
         'ordonnances'  => 'ordonnances',
         'analyses'     => 'resultats-analyses',
+        // B5-a — les deux vocabulaires coïncident ici (pas de divergence à traduire), la table de
+        // correspondance reste néanmoins la SEULE frontière où les deux se rencontrent.
+        'demandes-analyses' => 'demandes-analyses',
     ];
 
     /**
@@ -83,6 +89,8 @@ class DossierController extends Controller
      */
     private const SECTIONS_SIGNABLES = [
         'ordonnances' => \App\Services\Pki\DocumentOrdonnance::CODE,
+        // B5-a (L8) — troisième entité branchée du registre (K2).
+        'demandes-analyses' => \App\Services\Pki\DocumentPrescriptionBiologique::CODE,
     ];
 
     public function __construct(
@@ -411,6 +419,7 @@ class DossierController extends Controller
             'vaccinations' => $membre->vaccinations()->orderByDesc('date_administration')->get(),
             'ordonnances'  => $membre->ordonnances()->orderByDesc('date_prescription')->get(),
             'analyses'     => $membre->resultatsAnalyses()->orderByDesc('date_analyse')->get(),
+            'demandes-analyses' => $membre->demandesAnalyses()->with('lignes')->orderByDesc('date_demande')->get(),
             // FN5 — « partage automatique avec le médecin référent » : le journal de bord du patient
             // (glycémie, tension…) est une section du dossier comme une autre. Elle n'est donc PAS
             // poussée hors du serveur : elle se lit ici, dans une session tracée. 90 derniers jours.

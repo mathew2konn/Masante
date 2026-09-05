@@ -26,6 +26,16 @@ class StructureSanitaire extends Model
         return $this->type === 'pharmacie';
     }
 
+    /**
+     * Cette structure est-elle un laboratoire ? Même motif qu'`estPharmacie()` — la comparaison
+     * vivait déjà en privé dans `ServiceLienResultat::resoudreLeLaboratoire()` (P6.7b) ; B5-b en a
+     * besoin une seconde fois pour le circuit du prélèvement, d'où son passage ici.
+     */
+    public function estLaboratoire(): bool
+    {
+        return $this->type === 'laboratoire';
+    }
+
     protected $table = 'structures_sanitaires';
 
     protected $fillable = [

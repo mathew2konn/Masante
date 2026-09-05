@@ -44,8 +44,8 @@ class OrdonnanceController extends CarnetSectionController
             'photo_url'              => ['nullable', 'url', 'max:500'],
             'pdf_url'                => ['nullable', 'url', 'max:500'],
             'added_by'               => ['nullable', 'in:patient,medecin'],
-            // F2.13 — provenance de l'entrée (défaut BDD 'patient'). Distincte de added_by (auteur de saisie).
-            'source'                 => ['nullable', 'in:patient,medecin,structure'],
+            // B5-a (L4/K5/K11) — `source` retirée : voir le commentaire identique
+            // d'`AntecedentController`, même défaut, même correction.
         ];
     }
 

@@ -192,6 +192,48 @@
       <input type="text" name="medecin_prescripteur" value="{{ old('medecin_prescripteur', $moi) }}"
              maxlength="200" class="form-control form-control-sm">
     </div>
+
+  @elseif ($section === 'demandes-analyses')
+    {{-- B5-a — la demande d'examen (CDC_11 §8.1). `medecin_nom`/`structure_sanitaire` sont
+         pré-remplis mais RÉÉCRITS par le serveur depuis la fiche professionnelle quand elle
+         existe (patron identique au formulaire d'ordonnances, juste au-dessus).
+         Le lien au catalogue (`analyse_id`) n'est pas exposé ici : il reste réservé à l'API/mobile
+         (même formulaire d'ordonnances, qui n'expose pas non plus `medicament_id`) — le libellé
+         libre suffit toujours (L2). --}}
+    <div class="col-md-4">
+      <label class="form-label small">Prescripteur <span class="text-danger">*</span></label>
+      <input type="text" name="medecin_nom" value="{{ old('medecin_nom', $moi) }}" maxlength="200"
+             required class="form-control form-control-sm">
+    </div>
+    <div class="col-md-4">
+      <label class="form-label small">Établissement <span class="text-danger">*</span></label>
+      <input type="text" name="structure_sanitaire" value="{{ old('structure_sanitaire', $lieu) }}"
+             maxlength="200" required class="form-control form-control-sm">
+    </div>
+    <div class="col-md-4">
+      <label class="form-label small">Date de la demande <span class="text-danger">*</span></label>
+      <input type="date" name="date_demande" value="{{ old('date_demande', now()->toDateString()) }}"
+             required class="form-control form-control-sm">
+    </div>
+    <div class="col-12">
+      <label class="form-label small">
+        Examens demandés <span class="text-danger">*</span>
+        <span class="text-muted">— au moins un</span>
+      </label>
+      @for ($i = 0; $i < 4; $i++)
+        <input type="text" name="analyses_json[{{ $i }}][libelle]"
+               value="{{ old("analyses_json.$i.libelle") }}" maxlength="200"
+               class="form-control form-control-sm mb-1"
+               placeholder="{{ $i === 0 ? 'Ex. Numération formule sanguine (NFS)' : 'Examen suivant (facultatif)' }}"
+               @if ($i === 0) required @endif>
+      @endfor
+    </div>
+    <div class="col-12">
+      <label class="form-label small">Renseignements cliniques <span class="text-muted">(facultatif)</span></label>
+      <textarea name="renseignements_cliniques" rows="2" maxlength="2000"
+                class="form-control form-control-sm"
+                placeholder="Ce que le laboratoire doit savoir">{{ old('renseignements_cliniques') }}</textarea>
+    </div>
   @endif
 
   {{-- P6.5b — signature électronique de la prescription (CDC_09 §5.3).
@@ -203,7 +245,7 @@
        Ce qui est INCONDITIONNEL, en revanche, c'est que le nom du prescripteur vienne désormais de
        la fiche professionnelle et non de ce formulaire : c'est pour cela qu'aucun champ
        « médecin » n'apparaît ci-dessus pour une ordonnance. --}}
-  @if (($peutSigner ?? false) && $section === 'ordonnances')
+  @if (($peutSigner ?? false) && in_array($section, ['ordonnances', 'demandes-analyses'], true))
     <div class="col-12 mt-3">
       <div class="border rounded p-3 bg-light">
         <label class="form-label small mb-1" for="secret_signature">
@@ -213,7 +255,7 @@
                autocomplete="off" class="form-control form-control-sm" style="max-width:320px">
         <div class="form-text">
           Saisi ici, il signe la prescription à votre nom : elle devient vérifiable et toute
-          modification ultérieure sera détectée. Laissé vide, l'ordonnance est enregistrée sans
+          modification ultérieure sera détectée. Laissé vide, l'entrée est enregistrée sans
           signature. Votre secret n'est stocké nulle part.
         </div>
       </div>

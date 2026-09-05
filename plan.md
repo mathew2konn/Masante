@@ -10,6 +10,7 @@
 | **PLAN 1** | B3-c — Code-barres + traçabilité nationale des médicaments (CDC_11 §7.6) | ✅ **Terminé — VALIDÉ G5 le 2026-09-04**, G4 propriétaire OK |
 | **PLAN 2** | B3-d — Panier et commande de médicaments (CDC_11 §9.5, §10.5 · CDC_01 §6.6) | ⏸️ **G1 rédigé, EN ATTENTE** — dépend désormais du PLAN 3 pour son règlement en ligne. Aucun code écrit. |
 | **PLAN 3** | B4 — Paiement en ligne réel (GeniusPay) : canal Laravel→Java, commission, et le rendez-vous | ✅ **B4-a (le canal) : VALIDÉ G5 le 2026-09-04. B4-b (rendez-vous) : VALIDÉ G5 le 2026-09-05** (G4 propriétaire OK « G4 validé », G5 « c'est bon pour le G5 »). **Le lot B4 est COMPLET (a, b).** |
+| **PLAN 4** | B5 — Le circuit du laboratoire (CDC_11 §8.1 · CDC_09 §7.4 · CDC_04 §109), périmètre intégral | 🔵 **B5-a VALIDÉ (G5, 2026-09-05)**, G4 propriétaire OK. **EN COURS** — B5-b puis B5-c restent. |
 
 ---
 
@@ -1807,3 +1808,778 @@ id 2. Nommées et scopées sans ambiguïté. Java et Laravel laissés **démarr�
 ---
 
 **✅ VALIDÉ (G5, 2026-09-05)** — G4 propriétaire OK (« G4 validé »), G5 « c'est bon pour le G5 ». **B4-b clos ; le lot B4 est COMPLET (a, b).**
+
+---
+
+# PLAN 4 : Le circuit du laboratoire (B5, CDC_11 §8.1 · CDC_09 §7.4 · CDC_04 §109)
+
+> **Étape 9 de l'ordre CDC_11 §12** (« Laboratoire, puis Radiologie »). Les huit étapes précédentes
+> sont closes. **G1 VALIDÉ PAR LE PROPRIÉTAIRE** (« je valide le G1 de B5 », 2026-09-05) — le
+> périmètre intégral décrit en §10 (arbitrage du 2026-09-05) fait foi. **B5-a et B5-b VALIDÉS
+> (G5, 2026-09-05)**, **B5-c reste**, dans l'ordre B5-a → B5-b → B5-c (§9/§10).
+>
+> Ce plan couvre le **laboratoire seul**. La radiologie (§8.2) suppose DICOM et PACS : elle n'entre
+> pas ici, et le registre des documents signables de P6.5b le dit déjà mot pour mot.
+
+---
+
+## 1. Ce que le corpus demande
+
+**CDC_11 §8.1** — « Gestion des demandes d'examens (`Médecin → Demande → Laboratoire → Résultat →
+Dossier patient`), processus (réception du prélèvement, analyse, **validation biologiste**,
+publication du résultat), connexion aux **automates biologiques**, catalogue national des analyses,
+traçabilité des prélèvements par code-barres/QR (CDC_09 §7.4). »
+
+**CDC_09 §7.4** — chaque prélèvement reçoit un **identifiant unique** permettant de suivre tout son
+cycle de vie, en huit étapes :
+
+```text
+1. Prescription médicale
+2. Enregistrement du prélèvement
+3. Étiquetage par code-barres ou QR Code
+4. Transport vers le laboratoire
+5. Réception et validation
+6. Analyse
+7. Validation biologique
+8. Transmission sécurisée du résultat dans le dossier patient
+```
+
+« Cette chaîne réduit les risques d'erreur d'identification et facilite les audits qualité. »
+
+**CDC_04 §109** nomme six tables : `demandes_analyses`, `prelevements` (identifiant unique,
+code-barres/QR, cycle de vie), `analyses`, `resultats_analyses`, `validations_biologiques`,
+`automates`.
+
+**Ce que le corpus ne dit PAS, et qu'il faut décider** : qui a le droit de valider biologiquement, ce
+qu'il advient d'un examen prescrit hors catalogue, et si le laboratoire ouvre le dossier du patient
+pour y déposer son résultat. Les trois sont tranchés en §3.
+
+---
+
+## 2. G0 — dix constats, vérifiés en base réelle et dans le code
+
+**K1 — Aucune des quatre tables du circuit n'existe.** Vérifié en base `ivoirsante` : seules
+`analyses` (catalogue P6.7a), `analyse_references`, `laboratoire_analyses` (P6.7b) et
+`resultats_analyses` (Module 2) sont là. **`demandes_analyses`, `prelevements`,
+`validations_biologiques`, `automates` : absentes.** Le circuit du §7.4 n'existe à aucun degré.
+
+**K2 — Le blocage que P6.5b avait nommé est LEVÉ, et c'est le code lui-même qui posait la
+condition.** `RegistreDocumentsSignables::NON_BRANCHES['prescription_biologique']` dit
+textuellement : « Entité inexistante — et ce n'est pas un document mais une DEMANDE qui ouvre un
+circuit (médecin → laboratoire → résultat, §7.4). **Sans le catalogue national des analyses
+(étape 7), elle prescrirait des examens en texte libre.** » L'étape 7 est faite depuis le
+2026-08-14. La condition est remplie, et brancher un type reste ce que le registre annonce : **une
+classe et une ligne**. B5 lèverait donc la **troisième des six entités non branchées** de la PKI.
+
+**K3 — `resultats_json` est `encrypted:array`.** Les résultats ne sont pas interrogeables en SQL, et
+le lien au catalogue de P6.7a vit **par ligne, à l'intérieur du blob chiffré**. C'est la question que
+B3-a a tranchée pour les ordonnances (« ce qui identifie un produit n'est pas ce qui décrit un
+traitement ») ; elle se repose ici, et la réponse ne peut pas être recopiée : **une valeur biologique
+est elle-même une donnée de santé**, là où un nom de médicament est une identité de produit.
+
+**K4 — Le résultat existe, mais il n'a ni émetteur ni circuit.** `resultats-analyses` est une section
+du carnet que le patient, un délégué (au brouillon) ou un soignant (P7-D0) remplit. Rien ne relie un
+résultat à une demande. `medecin_prescripteur_id` et `laboratoire_id` sont des **déclarations**
+facultatives que P6.7b fait vérifier — jamais le produit d'un circuit.
+
+**K5 — `source = 'structure'` est une valeur d'ENUM SANS AUCUN ÉMETTEUR, et elle est déclarable par
+le client.** Vérifié : `EcritureSoignantService` pose `medecin`, `ContributionCarnetService` force
+`patient`, et **personne n'écrit `structure`** depuis le Module 2 — nouvelle clé dormante, après
+`PREVALIDE_SECRETAIRE` (B1-a), `honore` (B1-d), `hybride` (P10c-3-ii), `A_REGLER` (B4-b). Or
+`AntecedentController`, `OrdonnanceController` et `ResultatAnalyseController` la déclarent tous trois
+dans leurs règles (`'source' => ['nullable', 'in:patient,medecin,structure']`) et `source` est
+`$fillable` : **sur le chemin patient direct, un client peut la poser lui-même.**
+
+**Ce n'est pas un défaut actif aujourd'hui, et il faut le dire exactement** : le seul consommateur
+qui se fie à `source` est `FicheVitaleService`, et il ne la lit **que sur les vaccinations**, dont le
+contrôleur — vérifié — **n'accepte pas** `source` du client. Le commentaire de P6.8b (« un signal que
+le serveur garantit et que le client ne peut pas falsifier ») dit donc vrai là où il est écrit.
+
+**Mais B5 rendrait ce défaut actif.** Si ce lot fait de `source = 'structure'` la marque d'un
+résultat validé par un biologiste, un patient pourra poser ce signal sur un résultat qu'il a saisi
+lui-même — *c'est-à-dire refaire, transposé, le défaut exact que P6.8b a passé un incrément entier à
+refermer* (le bouclier coché couvrait une case cochée par l'intéressé). **La porte se ferme avant
+qu'on s'appuie sur le signal, pas après.**
+
+**K6 — La base de développement est vide côté catalogue** : `analyses` **0 ligne**,
+`laboratoire_analyses` **0**, `resultats_analyses` **0**. `CatalogueAnalysesSeeder` et
+`masante:analyses:backfill` existent mais n'ont pas été rejoués après une restauration — même
+famille que `MaladieSeeder` en B2-b, où le contrôle qualité refusait la publication faute de codes
+nationaux. **Prérequis de déploiement**, à écrire avant le G2 et non à découvrir pendant.
+
+**K7 — Un seul laboratoire en base** (`Laboratoire BIOSMOSE`, id 8) et son `type_laboratoire` — la
+colonne ajoutée par P6.7b — est **NULL**. La typologie n'a jamais été renseignée sur cette base.
+
+**K8 — Le laborantin a des capacités mais aucune porte, et il n'existe pas de biologiste.** P11.0 lui
+a donné `qr.scan`, `triage.view`, `dossier.ecrire` avec sa raison écrite (« `resultats-analyses`
+figure dans la liste blanche des sections ouvertes au soignant, donc la capacité existe réellement »)
+— mais **aucune zone**, aucun écran. Et parmi les onze rôles fixés en P11.0 il y a `laborantin` et
+`radiologue` ; **il n'y a pas de `biologiste`**.
+
+**K9 — Le code-barres de B3-c n'est pas réutilisable ici.** `ReglesCodeBarres::estGtin()` valide un
+**GTIN** : l'identifiant d'un *produit de fabricant*, avec sa clé de contrôle GS1. Un identifiant de
+prélèvement est celui d'une **instance que nous créons nous-mêmes**. La classe pure reste un *motif*,
+pas un composant à appeler.
+
+**K10 — Les patrons à transposer existent et sont éprouvés.** `ordonnances.jeton_partage`
+(`varchar(64)` UNIQUE, hors `$fillable`, `$hidden`, comparaison en temps constant, 404 jamais 403) ·
+`ordonnance_lignes` (identité **en clair**, traitement **chiffré**) · et surtout le commentaire de
+route de B3-a : « **aucune session de dossier : le pharmacien atteint l'ordonnance par son JETON et
+ne voit qu'elle. Ce n'est pas une garde qu'on vérifie, c'est une porte qui n'existe pas.** »
+
+---
+
+## 3. Les décisions de conception (L1 → L12)
+
+### L1 — La demande d'examen est l'analogue de l'ordonnance, et le circuit celui de la délivrance
+
+Ce projet a déjà construit ce circuit une fois, de bout en bout : **B2-c** fait produire une pièce par
+un praticien qui la signe, **B3-a** la fait lire par un professionnel d'un autre métier **par un
+jeton, sans ouvrir le dossier**, lequel enregistre son acte. Le laboratoire est le même parcours avec
+d'autres acteurs.
+
+*On ne le réinvente pas, on le transpose* — et ce n'est pas une commodité d'écriture : c'est ce qui
+garantit qu'un laboratoire ne lira pas les antécédents d'un patient pour faire une numération formule
+sanguine. Minimisation (loi 2013-450), déjà tenue par P7-D2 et B3-a.
+
+| Ordonnance / pharmacie | Demande d'examen / laboratoire |
+|---|---|
+| `ordonnances` + `ordonnance_lignes` | `demandes_analyses` + `demande_analyse_lignes` |
+| `jeton_partage` ouvre l'ordonnance seule | `jeton_partage` ouvre la demande seule |
+| `delivrances` + `delivrance_lignes` | `prelevements` + le résultat publié |
+| `traces_dispensation` (registre national) | *(hors périmètre — voir L11)* |
+
+### L2 — Le lien au catalogue est facultatif, relu, figé, et l'écart est COMPTÉ
+
+Le corpus veut la normalisation (§7.3 : « les résultats sont interprétés de manière cohérente, quel
+que soit le laboratoire »). L'imposer serait pourtant une faute : le catalogue est un **jeu de
+démonstration de huit analyses** honnêtement étiqueté (P6.7a), et *refuser de prescrire un examen
+absent de notre liste serait une décision médicale prise par une machine* (CDC_00 §4).
+
+Donc **facultatif, mais relu et figé** quand il est fourni — code national, libellé et **unité**
+repris du catalogue, jamais du client (patron P6.6b / P6.7a / P6.7b / B2-c). Une ligne hors catalogue
+est **acceptée, signalée et comptée** à l'écran : troisième application du motif E4 de P6.8c, et ici
+pour la raison « notre référentiel est incomplet » — donc **l'écart doit tendre vers zéro**, comme en
+P6.8d.
+
+### L3 — Le laboratoire écrit le résultat SANS session de dossier, et le jeton est le consentement
+
+C'est le point de conception central, et il n'a pas de précédent exact : B3-a n'écrivait **rien** dans
+le carnet (une délivrance vit dans sa propre table), alors que le §7.4 étape 8 exige littéralement la
+« transmission sécurisée du résultat **dans le dossier patient** ».
+
+Trois voies étaient possibles, deux sont écartées avec leur raison :
+
+- **Une septième voie d'accès au dossier** (`labo_scan`) : c'est exactement ce que B3-a a refusé pour
+  le pharmacien — un élargissement durable pour un besoin ponctuel, qui ouvrirait antécédents,
+  vaccinations et ordonnances à un technicien de laboratoire.
+- **Faire scanner le QR du patient** : le plus court et le plus disproportionné.
+- **Retenu** : le laboratoire écrit **par le circuit**, et son écriture est bornée par construction —
+  il ne peut poser qu'un **résultat**, et seulement celui de **la demande qu'il détient**. Le jeton
+  remis par le patient est l'acte de consentement, au moins aussi explicite qu'un scan de QR.
+
+*La porte n'est pas gardée, elle n'existe pas* : aucun point d'entrée ne permet à un compte de
+laboratoire de lire autre chose. **Vecteur central du lot, comme en B3-a : servir une demande ne crée
+aucune ligne dans `acces_dossier`, parce qu'aucun accès au dossier n'a lieu.**
+
+### L4 — `source = 'structure'` trouve son premier émetteur, et la porte se ferme d'abord
+
+Un résultat publié par le circuit porte `source = 'structure'` : c'est le fait qui le distingue d'un
+compte rendu recopié par le patient.
+
+**Mais K5 impose l'ordre des opérations** : `source` sort des règles de validation
+d'`AntecedentController`, `OrdonnanceController` et `ResultatAnalyseController` **avant** que ce lot
+s'appuie dessus. Un client ne déclare pas la provenance de ce qu'il écrit — quatrième application
+d'une règle déjà tenue pour `source` (P7-C), `obligatoire` (P6.8b), `provenance` (P6.8d) et `origine`
+(P10c-1). Retrait **additif et sans perte** : les trois chemins d'écriture posent déjà la valeur
+juste, aucun appelant légitime ne l'envoie.
+
+### L5 — Le jeton et l'étiquette du prélèvement sont deux choses différentes, et les confondre serait grave
+
+- Le **jeton de la demande** est un **secret d'accès** : 64 caractères, hors `$fillable`, `$hidden`,
+  comparé en temps constant, **404 jamais 403** (patron B3-a / P10a).
+- L'**identifiant du prélèvement** est une **étiquette** : imprimée, collée sur un tube, elle circule
+  physiquement d'un service à l'autre. Elle n'ouvre rien.
+
+Mettre un secret d'accès sur une étiquette collée sur un tube reviendrait à distribuer la clé du
+dossier avec l'échantillon. **Deux valeurs, deux natures, deux durées de vie.** L'étiquette est
+opaque et non séquentielle (patron `DEM-` de P11.1) — *un compteur laisserait deviner le volume
+d'analyses d'un laboratoire et énumérer les prélèvements de la veille*.
+
+### L6 — Le cycle de vie : six états, dont un facultatif, et aucun état inatteignable
+
+Les huit étapes du §7.4 ne sont pas huit états : la 1 est la création de la demande (pas un état du
+prélèvement) et les 2 et 3 sont **un seul acte** — l'identifiant *est* l'étiquette.
+
+```text
+preleve → [expedie] → recu → en_analyse → valide → publie
+```
+
+`expedie` (étape 4) est **facultatif et le dit** : un prélèvement effectué au laboratoire même passe
+directement de `preleve` à `recu`, et prétendre le contraire ferait saisir un transport qui n'a pas
+eu lieu. Chaque état est atteint par un **acte explicite** — aucun n'est posé par déduction, aucun
+n'est inatteignable (règle tenue depuis P10c-3-ii sur `hybride`). `publie` est **terminal**, et c'est
+lui qui écrit dans le carnet (L3).
+
+### L7 — La validation biologique est le verrou, et elle a sa propre permission
+
+§7.4 étape 7 et §8.1 la nomment tous deux. Sa conséquence est structurelle : **un résultat non validé
+ne part jamais au dossier du patient.** Ce n'est pas un statut d'affichage, c'est une garde.
+
+Le métier distingue celui qui exécute (technicien) de celui qui valide (biologiste). Le projet a onze
+rôles fixés en P11.0 et **n'en crée pas un douzième pour un écran** : on crée **deux permissions**,
+`analyse.executer` et `analyse.valider`.
+
+- `analyse.executer` va au rôle **`laborantin`**, qui existe et dont c'est le métier.
+- **`analyse.valider` n'est portée par aucun rôle** — nouvelle occurrence du motif, et sa raison est
+  ici la plus directe de la série : *un résultat biologique validé engage la responsabilité d'un
+  biologiste nommé*. Elle s'accorde nominativement, comme `professionnel.habiliter`, `dossier.ecrire`
+  ou les cinq permissions de validation de P10b-1.
+
+**Pas d'interdiction de cumul** : le corpus ne l'exige pas, et *un garde-fou plus strict que sa propre
+règle est un défaut* (P6.8c). Mais le circuit **nomme** qui a exécuté et qui a validé, séparément —
+posture exacte de P10b-1 sur ses cinq validations.
+
+### L8 — La demande est signable, et cela lève la troisième entité de P6.5b
+
+`DocumentPrescriptionBiologique implements DocumentSignable` : une classe et une ligne dans
+`RegistreDocumentsSignables::SIGNABLES`, et son entrée disparaît de `NON_BRANCHES`. Le contenu
+canonique signe **ce dont la modification changerait le sens de la prescription** — les analyses
+demandées, leur code national figé, le prescripteur, la date — et **jamais les rattachements** ni
+l'état du circuit, sinon *chaque changement d'état ferait passer la demande pour altérée* (leçon
+B2-c, où `medecin_id` avait été délibérément tenu hors du contenu signé).
+
+La signature reste **facultative** : un praticien sans certificat doit pouvoir prescrire (P6.5b).
+
+### L9 — Ce qui est en clair, ce qui est chiffré : la question est REPOSÉE, pas recopiée
+
+B3-a a tranché pour les ordonnances : « ce qui identifie un produit n'est pas ce qui décrit un
+traitement ». La transposition littérale serait fausse ici — **une valeur biologique est elle-même une
+donnée de santé**, là où « Paracétamol 500 mg » est une identité de produit.
+
+- `demande_analyse_lignes` : **identité de l'examen en clair** (`analyse_id`, `code_national`,
+  `libelle`, `unite`) — sans quoi ni le laboratoire ne sait quoi analyser, ni le catalogue ne sert à
+  rien. Les **conditions de prélèvement** et les renseignements cliniques restent **chiffrés**.
+- **Les valeurs mesurées** restent dans `resultats_json` **chiffré**, où elles sont déjà (K3). *Ce lot
+  n'ouvre pas ce blob* : le rendre interrogeable serait une décision de gouvernance des données de
+  santé qui dépasse un circuit de laboratoire, et elle n'a pas été prise.
+
+**Conséquence dite d'avance** : les « statistiques nationales » d'analyses, analogues de ce que B3-c a
+construit pour les médicaments, **ne sont pas possibles dans ce lot** — écrit comme limite, pas
+déguisé.
+
+### L10 — Aucun automate, et c'est un refus motivé
+
+CDC_11 §8.1 nomme la « connexion aux automates biologiques », CDC_04 §109 la table `automates`. **Nous
+n'en avons vu aucun** — même position qu'ADR-030 (« aucune API de logiciel hospitalier ivoirien n'a
+été vue ») et que P11.2, qui l'a écrite noir sur blanc.
+
+Ce qui est dit à la place, et qui est vrai : **le chemin existe déjà**. P11.2 a livré une API
+d'ingestion partenaire signée (clé + HMAC) dont l'ajout d'un flux est « une classe et une ligne de
+route ». Un automate — ou plus vraisemblablement le middleware du laboratoire — pousserait par là.
+**Point d'extension nommé, pas construit** (classement ADR-014).
+
+### L11 — Pas de registre national des analyses dans ce lot
+
+B3-c a construit `traces_dispensation` parce que le §7.6 le demande **pour les médicaments** (« lutte
+contre les falsifiés, suivi de consommation, statistiques nationales »). Le corpus ne demande rien
+d'équivalent pour la biologie, et L9 montre qu'il n'en existe de toute façon pas le support. *On ne
+construit pas par symétrie décorative* (refus déjà opposé en P6.4a au journal de non-réutilisation).
+
+### L12 — Écrans en Blade, et le registre de zones n'accueille rien
+
+Décision K1 de P6.4d, tenue depuis par B1, B2 et B3 : compléter en Blade **sans investir dans le
+design**, la migration du portail restant un module identifié. Le laboratoire suit. Le registre de
+zones de P11.0 (`apps/web/src/lib/zones.ts`) reste à quatre entrées — *y inscrire une zone dont la
+page vit en Blade afficherait un lien vers une page absente*.
+
+---
+
+## 4. Schéma exact
+
+### `demandes_analyses` — la pièce produite par le médecin
+
+| Colonne | Type | Raison |
+|---|---|---|
+| `membre_id` | FK `membres_famille` cascade | le patient concerné |
+| `consultation_id` | bigint **sans contrainte** | ADR-042 D1 — un identifiant, pas une relation vivante |
+| `medecin_id` / `structure_id` | FK `nullOnDelete` | patron B2-c (`ordonnances`) |
+| `medecin_nom` / `structure_nom` | varchar(200) | **figés**, posés par le serveur |
+| `date_demande` | date | |
+| `renseignements_cliniques` | text **chiffré** | ce que le médecin dit au biologiste — donnée de santé (L9) |
+| `jeton_partage` | varchar(64) UNIQUE, hors `$fillable`, `$hidden` | patron B3-a |
+| `statut` | enum(`emise`,`servie`,`annulee`) | `servie` **dérivée** d'un prélèvement publié, jamais posée à la main |
+| `source` / `added_by` | enum | réécrits par le serveur |
+
+### `demande_analyse_lignes` — l'identité de chaque examen, en clair (L9)
+
+`demande_id` (cascade) · `libelle` · `analyse_id` (`nullOnDelete`) · `code_national` · `unite` ·
+`conditions_prelevement` (**chiffré**) · `rang` · `UNIQUE(demande_id, analyse_id)` quand `analyse_id`
+n'est pas nul.
+
+### `prelevements` — l'échantillon et son cycle
+
+`demande_id` (cascade) · `identifiant` varchar(20) **UNIQUE** (l'étiquette, L5) ·
+`laboratoire_structure_id` · `statut` (les six états de L6) · `preleve_le` · `preleve_par_nom` ·
+`expedie_le` · `recu_le` · `analyse_le` · `execute_par_user_id` · `valide_le` · `valide_par_user_id` ·
+`valide_par_nom` · `publie_le` · `resultat_analyse_id` (**identifiant sans contrainte** — le patient
+peut supprimer la ligne de son carnet, le prélèvement doit y survivre : ADR-042 D1, et B3-c a payé le
+prix d'une clé étrangère `nullOnDelete` sur une table append-only).
+
+**Gardes du moteur** (déclencheurs dans les deux dialectes, patron constant depuis P6.3 — `CHECK`
+impossible, colonnes sous action référentielle, erreur 3823) :
+
+1. `valide` exige `valide_par_user_id` **et** `valide_le` ;
+2. `publie` exige `resultat_analyse_id` **et** `publie_le` ;
+3. un `identifiant` vide est refusé ;
+4. les états ne remontent pas.
+
+### `validations_biologiques` — journal, pas colonne
+
+CDC_04 §109 la nomme. Elle porte le **verdict et son auteur** (`prelevement_id`, `user_id`, `nom`,
+`verdict` ∈ {`valide`, `rejete`}, `motif` **obligatoire sur un rejet**, `cree_le`), **append-only**
+(modèle + déclencheurs, patron `protocole_applications`). Un rejet renvoie le prélèvement en
+`en_analyse` : *on ne supprime pas une validation, on en écrit une autre* — et les deux se lisent.
+
+**Pas de chaîne de hachage** : ADR-042 a montré ce que coûte une chaîne, et *on ne durcit pas par
+symétrie décorative* (B3-c a pris la même décision, en la motivant).
+
+---
+
+## 5. Classes et fonctions — noms retenus
+
+| Nom | Rôle |
+|---|---|
+| `App\Services\Analyse\ServiceDemandeAnalyse` | le médecin prescrit (depuis la consultation) |
+| `App\Services\Analyse\ProjecteurLignesDemande` | projette les lignes — patron `ProjecteurLignesOrdonnance` |
+| `App\Services\Analyse\ServiceCircuitPrelevement` | les six transitions, le verrou, les gardes |
+| `App\Services\Analyse\ServiceValidationBiologique` | le verdict, le journal, la publication |
+| `App\Services\Pki\DocumentPrescriptionBiologique` | L8 — une classe et une ligne |
+| `App\Support\StatutPrelevement` | enum PHP, **miroir `@masante/shared`** + garde anti-divergence (patron B1-a / B3-d) |
+| `App\Services\Analyse\GenerateurIdentifiantPrelevement` | L5 — opaque, non séquentiel |
+
+---
+
+## 6. Ce qui change dans l'existant
+
+| Fichier | Changement | Nature |
+|---|---|---|
+| `AntecedentController`, `OrdonnanceController`, `ResultatAnalyseController` | `source` **retirée** des règles de validation (L4) | correction, additive sans perte |
+| `RegistreDocumentsSignables` | `prescription_biologique` passe de `NON_BRANCHES` à `SIGNABLES` | une ligne |
+| `PortailRolesSeeder` | `analyse.executer` → `laborantin` ; `analyse.valider` → **aucun rôle** | additif |
+| `packages/shared/src/enums` | `StatutPrelevement` + les deux permissions | source unique |
+| `ResultatAnalyse` | relation vers le prélèvement d'origine (lecture seule) | additif |
+| `Consultation` | relation `demandesAnalyses()` | additif |
+
+**Ce qui NE change pas** : `EcritureSoignantService`, `SessionDossierService`,
+`CarnetSectionController` et les six voies d'accès au dossier. *Si l'une d'elles devait bouger, c'est
+que L3 serait faux.*
+
+---
+
+## 7. Ce qu'il faudra prouver
+
+**Le vecteur central est une absence** : servir une demande d'examen ne crée **aucune ligne** dans
+`acces_dossier` — vérifié en SQL direct au G2 live, comme en B3-a.
+
+Puis : un examen hors catalogue est **accepté et compté**, jamais bloqué (L2) · un client posant
+`source: 'structure'` sur son propre résultat est **ignoré** (L4, deux couches, deux vecteurs —
+patron P6.6b) · le code national et l'unité envoyés par le client sont **ignorés** au profit du
+catalogue · un prélèvement ne peut **pas** être publié sans validation biologique (L7) · un
+prélèvement ne **remonte pas** son cycle (garde du moteur) · un rejet **écrit une seconde ligne** et
+n'efface pas la première · l'identifiant de prélèvement n'ouvre **rien** · un jeton faux rend **404,
+jamais 403** · une demande signée avant un changement d'état reste **INTÈGRE** (L8) · un laboratoire
+d'une autre structure reçoit **404** sur un prélèvement qui n'est pas le sien.
+
+**Campagne de mutation** sur chaque garde, avec un **témoin volontairement vert**.
+
+**Prérequis de déploiement à écrire AVANT le G2** (K6) : `CatalogueAnalysesSeeder` puis
+`masante:analyses:backfill`, sinon le catalogue est vide et rien ne peut être prescrit — le G2 le
+découvrirait sinon en direct, comme B2-b l'a vécu avec `MaladieSeeder`.
+
+---
+
+## 8. Limites qui seront annoncées
+
+- **Aucun automate** (L10) — point d'extension nommé, le chemin P11.2 existe.
+- **Aucune statistique nationale d'analyses** (L9 / L11) — les valeurs restent chiffrées.
+- **Catalogue = jeu de démonstration de huit analyses**, honnêtement étiqueté depuis P6.7a ; le
+  charger pour de vrai est **de la donnée, zéro code**, et tant que ce n'est pas fait **ce n'est pas
+  un catalogue national**.
+- **Aucune radiologie** — DICOM / PACS hors périmètre (seconde moitié de l'étape 9).
+- **Aucun écran mobile** : le patient verra sa demande dans son carnet, il ne suivra pas le cycle du
+  prélèvement.
+- **Le transport n'est pas géolocalisé** : `expedie` est une déclaration, pas un suivi.
+- **La validation biologique n'est pas signée cryptographiquement** — la PKI signe la *demande* (L8),
+  pas le verdict ; le journal nomme son auteur, ce qu'un litige discutera.
+- **Écrans Blade** (L12), le registre de zones Next reste à quatre entrées.
+
+---
+
+## 9. Ordre d'exécution proposé
+
+**B5-a — la demande d'examen.** Fermeture de la porte `source` (L4) · `demandes_analyses` +
+`demande_analyse_lignes` · `ServiceDemandeAnalyse` + projection + lien catalogue · jeton ·
+`DocumentPrescriptionBiologique` (L8) · écrans : prescription depuis la consultation, demande visible
+au carnet du patient · G3 + G2 live.
+
+**B5-b — le prélèvement, sa validation, la publication du résultat.** `prelevements` +
+`validations_biologiques` + les quatre gardes du moteur · `ServiceCircuitPrelevement` +
+`ServiceValidationBiologique` · les deux permissions · écran laboratoire (lecture de la demande par
+jeton, enregistrement du prélèvement, cycle, validation, publication) · G3 + G2 live.
+
+**Pourquoi deux et pas un** : le circuit complet en une fois serait le plus gros incrément du projet.
+**Pourquoi B5-a n'est pas un socle à vide** : une demande d'examen est utile seule — le patient
+l'emporte chez le laboratoire de son choix, exactement comme une ordonnance papier, et elle referme
+déjà la prescription en texte libre que P6.5b avait nommée.
+
+**Le découpage, comme le périmètre, attend l'arbitrage du propriétaire.**
+
+---
+
+## 10. Élargissement du périmètre — arbitrage du propriétaire (2026-09-05)
+
+> « on ne va rien abandonner, on va ajouter tout ce qui manque, on va donc construire le circuit en
+> entier avec les quatre tables absentes : `demandes_analyses`, `prelevements`,
+> `validations_biologiques`, `automates`. On va garder l'intégralité du cahier des charges :
+> Demandes d'examens · prélèvements avec scan code-barres/QR · saisie et import des résultats ·
+> validation biologiste · publication vers le dossier patient · catalogue des analyses · connexion
+> aux automates biologiques. On aura la traçabilité du laborantin, tout comme le journal d'audit du
+> médecin au carnet de santé. Après publication vers le dossier, le patient doit recevoir une
+> notification. »
+
+**Les sections 1 à 9 restent valables, sauf sur les points amendés ci-dessous.** Rien n'y est effacé :
+L10 est réécrit, L11 est confirmé avec sa raison, et quatre décisions s'ajoutent (L13 → L16). Un
+onzième constat de G0, trouvé en instruisant cette demande, **aggrave K5** et le fait passer de
+latent à actif.
+
+### K11 — LE DÉFAUT DE K5 EST ACTIF, ET LE G0 L'AVAIT SOUS-ESTIMÉ
+
+En cherchant où la traçabilité du laborantin devait s'inscrire, un **second consommateur** de `source`
+est apparu : `ServiceFicheParcours::autresEntrees()` filtre sur
+`whereIn('source', ['medecin', 'structure'])`, et son commentaire dit littéralement **« Ce sont des
+faits : leur provenance est `medecin` ou `structure` »**.
+
+Or K5 a établi qu'un client peut poser `source: 'structure'` lui-même sur un antécédent, une
+ordonnance ou un résultat d'analyse. **Donc la saisie personnelle d'un patient peut aujourd'hui
+apparaître dans le bloc « autres entrées médicales » de sa fiche de parcours, présentée comme un fait
+de professionnel** — lue par ses délégués et par le second responsable de famille, sur le document
+que P7-D2 décrit comme « un support à l'appel téléphonique ».
+
+Ce n'est donc plus « un défaut que B5 rendrait actif », c'est **un défaut réel, présent, que B5
+referme** (L4, inchangé dans son principe, renforcé dans sa justification). La modestie de son
+exploitation — il faut un appel API direct — ne change pas sa nature.
+
+### L10 RÉÉCRIT — Les automates entrent, et ce qui est construit est dit exactement
+
+Le registre `automates` et le flux d'ingestion sont **construits**. Ce qui ne peut pas l'être est
+nommé, et la frontière est technique, pas rhétorique :
+
+- **Ce qui est construit** : `automates` (le registre déclaré par un laboratoire : libellé, marque,
+  modèle, numéro de série, `client_api_id`, `actif`, `dernier_message_le`) · le **flux d'ingestion
+  réel** — `ClientApi::DOMAINES` gagne `resultats_laboratoire` à côté de `stock_officine`, et P11.2
+  avait écrit que l'ajout d'un flux est « une classe et une ligne de route » : c'est vérifié, la
+  liste blanche est fermée et tient en une entrée · l'authentification par clé et **HMAC sur le corps
+  brut**, la fraîcheur ±5 min, l'anti-rejeu atomique, l'`Idempotency-Key` et le journal
+  `journal_ingestion` **existent déjà et ne sont pas réécrits**.
+- **Ce qui n'est pas construit, et pourquoi ce n'est pas un renoncement** : un automate de biologie
+  ne parle pas HTTP. Il parle **ASTM E1381/E1394** ou **HL7 v2 (LIS2-A2)**, sur un port série ou une
+  socket TCP, dans un local technique. Le composant qui traduit cela vit **physiquement chez le
+  laboratoire** — c'est un *driver*, et c'est l'architecture réelle du marché : automate → middleware
+  du laboratoire → API. **Notre moitié du contrat est celle que nous construisons ici** ; l'autre
+  moitié suppose un appareil que nous n'avons pas vu, et en écrire le protocole reviendrait à
+  l'inventer (position ADR-030, tenue par P11.2 : « aucun partenaire réel consulté »).
+
+**LA GARDE QUI COMPTE, ET ELLE N'EST PAS NÉGOCIABLE : un automate ne valide jamais.** Un résultat
+importé entre au cycle en `en_analyse` et attend **la validation biologique humaine** (L7). Sans
+cette garde, une machine publierait un résultat dans le dossier d'un patient sans qu'aucun biologiste
+ne l'ait vu — ce que CDC_00 §4 interdit littéralement. *Le flux d'import accélère la saisie, il ne
+déplace jamais la décision.*
+
+**Le rattachement se fait par l'étiquette du tube** (L5) : l'automate renvoie l'identifiant de
+prélèvement qu'il a lu, et c'est cette valeur — non un identifiant interne, non un rapprochement par
+nom de patient — qui désigne le prélèvement. *Rapprocher un résultat d'un patient par ressemblance
+serait l'erreur d'identification que le §7.4 existe pour supprimer.* Un identifiant inconnu est
+**refusé et nommé**, jamais deviné (patron D2 de P11.2, où le serveur ne devine jamais une référence
+produit).
+
+### L11 CONFIRMÉ — toujours pas de registre national des analyses, et ce n'est pas un abandon
+
+La demande du propriétaire énumère sept éléments ; **le registre national de consommation n'en fait
+pas partie**, et le corpus ne le demande que pour les médicaments (§7.6). L9 montre par ailleurs qu'il
+n'en existe pas le support : les valeurs vivent dans un blob chiffré, et l'ouvrir est une décision de
+gouvernance des données de santé qui dépasse ce lot. **Ce n'est pas retranché du périmètre demandé —
+ce n'en a jamais fait partie.**
+
+### L13 — La traçabilité du laborantin : `journal_laboratoire`, et rien dans `acces_dossier`
+
+La demande est explicite : « la traçabilité du laborantin, **tout comme** le journal d'audit du
+médecin au carnet de santé ». Le mot qui compte est *comme* : le **niveau d'exigence** est le même,
+le mécanisme ne peut pas l'être — `acces_dossier` journalise **l'ouverture d'une fenêtre sur un
+dossier**, et L3 pose qu'un laboratoire n'en ouvre aucune.
+
+**Vérifié plutôt que supposé** : `ServiceFicheParcours` répartit les lignes d'`acces_dossier` en
+ouvertures et clôtures selon `duree_minutes !== null`. Une ligne de dépôt isolée y serait donc classée
+comme **ouverture sans clôture** et s'afficherait « consultation non clôturée » — *une phrase fausse,
+dans le document même qui existe pour dire au patient ce qui s'est passé*.
+
+Donc :
+
+1. **`journal_laboratoire`** — append-only (modèle **et** déclencheurs), nominatif, horodaté. Il trace
+   **tous** les actes du circuit, y compris ceux qui ne touchent aucun carnet : consultation d'une
+   demande par jeton, enregistrement du prélèvement, expédition, réception, mise en analyse, **import
+   d'un automate**, validation, **rejet**, publication. C'est *plus* que ce que `acces_dossier` trace
+   pour un médecin, parce qu'un circuit de laboratoire a plus d'étapes qu'une consultation.
+   `prelevement_id`, `client_api_id` et `user_id` y sont des **identifiants sans contrainte** (ADR-042
+   D1 — un journal ne se laisse pas modifier par la suppression d'un compte, et B3-c a payé le prix de
+   l'oubli inverse). **Aucune valeur clinique** n'y entre : quel acte, sur quel prélèvement, par qui,
+   quand.
+2. **Le patient, lui, voit le dépôt sans qu'on ajoute quoi que ce soit** — et c'est l'élégance de L4 :
+   une fois `source = 'structure'` réellement écrite par le circuit, le résultat publié apparaît **de
+   lui-même** dans le bloc « autres entrées médicales » de la fiche de parcours (P7-D2), qui filtre
+   déjà sur cette valeur (K11). *Le mécanisme existant devient exact au lieu d'être doublé.* Le
+   laboratoire d'origine est déjà porté par la ligne (`laboratoire_nom`, `laboratoire_code`, P6.7b).
+
+**Conséquence heureuse et à dire** : `ServiceFicheParcours` et `acces_dossier` **ne sont pas
+modifiés**, donc P7-D2 et les six voies d'accès restent intacts — et le vecteur central de L3 tient
+mot pour mot : *servir une demande ne crée aucune ligne dans `acces_dossier`, parce qu'aucun accès au
+dossier n'a lieu*.
+
+### L14 — La notification, et ce qu'elle ne dira jamais
+
+Type neuf `RESULTAT_ANALYSE_PUBLIE`, émis **à la publication seule** — jamais à la validation, jamais
+à la réception : *le patient n'a pas à suivre le trajet de son tube, il attend son résultat*.
+
+**Un type dédié plutôt que `CARNET_ENRICHI`**, et c'est la leçon de B1-d (« le mot avant le
+mécanisme ») : un résultat d'analyse est attendu, un enrichissement de carnet ne l'est pas ; les
+confondre noierait dans le flux général la seule notification que le patient guette.
+
+**Contenu : l'événement, jamais le résultat.** « Un résultat d'analyse a été déposé dans votre carnet
+par le Laboratoire X » — **ni le nom de l'analyse, ni la moindre valeur**. La règle inviolable de
+P7-D1 s'applique intégralement, et elle mord ici plus fort qu'ailleurs : *un push s'affiche sur un
+écran verrouillé, et le nom d'une analyse désigne une pathologie* — « sérologie VIH » sur l'écran
+d'accueil d'un téléphone posé sur une table est une divulgation. Même posture qu'en P6.8b, où la
+notification dit qu'une vaccination est due **et jamais laquelle**. Le test anti-fuite dédié, qui
+cherche la donnée clinique dans toute la charge utile et casse le build, est **rejoué sur ce type**.
+
+**Destinataires** : le titulaire **et les délégués en lecture** — mêmes destinataires que
+`carnetEnrichi()` (P7-D0), puisque c'est littéralement la même nature d'événement : un professionnel
+vient d'écrire dans ce carnet.
+
+### L15 — Saisie et import : deux entrées, UN SEUL service
+
+Le résultat entre par deux chemins — la **saisie** du laborantin au portail, et l'**import** d'un
+automate (L10) — et tous deux appellent **`ServiceValidationBiologique`/`ServiceResultatAnalyse`, le
+même**. Les écrire deux fois les laisserait diverger, *et ça diverge toujours du côté qu'on regarde le
+moins* — ici l'import, qu'aucun humain n'ouvre jamais. C'est la décision D2 de P11.1 (« un seul chemin
+de création, extrait avant d'être partagé ») et D3 de P11.2 (« contrat d'échange, jamais un second
+chemin d'écriture »), appliquées une troisième fois.
+
+La seule différence que l'import ajoute est **sa provenance** — `origine ∈ {saisie, automate}` sur le
+résultat du prélèvement, **décidée par le serveur** et jamais déclarée par l'appelant (patron E6 de
+P10c-1, `source` de P7-C, `provenance` de P6.8d). *Un résultat ne doit jamais mentir sur d'où il
+vient*, et un biologiste qui valide doit savoir s'il relit une machine ou un collègue.
+
+### L16 — L'étiquette : Code 128 en SVG pur, zéro dépendance
+
+Le §7.4 étape 3 demande « code-barres **ou** QR Code » — le corpus laisse le choix, et les deux
+branches n'ont pas le même coût :
+
+- **Vérifié** : il n'existe **aucune** bibliothèque de code-barres ni de QR côté PHP dans ce dépôt
+  (ni `composer.json`, ni `vendor/`). Un QR exige un encodage Reed-Solomon qu'on n'écrit pas à la
+  main, donc il imposerait une **dépendance** (§2.6, accord écrit requis).
+- **Code 128** s'écrit en SVG pur en quelques dizaines de lignes : un alphabet de largeurs et une clé
+  de contrôle modulo 103, tous deux publics et déterministes — donc **prouvables par vecteurs**, comme
+  `ReglesCodeBarres` (B3-c) ou l'algorithme mod-97 du NIS (P6.1), et **sans une dépendance de plus**.
+- **Et c'est aussi le choix juste métier** : une étiquette de tube de prélèvement est un code-barres
+  linéaire dans tous les laboratoires réels ; un QR sur un tube de 13 mm se lit mal.
+
+`ReglesCode128` sera donc une **classe pure** de plus, au même titre que `ReglesCodeBarres`, avec son
+rendu SVG imprimable — et K9 reste vrai : on ne réutilise pas le GTIN, on écrit l'autre algorithme.
+
+**Le scan**, lui, ne demande rien : un lecteur de comptoir USB se comporte comme un clavier, un champ
+texte le reçoit (patron E6 de B3-c, déjà éprouvé au comptoir de l'officine). La caméra du portail
+reste un confort optionnel sur le CDN `html5-qrcode` déjà présent — **dette existante, ni aggravée ni
+refermée ici**.
+
+### Découpage révisé — trois sous-lots
+
+Le périmètre a doublé : le circuit complet, les automates, un journal d'audit et une notification.
+
+| | Contenu |
+|---|---|
+| **B5-a** | Fermeture de la porte `source` (L4, K11) · `demandes_analyses` + `demande_analyse_lignes` · lien catalogue · jeton · `DocumentPrescriptionBiologique` (L8) · écran de prescription depuis la consultation · la demande au carnet du patient |
+| **B5-b** | `prelevements` · `ReglesCode128` + étiquette imprimable (L16) · scan · le cycle à six états et ses gardes du moteur (L6) · `journal_laboratoire` (L13) · écran laboratoire |
+| **B5-c** | Résultats : **saisie et import** par un seul service (L15) · `automates` + domaine `resultats_laboratoire` (L10) · `validations_biologiques` et le verrou (L7) · publication au carnet en `source = 'structure'` · **notification `RESULTAT_ANALYSE_PUBLIE`** (L14) |
+
+**Pourquoi cette coupure-là** : chaque sous-lot est prouvable seul et laisse le système cohérent —
+une demande d'examen est utile sans laboratoire (le patient l'emporte, comme une ordonnance papier) ;
+un prélèvement suivi et étiqueté est utile sans résultat publié (c'est déjà la traçabilité que le
+§7.4 réclame) ; et B5-c est le seul qui touche le carnet du patient, donc le seul qui exige le
+vecteur anti-fuite et la campagne de mutation sur la garde de validation.
+
+**Aucun des sept éléments demandés n'est reporté** : ils sont tous dans le tableau ci-dessus.
+
+### Ce que ces amendements ajoutent aux preuves exigées (§7)
+
+Aux vecteurs déjà listés s'ajoutent : un client posant `source: 'structure'` sur son propre antécédent
+est ignoré **et n'apparaît pas dans la fiche de parcours** (K11 — deux vecteurs, un par couche) · un
+automate ne peut **pas** publier sans validation humaine (L10, la garde la plus importante du lot) ·
+un identifiant de prélèvement inconnu envoyé par un automate est **refusé et nommé**, jamais rapproché
+· un résultat importé porte `origine = 'automate'` **même si l'appelant déclare le contraire** (L15) ·
+la notification ne contient **ni nom d'analyse ni valeur** (L14, test anti-fuite rejoué) · le journal
+du laboratoire **refuse** modification et suppression, au niveau du modèle **et** du moteur (L13) · un
+Code 128 se relit — vecteurs sur l'alphabet et la clé modulo 103 (L16).
+
+### Limites, après élargissement
+
+Celles de §8 tiennent, **sauf « aucun automate »** qui disparaît, remplacée par : **le driver
+ASTM/HL7 côté laboratoire n'est pas fourni** — notre moitié du contrat l'est, la sienne suppose un
+appareil que nous n'avons pas vu. S'y ajoutent : le QR n'est pas proposé, seul le Code 128 l'est
+(L16) · l'import ne couvre pas les **fichiers plats** déposés à la main (un troisième chemin
+d'écriture non demandé) · le journal du laboratoire **n'est pas une chaîne de hachage** (ADR-042 a
+montré ce que coûte une chaîne ; *on ne durcit pas par symétrie décorative*, décision déjà prise et
+motivée par B3-c).
+
+**Ce périmètre élargi est VALIDÉ par le propriétaire (« je valide le G1 de B5 », 2026-09-05).
+Exécution engagée dans l'ordre du découpage révisé ci-dessus : B5-a → B5-b → B5-c.**
+
+---
+
+## 11. Exécution — B5-a, ce qui a réellement changé par rapport au plan
+
+**✅ VALIDÉ (G5, 2026-09-05)** — G4 propriétaire OK. Détail complet : ADR-057, `CLAUDE.md`
+(entrée B5-a), guide `GUIDE_TEST_APPLICATIONS_METIER.md` partie 17.
+
+Les décisions D2→D7 (schéma, réutilisation de `RegistreSectionsCarnet`, fermeture de `source`,
+lien au catalogue, jeton, signature) ont été suivies sans écart de fond. **Deux points ont dû
+être précisés pendant l'exécution, ni l'un ni l'autre anticipés par ce plan** :
+
+1. **La colonne `structure_nom` a dû être renommée `structure_sanitaire`.** Le plan schématique
+   (§4) ne nommait pas explicitement cette colonne comme devant correspondre à un nom déjà pris
+   ailleurs. Or `EcritureSoignantService::ecrire()` — le mécanisme générique dont D2 annonce la
+   réutilisation « sans code neuf » — vérifie le nom de colonne **littéral** `structure_sanitaire`
+   (celui d'`antecedents` et `ordonnances`) pour savoir QUAND réécrire l'établissement depuis la
+   fiche du soignant. Une colonne nommée différemment aurait laissé ce mécanisme muet, sans
+   erreur : `medecin_nom` se serait posé, `structure_sanitaire` (sous son ancien nom) serait
+   toujours resté vide. Trouvé par `test_une_demande_du_soignant_designe_sa_fiche_et_son_etablissement`,
+   pas par la relecture.
+2. **La garde de `ProjecteurLignesDemande::projeter()` comparait un enum à une chaîne.**
+   `$demande->statut !== StatutDemandeAnalyse::EMISE->value` — `statut` étant casté en enum
+   (`StatutDemandeAnalyse::class`), cette comparaison était **toujours vraie**, quel que soit
+   l'état réel de la demande : aucune ligne n'était jamais projetée, sur aucune demande, dans
+   aucun scénario. Trouvé par la même campagne de tests (`test_deux_examens_produisent_deux_lignes`
+   et les suivants), avant tout G2. Un second défaut lié : le modèle ne portait pas de valeur
+   `statut` **en mémoire** avant le premier `save()` — Eloquent ne relit jamais un défaut SQL
+   après un INSERT — donc même une comparaison juste aurait lu `null`. Corrigé en ajoutant
+   `statut` aux `$attributes` par défaut du modèle, à côté de `source` (patron déjà en place).
+
+Aucun autre écart. Les seize décisions L1→L16 du §10 restent la référence pour B5-b et B5-c ; L3,
+L6, L7, L10→L15 et L16 n'ont pas encore de code — B5-a n'a livré que D2→D7 (L1/L2/L4/K5/K11/L5
+partiel/L8/L9 partiel).
+
+## 12. Exécution — B5-b, ce qui a réellement changé par rapport au plan
+
+**✅ VALIDÉ (G5, 2026-09-05)** — G4 propriétaire OK (« G4 validé, c'est pour le G5 »). Détail
+complet : ADR-058, `CLAUDE.md` (entrée B5-b), guide `GUIDE_TEST_APPLICATIONS_METIER.md` partie 18.
+
+Livre L3, L5, L6 (cycle jusqu'à `en_analyse` ; `valide`/`publie` restent déclarés dans l'ENUM mais
+**inatteignables** — aucune transition n'y mène, elles supposent un résultat que B5-c seul
+construit), **L7 partiel** (`analyse.executer` donnée au `laborantin` ; `analyse.valider` reste
+une chaîne nommée dans les commentaires, sans permission créée — elle appartient au contrôleur de
+validation biologique de B5-c, l'écrire ici aurait été une permission sans porte, la préparer sans
+elle a aucun sens), L13, L16. **L6/L7/L10/L14/L15 pour le reste (automates, validation,
+publication, notification) restent entièrement à B5-c**, exactement comme annoncé.
+
+**QUATRE ÉCARTS AU PLAN, AUCUN DE FOND, TOUS TROUVÉS EN CONSTRUISANT — PAS AU G0** :
+
+1. **`StatutPrelevement` reste un enum PHP-only, PAS un enum partagé `@masante/shared`.** Le plan
+   G1 disait « miroir @masante/shared » sans le justifier davantage. Écrit le fichier, la décision
+   a été reconsidérée par analogie avec `StatutConsultation`/`StatutDemandeAnalyse` (P10b-1/B5-a) :
+   ces deux précédents récents sont restés backend-only, et L12 fait de ce lot un lot **Blade
+   seul** (aucun consommateur Next/mobile). Promouvoir l'enum aurait recréé exactement ce que
+   P6.4d appelle une « clé qui n'attend personne ». Documenté comme **ÉCART ASSUMÉ AU PLAN G1**
+   dans le docblock de la classe elle-même, pas seulement ici.
+2. **`ReglesCodeBarres` de B3-c (GTIN) n'a PAS été réutilisée pour l'identifiant du prélèvement.**
+   K9 l'avait déjà anticipé au G0, mais l'implémentation l'a confirmé concrètement : un GTIN
+   identifie un *produit fabricant* mondial (13 chiffres, clé de contrôle EAN), un identifiant de
+   prélèvement identifie une *instance créée par nous* (`PRE-`+10 caractères aléatoires, patron
+   `DEM-` de P11.1) — les deux n'ont ni la même forme ni la même autorité de nommage. Une classe
+   neuve (`GenerateurIdentifiantPrelevement`) plutôt qu'un détournement.
+3. **Un DÉFAUT RÉEL DANS B5-a, trouvé EN CONSTRUISANT B5-b, PAS AU G0 DE B5-b** : le garde-fou de
+   `ProjecteurLignesDemande::projeter()` comparait `statut` (un ENUM) à `EMISE` (une chaîne) — donc
+   toujours vrai, quel que soit l'état réel — et il **manquait en plus toute vérification
+   relationnelle** : rien n'empêchait de reprojeter les lignes d'une demande déjà prélevée, ce qui
+   aurait désynchronisé silencieusement le tube physique (dont l'identité biologique est figée à
+   l'enregistrement) de la liste d'examens que le carnet affiche. Corrigé par une seconde garde
+   `if ($demande->prelevements()->exists()) { return -1; }`, documentée dans le fichier lui-même
+   sous le titre « CORRECTION TROUVÉE EN CONSTRUISANT B5-b, PAS AU G0 » — B5-a ne pouvait pas la
+   trouver, aucun `prelevements` n'existait encore pour la prouver.
+4. **Le journal d'accès (`acces_dossier`) devait rester à zéro tout au long du cycle, pas
+   seulement à l'enregistrement.** Le plan ne le disait qu'implicitement (L3) ; vérifié
+   explicitement à CHAQUE étape du G2 live (consultation, enregistrement, réception, mise en
+   analyse) : **une seule ligne dans `acces_dossier` du début à la fin**, celle du référent qui
+   avait ouvert le dossier pour écrire la demande — zéro venant du laboratoire.
+
+**PROUVÉ G3** : `CircuitPrelevementTest`, 34 vecteurs dédiés, 167 assertions ; suite complète
+**1826/1826, 18 263 assertions, 0 échec** (confirmée après la campagne de mutation). **Mutation
+manuelle : 4 mutations tueuses + 1 témoin volontairement vert**, chacune assertée appliquée avant
+interprétation, chaque fichier restauré et vérifié par `diff` :
+- M1 — `assertAppartientAuLaboratoire()` neutralisée (`abort_if(false, 404)`) → tue exactement
+  `test_un_laboratoire_d_une_autre_structure_ne_peut_pas_transitionner` **et**
+  `test_un_laboratoire_d_une_autre_structure_recoit_404_en_http` (2 vecteurs, direct-call **et**
+  HTTP réel — la garde vaut sur les deux chemins).
+- M2 — la garde SQLite de non-régression du rang (`WHEN (1=0) AND (...)`) → tue exactement
+  `test_le_moteur_refuse_qu_un_etat_remonte`.
+- M3 — la garde relationnelle neuve de `ProjecteurLignesDemande` (`if (false) { return -1; }`) →
+  tue exactement `test_une_demande_prelevee_n_est_plus_reprojetee`.
+- M4 — `assertHabilite()` neutralisée (`if (false)`) → tue exactement
+  `test_un_laborantin_sans_habilitation_est_refuse`.
+- Témoin — réordonnancement de six affectations indépendantes dans `enregistrer()` (aucune ne
+  dépend d'une autre) → **34/34 restent verts** : le harnais ne tue pas indistinctement.
+
+**PROUVÉ G2 LIVE MySQL, réel de bout en bout** (base sauvegardée `mysqldump --routines --triggers`
+avant migration, stderr redirigé séparément — piège de B5-a évité — puis migration réelle, deux
+laboratoires réels, un médecin réel désigné référent d'un membre réel, une demande réelle créée par
+HTTP avec `medecin_nom`/`structure_sanitaire`/`source` falsifiés par le client et **tous ignorés**
+[`Dr Kablan Koffi`/`CHU de Cocody`/`medecin` posés à la place], deux lignes projetées dont une liée
+au catalogue [`ANA000001`/`g/dL` figés] et une hors catalogue) :
+- Jeton faux → **404** ; vrai jeton → demande affichée avec ses deux lignes, **`acces_dossier`
+  reste à 1** (la seule ligne du référent, posée avant B5-b).
+- Enregistrement réel du prélèvement (`PRE-K9ISKBUEKO`) → **`acces_dossier` toujours à 1**.
+- Mise en analyse tentée avant réception → refusée, statut inchangé, message affiché à l'écran.
+- Réception directe depuis `preleve` (transport sauté) → `recu`, confirmant L6 (`expedie`
+  facultatif) **en réel**, pas seulement en test.
+- Mise en analyse → `en_analyse`, `execute_par_user_id` posé ; **`acces_dossier` toujours à 1** au
+  terme du cycle complet — vecteur central vérifié en direct, pas seulement en SQLite.
+- Étiquette SVG réelle récupérée (`Content-Type: image/svg+xml`, rectangles Code 128 rendus).
+- **Anti-IDOR réel** : le laborantin du second laboratoire reçoit **404** sur le détail, **404**
+  sur l'étiquette, **404** sur `recevoir` (après avoir obtenu un jeton CSRF valide, pour écarter
+  un faux positif de 419) — statut du prélèvement inchangé, **zéro ligne** journalisée pour son
+  laboratoire.
+- **Les quatre gardes du moteur refusent chacune par leur motif exact**, en SQL direct contre la
+  base réelle : `valide` sans valideur ni date, `publie` sans résultat ni date, identifiant vide à
+  l'insertion, régression de rang (`en_analyse` → `preleve`) — `ERROR 1644` sur les quatre,
+  statut final inchangé.
+- **`journal_laboratoire` refuse `UPDATE` et `DELETE` au niveau du moteur**, en SQL direct : les
+  quatre lignes existantes (une par étape) restent identiques, non modifiées.
+- **La garde relationnelle du défaut (3) ci-dessus, vérifiée en direct** : appeler
+  `ProjecteurLignesDemande::projeter()` sur la demande déjà prélevée renvoie `-1`, les deux lignes
+  restent inchangées.
+
+**Prérequis de déploiement retrouvé une fois de plus** : `PortailRolesSeeder` n'avait pas encore
+été rejoué sur cette base après le seeder de B5-a — `analyse.executer` était absente du rôle
+`laborantin` jusqu'à ce qu'il soit relancé (conséquence de déploiement, famille B1-c/B1-d/B4-b).
+
+**Base restaurée avec un piège relevé et corrigé pendant la restauration elle-même** : le
+`mysqldump` pris **avant la migration** ne connaît pas les tables `prelevements`/
+`journal_laboratoire` (elles n'existaient pas encore) — sa réimportation restaure les DONNÉES des
+145 tables préexistantes mais **ne supprime pas** les deux tables créées après coup ; il a fallu un
+`DROP TABLE` explicite des deux pour revenir à un état réellement pré-migration (147 → 145 tables,
+migration redevenue `Pending`, cohérent). *Restaurer un dump ne défait que ce que le dump
+connaissait — une leçon pour tout futur G2 live qui créerait des tables neuves.* Vérifié
+compte par compte : `users` et `structures_sanitaires` revenus à leurs comptes exacts d'avant
+test, fiche médecin n°1 avec `user_id` de nouveau `NULL`, `demandes_analyses`/`acces_dossier`
+revenus à 0, `.env` inchangé.
+
+**Aucune dépendance nouvelle** (SVG en chaînes PHP pures, aucune bibliothèque de code-barres).

@@ -42,6 +42,12 @@ class PortailRolesSeeder extends Seeder
         // (même critère que `ordonnance.delivrer` ci-dessus). C'est la remise qui donne son sens à
         // la séparation — remettre une commande PORTANT UNE ORDONNANCE exige les DEUX permissions.
         'commande.traiter',
+        // B5-b — enregistrer et faire avancer un prélèvement (CDC_09 §7.4). PERMISSION DISTINCTE
+        // de `medicament.manage`/`ordonnance.delivrer` : exécuter un prélèvement biologique n'est
+        // ni tenir un prix ni dispenser un médicament. `analyse.valider` (le VERDICT du biologiste,
+        // B5-c) sera volontairement orpheline — celle-ci ne l'est pas : exécuter un prélèvement est
+        // le métier même du laborantin, comme délivrer l'est du pharmacien.
+        'analyse.executer',
         'stats.etablissement',    // statistiques de SON établissement
         // Agent de garde
         'disponibilite.manage',   // mettre à jour la dispo de SON service
@@ -323,8 +329,13 @@ class PortailRolesSeeder extends Seeder
         // donc la capacité existe réellement.
         // Il ne reçoit **pas** `analyse.referentiel` : un laboratoire ne fixe pas les valeurs de
         // référence nationales contre lesquelles ses propres résultats seront lus (P6.7a).
+        // B5-b — `analyse.executer` s'ajoute : c'est le VRAI circuit (jeton, sans session de
+        // dossier, L3) que `qr.scan`/`dossier.ecrire` ci-dessus n'ont jamais couvert — ils restent
+        // pour ne pas retirer une capacité déjà accordée (précédent B3-a, où `pharmacien` a gardé
+        // `qr.scan` après l'ajout d'`ordonnance.delivrer`), mais le circuit du prélèvement passe
+        // désormais par cette permission-ci.
         'laborantin' => [
-            'qr.scan', 'triage.view', 'dossier.ecrire',
+            'qr.scan', 'triage.view', 'dossier.ecrire', 'analyse.executer',
         ],
         // §8.2 — Le radiologue est le rôle le plus pauvre de ce bloc, et il faut le dire plutôt
         // que de le garnir : il n'existe dans ce projet NI imagerie, NI DICOM, NI compte rendu

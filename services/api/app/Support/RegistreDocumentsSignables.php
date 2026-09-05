@@ -3,6 +3,7 @@
 namespace App\Support;
 
 use App\Services\Pki\DocumentOrdonnance;
+use App\Services\Pki\DocumentPrescriptionBiologique;
 use App\Services\Pki\DocumentSignable;
 
 /**
@@ -32,6 +33,10 @@ final class RegistreDocumentsSignables
      */
     public const SIGNABLES = [
         DocumentOrdonnance::CODE => DocumentOrdonnance::class,
+        // B5-a — troisième entité branchée (K2) : la condition posée par le code lui-même
+        // (« sans le catalogue national des analyses, elle prescrirait en texte libre ») est
+        // remplie depuis P6.7a.
+        DocumentPrescriptionBiologique::CODE => DocumentPrescriptionBiologique::class,
     ];
 
     /**
@@ -48,9 +53,6 @@ final class RegistreDocumentsSignables
         'certificat_medical' => "Entité inexistante. `documents_medicaux.categorie='certificat_medical'` "
             ."est un FICHIER IMPORTÉ par le patient, pas un certificat émis par un professionnel. "
             .'Module « Documents médicaux signés », après P6.7.',
-        'prescription_biologique' => "Entité inexistante — et ce n'est pas un document mais une DEMANDE "
-            ."qui ouvre un circuit (médecin → laboratoire → résultat, §7.4). Sans le catalogue "
-            ."national des analyses (étape 7), elle prescrirait des examens en texte libre.",
         'rapport_radiologie' => 'Entité inexistante. Suppose l\'imagerie et DICOM (§9.1). '
             .'`resultats_analyses.type_analyse=radiologique` porte un RÉSULTAT saisi, pas un rapport.',
         'document_administratif' => 'Entité inexistante comme document produit. `documents_medicaux` '

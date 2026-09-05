@@ -255,6 +255,12 @@ class MembreFamille extends Model
         return $this->hasMany(ResultatAnalyse::class, 'membre_id');
     }
 
+    /** B5-a — les demandes d'examens de ce membre (analogue d'`ordonnances`). */
+    public function demandesAnalyses(): HasMany
+    {
+        return $this->hasMany(DemandeAnalyse::class, 'membre_id');
+    }
+
     public function rappels(): HasMany
     {
         return $this->hasMany(Rappel::class, 'membre_id');

@@ -137,39 +137,40 @@ class CarnetSectionTest extends TestCase
             ->assertOk()->assertJsonPath('items.0.source', 'patient');
     }
 
-    public function test_f2_13_source_acceptee_et_persistee(): void
+    /**
+     * B5-a (L4/K5/K11) — RÉÉCRIT, PAS SEULEMENT CORRIGÉ. Ce test affirmait qu'un client pouvait
+     * poser lui-même `source: 'structure'`/`'medecin'` sur sa propre saisie directe — c'était
+     * exactement le défaut que K11 a trouvé ACTIF : `ServiceFicheParcours::autresEntrees()` lit
+     * cette valeur comme « un fait de professionnel ». La garantie neuve est l'inverse : `source`
+     * envoyée par le client est TOUJOURS ignorée sur ces trois sections, quelle que soit sa
+     * valeur — la colonne garde son défaut `patient`.
+     */
+    public function test_f2_13_source_du_client_est_toujours_ignoree(): void
     {
         $user = User::factory()->create();
         $membre = MembreFamille::factory()->for($user)->create();
         Sanctum::actingAs($user);
 
-        // `source` non-patient acceptée sur les 3 sections de dossier (chemin médecin/structure futur, M3/M4).
         $this->postJson("/api/v1/membres/{$membre->id}/antecedents", [
             'type' => 'maladie_chronique', 'description' => 'Diabète type 2', 'source' => 'structure',
-        ])->assertCreated()->assertJsonPath('item.source', 'structure');
+        ])->assertCreated()->assertJsonPath('item.source', 'patient');
 
         $this->postJson("/api/v1/membres/{$membre->id}/ordonnances", [
             'medecin_nom' => 'Dr Aka', 'structure_sanitaire' => 'CHU de Cocody',
             'date_prescription' => '2026-06-10', 'medicaments_json' => [['nom' => 'Metformine']],
             'source' => 'medecin',
-        ])->assertCreated()->assertJsonPath('item.source', 'medecin');
+        ])->assertCreated()->assertJsonPath('item.source', 'patient');
 
-        $this->assertDatabaseHas('antecedents', ['membre_id' => $membre->id, 'source' => 'structure']);
-        $this->assertDatabaseHas('ordonnances', ['membre_id' => $membre->id, 'source' => 'medecin']);
-    }
-
-    public function test_f2_13_source_invalide_rejetee_422(): void
-    {
-        $user = User::factory()->create();
-        $membre = MembreFamille::factory()->for($user)->create();
-        Sanctum::actingAs($user);
-
-        // Hors liste blanche ENUM → 422, rien en base.
+        // Une valeur HORS de l'ENUM lui-même n'est plus refusée en 422 : elle n'atteint même plus
+        // la validation, elle est simplement écartée avant d'y arriver — l'entrée se crée quand
+        // même, avec la valeur par défaut.
         $this->postJson("/api/v1/membres/{$membre->id}/resultats-analyses", [
             'type_analyse' => 'biologique', 'intitule' => 'NFS',
             'date_analyse' => '2026-06-01', 'source' => 'hopital',
-        ])->assertStatus(422)->assertJsonValidationErrors('source');
+        ])->assertCreated()->assertJsonPath('item.source', 'patient');
 
-        $this->assertDatabaseCount('resultats_analyses', 0);
+        $this->assertDatabaseHas('antecedents', ['membre_id' => $membre->id, 'source' => 'patient']);
+        $this->assertDatabaseHas('ordonnances', ['membre_id' => $membre->id, 'source' => 'patient']);
+        $this->assertDatabaseHas('resultats_analyses', ['membre_id' => $membre->id, 'source' => 'patient']);
     }
 }

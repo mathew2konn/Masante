@@ -48,7 +48,12 @@ class AntecedentController extends CarnetSectionController
             'impact_triage'       => ['nullable', 'integer', 'between:0,20'],
             'added_by'            => ['nullable', 'in:patient,medecin'],
             // F2.13 — provenance de l'entrée (défaut BDD 'patient'). Distincte de added_by (auteur de saisie).
-            'source'              => ['nullable', 'in:patient,medecin,structure'],
+            // B5-a (L4/K5/K11) — `source` N'EST PLUS ACCEPTÉE DU CLIENT. Elle était déclarée ici
+            // en `nullable`, donc un client pouvait poser lui-même `structure` sur sa propre
+            // saisie — et `ServiceFicheParcours::autresEntrees()` la lit comme « ceci est un
+            // fait » (K11). Retrait ADDITIF SANS PERTE : les deux appelants légitimes
+            // (`EcritureSoignantService`, `ContributionCarnetService`) réécrivent déjà `source`
+            // APRÈS validation, ils n'envoient jamais cette clé dans `$donnees`.
             // P6.8c — le lien au référentiel national. L'existence est vérifiée par le service et
             // non par `exists:`, pour que le message nomme la maladie introuvable au lieu d'un
             // « champ invalide » (précédent P6.6b). `maladie_code` et `maladie_libelle` ne sont PAS

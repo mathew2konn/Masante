@@ -15,6 +15,7 @@ use App\Http\Controllers\Portail\DisponibiliteController;
 use App\Http\Controllers\Portail\DossierController;
 use App\Http\Controllers\Portail\EtablissementController;
 use App\Http\Controllers\Portail\GouvernanceModeleIaController;
+use App\Http\Controllers\Portail\LaboratoireController;
 use App\Http\Controllers\Portail\MedecinController as PortailMedecinController;
 use App\Http\Controllers\Portail\MesPatientsController;
 use App\Http\Controllers\Portail\ModerationController;
@@ -283,6 +284,30 @@ Route::prefix('portail')->name('portail.')->group(function () {
             Route::post('commandes/{commande}/preparer', [CommandeClientController::class, 'preparer'])->name('commandes.preparer');
             Route::post('commandes/{commande}/remettre', [CommandeClientController::class, 'remettre'])->name('commandes.remettre');
         });
+
+        // B5-b — LE LABORATOIRE : lire une demande par jeton, enregistrer et suivre un
+        // prélèvement (CDC_09 §7.4, CDC_04 §109).
+        //
+        // AUCUNE SESSION DE DOSSIER, même posture que `delivrance` juste au-dessus (L3) : le
+        // laboratoire atteint la demande par son JETON, jamais par un accès au carnet.
+        Route::middleware('permission:analyse.executer')->prefix('laboratoire')->name('laboratoire.')
+            ->group(function () {
+                Route::get('/', [LaboratoireController::class, 'index'])->name('index');
+                Route::get('demande', [LaboratoireController::class, 'montrer'])
+                    ->name('montrer')->middleware('throttle:30,1');
+                Route::post('demande', [LaboratoireController::class, 'enregistrer'])->name('enregistrer');
+                Route::get('travail', [LaboratoireController::class, 'travail'])->name('travail');
+                Route::get('prelevements/{prelevement}', [LaboratoireController::class, 'prelevement'])
+                    ->name('prelevement');
+                Route::get('prelevements/{prelevement}/etiquette', [LaboratoireController::class, 'etiquette'])
+                    ->name('etiquette');
+                Route::post('prelevements/{prelevement}/expedier', [LaboratoireController::class, 'expedier'])
+                    ->name('expedier');
+                Route::post('prelevements/{prelevement}/recevoir', [LaboratoireController::class, 'recevoir'])
+                    ->name('recevoir');
+                Route::post('prelevements/{prelevement}/mettre-en-analyse', [LaboratoireController::class, 'mettreEnAnalyse'])
+                    ->name('mettre-en-analyse');
+            });
 
         // P6.6a — Référentiel NATIONAL des médicaments (CDC_09 §6.2).
         //

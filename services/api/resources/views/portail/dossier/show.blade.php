@@ -303,6 +303,33 @@
             </div>
           @endforeach
 
+        @elseif ($section === 'demandes-analyses')
+          {{-- B5-a — la demande d'examen. Le jeton de partage n'apparaît JAMAIS ici : c'est un
+               secret d'accès (`$hidden`), pas une donnée à afficher (L5). --}}
+          @foreach ($donnees as $d)
+            <div class="border-bottom py-2">
+              <strong>{{ optional($d->date_demande)->format('d/m/Y') ?? 'date inconnue' }}</strong>
+              <span class="text-muted small">· {{ $d->medecin_nom ?? 'praticien non précisé' }} · {{ $d->structure_sanitaire ?? '—' }}</span>
+              <span class="badge bg-secondary-subtle text-secondary-emphasis border ms-1">
+                {{ $d->statut instanceof \App\Support\StatutDemandeAnalyse ? $d->statut->libelle() : $d->statut }}
+              </span>
+              @if ($d->lignes->isNotEmpty())
+                <ul class="small mb-0 mt-1">
+                  @foreach ($d->lignes as $ligne)
+                    <li>
+                      {{ $ligne->libelle }}
+                      @if ($ligne->estCodee())
+                        <span class="badge bg-info-subtle text-info-emphasis ms-1">{{ $ligne->code_national }}</span>
+                      @else
+                        <span class="badge bg-secondary-subtle text-secondary-emphasis ms-1">hors référentiel</span>
+                      @endif
+                    </li>
+                  @endforeach
+                </ul>
+              @endif
+            </div>
+          @endforeach
+
         @elseif ($section === 'mesures')
           {{-- FN5 — Journal de bord du patient (90 derniers jours). Le statut est celui calculé par
                le serveur à partir du référentiel de seuils : le portail ne rejuge rien. --}}

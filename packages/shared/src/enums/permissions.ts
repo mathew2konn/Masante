@@ -25,7 +25,7 @@
  * que le paiement revérifie (ADR-020 §B2).
  */
 
-/** Les 41 permissions du portail, telles que `PortailRolesSeeder::PERMISSIONS` les crée. */
+/** Les 42 permissions du portail, telles que `PortailRolesSeeder::PERMISSIONS` les crée. */
 export const PERMISSIONS = [
   // Administration de la plateforme
   'etablissement.manage',
@@ -41,6 +41,7 @@ export const PERMISSIONS = [
   'medicament.manage',
   'ordonnance.delivrer',
   'commande.traiter',
+  'analyse.executer',
   'stats.etablissement',
   // Accueil et parcours du patient
   'disponibilite.manage',

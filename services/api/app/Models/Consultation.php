@@ -72,6 +72,18 @@ class Consultation extends Model
         return $this->hasMany(NoteObservation::class, 'consultation_id');
     }
 
+    /**
+     * B5-a — les demandes d'examens prescrites pendant cette consultation.
+     *
+     * Identifiant SANS clé étrangère (ADR-042 D1) sur `demandes_analyses.consultation_id` : cette
+     * relation reste une simple requête, elle ne garantit rien de plus que ce que
+     * `EcritureSoignantService` a déjà posé à l'écriture.
+     */
+    public function demandesAnalyses(): HasMany
+    {
+        return $this->hasMany(DemandeAnalyse::class, 'consultation_id');
+    }
+
     public function estEnCours(): bool
     {
         return $this->statut === StatutConsultation::EN_COURS;

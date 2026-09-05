@@ -28,18 +28,27 @@ use Illuminate\Validation\ValidationException;
  *
  * L'UNITÉ EST FIGÉE AVEC LE RESTE, et c'est le point le plus important ici : un résultat dont
  * l'unité changerait après coup deviendrait faux d'un facteur 10 ou 100 sans que rien ne le signale.
+ *
+ * ═══ B5-a — RÉUTILISÉ TEL QUEL POUR LES DEMANDES D'EXAMEN, PAS RÉÉCRIT ═══
+ *
+ * `demande_analyse_lignes` (B5-a) porte le même lien facultatif au même catalogue, pour la même
+ * raison. Le réécrire aurait créé un second endroit qui interroge le catalogue (refus P6.6a) ;
+ * seul le nom du champ signalé dans l'erreur diffère selon l'appelant, d'où `$champ`.
  */
 final class ServiceLienAnalyse
 {
     /**
-     * Résout les lignes d'un `resultats_json` validé.
+     * Résout les lignes d'un tableau validé (`resultats_json` ou `analyses_json`).
      *
      * @param  array<int, array<string, mixed>>  $lignes
+     * @param  string  $champ  le nom du champ signalé dans le message d'erreur — celui que
+     *                         l'appelant a réellement validé, pour que le refus s'attribue au bon
+     *                         endroit du formulaire.
      * @return array<int, array<string, mixed>>
      *
      * @throws ValidationException si un `analyse_id` ne désigne aucune entrée du catalogue
      */
-    public function resoudre(array $lignes): array
+    public function resoudre(array $lignes, string $champ = 'resultats_json'): array
     {
         $ids = array_values(array_filter(array_map(
             static fn (array $l): ?int => isset($l['analyse_id']) ? (int) $l['analyse_id'] : null,
@@ -48,7 +57,7 @@ final class ServiceLienAnalyse
 
         $analyses = $ids === [] ? collect() : Analyse::whereIn('id', $ids)->get()->keyBy('id');
 
-        return array_values(array_map(function (array $ligne) use ($analyses): array {
+        return array_values(array_map(function (array $ligne) use ($analyses, $champ): array {
             // Les clés dérivées ne viennent jamais du client : on les efface avant de les reposer,
             // sinon une ligne pourrait porter un code national et une unité que rien n'a vérifiés.
             unset($ligne['code_national'], $ligne['libelle_catalogue'], $ligne['unite_catalogue']);
@@ -62,7 +71,7 @@ final class ServiceLienAnalyse
 
             if ($analyse === null) {
                 throw ValidationException::withMessages([
-                    'resultats_json' => "L'analyse n°{$id} n'existe pas au catalogue national.",
+                    $champ => "L'analyse n°{$id} n'existe pas au catalogue national.",
                 ]);
             }
 

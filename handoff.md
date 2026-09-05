@@ -21,6 +21,23 @@
 > (officine 18, commandes 1 à 6, commission réelle en base). Détail : `plan.md` PLAN 2 §13,
 > `docs/adr/ADR-055-delivrance-ordonnance.md` §11, guide partie 14. Voir §6.
 >
+> **Incrément EN COURS** : **B5 — le circuit du laboratoire** (CDC_11 §8.1, CDC_09 §7.4, CDC_04
+> §109), **étape 9 de l'ordre CDC_11 §12**, choisie par le propriétaire le 2026-09-05. **G1 VALIDÉ
+> par le propriétaire** (« je valide le G1 de B5 »). **B5-a — la demande d'examen — ✅ VALIDÉ
+> (G5, 2026-09-05)**, G4 propriétaire OK, ADR-057. **B5-b — les prélèvements — ✅ VALIDÉ
+> (G5, 2026-09-05)** (« G4 validé, c'est pour le G5 »), ADR-058 :
+> `prelevements`/`journal_laboratoire`, cycle à six états (`preleve→[expedie]→recu→en_analyse`,
+> `valide`/`publie` déclarés mais inatteignables tant que B5-c n'existe pas), `ReglesCode128`
+> (SVG pur, zéro dépendance) et son étiquette imprimable, aucune session de dossier (le laboratoire
+> lit la demande par son jeton, `acces_dossier` vérifié à **zéro** de bout en bout en réel), quatre
+> gardes du moteur + append-only du journal, anti-IDOR 404 vérifié en HTTP réel entre deux
+> laboratoires. Guide : `GUIDE_TEST_APPLICATIONS_METIER.md` partie 18. **B5-c
+> reste entièrement à faire.** Périmètre **intégral** sur arbitrage du propriétaire (« on ne va rien
+> abandonner ») : les quatre tables absentes, les automates, la traçabilité du laborantin et une
+> notification au patient après publication.
+> Détail : `plan.md` **PLAN 4** (K1→K11, L1→L16, §11 exécution B5-a, §12 exécution B5-b),
+> `CLAUDE.md` bullet B5. Voir §7.
+>
 > Ce fichier dit **où l'on en est**. Le **journal exhaustif** de chaque module vit dans `CLAUDE.md`.
 > Les **plans de conception** vivent dans `plan.md`. Les **décisions d'architecture** vivent dans
 > `docs/adr/`.
@@ -116,7 +133,9 @@ Le détail exhaustif est dans `CLAUDE.md`. Vue d'ensemble :
 | **P11** — Applications métier CDC_11 : portes du portail, onboarding méthode 2, API d'ingestion partenaire | ✅ validés |
 | **B1** — Refonte du parcours Rendez-vous | ✅ complet (a, b, c, d) |
 | **B2** — Consultation, diagnostic, prescription électronique | ✅ complet (a, b, c) |
-| **B3** — **Pharmacie** | 🔵 a ✅, b ✅, **c ✅ (G5, 2026-09-04)** ; **d (panier/commande, dernier sous-lot annoncé) reste à faire** |
+| **B3** — **Pharmacie** | ✅ **complet (a, b, c, d)** — d validé G5 le 2026-09-05 |
+| **B4** — Paiement en ligne réel (GeniusPay) : canal, commission, rendez-vous | ✅ complet (a, b) |
+| **B5** — **Le circuit du laboratoire** (étape 9 de CDC_11 §12) | 🔵 **B5-a et B5-b VALIDÉS (G5) · B5-c reste** |
 
 ### Deux principes qui reviennent partout, et qu'il faut comprendre pour reprendre
 
@@ -133,23 +152,53 @@ Le détail exhaustif est dans `CLAUDE.md`. Vue d'ensemble :
 
 ### Dépôt
 
-- Branche **`feat/masante-p0-socle`**. Avant ce passage, dernier commit poussé : **`1451ce1`** —
-  *feat(pharmacie) : l'officine tient enfin un vrai stock (B3-b)*.
-- **B3-c est VALIDÉ (G5, 2026-09-04) — G4 propriétaire OK, et committé dans ce passage.** 16 fichiers
-  touchés (7 nouveaux, 9 modifiés — détail dans le commit lui-même).
-- Suite Laravel au dernier passage complet (avec B3-c) : **1676 tests / 17 821 assertions / 0
-  échec**.
+- Branche **`feat/masante-p0-socle`**. **B5-a et B5-b (VALIDÉS G5 tous les deux, 2026-09-05)
+  commités et poussés ensemble** — B5-a n'avait jamais été commité séparément (le propriétaire a
+  enchaîné directement sur B5-b), les deux sous-incréments arrivent donc dans le même commit.
+  Fichiers neufs de B5-a : migration `demandes_analyses`, modèles
+  `DemandeAnalyse`/`DemandeAnalyseLigne`, `ProjecteurLignesDemande`, `DemandeAnalyseController`,
+  `DocumentPrescriptionBiologique`, `StatutDemandeAnalyse`, `DemandeAnalyseTest`. Fichiers
+  modifiés par B5-a : `RegistreSectionsCarnet`, `RegistreDocumentsSignables`, `ServiceLienAnalyse`
+  (généralisée), `AntecedentController`/`OrdonnanceController`/`ResultatAnalyseController` (retrait
+  de `source`), `MembreFamille`, `Consultation`, `Portail\DossierController`, les deux vues Blade du
+  dossier, `CarnetSectionTest`, `SignatureElectroniqueTest`. Fichiers neufs de B5-b : migration
+  `prelevements_laboratoire` (`prelevements` + `journal_laboratoire`, 6 déclencheurs),
+  `StatutPrelevement`, `ReglesCode128`, `GenerateurIdentifiantPrelevement`, modèles
+  `Prelevement`/`JournalLaboratoire`, `ServiceCircuitPrelevement`, `Portail\LaboratoireController`,
+  4 vues Blade (`portail/laboratoire/*`), `CircuitPrelevementTest` (34 vecteurs). Fichiers modifiés
+  par B5-b : `StructureSanitaire` (+`estLaboratoire()`), `DemandeAnalyse` (+relation
+  `prelevements()`), `ProjecteurLignesDemande` (garde relationnelle neuve — défaut réel de B5-a
+  corrigé), `PortailRolesSeeder` (+`analyse.executer`, donnée au seul `laborantin`),
+  `packages/shared/src/enums/permissions.ts` (même permission), `routes/web.php` (groupe
+  `laboratoire.*`). Détail complet : `plan.md` PLAN 4 §11-§12.
+- Suite Laravel au dernier passage complet (avec B5-a et B5-b) : **1826 tests / 18 263 assertions /
+  0 échec** ; mutation manuelle 4 tueuses + 1 témoin vert, toutes conformes.
 - **Aucun secret suivi par git** (vérifié : 0 correspondance sur les `.env`).
 
 ### Base de données de développement — à jour, 0 migration `Pending`
 
-Toutes les migrations sont **`Ran`**, y compris les cinq qu'un précédent G2 avait laissées
-`Pending` (consultations, diagnostics, ordonnance_prescripteur, delivrance_ordonnance,
-stock_officine), celle de B3-c (`tracabilite_medicaments`), et les trois de B4/B3-d
-(`paiement_mode_geniuspay`, `facture_patient_geniuspay_facture_id`, `commandes_medicaments`) — la
-base de dev n'a **pas été restaurée** après le G2 live de B3-d (précédent B4-a/B4-b : les données
-sont conservées pour le G4 du propriétaire), donc cet état à jour est celui de la base réellement
-en place aujourd'hui. **L'avertissement d'une précédente version de ce fichier ne s'applique plus.**
+Toutes les migrations de B5-a sont **`Ran`**. **La migration de B5-b
+(`2026_09_05_000003_prelevements_laboratoire`) est revenue à `Pending`** : son propre G2 live a
+sauvegardé la base **avant** de la jouer (`mysqldump --routines --triggers`, stderr redirigé
+séparément), puis restauré ce dump après le test — le dump ne connaissant pas encore
+`prelevements`/`journal_laboratoire`, un `DROP TABLE` explicite des deux a été nécessaire en plus
+pour revenir à un état réellement pré-migration (145 tables, comme avant). **Avant le prochain
+travail sur B5 (G4 du propriétaire ou reprise de B5-c), il faut rejouer** :
+
+```bash
+cd services/api
+XDEBUG_MODE=off "C:/wamp64/bin/php/php8.3.28/php.exe" artisan migrate --force
+XDEBUG_MODE=off "C:/wamp64/bin/php/php8.3.28/php.exe" artisan db:seed --class=PortailRolesSeeder --force
+```
+
+Aucune donnée de scénario B5-a NI B5-b ne subsiste (comptes médecin/laborantin de test, patient,
+désignation référent, laboratoires de test, demande et prélèvement créés pour le G2 live — tous
+disparus avec la restauration). **Ce qui persiste, délibérément** : le catalogue national des
+analyses (`CatalogueAnalysesSeeder` + `masante:analyses:backfill`, exécuté AVANT la sauvegarde —
+8 analyses codées) — c'est une donnée de déploiement, pas une donnée de test. **Pour le G4 du
+propriétaire sur B5-a** : le propriétaire teste avec un compte médecin réel déjà existant, comme
+décrit au guide partie 17. **Pour le G4 sur B5-b** : il faudra un compte réel rattaché à
+`Laboratoire BIOSMOSE` (structure `laboratoire`) avec le rôle `laborantin` — guide partie 18.
 
 Si un futur G2 restaure de nouveau une base ancienne et fait réapparaître des migrations
 `Pending`, la commande reste :
@@ -441,9 +490,9 @@ ensuite corrigé une décision du **G1** que le G0 n'avait pas vue (la clé étr
 `CLAUDE.md` (avant d'écrire une ligne de code) → `plan.md` (un bloc `# PLAN n : …`) → exécution →
 `handoff.md`. B3-c est le premier incrément mené sous cette règle, B3-d le second.
 
-### Après le lot B3
+### Après le lot B3 — les dettes transverses, sans porteur numéroté
 
-Étapes restantes de CDC_11 §12 et dettes nommées avec leur porteur :
+*Aucune n'est engagée ; elles attendent une décision du propriétaire.* Dettes nommées :
 
 - **Migration du portail Blade vers Next.js** — ADR-011 la tranche, ADR-029 en a fait « un module
   identifié ». **29 zones, 77 vues**, chacune ayant besoin de son API en plus de son écran. C'est
@@ -457,3 +506,164 @@ ensuite corrigé une décision du **G1** que le G0 n'avait pas vue (la clé étr
   étiquetés (médicaments, maladies, vaccins, analyses, assurances, numéros d'urgence). Les charger
   pour de vrai est **de la donnée, zéro code** — mais tant que ce n'est pas fait, **ce ne sont pas
   des référentiels nationaux**, et les écrans le disent.
+
+---
+
+## 7. L'incrément en cours — B5, le circuit du laboratoire
+
+**État : G1 VALIDÉ par le propriétaire** (« je valide le G1 de B5 », 2026-09-05).
+**B5-a — la demande d'examen — ✅ VALIDÉ (G5, 2026-09-05)**, G4 propriétaire OK. **B5-b — les
+prélèvements — ✅ VALIDÉ (G5, 2026-09-05)** (« G4 validé, c'est pour le G5 »).
+**B5-c reste entièrement à faire.** Plan complet : `plan.md` **PLAN 4** (constats K1→K11, décisions
+L1→L16, §11 exécution B5-a, §12 exécution B5-b). Documentation : ADR-057 (B5-a), ADR-058 (B5-b),
+guide `GUIDE_TEST_APPLICATIONS_METIER.md` parties 17 (B5-a) et 18 (B5-b).
+
+### Pourquoi ce lot, et pourquoi maintenant
+
+C'est l'**étape 9 de l'ordre que CDC_11 §12 fixe lui-même** (« Laboratoire, puis Radiologie ») ; les
+huit précédentes sont closes. Elle a un porteur nommé par trois modules déjà validés : P6.5b
+(« une prescription biologique est une DEMANDE, pas un document »), P6.7 (« §7.4 non livré ») et
+B2-c, qui a explicitement écarté les demandes d'examens en disant que « les livrer ici serait ouvrir
+un module dans un autre ».
+
+### Le périmètre est INTÉGRAL (arbitrage propriétaire, 2026-09-05)
+
+> « on ne va rien abandonner, on va ajouter tout ce qui manque »
+
+Les **quatre tables absentes** (`demandes_analyses`, `prelevements`, `validations_biologiques`,
+`automates`) et les sept éléments du corpus : demandes d'examens · prélèvements avec scan
+code-barres/QR · **saisie et import** des résultats · validation biologiste · publication vers le
+dossier patient · catalogue des analyses · **connexion aux automates**. Plus deux exigences ajoutées
+par le propriétaire : **la traçabilité du laborantin** (« tout comme le journal d'audit du médecin au
+carnet de santé ») et **une notification au patient après publication**.
+
+*Ma première proposition écartait les automates ; elle a été corrigée par le propriétaire, et le
+résultat est meilleur — la frontière est désormais technique et nommée au lieu d'être un renoncement.*
+
+### Ce que le G0 a trouvé, et qu'il faut connaître avant de reprendre
+
+- **Le circuit n'existe à aucun degré** (K1) : quatre des six tables du CDC_04 §109 sont absentes en
+  base réelle. Ce qui existe est un **résultat sans émetteur ni circuit** — rien ne relie un résultat
+  à une demande, et le prescripteur y est une simple *déclaration* facultative (K4).
+- **Le blocage que le code lui-même avait posé est levé** (K2) : `RegistreDocumentsSignables` dit
+  depuis P6.5b que la prescription biologique « prescrirait des examens en texte libre » **sans le
+  catalogue national (étape 7)**. L'étape 7 est faite. B5 lèverait la troisième des six entités non
+  branchées de la PKI.
+- **UN DÉFAUT RÉEL ET ACTIF (K5 + K11), à corriger dans B5-a** : `source = 'structure'` est une clé
+  dormante sans émetteur depuis le Module 2, **et elle est déclarable par le client** sur trois
+  sections du carnet. Le G0 l'a d'abord crue latente ; K11 l'a trouvée active —
+  `ServiceFicheParcours::autresEntrees()` filtre sur `whereIn('source', ['medecin','structure'])` en
+  affirmant « ce sont des faits ». **La saisie personnelle d'un patient peut donc apparaître dans sa
+  fiche de parcours présentée comme un fait de professionnel**, document lu par ses délégués et son
+  second responsable de famille. *Vérifié aussi que la fiche vitale n'est PAS touchée* : elle ne lit
+  `source` que sur les vaccinations, dont le contrôleur ne l'accepte pas — le commentaire de P6.8b
+  dit vrai là où il est écrit.
+- **Deux prérequis de déploiement** (K6, K7) : `analyses` est à **0 ligne** sur la base de dev
+  (`CatalogueAnalysesSeeder` puis `masante:analyses:backfill`), et l'unique laboratoire en base a son
+  `type_laboratoire` à NULL.
+- **Aucune bibliothèque de code-barres ni de QR dans le dépôt** (L16) — vérifié dans `composer.json`
+  et `vendor/`.
+
+### Les décisions structurantes à ne pas défaire
+
+- **Le laboratoire n'ouvre JAMAIS de session de dossier** (L3). Il lit la demande par son **jeton** et
+  écrit un résultat borné à cette demande. *Vecteur central du lot, comme en B3-a : une **absence** —
+  servir une demande ne crée aucune ligne dans `acces_dossier`.*
+- **Un automate ne valide JAMAIS** (L10). Un résultat importé entre en `en_analyse` et attend la
+  validation humaine — sans quoi une machine publierait dans le dossier d'un patient sans qu'aucun
+  biologiste ne l'ait vu (CDC_00 §4). Le rattachement se fait **par l'étiquette du tube**, jamais par
+  rapprochement de nom : *ce serait l'erreur d'identification que le §7.4 existe pour supprimer*.
+- **Le jeton et l'étiquette sont deux choses différentes** (L5) : l'un est un secret d'accès, l'autre
+  est imprimée sur un tube qui circule. *Les confondre reviendrait à distribuer la clé du dossier avec
+  l'échantillon.*
+- **La traçabilité vit dans `journal_laboratoire`, pas dans `acces_dossier`** (L13) — vérifié plutôt
+  que supposé : `ServiceFicheParcours` apparie ouvertures et clôtures sur `duree_minutes`, donc une
+  ligne de dépôt isolée s'y afficherait « **consultation non clôturée** », *une phrase fausse dans le
+  document même qui existe pour dire au patient ce qui s'est passé*. **Et le patient voit quand même
+  le dépôt** : une fois `source = 'structure'` réellement écrite, le résultat apparaît de lui-même
+  dans la fiche de parcours qui filtre déjà sur cette valeur — *le mécanisme existant devient exact au
+  lieu d'être doublé*, et P7-D2 comme les six voies d'accès restent **intacts**.
+- **La notification dit l'événement, jamais le résultat** (L14) : « un résultat a été déposé par le
+  Laboratoire X », **ni nom d'analyse ni valeur**. *Un push s'affiche sur un écran verrouillé, et
+  « sérologie VIH » sur un téléphone posé sur une table est une divulgation.*
+- **Saisie et import passent par UN SEUL service** (L15) — *ça diverge toujours du côté qu'on regarde
+  le moins*, ici l'import, qu'aucun humain n'ouvre jamais.
+- **`analyse.valider` n'est portée par aucun rôle** (L7) : *un résultat biologique validé engage la
+  responsabilité d'un biologiste nommé*. Aucun douzième rôle n'est créé pour un écran.
+
+### Découpage
+
+| | Contenu | État |
+|---|---|---|
+| **B5-a** | Fermeture de la porte `source` (K5/K11) · demandes + lignes · lien catalogue · jeton · signature PKI · écran de prescription | ✅ **VALIDÉ (G5, 2026-09-05)** |
+| **B5-b** | Prélèvements · `ReglesCode128` et étiquette imprimable · scan · cycle à six états et gardes du moteur · `journal_laboratoire` · écran laboratoire | ✅ **VALIDÉ (G5, 2026-09-05)** |
+| **B5-c** | Résultats **saisie et import** par un seul service · `automates` · validation biologiste et son verrou · publication en `source='structure'` · **notification** | à faire |
+
+**Aucun des sept éléments demandés n'est reporté.** B5-c est le seul qui touche le carnet du patient,
+donc le seul qui exige le vecteur anti-fuite et la campagne de mutation sur la garde de validation.
+
+### Ce que B5-a a livré, et ce qu'il ne faut pas défaire
+
+- **`demandes-analyses` est devenue une sixième section du registre du carnet**
+  (`RegistreSectionsCarnet::SECTIONS`/`SECTIONS_AUTEUR_EST_PRESCRIPTEUR`/`SECTIONS_SOIGNANT`) :
+  tout le mécanisme générique existant s'applique sans code neuf, **aucune permission nouvelle**.
+  Si B5-b/c doivent ajouter des permissions (`analyse.executer`, `analyse.valider` — L7), ce sera
+  la première fois que ce lot en crée.
+- **`source` est fermée sur les trois sections existantes** (`AntecedentController`,
+  `OrdonnanceController`, `ResultatAnalyseController`) — ne jamais la rouvrir dans leurs règles de
+  validation : c'était le défaut actif K5/K11.
+- **`ServiceLienAnalyse` (P6.7a) a été généralisée** (paramètre `$champ`) pour servir aussi
+  `demandes_analyses`, plutôt que dupliquée — à réutiliser telle quelle si un futur lien au
+  catalogue est nécessaire ailleurs.
+- **Deux défauts réels trouvés par les tests, aucun par la relecture**, à garder en tête pour
+  B5-b/c qui toucheront les mêmes zones : (1) un nom de colonne (`structure_nom` au lieu de
+  `structure_sanitaire`) qui ne correspondait pas à ce que le mécanisme générique de réécriture
+  attend — **vérifier systématiquement les noms de colonnes contre les mécanismes génériques
+  existants avant de les inventer** ; (2) une comparaison enum-à-chaîne dans une garde de
+  projection, toujours vraie — **comparer un enum casté à un autre enum, jamais à sa valeur
+  brute**.
+- **Le jeton (`demandes_analyses.jeton_partage`) est posé, mais rien ne le consomme encore** —
+  c'est le premier travail de B5-b : lire une demande par jeton, sans ouvrir de dossier (patron
+  `ServiceDelivrance::ordonnancePourJeton()`).
+
+### Ce que B5-b a livré, et ce qu'il ne faut pas défaire
+
+- **Le jeton de B5-a trouve enfin son lecteur** : `ServiceCircuitPrelevement::demandePourJeton()`
+  (temps constant, `hash_equals`) et `journaliserConsultation()` (appelée séparément — un jeton FAUX
+  ne journalise rien). **Vecteur central vérifié en direct** : `acces_dossier` reste à **1** du
+  début à la fin du cycle complet (consultation, enregistrement, réception, mise en analyse), sur
+  une base MySQL réelle et non seulement en test.
+- **`analyse.executer` est la PREMIÈRE permission créée par ce lot** (annoncé comme tel en B5-a) —
+  donnée au seul `laborantin`, qui **garde** `qr.scan`/`dossier.ecrire`/`triage.view` (précédent
+  B3-a : une permission neuve n'en retire jamais une existante). **`analyse.valider` (L7) n'est PAS
+  créée ici** — elle appartient au contrôleur de validation biologique de B5-c ; la créer maintenant
+  sans porte aurait été une clé sans serrure (refus P11.1-D5).
+- **Le cycle a SIX états déclarés, mais seulement QUATRE sont atteignables** : `preleve`,
+  `expedie` (facultatif), `recu`, `en_analyse`. `valide`/`publie` existent dans l'ENUM (ADR-024,
+  jamais réécrit) mais aucune transition n'y mène — elles attendent B5-c.
+- **`journal_laboratoire` est un journal SÉPARÉ d'`acces_dossier`, jamais un doublon** : append-only
+  à deux niveaux (modèle + déclencheurs), identifiants sans contrainte (ADR-042 D1), vérifié refuser
+  `UPDATE` et `DELETE` **en SQL direct contre la base réelle**.
+- **Un DÉFAUT RÉEL DE B5-a, trouvé EN CONSTRUISANT B5-b** (pas au G0, pas à la relecture) :
+  `ProjecteurLignesDemande::projeter()` comparait `statut` (un ENUM casté) à `EMISE->value` (une
+  CHAÎNE) — toujours vrai — et n'avait **aucune garde relationnelle** : rien n'empêchait de
+  reprojeter les lignes d'une demande déjà prélevée, ce qui aurait désynchronisé le tube physique de
+  la liste affichée au carnet. Corrigé (`if ($demande->prelevements()->exists()) { return -1; }`),
+  vérifié en direct sur la vraie demande créée pour le G2 live.
+- **`ReglesCode128` (SVG pur, zéro dépendance) reste PROUVÉE PAR AUTO-COHÉRENCE, PAS PAR UN
+  SCANNER PHYSIQUE** — limite dite, pas cachée : le tableau des 107 motifs est reproduit de mémoire
+  d'après la norme ISO/IEC 15417, vérifié par invariant (chaque motif somme à 11 ou 13 modules) et
+  par unicité, jamais testé contre une douchette réelle.
+
+### Prochaine action
+
+**B5-b est VALIDÉ (G5, 2026-09-05)** — G4 propriétaire OK (« G4 validé, c'est pour le G5 »),
+commité et poussé. Reprendre **B5-c** : résultats (**saisie ET import par un seul service**,
+`origine` décidée par le serveur), `automates` (clé + HMAC sur le corps brut, un automate **ne
+valide jamais**), la validation biologiste et son verrou (`analyse.valider`, portée par aucun
+rôle), la publication en `source='structure'` (referme K5/K11 pour de bon — le résultat apparaîtra
+alors DE LUI-MÊME dans la fiche de parcours du patient, sans code neuf côté
+`ServiceFicheParcours`), et la notification `RESULTAT_ANALYSE_PUBLIE` (l'événement seul, jamais le
+résultat). **Rappel avant de reprendre** : rejouer `artisan migrate` + `PortailRolesSeeder`
+(§4 ci-dessus), la migration de B5-b étant revenue à `Pending` après son G2 live — le commit ne
+rejoue pas les migrations sur la base de dev, seul le code est versionné.

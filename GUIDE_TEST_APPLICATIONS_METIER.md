@@ -1691,3 +1691,178 @@ en ligne s'ouvre, et réutilisée si vous retentez sans avoir terminé.
 4. **Le portail (personnel de l'établissement) affiche seulement** qu'un paiement en ligne est en
    attente — aucune action n'y est possible, le règlement ne devient réel que par la confirmation
    du prestataire.
+
+---
+
+## Partie 17 — B5-a : la demande d'examen (le circuit du laboratoire, premier morceau)
+
+**Statut : G3 fait, G2 live fait et réel. En attente de votre propre test (G4).**
+
+### Ce qu'il faut savoir avant de commencer
+
+**Ceci n'est pas encore le circuit complet.** B5-a livre uniquement la pièce que le médecin
+rédige — la demande d'examen. Il n'y a **pas encore** d'écran laboratoire, pas de scan
+d'étiquette, pas de résultat qui revient : c'est l'objet des deux prochains morceaux (B5-b, B5-c).
+Ce qui se teste ici, c'est : **un médecin peut-il prescrire un examen, et le système lui fait-il
+confiance sur son identité plutôt que sur ce qu'il tape ?**
+
+**Aucun écran mobile.** Comme pour la consultation et le diagnostic (lot B2), cet incrément vit
+entièrement dans le portail professionnel (navigateur), pas dans l'application du patient.
+
+### Pour tester vous-même, dans le portail professionnel
+
+1. Connectez-vous avec un compte portant le rôle **médecin**, relié à une fiche de l'annuaire.
+2. Ouvrez le dossier d'un patient — soit par un scan (accueil), soit par « Mes patients suivis »
+   si le patient vous a désigné comme référent.
+3. Dans le menu de gauche du dossier, une nouvelle entrée apparaît : **« Demandes d'examens »**.
+4. Remplissez le formulaire : prescripteur et établissement sont **déjà pré-remplis avec vos
+   informations** — même si vous les modifiez, ce que le système enregistre reste **votre vraie
+   identité professionnelle**, jamais ce que vous auriez tapé. Ajoutez un ou plusieurs examens
+   (texte libre, par exemple « Numération formule sanguine »).
+5. Si vous avez un certificat de signature (comme pour une ordonnance), un champ « Secret de
+   signature » apparaît — facultatif : la demande s'enregistre avec ou sans lui.
+6. Validez : la demande apparaît dans la liste, avec la date, votre nom et les examens demandés.
+
+### Ce qui a été rejoué en direct sur la vraie base (G2), avec un vrai parcours au portail
+
+Sur la base MySQL de développement, avec Laravel **réellement démarré**, un vrai compte médecin
+connecté par la voie « référent » (cookies de session réels, jeton anti-falsification réel) :
+
+- **Le formulaire a été rempli en essayant de tromper le système** : un faux nom de médecin, un
+  faux établissement, et — le point le plus important — une tentative de faire passer la demande
+  pour un fait déjà validé par un « établissement » plutôt que par un médecin. **Rien de tout cela
+  n'a été retenu** : la demande créée porte le vrai nom du médecin, le vrai établissement, et est
+  marquée comme venant d'un médecin, jamais d'un établissement.
+- **Un examen désignant une entrée du catalogue national a été relu et figé** : son code et son
+  unité viennent du catalogue, pas de ce qui a été tapé.
+- **Un examen ne figurant dans aucun catalogue a été accepté quand même**, marqué « hors
+  référentiel » — le système ne refuse jamais de prescrire un examen qu'il ne connaît pas.
+- **Un examen désignant un numéro de catalogue qui n'existe pas a été refusé**, avec un message
+  nommant le problème, et rien n'a été créé.
+- **Une demande a été réellement signée électroniquement**, puis un changement d'état a été simulé
+  directement en base (comme le fera plus tard le circuit du laboratoire) : **la signature est
+  restée valide** — un changement de statut ne doit jamais faire croire que la prescription a été
+  modifiée.
+
+### Ce qui a été prouvé automatiquement (G3)
+
+- Suite Laravel complète verte (**1792 tests, 18 096 assertions, 0 échec**).
+- **Campagne de mutation : 5 tueuses + 1 témoin volontairement vert** sur les gardes de ce lot (la
+  fermeture de la porte au client qui déclare sa propre provenance, la garde qui empêche de
+  reconstruire les examens d'une demande déjà consommée par le circuit, la garde qui refuse un
+  examen inconnu du catalogue, la garde qui fait du médecin le prescripteur, la génération du
+  jeton d'accès).
+
+### Deux défauts trouvés en écrivant les tests, avant tout G2
+
+Aucun des deux ne s'est vu en relisant le code : le premier faisait que le nom de l'établissement
+ne s'enregistrait jamais quand un médecin écrivait (corrigé en le nommant comme les autres
+sections du carnet le font déjà) ; le second faisait qu'aucun examen demandé n'était jamais
+enregistré de façon exploitable, quel que soit l'état de la demande (une comparaison inversée dans
+le code). Les deux ont été trouvés par les tests avant tout test réel, et corrigés avant ce
+passage.
+
+### Ce que ce lot NE fait PAS
+
+1. **Aucun laboratoire ne peut encore lire une demande** : le secret d'accès existe déjà sur
+   chaque demande, mais rien ne le consomme avant B5-b.
+2. **Aucune étiquette, aucun code-barres, aucun scan.**
+3. **Aucune notification au patient** — elle n'arrivera qu'à la publication d'un résultat (B5-c).
+4. **Le catalogue reste un jeu de démonstration de huit analyses.**
+
+---
+
+## Partie 18 — B5-b : le prélèvement (le circuit du laboratoire, deuxième morceau)
+
+**Statut : VALIDÉ (G5, 2026-09-05) — G4 propriétaire OK.**
+
+### Ce qu'il faut savoir avant de commencer
+
+**Ceci n'est pas encore le circuit complet.** B5-a a livré la demande que rédige le médecin ; B5-b
+livre l'écran du **laboratoire** : recevoir cette demande, enregistrer le tube, suivre son
+parcours jusqu'à la mise en analyse, imprimer une étiquette. Il n'y a **pas encore** de résultat
+qui revient, ni de validation par un biologiste, ni de notification au patient : c'est l'objet du
+troisième morceau (B5-c). Ce qui se teste ici, c'est : **un laborantin peut-il retrouver une
+demande à partir du code que le médecin lui a donné, sans jamais pouvoir fouiller dans le dossier
+du patient ?**
+
+**Aucun écran mobile.** Comme B5-a, cet incrément vit entièrement dans le portail professionnel
+(navigateur), côté laboratoire.
+
+**Un point de sécurité à comprendre avant de tester** : le laboratoire n'a **jamais** accès au
+dossier médical du patient — ni antécédents, ni vaccinations, ni ordonnances. Il ne voit **que**
+la demande d'examen qu'on lui a transmise, grâce à un code que le médecin (ou le patient) lui
+communique. C'est voulu : un laboratoire n'a besoin de rien d'autre pour faire une prise de sang.
+
+### Pour tester vous-même, dans le portail professionnel
+
+1. **Prérequis** : un compte portant le rôle **laborantin**, rattaché à un établissement de type
+   « laboratoire ». Si vous n'en avez pas encore, demandez-en un — c'est un compte du même genre
+   qu'un compte médecin ou pharmacien, simplement rattaché à un laboratoire dans l'annuaire.
+2. **Il vous faut aussi une demande d'examen réelle** : faites-la créer par un médecin comme décrit
+   à la partie 17 (ou demandez le code qu'elle porte — un texte d'une cinquantaine de caractères,
+   visible pour l'instant uniquement en base, pas encore affiché au médecin sur un écran dédié).
+3. Connectez-vous au portail avec le compte laborantin. Une nouvelle entrée **« Laboratoire »**
+   apparaît dans le menu.
+4. Sur cet écran, un simple champ vous demande **le code de la demande**. Collez-le et validez :
+   la demande s'affiche, avec le patient, les examens demandés et les renseignements cliniques —
+   **rien d'autre du dossier**.
+5. Cliquez sur **« Enregistrer le prélèvement »** : un identifiant de tube est généré (par exemple
+   `PRE-A1B2C3D4E5`). Une **étiquette** apparaît, avec un vrai code-barres — c'est celle qu'on
+   imprimerait et collerait sur le tube.
+6. Le prélèvement rejoint la liste **« Travail en cours »** de votre laboratoire. Depuis sa fiche,
+   trois boutons apparaissent selon l'étape : **Expédier** (si le tube part vers un autre site —
+   facultatif, à sauter si l'analyse se fait sur place), **Recevoir** (l'arrivée du tube — cette
+   étape-là n'est jamais facultative, même sur place), **Mettre en analyse**.
+7. Essayez de cliquer sur « Mettre en analyse » avant d'avoir cliqué sur « Recevoir » : le système
+   refuse et explique pourquoi, sans rien changer à l'état du prélèvement.
+
+### Ce qui a été rejoué en direct sur la vraie base (G2), avec un vrai parcours au portail
+
+Sur la base MySQL de développement, avec Laravel **réellement démarré**, deux laboratoires réels
+et deux comptes laborantin réels, un vrai parcours complet :
+
+- **Un code de demande inventé a été refusé** (« introuvable », rien affiché) ; **le vrai code** a
+  affiché la bonne demande, avec le bon patient et les bons examens.
+- **Le prélèvement a été suivi de bout en bout** : enregistré, reçu directement (sans passer par
+  « expédié » — le transport est resté sauté, comme prévu pour un prélèvement fait sur place), mis
+  en analyse. À chaque étape, **le journal d'accès du dossier du patient — celui qui montre au
+  patient qui a consulté son carnet — n'a pas bougé d'une seule ligne** : le laboratoire est passé
+  par la demande, jamais par le dossier.
+- **Une étiquette réelle a été récupérée**, avec un vrai code-barres dessiné.
+- **Le laborantin d'un second laboratoire, concurrent du premier, a tenté d'ouvrir le même
+  prélèvement** : refusé à chaque tentative (fiche du prélèvement, étiquette, action de
+  réception), comme si le prélèvement n'existait pas pour lui — rien n'a changé sur le
+  prélèvement, et aucune trace de sa tentative n'apparaît dans le journal du bon laboratoire.
+- **Quatre tentatives de tricher directement dans la base de données ont toutes été bloquées par
+  le moteur lui-même** (pas seulement par l'écran) : marquer un prélèvement « validé » sans dire
+  qui a validé et quand, le marquer « publié » sans résultat, créer un tube sans identifiant, faire
+  reculer un prélèvement déjà en analyse vers une étape antérieure.
+- **Le journal du laboratoire refuse d'être modifié ou effacé**, même directement en base — un
+  historique d'audit qui pourrait être réécrit ne prouverait plus rien.
+
+### Ce qui a été prouvé automatiquement (G3)
+
+- Suite Laravel complète verte (**1826 tests, 18 263 assertions, 0 échec**).
+- **Campagne de mutation : 4 tueuses + 1 témoin volontairement vert** sur les gardes de ce lot
+  (l'interdiction pour un laboratoire d'ouvrir le prélèvement d'un autre, le refus de faire reculer
+  un état, la garde qui empêche de reconstruire les examens d'une demande déjà prélevée,
+  l'habilitation du laborantin).
+
+### Un défaut réel de B5-a, trouvé en construisant B5-b
+
+En écrivant ce morceau, un défaut de la partie précédente (B5-a) est apparu : rien n'empêchait de
+« recalculer » les examens d'une demande **déjà prélevée** — si un médecin modifiait sa demande
+après coup, la liste d'examens affichée au carnet aurait pu changer **sans que le tube physique,
+déjà envoyé au laboratoire, ne change avec elle**. Ce n'était pas visible avant B5-b, tout
+simplement parce qu'aucun prélèvement n'existait encore pour le révéler. Corrigé : une demande
+déjà prélevée n'est plus jamais recalculée.
+
+### Ce que ce lot NE fait PAS
+
+1. **Aucun résultat ne peut encore être saisi ni importé d'un automate** — les statuts « validé »
+   et « publié » existent dans le système mais restent inaccessibles tant que B5-c n'existe pas.
+2. **Aucune validation par un biologiste** — la permission qui la portera n'est pas encore créée.
+3. **Aucune notification au patient** — le dépôt n'apparaît pas encore dans son carnet.
+4. **L'étiquette n'a été vérifiée que par cohérence interne**, jamais avec une vraie douchette de
+   supermarché ou de laboratoire — dit franchement, pas caché.

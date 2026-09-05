@@ -58,8 +58,10 @@ class ResultatAnalyseController extends CarnetSectionController
             'resultats_json.*.analyse_id' => ['nullable', 'integer'],
             'fichier_url'          => ['nullable', 'url', 'max:500'],
             'added_by'             => ['nullable', 'in:patient,medecin'],
-            // F2.13 — provenance de l'entrée (défaut BDD 'patient'). Distincte de added_by (auteur de saisie).
-            'source'               => ['nullable', 'in:patient,medecin,structure'],
+            // B5-a (L4/K5/K11) — `source` retirée : voir le commentaire identique
+            // d'`AntecedentController`, même défaut, même correction. C'est le fond du sujet ici :
+            // un résultat portant lui-même `source='structure'` posé par le client aurait pu se
+            // présenter comme publié par un laboratoire, sans qu'aucun circuit n'ait eu lieu.
         ];
     }
 
