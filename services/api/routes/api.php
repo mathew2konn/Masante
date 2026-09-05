@@ -16,6 +16,7 @@ use App\Http\Controllers\Api\V1\Carnet\MesureSanteController;
 use App\Http\Controllers\Api\V1\Carnet\NoteObservationController;
 use App\Http\Controllers\Api\V1\CarnetsPartagesController;
 use App\Http\Controllers\Api\V1\CarteCmuController;
+use App\Http\Controllers\Api\V1\CommandeController;
 use App\Http\Controllers\Api\V1\ContributionCarnetController;
 use App\Http\Controllers\Api\V1\CouvertureMembreController;
 use App\Http\Controllers\Api\V1\DelegationController;
@@ -538,6 +539,17 @@ Route::middleware('throttle:api')->group(function () {
             // l'établissement n'a pas d'identifiant national) ; POST = ouvre/réutilise le checkout.
             Route::get('rendez-vous/{rendezVous}/paiement-en-ligne', [RecuRdvController::class, 'disponibiliteEnLigne']);
             Route::post('rendez-vous/{rendezVous}/paiement-en-ligne', [RecuRdvController::class, 'payerEnLigne']);
+
+            // B3-d — commandes de médicaments (CDC_11 §9.5). Le panier reste local au mobile (F1) :
+            // le serveur ne reçoit que l'acte. `paiement-en-ligne` : même patron que le RDV
+            // ci-dessus, canal réel de B4, aucun drapeau — la disponibilité est une propriété de
+            // l'officine (F6, réécrit).
+            Route::get('commandes', [CommandeController::class, 'index']);
+            Route::post('commandes', [CommandeController::class, 'store']);
+            Route::get('commandes/{commande}', [CommandeController::class, 'show']);
+            Route::patch('commandes/{commande}/annuler', [CommandeController::class, 'annuler']);
+            Route::get('commandes/{commande}/paiement-en-ligne', [CommandeController::class, 'disponibiliteEnLigne']);
+            Route::post('commandes/{commande}/paiement-en-ligne', [CommandeController::class, 'payerEnLigne']);
         });
 
         /*

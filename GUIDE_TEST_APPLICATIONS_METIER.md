@@ -1370,6 +1370,125 @@ référence, comme celui qui relie une trace à l'officine — les informations 
 
 ---
 
+## Partie 14 — B3-d : panier et commande de médicaments (CDC_11 §9.5 / §10.5)
+
+> **Périmètre** : le patient compose un panier de médicaments dans une officine, désigne
+> éventuellement une ordonnance déjà présente dans son carnet, choisit retrait ou livraison,
+> règle sur place ou en ligne (GeniusPay réel) ; le pharmacien accepte, refuse, prépare et remet.
+> Dernier sous-incrément du lot **B3 (Pharmacie)** — le lot est désormais **COMPLET (a, b, c, d)**.
+> **✅ VALIDÉ (G5, 2026-09-05) — G4 propriétaire OK.**
+
+### Ce qu'il faut savoir avant de commencer
+
+**Ce sous-incrément avait été mis en attente le 2026-09-04** : commander en ligne suppose un moyen
+de payer en ligne, et jusque-là ce projet n'avait qu'un paiement **simulé**. Il a repris une fois
+le lot B4 (paiement réel GeniusPay) validé, et son mécanisme de règlement a été **entièrement
+réécrit** pour réutiliser ce canal réel plutôt qu'un encaissement fictif.
+
+**Une commande n'est pas une facture de soins.** Elle porte son propre règlement
+(`mode_reglement`, référence de règlement) — distinct de celui d'un rendez-vous — parce qu'une
+vente libre en pharmacie n'a ni CMU, ni tarif de consultation.
+
+**Un produit qui exige une ordonnance ne peut jamais être commandé sans elle, et la vérification
+porte sur le PRODUIT, pas seulement sur la présence d'une ordonnance quelconque.** Désigner une
+ordonnance qui ne prescrit pas ce médicament précis revient à n'en désigner aucune : le refus nomme
+le produit dans les deux cas.
+
+**Le règlement en ligne n'est possible qu'une fois la commande acceptée par l'officine** — on ne
+paie pas avant de savoir que la pharmacie peut effectivement servir la commande.
+
+**La remise d'une commande contenant une ligne d'ordonnance exige DEUX habilitations à la fois** :
+celle qui permet de traiter une commande (acte de relation client) et celle qui permet de délivrer
+une ordonnance (acte pharmaceutique). Une vente libre pure n'exige que la première.
+
+### Prérequis
+
+1. `php artisan migrate` (tables `commandes` et `commande_lignes`).
+2. Un compte **pharmacien** rattaché à une officine qui tient déjà du stock (partie 12) et qui offre
+   la livraison si vous voulez tester ce mode.
+3. Un compte **patient** avec au moins un membre du carnet, et si possible une ordonnance déjà
+   présente prescrivant un médicament précis.
+4. Pour le paiement en ligne réel : la même officine doit déjà être configurée GeniusPay
+   (partie 15/16) — sinon l'option de paiement en ligne n'apparaît simplement pas, sans erreur.
+
+### Cas à vérifier
+
+| # | Ce que vous faites | Ce qui doit se produire |
+|---|---|---|
+| 1 | Ajouter au panier un produit **sans exiger d'ordonnance** (vente libre) et passer la commande sans en désigner | Accepté |
+| 2 | Ajouter un produit **qui exige une ordonnance**, sans en désigner une | Refus **nommant le produit** |
+| 3 | Même produit, en désignant une ordonnance qui **le prescrit réellement** | Accepté |
+| 4 | Même produit, en désignant une ordonnance qui **ne le prescrit pas** | Refus **nommant le produit**, comme si aucune ordonnance n'avait été désignée |
+| 5 | Choisir « livraison » sur une officine qui ne l'offre pas, sans adresse | Refus |
+| 6 | Passer une commande normale, puis la consulter côté patient et côté pharmacien | Statut « en attente » des deux côtés |
+| 7 | Le pharmacien accepte, puis prépare, puis remet une commande **sans ligne d'ordonnance** | Chaque étape réussit ; à la remise, le stock de l'officine diminue, **aucune délivrance ni trace nationale n'est créée** |
+| 8 | Le pharmacien accepte, prépare, remet une commande **avec une ligne d'ordonnance** | À la remise, une vraie **délivrance** est créée (comme au comptoir), une **trace nationale** est créée, le stock diminue |
+| 9 | Tenter de remettre une commande sous ordonnance avec un compte qui n'a **pas** la permission de délivrer | Refus, même si le compte peut traiter des commandes |
+| 10 | Refuser une commande sans indiquer de motif | Refus (le motif est obligatoire) |
+| 11 | Refuser avec un motif | Accepté, motif visible côté patient |
+| 12 | Un pharmacien d'une **autre** officine tente d'ouvrir une commande qui n'est pas la sienne | Page introuvable (jamais un message qui confirmerait que la commande existe) |
+| 13 | Une fois la commande **acceptée**, ouvrir le paiement en ligne (si l'officine est configurée GeniusPay et le montant suffisant) | Un vrai lien de paiement GeniusPay s'ouvre |
+| 14 | Tenter le paiement en ligne **avant** acceptation | Refus |
+| 15 | Payer réellement en ligne (sandbox) | La commande passe à « réglée », visible côté patient et côté pharmacien |
+| 16 | Annuler une commande non encore remise | Accepté ; tenter d'annuler une commande déjà remise → refus |
+
+### Ce qui a été prouvé automatiquement
+
+- **37 vecteurs dédiés** répartis sur trois fichiers (commande côté patient, paiement en ligne,
+  portail pharmacien) ; suite complète du projet passée de 1763 à **1764 tests verts**.
+- **Mutation manuelle — 11 mutations, 11 conformes** (10 gardes réellement tuées par leur vecteur,
+  1 témoin resté vert), portant notamment sur la double vérification du produit sur ordonnance, la
+  garde de livraison, la séparation des deux permissions à la remise, et **le correctif décrit
+  ci-dessous**.
+- Un défaut de couplage préexistant (hérité du lot de paiement précédent) a été trouvé **avant**
+  d'écrire la moindre ligne de commande, en relisant le code qui reçoit les confirmations de
+  paiement : un incident sur le calcul de la commission de la plateforme aurait pu, sans qu'on s'en
+  aperçoive, empêcher le règlement d'un rendez-vous dans le même message. Corrigé et vérifié par un
+  vecteur dédié qui envoie un vrai message de paiement sans aucun barème de commission configuré, et
+  prouve que la commande (ou le rendez-vous) se règle quand même.
+
+### Ce qui a été rejoué en direct sur la vraie base (G2)
+
+Sur la base MySQL de développement réelle, avec le serveur Laravel, le microservice de paiement
+Java et une vraie session de portail connectée — **rien de simulé dans ce test**.
+
+- Un vrai stock a été approvisionné (entrée réelle de 50 et 30 unités) sur l'officine de test.
+- Une commande liant une vraie ordonnance a été créée par la vraie API : le pharmacien l'a
+  acceptée, préparée puis remise via le vrai portail — une **vraie délivrance** a été créée, une
+  **vraie trace nationale** a été enregistrée, et le stock a **réellement diminué de 2 unités**.
+- Une commande de vente libre a suivi le même cycle : le stock a diminué, **sans aucune délivrance
+  ni trace créée** — vérifié dans les deux sens sur la vraie base.
+- Une commande a été réellement refusée avec un motif, visible en base.
+- **Un défaut réel a été découvert en tentant le tout premier paiement en ligne réel** : le
+  microservice de paiement a refusé une commande de 1500 FCFA, révélant un montant plancher de
+  5000 FCFA jamais documenté jusque-là dans ce lot. Rien n'a été perdu ni faussé — le refus a
+  simplement empêché l'ouverture du paiement — mais le message renvoyé au patient reste, pour
+  l'instant, le message brut du microservice plutôt qu'une phrase qui nomme ce plancher.
+- Une commande de 6000 FCFA a ensuite été acceptée puis réglée en ligne pour de vrai : un vrai
+  lien de paiement GeniusPay s'est ouvert, une vraie notification de paiement signée a été envoyée
+  au serveur, la commande est passée à « réglée », et **une vraie commission de plateforme a été
+  calculée et enregistrée automatiquement** — sans qu'aucun code n'ait été écrit spécifiquement
+  pour cela dans le domaine des commandes : c'est le même mécanisme générique qui règle déjà les
+  paiements de rendez-vous qui l'a fait.
+- Rejouer exactement le même message de paiement une seconde fois n'a créé ni une seconde
+  commission, ni changé la date de règlement ; tenter de payer une seconde fois une commande déjà
+  réglée a été refusé.
+
+### Ce que B3-d NE fait PAS — et le premier point compte
+
+1. **Aucune vérification de montant plancher côté Laravel** avant de proposer le paiement en
+   ligne — c'est le microservice de paiement qui refuse, ce qui protège les données mais renvoie
+   au patient un message technique plutôt qu'une explication claire.
+2. **Aucun remboursement, aucun paiement partiel.**
+3. **Aucun renouvellement d'ordonnance** dans ce lot — ce sujet est médical (qui peut renouveler,
+   sur quelle durée), délibérément laissé à part.
+4. **Aucune livraison réelle** (pas de livreur, pas de suivi de course) — seul le choix du patient
+   (retrait ou livraison) est enregistré.
+5. **Aucune demande d'examen de laboratoire** depuis une commande — un autre circuit, déjà mis à
+   part dans un lot précédent.
+
+---
+
 ## Partie 15 — B4-a : le canal de paiement en ligne réel (GeniusPay)
 
 > **Périmètre** : ce lot ne touche **aucun écran**. Il branche Laravel sur le microservice de

@@ -37,6 +37,11 @@ class PortailRolesSeeder extends Seeder
         // d'établissement (P6.6a), donc la réutiliser laisserait un gestionnaire de CHU délivrer des
         // ordonnances. Servir une prescription est un acte de dispensation, pas la tenue d'un prix.
         'ordonnance.delivrer',
+        // B3-d — traiter une commande de médicaments (CDC_11 §9.5). PERMISSION DISTINCTE, encore :
+        // accepter une commande est un acte de relation client, dispenser un acte pharmaceutique
+        // (même critère que `ordonnance.delivrer` ci-dessus). C'est la remise qui donne son sens à
+        // la séparation — remettre une commande PORTANT UNE ORDONNANCE exige les DEUX permissions.
+        'commande.traiter',
         'stats.etablissement',    // statistiques de SON établissement
         // Agent de garde
         'disponibilite.manage',   // mettre à jour la dispo de SON service
@@ -309,7 +314,9 @@ class PortailRolesSeeder extends Seeder
             // B3-a — `ordonnance.delivrer` lui est donnée : c'est SON acte, et le §7.1 le nomme.
             // Elle n'est donnée à aucun autre rôle — un gestionnaire d'établissement tient des prix,
             // il ne dispense pas.
-            'medicament.manage', 'qr.scan', 'ordonnance.delivrer',
+            // B3-d — `commande.traiter` lui est donnée : c'est le pharmacien qui reçoit les
+            // commandes de son officine (§9.5).
+            'medicament.manage', 'qr.scan', 'ordonnance.delivrer', 'commande.traiter',
         ],
         // §8.1 — Le laborantin publie un résultat dans le carnet du patient :
         // `resultats-analyses` figure dans la liste blanche des sections ouvertes au soignant,

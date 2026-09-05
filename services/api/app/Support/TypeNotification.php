@@ -69,6 +69,16 @@ enum TypeNotification: string
     case RENDEZ_VOUS_TERMINE = 'RENDEZ_VOUS_TERMINE';
 
     /**
+     * B3-d — une commande de médicaments a changé d'état. Même garde-fou que
+     * `ECHEANCE_VACCINALE` : le corps dit qu'une commande a changé d'état, jamais ce qu'elle
+     * contient — un nom de médicament désigne une pathologie, et cette phrase s'affiche sur un
+     * écran verrouillé avant de transiter par un tiers. Le détail se lit dans l'application.
+     */
+    case COMMANDE_ACCEPTEE = 'COMMANDE_ACCEPTEE';
+    case COMMANDE_REFUSEE = 'COMMANDE_REFUSEE';
+    case COMMANDE_PRETE = 'COMMANDE_PRETE';
+
+    /**
      * Le titre court affiché en tête de la notification (et sur la bannière push).
      */
     public function titre(): string
@@ -89,6 +99,9 @@ enum TypeNotification: string
             self::MODELE_IA_CANDIDAT => 'Modèle IA candidat à revoir',
             self::DERIVE_MODELE_IA => 'Dérive constatée sur le modèle IA',
             self::RENDEZ_VOUS_TERMINE => 'Rendez-vous terminé',
+            self::COMMANDE_ACCEPTEE => 'Commande acceptée',
+            self::COMMANDE_REFUSEE => 'Commande refusée',
+            self::COMMANDE_PRETE => 'Commande prête',
         };
     }
 }

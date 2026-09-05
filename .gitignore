@@ -45,6 +45,9 @@ Thumbs.db
 # Fichiers temporaires d'analyse
 _*.txt
 
+# Sauvegardes de base de données (mysqldump) prises avant un G2 live — jamais du code
+_backups/
+
 # Boîte à outils externe (pas du code projet)
 claude-skills-main/
 

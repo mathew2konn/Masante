@@ -2,24 +2,24 @@
 
 > **Point de reprise.** Écrit pour quelqu'un qui reprendrait le projet demain sans rien en savoir.
 > Dernière mise à jour : **2026-09-05**. Branche : **`feat/masante-p0-socle`**, à jour avec
-> `origin`. Dernier commit poussé : **`f6d5576`** — **B4-b G4 propriétaire OK** (docs) ; ce
-> passage y ajoute la clôture G5.
+> `origin`. Dernier commit poussé avant celui-ci : **`6350005`** — **B4-b VALIDÉ G5** (docs, lot B4
+> COMPLET a+b) ; ce passage commite et pousse le code et la documentation de B3-d.
 >
-> **Dernier incrément clos** : **B4-b** (le rendez-vous) — **✅ VALIDÉ (G5, 2026-09-05)** — G4
-> propriétaire OK (« G4 validé »), G5 « c'est bon pour le G5 ». **Le lot B4 est COMPLET (a, b).**
-> `docs/adr/ADR-056-paiement-en-ligne-geniuspay.md` et le guide partie 15 (B4-a) écrits ; partie 16
-> (B4-b) écrite. G1 validé (« je valide »), G3 fait (1732/1732,
-> mutation 9/9+1 témoin), G2 LIVE FAIT ET RÉEL (checkout GeniusPay réel, **vraie Facture Java
-> créée et soldée**, webhook réellement signé, notification réellement relayée, règlement réel du
-> RDV, commission B4-a déclenchée en conséquence, idempotence prouvée à deux niveaux réels —
-> `plan.md` PLAN 3 §9-10. Deux défauts trouvés en
-> chemin : (1) `RecuRdvService::estRegle()` comptait l'existence d'une `FacturePatient`, pas son
-> statut — corrigé ; (2) `factureId` envoyé à Java devait être une **vraie** `Facture` Java
-> (`POST /invoices`), pas un identifiant opaque — sans elle, `ServiceWebhookGeniusPay::appliquer()`
-> aurait fait échouer la transaction de règlement en silence, trouvé en lisant le code Java avant
-> le G2. Java (Docker) et Laravel (`artisan serve`) restent démarrés, données de test conservées
-> (RDV id 2, structure 18 réutilisée). **B3-d** (panier et commande, `PLAN 2`)
-> reste en attente : il dépend du canal que B4-a vient de livrer. Voir §6.
+> **Dernier incrément clos** : **B3-d** (panier et commande de médicaments) — **✅ VALIDÉ
+> (G5, 2026-09-05)** — G4 propriétaire OK (« G4 validé »), G5 « c'est bon pour le G5 ». F6 réécrit
+> après B4 pour réutiliser le canal RÉEL (checkout GeniusPay transposé de
+> `RecuRdvService`/B4-b) au lieu d'un encaissement simulé : **zéro appel neuf à
+> `CommissionService`**, la commission arrive automatiquement avec la notification, exactement
+> comme pour le rendez-vous — preuve centrale vérifiée en G2 live réel (commande à 6000 FCFA
+> réellement réglée en ligne, commission réelle de 150 FCFA calculée par le mécanisme générique de
+> B4-a). Défaut de couplage corrigé AVANT le troisième dispatch (`calculerCommissionSiApplicable()`
+> sans `try/catch` aurait pu avorter le règlement dans le même webhook). Deux bugs `$fillable`, dont
+> un (`CommandeLigne::medicament_id`) **trouvé uniquement en G2 live** — invisible aux 20 tests
+> automatisés. **Défaut réel de contrat découvert en direct** : GeniusPay refuse tout paiement sous
+> 5000 FCFA, plancher jamais documenté. **Le lot B3 (Pharmacie) est désormais COMPLET (a, b, c, d).**
+> Java (Docker) et Laravel (`artisan serve`) restent démarrés, données de test conservées
+> (officine 18, commandes 1 à 6, commission réelle en base). Détail : `plan.md` PLAN 2 §13,
+> `docs/adr/ADR-055-delivrance-ordonnance.md` §11, guide partie 14. Voir §6.
 >
 > Ce fichier dit **où l'on en est**. Le **journal exhaustif** de chaque module vit dans `CLAUDE.md`.
 > Les **plans de conception** vivent dans `plan.md`. Les **décisions d'architecture** vivent dans
@@ -145,9 +145,11 @@ Le détail exhaustif est dans `CLAUDE.md`. Vue d'ensemble :
 
 Toutes les migrations sont **`Ran`**, y compris les cinq qu'un précédent G2 avait laissées
 `Pending` (consultations, diagnostics, ordonnance_prescripteur, delivrance_ordonnance,
-stock_officine) et la nouvelle de B3-c (`tracabilite_medicaments`) — le G2 live de B3-c les a
-toutes rejouées avant de sauvegarder la base, et la restauration a donc capturé cet état à jour.
-**L'avertissement d'une précédente version de ce fichier ne s'applique plus.**
+stock_officine), celle de B3-c (`tracabilite_medicaments`), et les trois de B4/B3-d
+(`paiement_mode_geniuspay`, `facture_patient_geniuspay_facture_id`, `commandes_medicaments`) — la
+base de dev n'a **pas été restaurée** après le G2 live de B3-d (précédent B4-a/B4-b : les données
+sont conservées pour le G4 du propriétaire), donc cet état à jour est celui de la base réellement
+en place aujourd'hui. **L'avertissement d'une précédente version de ce fichier ne s'applique plus.**
 
 Si un futur G2 restaure de nouveau une base ancienne et fait réapparaître des migrations
 `Pending`, la commande reste :
@@ -184,7 +186,7 @@ Le G0 du lot avait relevé **neuf manques**. État :
 | **B3-a** | Lignes d'ordonnance, jeton de partage, **délivrance** (§7.1, §7.2 partiel) | ✅ **G5, 2026-09-03** |
 | **B3-b** | Fiche officine, **stock réel**, mouvements, seuils (§7.3, §7.5) + renommage | ✅ **G5, 2026-09-03** |
 | **B3-c** | **Code-barres + traçabilité nationale (§7.6)** | ✅ **G5, 2026-09-04** |
-| **B3-d** | **Panier + commande** (§9.5, §10.5) — *le renouvellement en SORT, voir ci-dessous* | ⏸️ **G1 rédigé (`plan.md` PLAN 2), MIS EN ATTENTE** — dépend du lot **B4**. Aucun code écrit |
+| **B3-d** | **Panier + commande** (§9.5, §10.5) — *le renouvellement en SORT, voir ci-dessous* | ✅ **VALIDÉ (G5, 2026-09-05)** |
 
 ### Ce que B3-a, B3-b et B3-c ont acquis, et qu'il ne faut pas défaire
 
@@ -209,6 +211,12 @@ Le G0 du lot avait relevé **neuf manques**. État :
   déclenchée par le moteur à la suppression du parent est elle-même un `UPDATE`, qu'un déclencheur
   append-only bloquant tout refuse, empêchant la suppression du parent. Toujours un identifiant
   **sans contrainte** dans ce cas (ADR-042 D1). Détail : ADR-055 §10.10.
+- **B3-d referme §9.5/§10.5** côté patient : le panier vit sur le téléphone, jamais au serveur ; la
+  garde `ordonnance_requise` (§10.5, jamais lue jusqu'ici) vit au serveur et porte sur le PRODUIT
+  désigné, pas seulement sur la présence d'une ordonnance quelconque ; le règlement en ligne
+  emprunte le MÊME canal réel que le rendez-vous (B4), avec son propre préfixe de corrélation
+  `commande:` — **jamais** `factures_patient`, qui est une facturation DE SOINS. **La commission
+  suit automatiquement, sans nouvel appel au service de commission.** Détail : ADR-055 §11.
 
 ---
 
@@ -219,7 +227,7 @@ Le G0 du lot avait relevé **neuf manques**. État :
 > « on va brancher les paiements sur GeniusPay et aussi le brancher au rendez-vous »
 > « je valide le G1 de B4-a » · « G4 validé » · « c'est bon pour le G5 »
 
-**B3-d reste en attente** : son règlement en ligne se branchera sur ce canal, maintenant réel.
+**B3-d est REPRIS** (voir §7 ci-dessous) : son règlement en ligne se branche sur ce canal, maintenant réel et validé G5.
 
 **Ce qui a été FAIT, dans l'ordre du `plan.md` PLAN 3 §6** : Java
 (`etablissementRef`/`factureId`/`fraisPasserelle`/`canal`/`paiementId` portés par l'événement,
@@ -327,19 +335,61 @@ marchands **restant côté microservice** pour ne pas créer deux réponses à l
 **Assumé et dit** : sans interrupteur, un défaut du canal se verra immédiatement par les patients ;
 la contrepartie est que le règlement d'aujourd'hui reste intact pour un établissement non configuré.
 
-### Ensuite — B3-d, dont le G0 est fait et le G1 rédigé
+### B3-d — panier et commande de médicaments : ✅ VALIDÉ (G5, 2026-09-05)
 
-**B3-c est clos** (G4 propriétaire fait, G5 écrite, commit `47d5b04` **poussé** le 2026-09-04) — il
-n'y a plus rien à y faire. **B3-d est écrit et attend B4** (voir ci-dessus) : son règlement en ligne
-se branchera sur le canal réel plutôt que sur un second mécanisme simulé. **F1→F5 et F7→F12 restent
-valables tels quels ; seul F6 sera remplacé.**
+**B3-c est clos** (G4 propriétaire fait, G5 écrite, commit `47d5b04` **poussé** le 2026-09-04).
+**B3-d a été REPRIS le 2026-09-05** : B4 (canal GeniusPay réel) étant VALIDÉ G5 (a et b), F6 a été
+**réécrit** — plus de second mécanisme simulé, plus de drapeau : le règlement en ligne d'une
+commande emprunte le MÊME canal réel que le rendez-vous. **F1→F5 et F7→F12 restaient valables tels
+quels.** Le propriétaire a validé ce G1 réécrit (« je valide »), et l'incrément a été **exécuté en
+totalité** dans la foulée : modèles, services, contrôleurs, routes, vues, écrans mobiles, puis G3
+(régression + mutation), puis G2 live réel. **Le lot B3 (Pharmacie) est désormais COMPLET
+(a, b, c, d).**
 
-Le **G0 de B3-d a été mené le 2026-09-04** (douze constats, vérifiés en base réelle et dans le code)
-et le **G1 est rédigé dans `plan.md`, bloc `PLAN 2`** : douze décisions de conception (F1→F12), le
-schéma exact des deux tables, les vecteurs obligatoires, les limites à annoncer.
-**Aucune ligne de code n'est écrite, et aucune ne le sera avant validation du propriétaire.**
+**Ce qui a été construit** : `Commande`/`CommandeLigne` (4 déclencheurs dual-dialecte),
+`StatutCommande`/`ModeRetraitCommande`/`ModeReglementCommande` (miroir `@masante/shared`, garde
+anti-divergence), `ServiceCommande` (patient — F3 double garde renforcée : un produit sur
+ordonnance est refusé, **en le nommant**, si l'ordonnance désignée ne le prescrit pas réellement,
+pas seulement si aucune n'est désignée), `ServiceTraitementCommande` (pharmacien, permission neuve
+`commande.traiter`), contrôleurs Sanctum + Blade, `PortailRolesSeeder`, vues, écrans mobiles
+(panier Zustand, liste et détail des commandes).
 
-Ce qu'il faut retenir du G0, si quelqu'un reprend ici :
+**Deux bugs `$fillable`, un seul trouvé par le G2 live** (famille déjà rencontrée en P6.7b/B2-b/
+B3-b) : `Commande::$fillable` (trouvé par des tests rouges) et **`CommandeLigne::$fillable`
+omettant `medicament_id`** — invisible aux 20 tests automatisés (SQLite et MySQL tolèrent tous deux
+plusieurs `NULL` sous `UNIQUE(commande_id, medicament_id)`, donc l'index restait inerte sans
+qu'aucun test ne s'en aperçoive), **trouvé uniquement par inspection SQL directe en G2 live**, qui
+aurait cassé en silence la sortie de stock d'une vente libre en production. Corrigé, un vecteur de
+régression ajouté, la garantie reprouvée en direct par une commande créée via l'API réelle.
+
+**G3** : 37 vecteurs dédiés ; suite complète **1764/1764** (après correctif d'un échec transitoire,
+`commande.traiter` manquant côté `@masante/shared`) ; **mutation manuelle, 11 mutations, 11/11
+conformes** (10 tueuses sur les gardes F3/F7/F6/F9/F10/cycle/anti-IDOR, dont une dédiée au
+correctif du couplage ci-dessous ; 1 témoin resté vert) ; Pint propre, baseline `HEAD` respectée.
+
+**G2 live réel** (officine 18/`CI-ETS900010`, Java/MySQL/`artisan serve` hérités de B4-b, base de
+dev conservée pour le G4) : stock réel entré ; cycle réel `accepter → preparer → remettre` sur une
+commande liée à une ordonnance → vraie `Delivrance` + vraie `traces_dispensation` + stock réellement
+décrémenté (chemins B3-a/B3-c inchangés) ; même cycle sur une vente libre → stock décrémenté **sans**
+délivrance ni trace, dans les deux sens ; refus réel avec motif. **Défaut réel de contrat trouvé en
+direct, absent de tout vecteur** : le microservice Java refuse tout paiement GeniusPay sous
+5000 FCFA (`422`), plancher jamais documenté côté B3-d ni B4 — découvert en tentant le tout premier
+vrai checkout (commande à 1500 FCFA). Contourné pour la suite (commande à 6000 FCFA) : **règlement
+en ligne réel de bout en bout** — vraie Facture Java créée, vrai checkout GeniusPay sandbox ouvert,
+notification interne signée réelle (hors PHPUnit) → règlement réel posé, **commission réelle créée
+par le mécanisme générique de B4-a sans aucun appel neuf depuis le domaine commande** (montant_brut
+6000, taux 250 bps, commission 150, `facture_patient_id NULL` — la preuve centrale de F6) ;
+idempotence réelle prouvée à deux niveaux (rejeu exact de la notification → aucune seconde
+commission ; nouvelle tentative de paiement sur commande déjà réglée → refus réel). **Limite ajoutée
+par le G2, non prévue au plan** : aucune garde de plancher de montant côté Laravel avant d'appeler
+GeniusPay — le refus Java protège déjà les données, seul le message reste brut pour le patient.
+
+Documentation écrite : `plan.md` PLAN 2 §13, `docs/adr/ADR-055-delivrance-ordonnance.md` §11, guide
+`GUIDE_TEST_APPLICATIONS_METIER.md` partie 14, `GUIDE_TEST_INDEX.md` mis à jour, `CLAUDE.md` mis à
+jour. **Scripts scratch supprimés** (`g2_setup_b3d.php`, `g2_notif_b3d.php`). **G4 propriétaire OK
+(« G4 validé »), G5 « c'est bon pour le G5 »** — commité et poussé sur demande explicite.
+
+Ce qu'il faut retenir du G0 initial, si quelqu'un reprend ici :
 
 - **Le constat central est `medicaments.ordonnance_requise`** : la colonne existe, elle est saisie au
   portail, elle entre dans la projection gouvernée, elle s'affiche au mobile — et **aucune garde
@@ -359,23 +409,28 @@ Ce qu'il faut retenir du G0, si quelqu'un reprend ici :
   existe, en deux modes** — *décision prise contre ma recommandation, et elle était fondée*. Le
   patient règle **en ligne** ou **à la pharmacie**, et **la commission ne s'applique qu'au règlement
   en ligne**.
-- **Ce que cet arbitrage a fait découvrir, et qui compte pour la suite du projet** : **tout le
-  domaine commission existe déjà** (`CommissionService`, barèmes par palier de volume, plan
-  tarifaire, `CommissionTransaction`, factures partenaires, écran de facturation) et il porte
-  **textuellement** la règle rappelée par le propriétaire — *une pharmacie réglée hors ligne est
-  exonérée*. Mais `calculerEtEnregistrer()` **n'a aucun appelant en production** (0 ligne en base),
-  parce que le payload du microservice **Java ne porte aucun identifiant de structure MaSanté** —
-  blocage réel, documenté dans `PaiementNotificationController` et **vérifié côté Java**. Laravel,
-  lui, connaît l'officine : **B3-d en devient le premier appelant**, sans modifier le service.
-  L'encaissement, lui, reste **simulé** (comme celui du RDV), donc le règlement en ligne est
-  **gaté OFF par défaut** — sinon on facturerait un partenaire réel sur un encaissement fictif.
+- **Ce que cet arbitrage avait fait découvrir, et ce que B4 a depuis rendu inutile à contourner** :
+  **tout le domaine commission existait déjà** (`CommissionService`, barèmes, plan tarifaire,
+  `CommissionTransaction`, factures partenaires) et portait **textuellement** la règle rappelée par
+  le propriétaire — *une pharmacie réglée hors ligne est exonérée*. Le blocage de l'époque
+  (`calculerEtEnregistrer()` sans appelant en production, le payload Java ne portant aucun
+  identifiant de structure) **a été refermé par B4-a**, pas par B3-d : `PaiementNotificationController`
+  appelle désormais `CommissionService` sur **tout** succès `canal=geniuspay`. **B3-d n'a donc plus
+  besoin d'appeler ce service lui-même** — il lui suffit de router le règlement en ligne par le VRAI
+  checkout ; la commission arrive avec le webhook, exactement comme pour le rendez-vous.
+- **Défaut réel trouvé au G0 de la reprise (2026-09-05), en relisant `PaiementNotificationController`
+  avant d'y brancher un troisième dispatch** : ses deux dispatches existants (commission, règlement
+  facture/RDV) ne sont pas réellement indépendants malgré leur docblock — une exception du calcul de
+  commission (bareme manquant) empêche le règlement de s'exécuter dans le MÊME appel, faute de
+  `try/catch`. Corrigé en même temps (correction chirurgicale sur un fichier validé G5) : la
+  commission ne pourra plus jamais bloquer un règlement, RDV ou commande.
 - **Leçon de méthode, notée parce qu'elle resservira** : le G0 initial avait audité le domaine de la
   **commande** et pas celui de la **commission**, parce que le corpus applicatif n'y renvoyait pas.
   *Un G0 borné par ce que le corpus nomme peut manquer un domaine entier déjà construit dans le
   dépôt.*
-- **Prérequis de déploiement repéré** : `BaremesCommissionSeeder` n'a jamais été joué sur la base de
-  développement (0 palier) — un règlement en ligne y échouerait bruyamment, ce qui est le bon
-  comportement mais doit être su.
+- **Prérequis de déploiement** : `BaremesCommissionSeeder` a déjà été rejoué sur la base de
+  développement pendant le G2 de B4 (`baremes_commission` n'est plus vide) — resterait un prérequis
+  réel sur une base neuve.
 
 **La méthode a tenu et se poursuit** : *ne pas partir du plan G1 du lot sans le confronter au code
 réel* — sur B3-c le G0 avait corrigé **trois** de ses affirmations, et un vecteur de **G3** avait

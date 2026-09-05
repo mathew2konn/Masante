@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\Commande;
 use App\Models\Contribution;
 use App\Models\Delegation;
 use App\Models\FacturePatient;
@@ -437,6 +438,64 @@ class ServiceNotification
             TypeNotification::RENDEZ_VOUS_TERMINE,
             $corps,
             ['membre_id' => $membre->id, 'rendez_vous_id' => $rdv->id, 'facture_patient_id' => $facture?->id],
+        );
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════════════════
+    // B3-d — Notifications de commande de médicaments.
+    //
+    // RÈGLE INVIOLABLE (D1, F12) : le corps dit qu'une commande a changé d'état, JAMAIS ce
+    // qu'elle contient — un nom de médicament désigne une pathologie, patron exact de
+    // `echeanceVaccinale()` ci-dessus (« une vaccination est due, jamais laquelle »).
+    // ═══════════════════════════════════════════════════════════════════════════════════════
+
+    /** L'officine s'engage à préparer la commande. */
+    public function commandeAcceptee(Commande $commande): void
+    {
+        $this->notifierCommande($commande, TypeNotification::COMMANDE_ACCEPTEE, sprintf(
+            'Votre commande %s a été acceptée par l\'officine.',
+            $commande->reference,
+        ));
+    }
+
+    /** L'officine refuse la commande — le motif est une justification commerciale, pas clinique. */
+    public function commandeRefusee(Commande $commande): void
+    {
+        $corps = sprintf('Votre commande %s a été refusée.', $commande->reference);
+
+        if ($commande->motif_refus !== null) {
+            $corps .= ' Motif : '.$commande->motif_refus;
+        }
+
+        $this->notifierCommande($commande, TypeNotification::COMMANDE_REFUSEE, $corps);
+    }
+
+    /** Disponible au retrait, ou prête à partir en livraison. */
+    public function commandePrete(Commande $commande): void
+    {
+        $mot = $commande->mode_retrait?->value === 'livraison' ? 'prête à être livrée' : 'prête au retrait';
+
+        $this->notifierCommande($commande, TypeNotification::COMMANDE_PRETE, sprintf(
+            'Votre commande %s est %s.',
+            $commande->reference,
+            $mot,
+        ));
+    }
+
+    /** Envoi commun aux trois notifications de commande — même destinataire, même garde-fou. */
+    private function notifierCommande(Commande $commande, TypeNotification $type, string $corps): void
+    {
+        $membre = $commande->membre;
+
+        if ($membre === null) {
+            return;
+        }
+
+        $this->envoyer(
+            [$membre->user_id],
+            $type,
+            $corps,
+            ['membre_id' => $membre->id, 'commande_id' => $commande->id],
         );
     }
 

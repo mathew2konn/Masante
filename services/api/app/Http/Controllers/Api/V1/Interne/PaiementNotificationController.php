@@ -6,6 +6,7 @@ use App\Exceptions\PrincipalSigneInvalideException;
 use App\Http\Controllers\Controller;
 use App\Services\ClientPaiementGeniusPay;
 use App\Services\CommissionService;
+use App\Services\Medicament\ServiceCommande;
 use App\Services\RecuRdvService;
 use App\Services\ResolveurEtablissementRef;
 use App\Services\VerificateurPrincipalSigne;
@@ -14,16 +15,23 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Log;
+use Throwable;
 
 /**
- * Notification entrante paiement-service (Java) → Laravel — lot 6 (v2), volet 1 + B4-a/B4-b.
+ * Notification entrante paiement-service (Java) → Laravel — lot 6 (v2), volet 1 + B4-a/B4-b/B3-d.
  *
- * ═══ CE CONTRÔLEUR TRANSPORTE, PUIS DISPATCHE À DEUX CONCERNS INDÉPENDANTS ═══
+ * ═══ CE CONTRÔLEUR TRANSPORTE, PUIS DISPATCHE À TROIS CONCERNS INDÉPENDANTS ═══
  * (1) le calcul de commission (B4-a, ci-dessous) ; (2) depuis B4-b, le règlement d'une
- * `FacturePatient` dont le `correlationId` la désigne ({@see reglerFacturePatientSiApplicable()}).
- * Les deux partagent la même garde canal/statut mais sont INDÉPENDANTS : un paiement peut régler
- * une facture sans jamais avoir d'`etablissementRef` résoluble (commission alors journalisée en
- * échec, la facture réglée quand même), et réciproquement.
+ * `FacturePatient` dont le `correlationId` la désigne ({@see reglerFacturePatientSiApplicable()}) ;
+ * (3) depuis B3-d, le règlement d'une `Commande` dont le `correlationId` la désigne ({@see
+ * reglerCommandeSiApplicable()}) — JAMAIS la même table que (2), une commande de médicaments
+ * n'étant pas un acte au sens de `factures_patient`. Les trois partagent la même garde
+ * canal/statut mais sont INDÉPENDANTS : un paiement peut régler une facture ou une commande sans
+ * jamais avoir d'`etablissementRef` résoluble (commission alors journalisée en échec, le
+ * règlement effectué quand même), et réciproquement — **et l'indépendance est désormais réelle,
+ * pas seulement déclarée** : le calcul de commission est encapsulé en `try/catch` (B3-d, voir
+ * `__invoke()`), sans quoi une exception y aurait empêché les deux règlements de s'exécuter dans
+ * le même appel malgré ce paragraphe.
  *
  * ═══ CE CONTRÔLEUR DÉCLENCHE UNE COMMISSION SUR LE SEUL CANAL GENIUSPAY ═══
  * La v1/v2 initiale de ce lot n'appelait JAMAIS `CommissionService` : le payload ne portait ni
@@ -63,6 +71,7 @@ class PaiementNotificationController extends Controller
         private readonly ResolveurEtablissementRef $resolveur,
         private readonly CommissionService $commissions,
         private readonly RecuRdvService $recus,
+        private readonly ServiceCommande $commandes,
     ) {}
 
     public function __invoke(Request $request): JsonResponse
@@ -97,19 +106,41 @@ class PaiementNotificationController extends Controller
             'recu_le' => now()->toIso8601String(),
         ]);
 
-        $this->calculerCommissionSiApplicable(
-            paiementId: is_string($paiementId) ? $paiementId : null,
-            statut: is_string($statut) ? $statut : null,
-            canal: is_string($canal) ? $canal : null,
-            etablissementRef: is_string($etablissementRef) ? $etablissementRef : null,
-            montant: is_int($montant) ? $montant : null,
-            fraisPasserelle: is_int($fraisPasserelle) ? $fraisPasserelle : null,
-            fraisPrestataire: is_int($fraisPrestataire) ? $fraisPrestataire : 0,
-            dateTransaction: is_string($dateTransaction) ? $dateTransaction : null,
-        );
+        // B3-d (F6, G0) — DÉFAUT RÉEL TROUVÉ EN RELISANT CE FICHIER AVANT D'Y BRANCHER UN
+        // TROISIÈME DISPATCH : sans ce `try/catch`, une exception ici (barème de commission
+        // manquant, montant invalide) arrêtait TOUT `__invoke()` et empêchait les règlements
+        // ci-dessous de s'exécuter dans le MÊME appel — alors que le docblock de cette classe
+        // affirme depuis B4-b que les dispatches sont INDÉPENDANTS. Vrai pour les GARDES (`if`
+        // qui rendent tôt), faux pour une exception non gardée. La commission peut désormais
+        // échouer sans jamais empêcher un patient d'être livré ou un rendez-vous d'être honoré.
+        try {
+            $this->calculerCommissionSiApplicable(
+                paiementId: is_string($paiementId) ? $paiementId : null,
+                statut: is_string($statut) ? $statut : null,
+                canal: is_string($canal) ? $canal : null,
+                etablissementRef: is_string($etablissementRef) ? $etablissementRef : null,
+                montant: is_int($montant) ? $montant : null,
+                fraisPasserelle: is_int($fraisPasserelle) ? $fraisPasserelle : null,
+                fraisPrestataire: is_int($fraisPrestataire) ? $fraisPrestataire : 0,
+                dateTransaction: is_string($dateTransaction) ? $dateTransaction : null,
+            );
+        } catch (Throwable $e) {
+            Log::error('Notification paiement-service : calcul de commission en échec, réglement non bloqué.', [
+                'paiementId' => $paiementId,
+                'motif' => $e->getMessage(),
+            ]);
+        }
 
         $correlationId = $request->input('correlationId');
         $this->reglerFacturePatientSiApplicable(
+            correlationId: is_string($correlationId) ? $correlationId : null,
+            paiementId: is_string($paiementId) ? $paiementId : null,
+            statut: is_string($statut) ? $statut : null,
+            canal: is_string($canal) ? $canal : null,
+            dateTransaction: is_string($dateTransaction) ? $dateTransaction : null,
+        );
+
+        $this->reglerCommandeSiApplicable(
             correlationId: is_string($correlationId) ? $correlationId : null,
             paiementId: is_string($paiementId) ? $paiementId : null,
             statut: is_string($statut) ? $statut : null,
@@ -148,6 +179,33 @@ class PaiementNotificationController extends Controller
         }
 
         $this->recus->confirmerReglementEnLigne($facturePatientId, $paiementId, $dateTransaction);
+    }
+
+    /**
+     * B3-d (F6, réécrit après B4) — règle une `Commande` sur un succès GeniusPay dont le
+     * `correlationId` la désigne. PARALLÈLE à {@see reglerFacturePatientSiApplicable()}, JAMAIS
+     * la même table : une commande de médicaments n'est pas un acte au sens de `factures_patient`
+     * (table de facturation DE SOINS — CMU, reste à charge), elle porte son propre règlement.
+     *
+     * Silencieux hors du périmètre `commande:` — même garde que le dispatch RDV/facture.
+     */
+    private function reglerCommandeSiApplicable(
+        ?string $correlationId,
+        ?string $paiementId,
+        ?string $statut,
+        ?string $canal,
+        ?string $dateTransaction,
+    ): void {
+        if ($statut !== PaiementStatut::SUCCESS->value || $canal !== self::CANAL_GENIUSPAY) {
+            return;
+        }
+
+        $commandeId = $this->commandes->commandeIdDepuisCorrelation($correlationId);
+        if ($commandeId === null || $paiementId === null || $dateTransaction === null) {
+            return;
+        }
+
+        $this->commandes->confirmerReglementEnLigne($commandeId, $paiementId, $dateTransaction);
     }
 
     /**

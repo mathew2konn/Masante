@@ -47,6 +47,62 @@ export const LIBELLE_RDV: Record<RendezVousStatut, string> = {
   [RendezVousStatut.HONORE]: 'Honoré',
 };
 
+/**
+ * États d'une commande de médicaments (`commandes.statut`) — B3-d, CDC_11 §9.5.
+ *
+ * Le §9.5 est littéral : « le pharmacien valide » AVANT que la vente soit autorisée — l'état
+ * initial n'est donc pas « acceptée ». Un seul état terminal de SUCCÈS (`REMISE`) : le mode
+ * (retrait ou livraison) est déjà porté par la commande, donc `RETIREE`/`LIVREE` seraient deux
+ * valeurs pour un fait déjà connu — une valeur dérivable n'est jamais stockée (principe tenu
+ * depuis P5.3a).
+ *
+ * Miroir PHP : `App\Support\StatutCommande`.
+ */
+export const CommandeStatut = {
+  /** Créée par le patient, l'officine ne l'a pas encore vue. */
+  EN_ATTENTE: 'en_attente',
+  /** L'officine s'engage à préparer. */
+  ACCEPTEE: 'acceptee',
+  /** Refusée par l'officine — motif obligatoire. */
+  REFUSEE: 'refusee',
+  /** Disponible au retrait, ou prête à partir en livraison. */
+  PRETE: 'prete',
+  /** Remise au patient — état terminal. */
+  REMISE: 'remise',
+  /** Annulée par le patient, tant que rien n'est remis. */
+  ANNULEE: 'annulee',
+} as const;
+export type CommandeStatut = (typeof CommandeStatut)[keyof typeof CommandeStatut];
+
+/** Libellés destinés au patient et au pharmacien (mêmes mots des deux côtés). */
+export const LIBELLE_COMMANDE: Record<CommandeStatut, string> = {
+  [CommandeStatut.EN_ATTENTE]: 'En attente',
+  [CommandeStatut.ACCEPTEE]: 'Acceptée',
+  [CommandeStatut.REFUSEE]: 'Refusée',
+  [CommandeStatut.PRETE]: 'Prête',
+  [CommandeStatut.REMISE]: 'Remise',
+  [CommandeStatut.ANNULEE]: 'Annulée',
+};
+
+/** Retrait à l'officine, ou livraison à l'adresse déclarée (B3-d, F7). */
+export const ModeRetraitCommande = {
+  RETRAIT: 'retrait',
+  LIVRAISON: 'livraison',
+} as const;
+export type ModeRetraitCommande = (typeof ModeRetraitCommande)[keyof typeof ModeRetraitCommande];
+
+/**
+ * Mode de règlement d'une commande (B3-d, F6) — `sur_place` : la plateforme ne touche à rien
+ * (§9.6 littéral, aucun appel réseau) ; `en_ligne` : checkout GeniusPay réel (canal B4), la
+ * commission suit automatiquement le mécanisme déjà générique de B4-a.
+ */
+export const ModeReglementCommande = {
+  SUR_PLACE: 'sur_place',
+  EN_LIGNE: 'en_ligne',
+} as const;
+export type ModeReglementCommande =
+  (typeof ModeReglementCommande)[keyof typeof ModeReglementCommande];
+
 /** États d'une transaction de paiement (machine à états stricte — CDC_06 §4.2). */
 export const PaiementStatut = {
   INITIATED: 'INITIATED',
@@ -259,6 +315,15 @@ export const TypeNotification = {
    * établissement).
    */
   RENDEZ_VOUS_TERMINE: 'RENDEZ_VOUS_TERMINE',
+  /**
+   * B3-d — une commande de médicaments a changé d'état. La règle inviolable de D1 mord ici
+   * comme ailleurs : le corps dit qu'une commande a changé d'état, JAMAIS ce qu'elle contient —
+   * un nom de médicament désigne une pathologie (patron P6.8b, « une vaccination est due, jamais
+   * laquelle »).
+   */
+  COMMANDE_ACCEPTEE: 'COMMANDE_ACCEPTEE',
+  COMMANDE_REFUSEE: 'COMMANDE_REFUSEE',
+  COMMANDE_PRETE: 'COMMANDE_PRETE',
 } as const;
 export type TypeNotification = (typeof TypeNotification)[keyof typeof TypeNotification];
 

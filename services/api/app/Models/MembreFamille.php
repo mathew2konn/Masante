@@ -244,6 +244,12 @@ class MembreFamille extends Model
         return $this->hasMany(Ordonnance::class, 'membre_id');
     }
 
+    /** B3-d — les commandes de médicaments passées pour ce membre. */
+    public function commandes(): HasMany
+    {
+        return $this->hasMany(Commande::class, 'membre_id');
+    }
+
     public function resultatsAnalyses(): HasMany
     {
         return $this->hasMany(ResultatAnalyse::class, 'membre_id');

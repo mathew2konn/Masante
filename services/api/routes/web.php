@@ -6,6 +6,7 @@ use App\Http\Controllers\Portail\AlerteEpidemiqueController as PortailAlerteEpid
 use App\Http\Controllers\Portail\AuthController;
 use App\Http\Controllers\Portail\BesoinSangController;
 use App\Http\Controllers\Portail\BrisDeGlaceController;
+use App\Http\Controllers\Portail\CommandeClientController;
 use App\Http\Controllers\Portail\CompteController;
 use App\Http\Controllers\Portail\ConsultationController;
 use App\Http\Controllers\Portail\DashboardController;
@@ -268,6 +269,19 @@ Route::prefix('portail')->name('portail.')->group(function () {
             Route::get('delivrance/ordonnance', [DelivranceController::class, 'montrer'])
                 ->name('delivrance.montrer')->middleware('throttle:30,1');
             Route::post('delivrance', [DelivranceController::class, 'servir'])->name('delivrance.servir');
+        });
+
+        // B3-d — le pharmacien reçoit et traite les commandes de SON officine (CDC_11 §9.5).
+        // PERMISSION DISTINCTE de `ordonnance.delivrer` : accepter une commande est un acte de
+        // relation client, dispenser un acte pharmaceutique. La remise d'une commande PORTANT UNE
+        // ORDONNANCE exige les DEUX (vérifié dans `ServiceTraitementCommande`, pas ici).
+        Route::middleware('permission:commande.traiter')->group(function () {
+            Route::get('commandes', [CommandeClientController::class, 'index'])->name('commandes.index');
+            Route::get('commandes/{commande}', [CommandeClientController::class, 'show'])->name('commandes.show');
+            Route::post('commandes/{commande}/accepter', [CommandeClientController::class, 'accepter'])->name('commandes.accepter');
+            Route::post('commandes/{commande}/refuser', [CommandeClientController::class, 'refuser'])->name('commandes.refuser');
+            Route::post('commandes/{commande}/preparer', [CommandeClientController::class, 'preparer'])->name('commandes.preparer');
+            Route::post('commandes/{commande}/remettre', [CommandeClientController::class, 'remettre'])->name('commandes.remettre');
         });
 
         // P6.6a — Référentiel NATIONAL des médicaments (CDC_09 §6.2).

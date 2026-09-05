@@ -14,7 +14,8 @@ import { prendrePhoto, choisirDansGalerie, PermissionRefusee } from '../document
 import { obtenirPosition } from '../utils/geoloc';
 import { messageErreur } from '../utils/erreurs';
 import { formatDateFr } from '../utils/dates';
-import type { ComparateurVue, OffrePharmacie, SourcePrix } from '../types/medicament';
+import { usePanier } from '../store/panier';
+import type { ComparateurVue, Medicament, OffrePharmacie, SourcePrix } from '../types/medicament';
 import type { Structure } from '../types/structure';
 import { colors, radius, spacing, typography } from '../theme/theme';
 
@@ -230,7 +231,9 @@ export function ComparateurEcran({ medicamentId, nom }: { medicamentId: number; 
             comparateur utile.
           </Text>
         ) : (
-          offres.map((offre, i) => <Offre key={offre.structure.id} offre={offre} premier={i === 0} />)
+          offres.map((offre, i) => (
+            <Offre key={offre.structure.id} offre={offre} medicament={medicament} premier={i === 0} />
+          ))
         )}
       </Card>
 
@@ -312,8 +315,53 @@ const LIBELLE_SOURCE: Record<SourcePrix, string> = {
 };
 
 /** Une pharmacie et son prix : montant, provenance, fraîcheur, disponibilité. */
-function Offre({ offre, premier }: { offre: OffrePharmacie; premier: boolean }) {
+function Offre({
+  offre,
+  medicament,
+  premier,
+}: {
+  offre: OffrePharmacie;
+  medicament: Medicament;
+  premier: boolean;
+}) {
   const fiable = offre.source === 'pharmacie_portail';
+  const panier = usePanier();
+
+  // F2 — une commande s'adresse à UNE officine. Changer d'officine avec un panier déjà entamé
+  // demande confirmation : c'est une décision de l'écran, pas une règle du store (F1).
+  const ajouterAuPanier = () => {
+    const changeDOfficine = panier.structureId !== null && panier.structureId !== offre.structure.id;
+
+    const ajouter = () => {
+      if (changeDOfficine) panier.vider();
+      panier.definirOfficine(offre.structure.id, offre.structure.nom);
+      panier.ajouterLigne({
+        medicamentId: medicament.id,
+        nom: medicament.libelle,
+        dosage: medicament.dosage,
+        ordonnanceRequise: medicament.ordonnance_requise,
+        prixUnitaireCfa: offre.prix_cfa,
+      });
+      Alert.alert('Ajouté au panier', `${medicament.libelle} — ${offre.structure.nom}`, [
+        { text: 'Continuer mes achats', style: 'cancel' },
+        { text: 'Voir mon panier', onPress: () => router.push('/(app)/commandes/panier') },
+      ]);
+    };
+
+    if (changeDOfficine) {
+      Alert.alert(
+        'Changer de pharmacie ?',
+        `Votre panier contient des produits de ${panier.structureNom}. Le commencer ici le videra.`,
+        [
+          { text: 'Annuler', style: 'cancel' },
+          { text: 'Vider et continuer', onPress: ajouter },
+        ],
+      );
+      return;
+    }
+
+    ajouter();
+  };
 
   return (
     <View style={[styles.offre, !premier && styles.bordure]}>
@@ -339,7 +387,17 @@ function Offre({ offre, premier }: { offre: OffrePharmacie; premier: boolean }) 
           ) : null}
         </View>
       </View>
-      <Text style={styles.offrePrix}>{offre.prix_cfa !== null ? `${offre.prix_cfa} F` : '—'}</Text>
+      <View style={styles.offreDroite}>
+        <Text style={styles.offrePrix}>{offre.prix_cfa !== null ? `${offre.prix_cfa} F` : '—'}</Text>
+        <Pressable
+          onPress={ajouterAuPanier}
+          accessibilityRole="button"
+          accessibilityLabel={`Ajouter ${medicament.libelle} au panier, ${offre.structure.nom}`}
+          style={styles.ajouterBtn}
+        >
+          <Ionicons name="add-circle" size={28} color={colors.blue[600]} />
+        </Pressable>
+      </View>
     </View>
   );
 }
@@ -378,7 +436,9 @@ const styles = StyleSheet.create({
   offreNom: { ...typography.bodyStrong, color: colors.blue[900] },
   offreMeta: { ...typography.caption, color: colors.ink[500], marginTop: 2 },
   offreBadges: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing[1], marginTop: spacing[2] },
-  offrePrix: { ...typography.h2, color: colors.blue[900], marginLeft: spacing[3] },
+  offreDroite: { alignItems: 'center', marginLeft: spacing[3], gap: spacing[1] },
+  offrePrix: { ...typography.h2, color: colors.blue[900] },
+  ajouterBtn: { padding: spacing[1] },
   badge: { paddingVertical: 2, paddingHorizontal: spacing[2], borderRadius: radius.pill },
   badgeTxt: { ...typography.caption, fontWeight: '700' },
 

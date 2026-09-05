@@ -404,8 +404,10 @@ sans écart. **VALIDÉ G5 le 2026-09-04** — G4 propriétaire OK. Détail compl
 
 **Lot** : B3 (Pharmacie), **quatrième et dernier** sous-incrément, après B3-a (servir une
 ordonnance), B3-b (le stock réel) et B3-c (code-barres et traçabilité).
-**ADR** : ADR-055 (§11 à écrire). **Guide** : `GUIDE_TEST_APPLICATIONS_METIER.md`, **partie 14**.
-**Date du G0** : 2026-09-04. **Aucun code écrit à ce stade.**
+**ADR** : ADR-055 (§11 à écrire) et ADR-056 (amendé — troisième émetteur du canal). **Guide** :
+`GUIDE_TEST_APPLICATIONS_METIER.md`, **partie 14**.
+**Date du G0** : 2026-09-04, **repris et F6 réécrit le 2026-09-05** après PLAN 3 (VALIDÉ G5).
+**G1 VALIDÉ (« je valide », 2026-09-05).** Exécution en cours, ordre de §9.
 
 ---
 
@@ -549,72 +551,112 @@ par le mobile **et** par le portail. Le précédent B1-a est net — `RendezVous
 morte pendant que trois copies divergeaient ; on ne recommence pas. Patron :
 `RendezVousStatutSourceUniqueTest` et `PermissionsSourceUniqueTest`.
 
-### F6 — Deux modes de règlement, et la commission ne s'applique qu'en ligne
+### F6 — RÉÉCRIT AU 2026-09-05, APRÈS B4 VALIDÉ G5 : le règlement en ligne emprunte le canal RÉEL, la commission suit sans nouvel appel
 
-> **Arbitrage du propriétaire, 2026-09-04** : « une fois la commande passée par le patient, il peut
-> la payer **en ligne** [ou] une fois **à la pharmacie**, et **pour chaque paiement en ligne on
-> applique les commissions** — et c'est ce que j'avais dit. »
+> **Ce que F6 disait avant B4** : deux modes, `sur_place` exonéré et `en_ligne` **simulé** (frais à 0
+> inventés) appelant `CommissionService` **directement** depuis Laravel, sous un drapeau
+> `commande.reglement_en_ligne` gaté OFF — parce qu'un encaissement fictif facturé à un partenaire
+> aurait été malhonnête. **Ce plan reste juste dans son analyse, mais il est devenu inutile** : B4
+> (VALIDÉ G5 le 2026-09-05) a construit exactement le canal RÉEL que ce texte reportait à « un lot
+> transversal ». B3-d n'a plus à choisir entre « simulé et gaté » ou « rien » : il peut **réutiliser
+> le canal prouvé**, sans drapeau et sans encaissement fictif.
 
-**Il avait dit vrai, et la règle est déjà dans le code** (Q10). `CommissionService` porte
-littéralement :
+**Ce que le canal réel de B4 apporte, déjà construit et déjà prouvé G5** : `ResolveurEtablissementRef`
+(structure → référence), `ClientPaiementGeniusPay::estConfigure()/creerFacture()/initierCheckout()`,
+et surtout **`PaiementNotificationController::calculerCommissionSiApplicable()`**, qui calcule une
+commission sur **TOUT succès `canal=geniuspay` portant un `etablissementRef` résoluble — quel que
+soit ce qui est payé**. Ce mécanisme a été conçu **générique dès B4-a** (il sert déjà une facture
+*et* un rendez-vous, sans distinction) : **B3-d n'a rien à ajouter à `CommissionService`, rien à
+appeler depuis le domaine commande — il lui suffit de faire passer le règlement en ligne par le
+VRAI checkout, et la commission arrive avec le webhook, exactement comme pour le rendez-vous.**
 
-```php
-$estPharmacieHorsLigne = $structure->type === 'pharmacie' && $regleEnLigne === false;
-$exoneree = $estPharmacieHorsLigne || $planCommissionIncluse;
-```
-
-**Une pharmacie réglée hors ligne est exonérée ; réglée en ligne, elle ne l'est pas.** B3-d n'a donc
-**rien à inventer sur la commission** : il a à **appeler ce qui existe**, correctement.
-
-→ La commande porte un **mode de règlement** : `sur_place` ou `en_ligne`.
+→ La commande porte toujours un **mode de règlement** : `sur_place` ou `en_ligne` — la table F6
+d'origine reste vraie, seule sa colonne « Ce qui se passe » change :
 
 | Mode | Ce qui se passe | Commission |
 |---|---|---|
-| `sur_place` | La plateforme ne touche à rien — **le §9.6 littéral** | **Aucune** (exonération déjà codée) |
-| `en_ligne` | Laravel enregistre le règlement **et appelle `CommissionService::calculerEtEnregistrer()`** avec `regleEnLigne = true` | **Calculée**, palier et taux **figés sur la ligne** |
+| `sur_place` | La plateforme ne touche à rien, **littéralement aucun appel réseau** — le §9.6 vérifié **par construction**, pas par une exonération calculée | **Aucune** — aucune notification n'est jamais générée pour ce mode, donc `calculerCommissionSiApplicable()` ne s'exécute jamais |
+| `en_ligne` | Checkout GeniusPay **réel** ouvert sur l'officine (mécanisme B4-b, transposé) ; la commande devient réglée **à la notification**, jamais avant | **Calculée automatiquement** par le mécanisme B4-a existant, sur des frais **réels** |
 
-**Ce qui rend ce chemin possible ici alors qu'il est bloqué ailleurs.** Le blocage documenté dans
-`PaiementNotificationController` (Q11) est que **le payload Java ne porte aucun identifiant de
-structure MaSanté**. Laravel, lui, **connaît l'officine** : la commande la porte (F2). Le blocage ne
-concerne donc **que la notification entrante**, jamais ce chemin-ci. **B3-d donne à
-`CommissionService` son PREMIER APPELANT** — il en avait zéro, et `commissions_transaction` est vide
-en base réelle.
+**AUCUN DRAPEAU GLOBAL** (`commande.reglement_en_ligne` disparaît du plan) : même raison que S7 de
+PLAN 3 pour le rendez-vous — la disponibilité est une **propriété de l'officine** (identifiant
+national + marchand GeniusPay déclaré), interrogée par le même `estConfigure()`, jamais un
+interrupteur binaire pour toute la plateforme. *Le motif du drapeau (protéger contre une commission
+réelle sur un encaissement fictif) disparaît avec l'encaissement fictif lui-même.*
 
-**Ce que le règlement en ligne EST, et ce qu'il n'est PAS, dit avant de coder.** L'encaissement
-lui-même reste **SIMULÉ**, exactement comme celui du rendez-vous (Q5, Q12) : `frais_passerelle` et
-`frais_prestataire` valent 0, et ce n'est pas une valeur inventée — c'est le coût réel d'une
-passerelle qui n'existe pas encore (formulation du contrôleur Java, reprise telle quelle).
-**La commission, elle, serait RÉELLE**, et `GenererFacturesPartenaireCommand` facturerait un
-partenaire sur la base d'un encaissement fictif.
+**Pourquoi PAS `factures_patient` — correction d'une anticipation écrite pendant B4-b, revue ici.**
+En construisant le règlement du rendez-vous, `RecuRdvService::confirmerReglementEnLigne()` a reçu un
+commentaire anticipant que B3-d réutiliserait **la même table** (`FacturePatient`, même préfixe de
+corrélation `facture-patient:`) — écrit sans repasser par le G0 de B3-d. **Revu et corrigé ici** :
+`factures_patient` est une table de facturation **DE SOINS** (`moment_paiement`, prise en charge
+CMU, `reste_a_charge`) — l'arbitrage déjà rendu pour ce lot (§10 ci-dessous, avant même B4) dit
+explicitement qu'une commande de médicaments **n'est pas un acte** au sens de cette table, précisément
+parce qu'une vente libre n'a ni CMU ni tarif de consultation. Y loger le règlement d'une commande
+romprait cette distinction déjà actée. → **`commandes` porte SON PROPRE règlement**
+(`mode_reglement`, `regle_le`, `reference_reglement`, **`commande_geniuspay_id`** — nouvelle colonne,
+miroir de `facture_geniuspay_id`), avec son **propre préfixe de corrélation `commande:`**,
+structurellement PARALLÈLE au mécanisme RDV mais jamais confondu avec lui. **`CommissionService`
+n'a besoin d'aucun lien vers la commande** : son idempotence (`reference_interne_paiement =
+'geniuspay-paiement:{paiementId}'`) suffit à elle seule, et lui ajouter une FK `commande_id` serait
+une donnée que rien ne lirait — même règle que « pas de socle à vide » (P6.3-D3), appliquée à
+l'envers (pas de colonne à vide).
 
-→ **Le règlement en ligne est donc GATÉ OFF par défaut** (`commande.reglement_en_ligne`), régime
-« prêt à activer » du projet (cashback P5.3b-3, push P7-D1, MFA P1) : le mécanisme est **livré et
-prouvé au G2 drapeau ON**, et **rien n'est facturé à personne** tant que le propriétaire ne
-l'allume pas. Drapeau OFF, seul `sur_place` est proposé — et la pharmacie est exonérée, ce qui est
-le comportement d'aujourd'hui.
+**Mécanisme, transposé terme à terme de `RecuRdvService` (B4-b), sur `ServiceCommande` (patient)** :
 
-**Quand le règlement en ligne devient possible** : une fois la commande **acceptée** par l'officine,
-**jamais avant** — *on ne paie pas avant de savoir que la pharmacie peut servir*, et **aucun
-remboursement n'existe dans ce projet**.
+1. `disponibiliteEnLigne(Commande $commande): bool` — `ResolveurEtablissementRef::formater()` sur
+   l'officine de la commande, puis `estConfigure()`. Identique à `RecuRdvService::disponibiliteEnLigne()`.
+2. `ouvrirPaiementEnLigne(Commande $commande): array` — refuse si la commande n'est pas `acceptee`
+   (inchangé de F6 d'origine : *on ne paie pas avant de savoir que la pharmacie peut servir*), si
+   `montant_indicatif_cfa` est nul, ou si l'officine n'est pas configurée. Crée une **vraie** Facture
+   Java (`creerFacture()`, une ligne, TVA 0 %, libellé « Commande #{référence} ») **une seule fois**
+   (`commande_geniuspay_id` réutilisé aux tentatives suivantes — même raison qu'en B4-b :
+   `ServiceWebhookGeniusPay::appliquer()` exige une vraie Facture, sans quoi le règlement échoue en
+   silence). Ouvre le checkout avec `correlationId = 'commande:'.$commande->id`, **`objet` =
+   `ORDONNANCE` si `ordonnance_id` est renseigné, `AUTRE` sinon** — deux valeurs **déjà présentes**
+   dans l'enum Java `ObjetPaiement` (vérifié : `RENDEZ_VOUS, ORDONNANCE, ANALYSE, RADIOLOGIE,
+   HOSPITALISATION, AMBULANCE, ASSURANCE, CNAM, FACTURE, ABONNEMENT, AUTRE`), **zéro ligne Java
+   touchée** — ce champ ne sert qu'à tracer (docblock Java lui-même : « ne fait que les tracer »).
+3. `confirmerReglementEnLigne(int $commandeId, string $paiementIdExterne, string $dateTransaction): void`
+   — sous verrou (`lockForUpdate`), idempotent (`regle_le` déjà posé → no-op silencieux), pose
+   `regle_le` et `reference_reglement = $paiementIdExterne`.
+4. `commandeIdDepuisCorrelation(?string $correlationId): ?int` — parse le préfixe `commande:`,
+   `null` sinon. Même forme que `facturePatientIdDepuisCorrelation()`.
+5. **`PaiementNotificationController` gagne un TROISIÈME dispatch**, `reglerCommandeSiApplicable()`
+   — structurellement parallèle à `reglerFacturePatientSiApplicable()` (même garde canal/statut),
+   appelant `ServiceCommande::confirmerReglementEnLigne()`. **Les trois dispatches restent
+   indépendants** (le docblock du contrôleur le dit déjà pour les deux premiers ; le troisième
+   applique la même règle).
 
-**Le montant reste indicatif et figé** : le patient retrouve ce qui lui avait été annoncé. Ce n'est
-pas un engagement de prix de la pharmacie, et l'écran le dit.
+**DÉFAUT RÉEL TROUVÉ EN RELISANT `PaiementNotificationController` AVANT D'ÉCRIRE UNE LIGNE (G0 de
+B3-d, pas un test rouge) : les trois dispatches ne sont PAS réellement indépendants aujourd'hui.**
+`__invoke()` appelle `calculerCommissionSiApplicable()` **avant** `reglerFacturePatientSiApplicable()`,
+**sans aucun `try/catch`** — si le calcul de commission lève (`baremeActif()` sans palier couvrant le
+volume, ou toute autre `RuntimeException`/`InvalidArgumentException` du service), **la méthode
+entière s'arrête**, et le règlement de la facture/du rendez-vous **n'est jamais atteint**. Le
+docblock de la classe affirme pourtant : « un paiement peut régler une facture sans jamais avoir
+d'`etablissementRef` résoluble… et réciproquement » — vrai pour les GARDES (`if` qui rendent tôt),
+**faux pour une EXCEPTION non gardée**. B3-d ajoute un troisième dispatch au même point de défaillance
+: sans correction, une base sans barème actif **bloquerait aussi le règlement d'une commande**, pas
+seulement sa commission. → **Corrigé en même temps** (correction chirurgicale sur un fichier
+validé G5, additive, zéro changement de comportement pour les deux dispatches existants dans le cas
+nominal) : `calculerCommissionSiApplicable()` encapsulée dans un `try/catch (\Throwable)` qui
+journalise en `error` et laisse `__invoke()` continuer — la commission peut échouer sans jamais
+empêcher un patient d'être livré ou un rendez-vous d'être honoré. **Vecteur dédié** : bareme manquant
++ notification de règlement dans le MÊME appel → la commande (ou le RDV) est réglée, la commission
+absente, l'échec journalisé.
 
-**Ce que B3-d ne fait PAS** : brancher les paiements patients sur **GeniusPay réel**. Cela exigerait
-d'ajouter `structureSanitaireId` au contrat du microservice Java, d'y router l'initiation depuis
-Laravel et d'en gérer le retour — un **lot transversal** qui vaut autant pour le **rendez-vous** que
-pour la pharmacie, et qui n'a rien de spécifique au médicament. C'est le lot que B1-d avait déféré
-« faute de cible réelle » ; **il a désormais une cible, mais ce n'est pas celui-ci**.
+**Le montant reste FIGÉ à la commande** (`montant_indicatif_cfa`) : c'est lui, sans recalcul, qui est
+envoyé à GeniusPay au moment du checkout — il cesse d'être *seulement* indicatif à cet instant précis
+(il devient le montant réellement demandé), mais reste ce que le patient a vu avant de payer, jamais
+un second calcul (patron `tarifPour()` de B1-b).
 
-> **Prérequis de déploiement** : `BaremesCommissionSeeder` — `baremes_commission` compte **0 ligne**
-> en base réelle, et `baremeActif()` **lève** si aucun palier ne couvre le volume. Un règlement en
-> ligne sur une base non seedée échouerait bruyamment (ce qui est le bon comportement, mais il faut
-> le savoir). Même famille que le backfill du pivot de P11.2 et `MaladieSeeder` de B2-b.
+**Ce que B3-d ne fait toujours PAS** : rien à ajouter — le « lot transversal » que l'ancien F6
+reportait (brancher GeniusPay pour de vrai) **est PLAN 3, déjà livré et validé G5**. Il n'y a plus de
+dette à nommer ici.
 
-> **`facture_patient_id` reste NULL sur la commission** (la colonne est nullable) : une commande de
-> médicaments n'est pas un acte au sens de `factures_patient`, qui porte `rendez_vous_id`,
-> `moment_paiement`, `tarif_source` et la prise en charge CMU. Lui en fabriquer une serait tordre une
-> table de facturation de soins pour y loger un achat de comptoir.
+> **Prérequis de déploiement, inchangé mais déjà satisfait sur la base de dev** : `BaremesCommissionSeeder`
+> a été rejoué pendant le G2 de B4-a/B4-b (`baremes_commission` n'est plus vide sur `ivoirsante`) —
+> resterait un prérequis réel sur une base neuve.
 
 ### F7 — Retrait ou livraison : on enregistre le CHOIX, on ne construit pas un service de livraison
 
@@ -710,10 +752,11 @@ produit dans toute la charge utile et casse le build s'il l'y trouve.
 | `mode_retrait` | enum(`retrait`,`livraison`) | F7 |
 | `adresse_livraison` | text **chiffré**, nullable | Donnée personnelle : chiffrée au repos comme le reste du carnet, lisible par le chemin autorisé |
 | `statut` | enum(6 valeurs de F5) | Défaut `en_attente` |
-| `montant_indicatif_cfa` | unsigned int, nullable | F6. `null` si aucun prix connu — *on ne fabrique pas un montant* |
-| `mode_reglement` | enum(`sur_place`,`en_ligne`) | F6. Défaut `sur_place` — **le seul mode disponible drapeau OFF** |
+| `montant_indicatif_cfa` | unsigned int, nullable | F6. `null` si aucun prix connu — *on ne fabrique pas un montant* ; devient le montant RÉEL envoyé à GeniusPay au checkout, jamais recalculé |
+| `mode_reglement` | enum(`sur_place`,`en_ligne`) | F6. Défaut `sur_place` |
 | `regle_le` | datetime nullable | Non nul = réglé. **Aucun état `payee` dans le cycle** : le règlement est un fait distinct de l'avancement de la commande, et les mélanger rendrait insoluble « acceptée mais pas encore payée » — patron `estRegle()` de B1 |
-| `reference_reglement` | string(30) nullable, **unique** | Clé d'idempotence transmise à `CommissionService` comme `reference_interne_paiement` — c'est elle qui garantit qu'un rejeu ne recalcule jamais une commission (premier geste du service) |
+| `reference_reglement` | string(30) nullable, **unique** | F6 (réécrit) — posé par `confirmerReglementEnLigne()` au `paiementIdExterne` reçu à la notification GeniusPay réelle ; garde l'idempotence de la commande elle-même, indépendante de celle de `CommissionService` |
+| `commande_geniuspay_id` | string(36) nullable | F6 (réécrit) — miroir exact de `factures_patient.facture_geniuspay_id` (B4-b) : l'id de la vraie Facture Java, créée une fois et réutilisée à chaque tentative de checkout |
 | `commentaire` | string(500), nullable | Du patient à l'officine |
 | `motif_refus` | string(300), nullable | **Obligatoire si `refusee`** (garde du moteur) |
 | `traite_par_user_id` | FK `users` nullOnDelete | Le pharmacien qui a décidé |
@@ -764,8 +807,10 @@ la garde violée, et c'est le style tenu par tout le lot B3.
 
 | Nom | Rôle |
 |---|---|
-| `App\Services\Medicament\ServiceCommande` | Le patient passe, règle et annule. Porte les gardes F2, F3, F4, F6, F7, F8, F11 |
-| `App\Services\CommissionService` | **APPELÉ, JAMAIS MODIFIÉ** — `regler()` lui passe `regleEnLigne`, `structureSanitaireId`, `montantBrut`, `referenceInternePaiement` ; l'exonération, le palier, l'arrondi et l'idempotence restent **entièrement chez lui**. Le réécrire créerait deux façons de calculer une commission |
+| `App\Services\Medicament\ServiceCommande` | Le patient passe, règle et annule. Porte les gardes F2, F3, F4, F7, F8, F11, **et désormais F6** : `disponibiliteEnLigne()`, `ouvrirPaiementEnLigne()`, `confirmerReglementEnLigne()`, `commandeIdDepuisCorrelation()` — transposition terme à terme de `RecuRdvService` (B4-b) |
+| `App\Services\ClientPaiementGeniusPay`, `App\Services\ResolveurEtablissementRef` | **RÉUTILISÉS TELS QUELS** (B4) — `ServiceCommande` les injecte, ne les modifie pas. Zéro ligne touchée dans l'un ou l'autre |
+| `App\Services\CommissionService` | **NI APPELÉ NI MODIFIÉ par le domaine commande** — F6 (réécrit) : la commission suit automatiquement via le mécanisme déjà générique de `PaiementNotificationController` (B4-a), qui ne sait même pas qu'une commande existe |
+| `App\Http\Controllers\Api\V1\Interne\PaiementNotificationController` | **Gagne un troisième dispatch** `reglerCommandeSiApplicable()`, parallèle à `reglerFacturePatientSiApplicable()` ; **`calculerCommissionSiApplicable()` encapsulée en `try/catch`** (défaut réel trouvé en relisant le fichier, F6) |
 | `App\Services\Medicament\ServiceTraitementCommande` | Le pharmacien accepte, refuse, prépare, remet. Porte F5, F9, F10, F11 |
 | `App\Models\Commande`, `App\Models\CommandeLigne` | |
 | `App\Support\StatutCommande`, `App\Support\ModeRetraitCommande` | Miroirs PHP de l'enum partagé |
@@ -790,13 +835,16 @@ produirait une classe où chaque méthode commencerait par se demander qui l'app
 | `ServiceStockOfficine` | **Aucun changement de schéma** ; appelé avec un motif neuf | Nul (Q9) |
 | `PrixMedicamentService::comparer()` | **Inchangé** — la commande le lit, ne le modifie pas | Nul |
 | `ServiceDelivrance` | **Inchangé** — la remise d'une commande sous ordonnance l'appelle | À vérifier au G3 : ne pas dupliquer sa logique |
-| `CommissionService` | **Aucun changement** — B3-d en devient le **premier appelant** | Le service est déjà couvert par ses propres tests ; les nôtres vérifient **l'appel**, pas le calcul |
-| `config/masante.php` | **+1 drapeau** `commande.reglement_en_ligne`, **OFF par défaut** (F6) | Nul |
+| `CommissionService` | **Aucun changement, aucun appel depuis le domaine commande** (F6 réécrit) — la commission arrive par le mécanisme B4-a déjà générique | Nul |
+| `ClientPaiementGeniusPay`, `ResolveurEtablissementRef` | **Aucun changement** — injectés dans `ServiceCommande`, réutilisés tels quels | Nul |
+| `PaiementNotificationController` | **+1 dispatch** `reglerCommandeSiApplicable()` ; `calculerCommissionSiApplicable()` encapsulée en `try/catch` (défaut trouvé au G0, F6) | Fichier validé G5 (B4-a) — correction **additive**, comportement nominal des deux dispatches existants inchangé, vecteur dédié à écrire |
+| `factures_patient` | **Aucun changement** — B3-d ne l'utilise PAS (correction d'une anticipation erronée écrite pendant B4-b, voir F6) | Nul |
 | Mobile : `ComparateurEcran` | **+ un bouton « Ajouter au panier »** sur chaque offre | Écran validé G5 — modification **additive** seulement |
 
 **Ce qui ne bouge pas, et c'est explicite** : `prix_pharmacie`, `stocks_officine`,
-`mouvements_stock`, `delivrances`, `traces_dispensation`, `ordonnances`, `ordonnance_lignes`.
-B3-d **consomme** tout ce que B3-a/b/c ont construit et n'en modifie rien.
+`mouvements_stock`, `delivrances`, `traces_dispensation`, `ordonnances`, `ordonnance_lignes`,
+`factures_patient`. B3-d **consomme** tout ce que B3-a/b/c ont construit **et le canal réel de B4**,
+sans en modifier le cœur.
 
 ---
 
@@ -821,15 +869,28 @@ témoin volontairement vert). Les vecteurs obligatoires :
    n'existe pas (F9, limite assumée et **prouvée** plutôt qu'affirmée).
 10. **Les valeurs figées survivent** : renommer le produit au référentiel après coup ne change pas la
     ligne de commande.
-11. **Règlement `sur_place` → AUCUNE commission** (`commissions_transaction` reste vide) ;
-    **règlement `en_ligne` → une commission calculée**, avec son taux et son volume cumulé figés.
-    *Les deux vecteurs en miroir sont la preuve : l'un sans l'autre ne prouverait rien.*
-12. **Le règlement en ligne est refusé drapeau OFF**, et refusé **avant acceptation** de la commande
-    — chacun **par son motif**, jamais par un code partagé.
-13. **Rejouer un règlement ne crée pas une seconde commission** (idempotence par
-    `reference_reglement`), et **ne double pas** le montant réglé.
-14. **`baremes_commission` vide → échec bruyant**, jamais une commission à 0 silencieuse : le
-    vecteur vérifie que le refus **nomme** le palier manquant.
+11. **`sur_place` → AUCUN appel réseau, `commande_geniuspay_id` reste NULL, `commissions_transaction`
+    ne gagne aucune ligne.** Vecteur qui espionne `ClientPaiementGeniusPay` (mock/spy) et vérifie
+    qu'il n'est jamais sollicité — le §9.6 prouvé par l'ABSENCE, patron du vecteur central de B3-a.
+12. **`en_ligne` refusé avant acceptation** de la commande, et **refusé si l'officine n'est pas
+    configurée GeniusPay** — chacun **par son motif**, jamais par un code partagé (patron
+    `ouvrirPaiementEnLigne` du RDV).
+13. **Checkout réel ouvert deux fois → une seule Facture Java créée** (`commande_geniuspay_id`
+    inchangé au second appel) — même vecteur que B4-b, transposé.
+14. **Notification de succès GeniusPay (canal `geniuspay`, `correlationId = 'commande:{id}'`) →
+    `regle_le`/`reference_reglement` posés sur la commande, ET une `CommissionTransaction` réelle
+    créée pour l'officine** — MÊME mécanisme que B4-b, vecteur qui le PROUVE plutôt que de le
+    recoder : **les deux dispatches du contrôleur s'exécutent dans le MÊME appel**, sur la MÊME
+    notification.
+15. **Rejeu de la même notification (même `paiementId`) → aucune seconde commission, `regle_le`
+    inchangé sur la commande** (idempotence à deux niveaux indépendants — `CommissionService` et
+    `ServiceCommande::confirmerReglementEnLigne()` — chacun vérifié séparément en base, patron B4-b).
+16. **`objet` transmis à Java** vaut exactement `ORDONNANCE` quand la commande porte un
+    `ordonnance_id`, `AUTRE` sinon — vecteur qui vérifie la valeur littérale envoyée (garantit
+    l'absence de régression sur l'enum Java sans y toucher).
+17. **Le défaut de couplage corrigé** : bareme de commission manquant (`baremeActif()` lève) **dans
+    le MÊME appel** qu'une notification de règlement de commande → la commande est réglée quand
+    même, l'échec de commission est journalisé, **aucune exception ne remonte au webhook**.
 
 **G2 (live)** — base MySQL réelle sauvegardée puis **restaurée compte pour compte**, `artisan serve`
 réel, chaîne HTTP réelle avec session et CSRF côté portail, jeton Sanctum réel côté patient :
@@ -841,11 +902,11 @@ les gardes du moteur éprouvées en SQL direct (`ERROR 1644`, `ERROR 1062`), et 
 
 ## 8. Limites qui seront annoncées
 
-1. **L'encaissement reste SIMULÉ**, comme celui du rendez-vous : `frais_passerelle` et
-   `frais_prestataire` valent 0 — *le coût réel d'une passerelle qui n'existe pas encore*, jamais une
-   valeur inventée. **La commission, elle, est réelle**, d'où le drapeau OFF par défaut (F6).
-   **Brancher GeniusPay pour de vrai est un lot transversal à part**, qui vaut autant pour le
-   rendez-vous, et qui suppose d'ajouter `structureSanitaireId` au contrat du microservice Java.
+1. **Le règlement en ligne dépend entièrement de la disponibilité GeniusPay de l'officine**
+   (identifiant national + marchand déclaré — même limite que le rendez-vous, S7 de PLAN 3) :
+   **aucun interrupteur global**, le seul recours d'exploitation est le compte marchand de
+   l'officine. *Cette limite REMPLACE l'ancienne (encaissement simulé, drapeau gaté OFF) —
+   devenue sans objet depuis que B4 a livré le canal réel.*
 2. **Aucun service de livraison** : le mode et l'adresse sont enregistrés, rien n'est suivi (F7).
    `rayon_livraison_km` est **affiché, pas appliqué**.
 3. **Une ordonnance papier hors carnet ne permet pas de commander** un produit sous ordonnance (F4).
@@ -867,16 +928,21 @@ les gardes du moteur éprouvées en SQL direct (`ERROR 1644`, `ERROR 1062`), et 
 2. Migration (`commandes`, `commande_lignes`, **4** déclencheurs × 2 dialectes) + modèles.
 3. `ServiceCommande` (le patient) + ses gardes.
 4. `ServiceTraitementCommande` (le pharmacien) + le cycle + le branchement stock/délivrance.
-5. **Le règlement** (F6) : drapeau de configuration, `regler()`, et l'appel à `CommissionService`
-   — **après** le cycle, puisqu'il n'est possible qu'une fois la commande acceptée.
+5. **Le règlement en ligne** (F6, réécrit) : `disponibiliteEnLigne()`/`ouvrirPaiementEnLigne()`/
+   `confirmerReglementEnLigne()`/`commandeIdDepuisCorrelation()` sur `ServiceCommande`, **après** le
+   cycle (n'est possible qu'une fois la commande `acceptee`) ; le 3ᵉ dispatch + le `try/catch` sur
+   `PaiementNotificationController`.
 6. Permission + notifications.
-7. API patient (Sanctum) + écran portail (Blade).
-8. Mobile : store panier, bouton au comparateur, écran commande, « mes commandes ».
+7. API patient (Sanctum, dont `GET/POST /commandes/{id}/paiement-en-ligne`) + écran portail (Blade).
+8. Mobile : store panier, bouton au comparateur, écran commande, « mes commandes », ouverture du
+   checkout dans le navigateur (`Linking.openURL`, patron B4-b S8 — jamais une WebView).
 9. G3 : vecteurs + campagne de mutation + Pint (baseline établie **avant** tout formatage) +
    typecheck ×3 + `expo-doctor`.
-10. G2 live sur MySQL réelle (drapeau ON pour prouver la commission, `BaremesCommissionSeeder`
-    joué), puis restauration vérifiée.
-11. Documentation : ADR-055 §11, guide partie 14, `CLAUDE.md`, `plan.md`, `handoff.md`.
+10. G2 live sur MySQL réelle — checkout GeniusPay **réellement ouvert** en bac à sable sur l'officine
+    déjà configurée (`CI-ETS900010`, réutilisée de B4), webhook réel, commission réelle vérifiée en
+    base, puis restauration vérifiée compte pour compte.
+11. Documentation : ADR-055 §11 (amende aussi ADR-056 — B3-d en devient le TROISIÈME émetteur du
+    canal, après la facture et le rendez-vous), guide partie 14, `CLAUDE.md`, `plan.md`, `handoff.md`.
 
 ---
 
@@ -898,18 +964,140 @@ corpus applicatif n'y renvoyait pas.* Le rappel du propriétaire (« c'est ce qu
 envoyé chercher au bon endroit, et **quatre constats vérifiés en base et dans le code Java**
 (Q10→Q12) ont remplacé une recommandation par une décision documentée.
 
-**Aucune ligne de code ne sera écrite avant validation de ce plan ainsi corrigé.**
+**Aucune ligne de code n'a été écrite avant validation de ce plan.**
+
+> **Note (2026-09-05)** : la colonne « Suite » de l'arbitrage A ci-dessus décrivait l'implémentation
+> **simulée** envisagée à l'époque (trois colonnes, une quatrième garde, six vecteurs). §12 ci-dessous
+> la remplace par l'implémentation **réelle**, une fois PLAN 3 livré — la DÉCISION de l'arbitrage
+> (deux modes, commission au règlement en ligne) est **inchangée** ; seule sa réalisation technique
+> est plus simple que prévu.
 
 ---
 
-## 11. Report — PLAN 2 attend PLAN 3 (décision propriétaire, 2026-09-04)
+## 11. Report — PLAN 2 a attendu PLAN 3 (décision propriétaire, 2026-09-04, refermé le 2026-09-05)
 
 > « on va brancher les paiements sur GeniusPay et aussi le brancher au rendez-vous »
 
-Le propriétaire demande le **lot transversal** que §F6 nommait hors périmètre. Il devient **PLAN 3**,
-et **B3-d en dépend** : son règlement en ligne serait, sinon, un second mécanisme simulé qu'il
-faudrait défaire aussitôt après. **PLAN 2 reste écrit et valable** — F1→F5 et F7→F12 ne bougent pas ;
-seul F6 sera **remplacé** par un branchement sur le canal réel de PLAN 3.
+Le propriétaire a demandé le **lot transversal** que §F6 nommait hors périmètre. Il est devenu
+**PLAN 3** (B4-a le canal, B4-b le rendez-vous), **VALIDÉ G5 le 2026-09-05** — voir `plan.md` PLAN 3.
+**PLAN 2 reprend** à cette date : F1→F5 et F7→F12 n'ont pas bougé ; **F6 a été réécrit** (§12) pour
+brancher le règlement en ligne sur le canal réel plutôt que sur un mécanisme simulé.
+
+---
+
+## 12. Reprise (2026-09-05) — ce qui change concrètement avec PLAN 3 livré
+
+**Ce G0 tient en une phrase** : tout ce que l'ancien F6 devait CONSTRUIRE (un encaissement, fût-il
+simulé, plus un appel explicite à `CommissionService`, plus un drapeau pour ne pas facturer un
+partenaire sur du fictif), le canal de PLAN 3 le fait déjà, pour de vrai, sans qu'on lui demande
+rien de plus qu'un `correlationId`.
+
+**Trois conséquences vérifiées avant d'écrire quoi que ce soit** :
+
+1. **`CommissionService::calculerEtEnregistrer()` reste APPELÉ PAR UN SEUL ENDROIT**
+   (`PaiementNotificationController::calculerCommissionSiApplicable()`), **avant et après B3-d** —
+   vérifié par recherche exhaustive (`grep`) sur tout `app/`. B3-d ne lui ajoute pas un second
+   appelant : il ajoute un second `correlationId` que ce même endroit sait déjà traiter par
+   construction (il ne discrimine que sur `canal`/`statut`/`etablissementRef`, jamais sur *ce qui*
+   est payé).
+2. **`regleEnLigne` vaut toujours `true` dans le seul appel réel existant** (ligne 199 du
+   contrôleur, valeur littérale, jamais une variable) — la branche `estPharmacieHorsLigne` de
+   `CommissionService` reste, comme avant B3-d, atteignable **seulement** par les tests unitaires
+   directs du service. **Ce n'est pas un défaut introduit par B3-d** : un règlement `sur_place` ne
+   génère, PAR CONSTRUCTION, aucune notification GeniusPay — donc aucun appel où faire vivre
+   `regleEnLigne = false` n'existera jamais en production, avec ou sans B3-d. Dit plutôt que
+   silencieusement contourné.
+3. **Le défaut de couplage entre les deux dispatches existants** (§F6 ci-dessus) — trouvé en
+   relisant `PaiementNotificationController` pour savoir OÙ brancher le troisième dispatch, pas en
+   le cherchant pour lui-même. Sans le corriger, B3-d aurait hérité d'un mode d'échec qu'il n'a pas
+   créé mais qu'il aurait rendu deux fois plus probable de toucher (deux domaines métier, RDV et
+   commande, désormais suspendus au même appel non protégé).
+
+**Le plan F6 ci-dessus (§3) est la version finale, à valider.**
+
+## 13. G1 validé (« je valide »), exécution, G3, G2 live
+
+**Exécuté tel que F6 réécrit le prévoyait**, sans écart de conception : `Commande`/`CommandeLigne`
+(migration `2026_09_05_000001_commandes_medicaments.php`, 4 déclencheurs dual-dialecte),
+`StatutCommande`/`ModeRetraitCommande`/`ModeReglementCommande` (enums PHP + `@masante/shared`, garde
+anti-divergence `CommandeEnumsSourceUniqueTest`), `ServiceCommande` (patient — F3 double garde
+renforcée, F6 réel, F9/F10 côté remise), `ServiceTraitementCommande` (pharmacien — permission
+`commande.traiter`), `CommandeController`/`CommandeClientController`, routes Sanctum + Blade,
+`PortailRolesSeeder` (+`commande.traiter`), vues Blade, écrans mobiles (panier Zustand, commandes).
+
+**DEUX BUGS `$fillable` TROUVÉS, UN PAR LES TESTS, UN SEULEMENT PAR LE G2 LIVE** (famille
+P6.7b/B2-b/B3-b) : `Commande::$fillable` omettait `statut`/`montant_indicatif_cfa`/... (trouvé par
+des assertions rouges) ; **`CommandeLigne::$fillable` omettait `medicament_id`** — invisible aux
+20 tests automatisés (SQLite et MySQL tolèrent tous deux plusieurs `NULL` sous
+`UNIQUE(commande_id, medicament_id)`, donc l'index restait inerte sans qu'aucun test ne le
+remarque), **trouvé uniquement par inspection SQL directe au G2 live** (`medicament_id=NULL` sur une
+ligne réellement créée), qui aurait cassé en silence `sortirVenteLibre()` en production (elle
+s'arrête net si `medicament_id` est nul). Corrigé, un vecteur de régression ajouté
+(`test_medicament_id_est_reellement_enregistre_sur_la_ligne`), la garantie reprouvée en direct
+(nouvelle commande créée par l'API réelle → `medicament_id` correctement persisté).
+
+**Mutation manuelle — 11 mutations, 11/11 conformes** (script PowerShell, méthodologie à 6 règles
+[sauvegarde, unicité de l'ancre, vecteur vert AVANT mutation, mutation vérifiée appliquée sur
+disque, filtre PHPUnit ciblé, restauration byte-identique]) : 10 tueuses sur la garde F3 double
+(M1, M2), la garde livraison F7 (M3), la garde montant-connu (M4), la garde statut F6 (M5), le
+partage F9 (M6), la garde permission F10 (M7), le cycle `assertStatut` (M8), l'anti-IDOR
+`assertOfficine` (M9), et **le correctif try/catch de `PaiementNotificationController`** (M10 —
+`catch (Throwable $e)` muté en `catch (\LogicException $e)`, reproduisant le bug d'origine : la
+`RuntimeException` de `baremeActif()` sans palier redevient non rattrapée) ; 1 témoin (T1, permutation
+de deux affectations indépendantes) resté vert. **11/11.**
+
+**Régression complète** : `php artisan test` → **1764/1764** (1 échec transitoire
+`PermissionsSourceUniqueTest`, `commande.traiter` manquant côté `@masante/shared` — corrigé, 2/2).
+Pint propre sur tout le code neuf, baseline `HEAD` respectée sur le code modifié préexistant.
+
+**G2 live — inventaire du parcours réel joué le 2026-09-05**, sur l'officine 18
+(`CI-ETS900010`, déjà GeniusPay-configurée depuis B4-a), Java/MySQL/`artisan serve` hérités déjà
+démarrés de la session B4-b :
+
+1. Stock réel entré (`entree` 50 Doliprane, 30 Clamoxyl) via le vrai portail — vérifié en base.
+2. Commande ordonnance-liée (id 4, Clamoxyl ×2, `ordonnance_ligne_id` réel) créée par l'API Sanctum
+   réelle → cycle réel `accepter → preparer → remettre` via le portail pharmacien → **`Delivrance`
+   réelle créée** (id 1, chemin B3-a inchangé), **`traces_dispensation` réelle créée** (medicament 33,
+   quantité 2, chemin B3-c inchangé), **mouvement de stock réel** `sortie -2` avec `delivrance_id=1`.
+3. Commande vente-libre (id 3, Doliprane ×2) → même cycle → **mouvement de stock réel** `sortie -2`,
+   motif « Remise d'une commande », **`delivrance_id` NULL, aucune trace créée** — F9 vérifiée en
+   réel dans les deux sens.
+4. Commande (id 2) → refus réel avec motif (« Rupture de stock prolongee ») via le portail.
+5. **DÉFAUT RÉEL DE CONTRAT TROUVÉ EN DIRECT, absent de tout vecteur** : `ouvrirPaiementEnLigne()`
+   sur une commande à 1500 CFA a été refusée par le microservice Java lui-même
+   (`422 : « Le paiement en ligne n'est pas disponible sous 5000 FCFA. »`) — un minimum de montant
+   du côté GeniusPay/Java, jamais documenté côté B3-d ni côté B4, découvert seulement en tentant un
+   vrai checkout. Contourné pour la suite du G2 en composant une commande à 6000 CFA (id 6) ; **le
+   plan ni le code ne posent aujourd'hui de garde CÔTÉ LARAVEL sur ce plancher** — limite ajoutée
+   ci-dessous, pas corrigée dans ce lot (le refus Java protège déjà, seul le message affiché au
+   patient resterait à améliorer si ce plancher devient un vecteur produit).
+6. Commande 6 acceptée → `ouvrirPaiementEnLigne()` réel : **vraie Facture Java créée**
+   (`f45246b3-…`, stockée sur `commande_geniuspay_id`), **vrai checkout GeniusPay sandbox ouvert**
+   (`https://geniuspay.ci/checkout/SANDBOX_GY5KXLJ8Y7QYSOCC`), `mode_reglement` basculé à `en_ligne`
+   en base.
+7. **Règlement réel** : notification interne signée (principal réel via `SigneurPrincipalSortant`,
+   même mécanisme que les tests, envoyée par un vrai `curl` HTTP au `artisan serve` réel, hors
+   PHPUnit) avec `canal=geniuspay`, `etablissementRef=CI-ETS900010`, `correlationId=commande:6` →
+   `regle_le`/`reference_reglement` réellement posés en base.
+8. **Commission réelle créée par le mécanisme GÉNÉRIQUE de B4-a, sans aucun appel neuf depuis le
+   domaine commande** — vérifiée en base (`commissions_transaction` id 3 : `montant_brut=6000`,
+   `taux_bps_applique=250`, `montant_commission=150`, `facture_patient_id NULL`) : **la preuve
+   centrale de F6**.
+9. **Idempotence réelle à deux niveaux** : rejeu exact de la même notification (même `paiementId`)
+   → toujours 3 commissions (aucune seconde créée), `regle_le` inchangé ; nouvelle tentative de
+   paiement sur la commande 6 déjà réglée → refus réel (« Cette commande a déjà été réglée. »).
+
+**Base de dev conservée** (précédent B4-a/B4-b) : commandes 1 à 6, mouvements de stock, délivrance,
+trace, commission réelles laissées en l'état pour le G4 du propriétaire. Scripts scratch
+(`g2_setup_b3d.php`, `g2_notif_b3d.php`) à supprimer avant tout commit.
+
+### Limite ajoutée par le G2 live, non prévue au plan
+
+- **Aucun plancher de montant n'est vérifié côté Laravel avant d'appeler le microservice** — le
+  Java refuse déjà (422, rien d'écrit), donc aucune donnée n'est jamais faussée ; mais le message
+  d'erreur brut du microservice remonte tel quel au patient plutôt qu'un message applicatif nommant
+  le montant minimal. Dette mineure, non corrigée dans ce lot (le refus est sûr, seule son
+  élégance manque).
 
 ---
 

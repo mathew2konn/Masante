@@ -40,6 +40,7 @@ export const PERMISSIONS = [
   'don_sang.manage',
   'medicament.manage',
   'ordonnance.delivrer',
+  'commande.traiter',
   'stats.etablissement',
   // Accueil et parcours du patient
   'disponibilite.manage',
