@@ -2,19 +2,17 @@
 
 > **Point de reprise.** Écrit pour quelqu'un qui reprendrait le projet demain sans rien en savoir.
 > Dernière mise à jour : **2026-09-05**. Branche : **`feat/masante-p0-socle`**, à jour avec
-> `origin`. Dernier commit poussé : **`47d5b04`** — **B3-c VALIDÉ (G5, 2026-09-04), G4 propriétaire
-> OK** ; **le lot B3 est COMPLET sur a, b, c**.
+> `origin`. Dernier commit poussé : **`f6d5576`** — **B4-b G4 propriétaire OK** (docs) ; ce
+> passage y ajoute la clôture G5.
 >
-> **Dernier incrément clos** : **B4-a** (canal de paiement GeniusPay) — **✅ VALIDÉ (G5,
-> 2026-09-04)** — G4 propriétaire OK, G5 « c'est bon pour le G5 ». `docs/adr/ADR-056-paiement-en-ligne-geniuspay.md`
-> et le guide partie 15 écrits. Détail complet : `plan.md` PLAN 3 §8.
->
-> **En cours** : **B4-b** (le rendez-vous) — **G1 validé (« je valide »), G3 fait (1732/1732,
-> mutation 9/9+1 témoin), G2 LIVE FAIT ET RÉEL** (checkout GeniusPay réel, **vraie Facture Java
+> **Dernier incrément clos** : **B4-b** (le rendez-vous) — **✅ VALIDÉ (G5, 2026-09-05)** — G4
+> propriétaire OK (« G4 validé »), G5 « c'est bon pour le G5 ». **Le lot B4 est COMPLET (a, b).**
+> `docs/adr/ADR-056-paiement-en-ligne-geniuspay.md` et le guide partie 15 (B4-a) écrits ; partie 16
+> (B4-b) écrite. G1 validé (« je valide »), G3 fait (1732/1732,
+> mutation 9/9+1 témoin), G2 LIVE FAIT ET RÉEL (checkout GeniusPay réel, **vraie Facture Java
 > créée et soldée**, webhook réellement signé, notification réellement relayée, règlement réel du
-> RDV, commission déclenchée en conséquence, idempotence prouvée à deux niveaux réels — `plan.md`
-> PLAN 3 §10), **G4 propriétaire OK (« G4 validé », 2026-09-05).** En attente de la validation G5
-> écrite, jamais auto-déclarée. Deux défauts trouvés en
+> RDV, commission B4-a déclenchée en conséquence, idempotence prouvée à deux niveaux réels —
+> `plan.md` PLAN 3 §9-10. Deux défauts trouvés en
 > chemin : (1) `RecuRdvService::estRegle()` comptait l'existence d'une `FacturePatient`, pas son
 > statut — corrigé ; (2) `factureId` envoyé à Java devait être une **vraie** `Facture` Java
 > (`POST /invoices`), pas un identifiant opaque — sans elle, `ServiceWebhookGeniusPay::appliquer()`
@@ -251,10 +249,10 @@ un `baremes_commission` vide en base de dev réelle (corrigé par le seeder), et
 de test part toujours neuve — c'est précisément ce que le G2 live existe pour attraper, et il l'a
 fait deux fois de plus.*
 
-### Ensuite — B4-b (le rendez-vous)
+### B4-b (le rendez-vous) — clos
 
-**G1 validé, G3 fait, G2 LIVE FAIT ET RÉEL le 2026-09-05, G4 propriétaire OK (« G4 validé »,
-2026-09-05) — en attente de la validation G5 écrite, jamais auto-déclarée.** Détail complet
+**✅ VALIDÉ (G5, 2026-09-05)** — G1 validé, G3 fait, G2 LIVE FAIT ET RÉEL, G4 propriétaire OK
+(« G4 validé »), G5 « c'est bon pour le G5 ». **Le lot B4 est COMPLET (a, b).** Détail complet
 (constats, décisions S1-S13, écart trouvé, vecteurs, résultats G2 live) : `plan.md` PLAN 3 §9-10.
 
 **Ce que le G0 a trouvé, en relisant S5 contre le code réel** : poser une `FacturePatient`

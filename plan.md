@@ -9,7 +9,7 @@
 |---|---|---|
 | **PLAN 1** | B3-c — Code-barres + traçabilité nationale des médicaments (CDC_11 §7.6) | ✅ **Terminé — VALIDÉ G5 le 2026-09-04**, G4 propriétaire OK |
 | **PLAN 2** | B3-d — Panier et commande de médicaments (CDC_11 §9.5, §10.5 · CDC_01 §6.6) | ⏸️ **G1 rédigé, EN ATTENTE** — dépend désormais du PLAN 3 pour son règlement en ligne. Aucun code écrit. |
-| **PLAN 3** | B4 — Paiement en ligne réel (GeniusPay) : canal Laravel→Java, commission, et le rendez-vous | 🔵 **B4-a (le canal) : ✅ VALIDÉ G5 le 2026-09-04**. **B4-b (rendez-vous) : G1 validé (« je valide »), G3 fait (1732/1732, mutation 9/9+1 témoin), G2 live fait et réel (checkout GeniusPay réel, vraie Facture Java, webhook réel, règlement réel, idempotence réelle — §10 de ce plan), G4 propriétaire OK (« G4 validé », 2026-09-05). En attente de la validation G5 écrite.** |
+| **PLAN 3** | B4 — Paiement en ligne réel (GeniusPay) : canal Laravel→Java, commission, et le rendez-vous | ✅ **B4-a (le canal) : VALIDÉ G5 le 2026-09-04. B4-b (rendez-vous) : VALIDÉ G5 le 2026-09-05** (G4 propriétaire OK « G4 validé », G5 « c'est bon pour le G5 »). **Le lot B4 est COMPLET (a, b).** |
 
 ---
 
@@ -1618,4 +1618,4 @@ id 2. Nommées et scopées sans ambiguïté. Java et Laravel laissés **démarr�
 
 ---
 
-**G4 validé par le propriétaire (« G4 validé », 2026-09-05). En attente de la validation G5 écrite — jamais auto-déclarée.**
+**✅ VALIDÉ (G5, 2026-09-05)** — G4 propriétaire OK (« G4 validé »), G5 « c'est bon pour le G5 ». **B4-b clos ; le lot B4 est COMPLET (a, b).**
