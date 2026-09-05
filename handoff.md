@@ -2,39 +2,30 @@
 
 > **Point de reprise.** Écrit pour quelqu'un qui reprendrait le projet demain sans rien en savoir.
 > Dernière mise à jour : **2026-09-05**. Branche : **`feat/masante-p0-socle`**, à jour avec
-> `origin`. Dernier commit poussé avant celui-ci : **`6350005`** — **B4-b VALIDÉ G5** (docs, lot B4
-> COMPLET a+b) ; ce passage commite et pousse le code et la documentation de B3-d.
+> `origin`. Dernier commit poussé : **`ceb3be1`** — **B5-a + B5-b VALIDÉS G5** (les deux
+> sous-incréments arrivent dans le même commit, B5-a n'ayant jamais été commité seul).
 >
-> **Dernier incrément clos** : **B3-d** (panier et commande de médicaments) — **✅ VALIDÉ
-> (G5, 2026-09-05)** — G4 propriétaire OK (« G4 validé »), G5 « c'est bon pour le G5 ». F6 réécrit
-> après B4 pour réutiliser le canal RÉEL (checkout GeniusPay transposé de
-> `RecuRdvService`/B4-b) au lieu d'un encaissement simulé : **zéro appel neuf à
-> `CommissionService`**, la commission arrive automatiquement avec la notification, exactement
-> comme pour le rendez-vous — preuve centrale vérifiée en G2 live réel (commande à 6000 FCFA
-> réellement réglée en ligne, commission réelle de 150 FCFA calculée par le mécanisme générique de
-> B4-a). Défaut de couplage corrigé AVANT le troisième dispatch (`calculerCommissionSiApplicable()`
-> sans `try/catch` aurait pu avorter le règlement dans le même webhook). Deux bugs `$fillable`, dont
-> un (`CommandeLigne::medicament_id`) **trouvé uniquement en G2 live** — invisible aux 20 tests
-> automatisés. **Défaut réel de contrat découvert en direct** : GeniusPay refuse tout paiement sous
-> 5000 FCFA, plancher jamais documenté. **Le lot B3 (Pharmacie) est désormais COMPLET (a, b, c, d).**
-> Java (Docker) et Laravel (`artisan serve`) restent démarrés, données de test conservées
-> (officine 18, commandes 1 à 6, commission réelle en base). Détail : `plan.md` PLAN 2 §13,
-> `docs/adr/ADR-055-delivrance-ordonnance.md` §11, guide partie 14. Voir §6.
+> **Dernier incrément clos** : **B5-a + B5-b** (le circuit du laboratoire, premiers deux
+> sous-incréments sur trois) — **✅ VALIDÉS (G5, 2026-09-05)** — G4 propriétaire OK (« G4 validé,
+> c'est pour le G5 »). **B5-a** ferme K5/K11 (`source` ne se déclare plus par le client sur trois
+> sections du carnet) et livre la demande d'examen, sixième section du registre du carnet, signable
+> (troisième entité branchée au registre PKI). **B5-b** livre le laboratoire : il lit la demande
+> **par son jeton, sans jamais ouvrir de session de dossier** — vecteur central vérifié en direct,
+> `acces_dossier` reste à zéro sur tout le cycle du prélèvement (enregistrement, réception, mise en
+> analyse) — cycle à six états (`preleve→[expedie]→recu→en_analyse`, `valide`/`publie` inatteignables
+> tant que B5-c n'existe pas), étiquette en Code 128 SVG pur sans dépendance, `journal_laboratoire`
+> append-only distinct du journal d'accès du patient, quatre gardes du moteur vérifiées en SQL
+> direct contre la base réelle, anti-IDOR 404 vérifié en HTTP réel entre deux laboratoires. Corrige
+> au passage un défaut réel de B5-a (garde relationnelle manquante, une demande déjà prélevée
+> pouvait être reprojetée). Détail : `plan.md` PLAN 4 §11-§12, `docs/adr/ADR-057…`/`ADR-058…`, guide
+> parties 17-18. Voir §7.
 >
 > **Incrément EN COURS** : **B5 — le circuit du laboratoire** (CDC_11 §8.1, CDC_09 §7.4, CDC_04
-> §109), **étape 9 de l'ordre CDC_11 §12**, choisie par le propriétaire le 2026-09-05. **G1 VALIDÉ
-> par le propriétaire** (« je valide le G1 de B5 »). **B5-a — la demande d'examen — ✅ VALIDÉ
-> (G5, 2026-09-05)**, G4 propriétaire OK, ADR-057. **B5-b — les prélèvements — ✅ VALIDÉ
-> (G5, 2026-09-05)** (« G4 validé, c'est pour le G5 »), ADR-058 :
-> `prelevements`/`journal_laboratoire`, cycle à six états (`preleve→[expedie]→recu→en_analyse`,
-> `valide`/`publie` déclarés mais inatteignables tant que B5-c n'existe pas), `ReglesCode128`
-> (SVG pur, zéro dépendance) et son étiquette imprimable, aucune session de dossier (le laboratoire
-> lit la demande par son jeton, `acces_dossier` vérifié à **zéro** de bout en bout en réel), quatre
-> gardes du moteur + append-only du journal, anti-IDOR 404 vérifié en HTTP réel entre deux
-> laboratoires. Guide : `GUIDE_TEST_APPLICATIONS_METIER.md` partie 18. **B5-c
-> reste entièrement à faire.** Périmètre **intégral** sur arbitrage du propriétaire (« on ne va rien
-> abandonner ») : les quatre tables absentes, les automates, la traçabilité du laborantin et une
-> notification au patient après publication.
+> §109), **étape 9 de l'ordre CDC_11 §12**. **B5-c (résultats, automates, validation biologiste,
+> publication, notification) reste entièrement à faire** — pas encore commencé. Périmètre
+> **intégral** sur arbitrage du propriétaire (« on ne va rien abandonner ») : les quatre tables
+> absentes, les automates, la traçabilité du laborantin et une notification au patient après
+> publication.
 > Détail : `plan.md` **PLAN 4** (K1→K11, L1→L16, §11 exécution B5-a, §12 exécution B5-b),
 > `CLAUDE.md` bullet B5. Voir §7.
 >
