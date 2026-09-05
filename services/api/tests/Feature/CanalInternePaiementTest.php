@@ -4,13 +4,19 @@ namespace Tests\Feature;
 
 use App\Models\CommissionTransaction;
 use App\Models\FacturePatient;
+use App\Models\MembreFamille;
+use App\Models\Paiement;
+use App\Models\RendezVous;
+use App\Models\ServiceEtablissement;
 use App\Models\StructureSanitaire;
 use App\Models\User;
 use App\Services\CommissionService;
+use App\Services\RecuRdvService;
 use App\Support\MomentPaiement;
 use App\Support\StatutFacturePatient;
 use Database\Seeders\BaremesCommissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Tests\TestCase;
@@ -379,5 +385,106 @@ class CanalInternePaiementTest extends TestCase
 
         $this->assertSame(1, CommissionTransaction::query()->count());
         $this->assertSame(10000, CommissionTransaction::sole()->montant_brut, 'Aucun recalcul au rejeu.');
+    }
+
+    // ── B4-b (ADR-056 §9, 2026-09-04) — le règlement RÉEL d'un rendez-vous ─────────────────
+    //
+    // Ce contrôleur DISPATCHE désormais à deux concerns indépendants (commission ci-dessus,
+    // règlement de facture ici) sur la même notification. `RecuRdvService` porte toute la
+    // logique (idempotence, verrou) — ces vecteurs prouvent que LE CONTRÔLEUR l'appelle
+    // correctement, pas la logique elle-même (couverte par `RecuRdvPaiementEnLigneTest`).
+
+    /** Fait naître une `FacturePatient` A_REGLER par le VRAI chemin (`ouvrirPaiementEnLigne()`,
+     *  B4-b), pour que la référence Java simulée soit celle réellement construite en production. */
+    private function facturePatientARegler(int $montant = 15000): FacturePatient
+    {
+        $structure = $this->structureAvecIdentifiant('ETS900700');
+        $user = User::factory()->create();
+        $membre = new MembreFamille([
+            'nom' => 'Yao', 'prenom' => 'Awa', 'date_naissance' => '2000-01-01', 'sexe' => 'F',
+        ]);
+        $membre->user_id = $user->id;
+        $membre->matricule_ivs = 'IVS-2026-RC-'.uniqid();
+        $membre->save();
+
+        $service = ServiceEtablissement::create([
+            'structure_id' => $structure->id, 'nom_service' => 'Cardiologie',
+            'specialite' => 'cardiologie', 'actif' => true, 'tarif_consultation_cfa' => $montant,
+        ]);
+        $rdv = RendezVous::create([
+            'membre_id' => $membre->id, 'structure_id' => $structure->id, 'service_id' => $service->id,
+            'mode_attribution' => 'etablissement_attribue', 'motif' => 'Suivi',
+            'date_souhaitee' => now()->addDay()->toDateString(), 'statut' => 'confirme',
+        ]);
+
+        app(RecuRdvService::class)->ouvrirPaiementEnLigne($rdv);
+
+        return FacturePatient::where('rendez_vous_id', $rdv->id)->sole();
+    }
+
+    public function test_notification_geniuspay_reussie_avec_correlation_facture_regle_le_rendez_vous(): void
+    {
+        Http::fake([
+            '*/api/v1/interne/geniuspay/marchands/*' => Http::response(['configure' => true], 200),
+            '*/api/v1/invoices' => Http::response(['id' => '33333333-3333-3333-3333-333333333333'], 201),
+            '*/api/v1/interne/geniuspay/paiements' => Http::response([
+                'referenceInterne' => 'MS-TEST', 'checkoutUrl' => 'https://sandbox.geniuspay.example/x',
+            ], 200),
+        ]);
+        $facture = $this->facturePatientARegler(15000);
+        $paiementId = (string) Str::uuid();
+
+        $this->withHeaders($this->entetesSignees())
+            ->postJson(self::ENDPOINT, $this->payload('SUCCESS', [
+                'paiementId' => $paiementId,
+                'canal' => 'geniuspay',
+                'correlationId' => 'facture-patient:'.$facture->id,
+                'montant' => 15000,
+            ]))
+            ->assertOk();
+
+        $this->assertSame(StatutFacturePatient::PAYEE, $facture->fresh()->statut);
+        $this->assertDatabaseHas('paiements', [
+            'rendez_vous_id' => $facture->rendez_vous_id, 'mode' => 'geniuspay',
+            'transaction_ref' => $paiementId,
+        ]);
+        $this->assertDatabaseHas('recus_rdv', ['rendez_vous_id' => $facture->rendez_vous_id, 'statut' => 'paye']);
+    }
+
+    public function test_notification_avec_correlation_inconnue_ne_touche_aucune_facture(): void
+    {
+        $this->withHeaders($this->entetesSignees())
+            ->postJson(self::ENDPOINT, $this->payload('SUCCESS', [
+                'paiementId' => (string) Str::uuid(),
+                'canal' => 'geniuspay',
+                'correlationId' => 'facture-patient:999999',
+                'montant' => 15000,
+            ]))
+            ->assertOk(); // silencieux : jamais une erreur pour un correlationId d'un autre traitement.
+
+        $this->assertSame(0, Paiement::query()->count());
+    }
+
+    public function test_notification_geniuspay_echouee_ne_regle_pas_la_facture(): void
+    {
+        Http::fake([
+            '*/api/v1/interne/geniuspay/marchands/*' => Http::response(['configure' => true], 200),
+            '*/api/v1/invoices' => Http::response(['id' => '33333333-3333-3333-3333-333333333333'], 201),
+            '*/api/v1/interne/geniuspay/paiements' => Http::response([
+                'referenceInterne' => 'MS-TEST', 'checkoutUrl' => 'https://sandbox.geniuspay.example/x',
+            ], 200),
+        ]);
+        $facture = $this->facturePatientARegler(15000);
+
+        $this->withHeaders($this->entetesSignees())
+            ->postJson(self::ENDPOINT, $this->payload('FAILED', [
+                'paiementId' => (string) Str::uuid(),
+                'canal' => 'geniuspay',
+                'correlationId' => 'facture-patient:'.$facture->id,
+                'montant' => 15000,
+            ]))
+            ->assertOk();
+
+        $this->assertSame(StatutFacturePatient::A_REGLER, $facture->fresh()->statut);
     }
 }

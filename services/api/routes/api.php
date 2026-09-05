@@ -532,6 +532,12 @@ Route::middleware('throttle:api')->group(function () {
             // Paiement (simulé) + reçu de RDV avec QR de check-in (N1/N2/N3).
             Route::post('rendez-vous/{rendezVous}/paiement', [RecuRdvController::class, 'store']);
             Route::get('rendez-vous/{rendezVous}/recu', [RecuRdvController::class, 'show']);
+
+            // B4-b — paiement en ligne réel (GeniusPay), à côté du chemin simulé ci-dessus (S7 :
+            // aucun des deux n'est retiré). GET = disponibilité seule (zéro appel réseau si
+            // l'établissement n'a pas d'identifiant national) ; POST = ouvre/réutilise le checkout.
+            Route::get('rendez-vous/{rendezVous}/paiement-en-ligne', [RecuRdvController::class, 'disponibiliteEnLigne']);
+            Route::post('rendez-vous/{rendezVous}/paiement-en-ligne', [RecuRdvController::class, 'payerEnLigne']);
         });
 
         /*

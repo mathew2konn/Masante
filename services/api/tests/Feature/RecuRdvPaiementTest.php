@@ -2,12 +2,16 @@
 
 namespace Tests\Feature;
 
+use App\Models\FacturePatient;
 use App\Models\Medecin;
 use App\Models\MembreFamille;
 use App\Models\RendezVous;
 use App\Models\ServiceEtablissement;
 use App\Models\StructureSanitaire;
 use App\Models\User;
+use App\Services\RecuRdvService;
+use App\Support\MomentPaiement;
+use App\Support\StatutFacturePatient;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use Laravel\Sanctum\Sanctum;
@@ -224,5 +228,37 @@ class RecuRdvPaiementTest extends TestCase
         $rdv = $this->rdv($this->membre($user), $s, $sv);
 
         $this->getJson("/api/v1/rendez-vous/{$rdv->id}/recu")->assertNotFound();
+    }
+
+    /**
+     * B4-b — RÉGRESSION trouvée au G0 : `estRegle()` comptait l'EXISTENCE d'une `FacturePatient`,
+     * pas son STATUT. Vrai tant que `payer()` (ci-dessus) en était l'unique créatrice — elle naît
+     * toujours `PAYEE`. Faux dès qu'une `A_REGLER` existe avant paiement (`ouvrirPaiementEnLigne()`,
+     * voir `RecuRdvPaiementEnLigneTest`) : sans ce filtre, `RendezVousValidationService::terminer()`
+     * (B1-d) clôturerait un rendez-vous jamais payé.
+     */
+    public function test_est_regle_est_faux_pour_une_facture_a_regler_seule(): void
+    {
+        $user = User::factory()->create();
+        $s = $this->structure();
+        $sv = $this->service($s);
+        $membre = $this->membre($user);
+        $rdv = $this->rdv($membre, $s, $sv);
+
+        FacturePatient::create([
+            'structure_sanitaire_id' => $s->id,
+            'patient_id' => $user->id,
+            'rendez_vous_id' => $rdv->id,
+            'reference' => 'FPA-'.uniqid(),
+            'moment_paiement' => MomentPaiement::AVANT_ACTE,
+            'montant_brut' => 8000,
+            'montant_pris_en_charge_cmu' => 0,
+            'montant_reste_a_charge' => 8000,
+            'statut' => StatutFacturePatient::A_REGLER,
+            'paiement_en_ligne_autorise' => true,
+            'date_emission' => now(),
+        ]);
+
+        $this->assertFalse(app(RecuRdvService::class)->estRegle($rdv));
     }
 }

@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { QrMasante } from '../../../../src/components/QrMasante';
@@ -8,7 +8,12 @@ import { Card } from '../../../../src/components/Card';
 import { Chip } from '../../../../src/components/Chip';
 import { ScreenHeader } from '../../../../src/components/ScreenHeader';
 import { PrimaryButton } from '../../../../src/components/PrimaryButton';
-import { obtenirRecu, payerRendezVous } from '../../../../src/api/rendezvous';
+import {
+  disponibiliteEnLignePaiement,
+  obtenirRecu,
+  payerRendezVous,
+  payerRendezVousEnLigne,
+} from '../../../../src/api/rendezvous';
 import { messageErreur } from '../../../../src/utils/erreurs';
 import { formatDateFr } from '../../../../src/utils/dates';
 import {
@@ -55,6 +60,9 @@ export default function RecuRdvEcran() {
   const [chargement, setChargement] = useState(true);
   const [envoi, setEnvoi] = useState(false);
   const [erreur, setErreur] = useState<string | null>(null);
+  // B4-b — chemin réel (GeniusPay), à côté du chemin simulé ci-dessus (aucun des deux retiré).
+  const [enLigneDisponible, setEnLigneDisponible] = useState(false);
+  const [ouvertureEnCours, setOuvertureEnCours] = useState(false);
 
   const charger = useCallback(async () => {
     setChargement(true);
@@ -78,6 +86,16 @@ export default function RecuRdvEcran() {
     void charger();
   }, [charger]);
 
+  // B4-b (S7) — la disponibilité se vérifie une fois qu'on sait qu'il y a quelque chose à payer ;
+  // un établissement non configuré n'affiche simplement pas le bouton (rien n'est proposé qui ne
+  // puisse aboutir), sans que ce soit traité comme une erreur.
+  useEffect(() => {
+    if (!aPayer) return;
+    disponibiliteEnLignePaiement(rdvId)
+      .then(setEnLigneDisponible)
+      .catch(() => setEnLigneDisponible(false));
+  }, [aPayer, rdvId]);
+
   async function payer() {
     setEnvoi(true);
     setErreur(null);
@@ -88,6 +106,28 @@ export default function RecuRdvEcran() {
       setErreur(messageErreur(e));
     } finally {
       setEnvoi(false);
+    }
+  }
+
+  /**
+   * B4-b (S6/S8) — ouvre le checkout dans le NAVIGATEUR (jamais une WebView, pour que l'utilisateur
+   * voie l'URL et le cadenas). Ne règle rien : le retour dans l'app ne suppose aucun résultat —
+   * c'est « Actualiser » (ci-dessous) qui relit le reçu, seul juge de ce qui s'est passé.
+   */
+  async function payerEnLigne() {
+    setOuvertureEnCours(true);
+    setErreur(null);
+    try {
+      const { checkout_url: url } = await payerRendezVousEnLigne(rdvId);
+      if (url) {
+        await Linking.openURL(url);
+      } else {
+        setErreur('Le prestataire n\'a pas renvoyé de lien de paiement.');
+      }
+    } catch (e) {
+      setErreur(messageErreur(e));
+    } finally {
+      setOuvertureEnCours(false);
     }
   }
 
@@ -130,6 +170,33 @@ export default function RecuRdvEcran() {
             ))}
           </View>
         </Card>
+
+        {/* B4-b — chemin réel, à côté du chemin simulé ci-dessus. N'apparaît que si le serveur dit
+            que cet établissement peut encaisser en ligne aujourd'hui (S7). */}
+        {enLigneDisponible ? (
+          <Card style={styles.bloc}>
+            <Text style={styles.label}>Ou payez en ligne</Text>
+            <Pressable
+              onPress={payerEnLigne}
+              disabled={ouvertureEnCours}
+              accessibilityRole="button"
+              style={styles.boutonEnLigne}
+            >
+              {ouvertureEnCours ? (
+                <ActivityIndicator color="#FFFFFF" />
+              ) : (
+                <Text style={styles.boutonEnLigneTxt}>Payer en ligne (GeniusPay)</Text>
+              )}
+            </Pressable>
+            <Text style={styles.avertTxt}>
+              Vous serez redirigé vers votre navigateur pour finaliser le paiement, puis reviendrez
+              ici. Une fois le paiement effectué, appuyez sur « Actualiser ».
+            </Text>
+            <Pressable onPress={() => void charger()} accessibilityRole="button" style={styles.reessayer}>
+              <Text style={styles.reessayerTxt}>Actualiser</Text>
+            </Pressable>
+          </Card>
+        ) : null}
 
         {erreur ? <Text style={styles.erreur}>{erreur}</Text> : null}
       </Screen>
@@ -235,4 +302,12 @@ const styles = StyleSheet.create({
     borderColor: colors.blue[600],
   },
   reessayerTxt: { ...typography.button, color: colors.blue[600] },
+  boutonEnLigne: {
+    height: 48,
+    borderRadius: radius.pill,
+    backgroundColor: colors.blue[600],
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  boutonEnLigneTxt: { ...typography.button, color: '#FFFFFF' },
 });

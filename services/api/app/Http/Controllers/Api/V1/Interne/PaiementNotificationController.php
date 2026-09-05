@@ -6,6 +6,7 @@ use App\Exceptions\PrincipalSigneInvalideException;
 use App\Http\Controllers\Controller;
 use App\Services\ClientPaiementGeniusPay;
 use App\Services\CommissionService;
+use App\Services\RecuRdvService;
 use App\Services\ResolveurEtablissementRef;
 use App\Services\VerificateurPrincipalSigne;
 use App\Support\PaiementStatut;
@@ -15,9 +16,16 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Log;
 
 /**
- * Notification entrante paiement-service (Java) → Laravel — lot 6 (v2), volet 1 + B4 (2026-09-04).
+ * Notification entrante paiement-service (Java) → Laravel — lot 6 (v2), volet 1 + B4-a/B4-b.
  *
- * ═══ CE CONTRÔLEUR TRANSPORTE, PUIS DÉCLENCHE UNE COMMISSION SUR LE SEUL CANAL GENIUSPAY ═══
+ * ═══ CE CONTRÔLEUR TRANSPORTE, PUIS DISPATCHE À DEUX CONCERNS INDÉPENDANTS ═══
+ * (1) le calcul de commission (B4-a, ci-dessous) ; (2) depuis B4-b, le règlement d'une
+ * `FacturePatient` dont le `correlationId` la désigne ({@see reglerFacturePatientSiApplicable()}).
+ * Les deux partagent la même garde canal/statut mais sont INDÉPENDANTS : un paiement peut régler
+ * une facture sans jamais avoir d'`etablissementRef` résoluble (commission alors journalisée en
+ * échec, la facture réglée quand même), et réciproquement.
+ *
+ * ═══ CE CONTRÔLEUR DÉCLENCHE UNE COMMISSION SUR LE SEUL CANAL GENIUSPAY ═══
  * La v1/v2 initiale de ce lot n'appelait JAMAIS `CommissionService` : le payload ne portait ni
  * `etablissementRef` ni `factureId`, faute d'émetteur (Laravel n'initiait aucun paiement, P5.6a).
  * B4 fait de Laravel un émetteur (canal GeniusPay, {@see ClientPaiementGeniusPay}),
@@ -54,6 +62,7 @@ class PaiementNotificationController extends Controller
         private readonly VerificateurPrincipalSigne $verificateur,
         private readonly ResolveurEtablissementRef $resolveur,
         private readonly CommissionService $commissions,
+        private readonly RecuRdvService $recus,
     ) {}
 
     public function __invoke(Request $request): JsonResponse
@@ -99,7 +108,46 @@ class PaiementNotificationController extends Controller
             dateTransaction: is_string($dateTransaction) ? $dateTransaction : null,
         );
 
+        $correlationId = $request->input('correlationId');
+        $this->reglerFacturePatientSiApplicable(
+            correlationId: is_string($correlationId) ? $correlationId : null,
+            paiementId: is_string($paiementId) ? $paiementId : null,
+            statut: is_string($statut) ? $statut : null,
+            canal: is_string($canal) ? $canal : null,
+            dateTransaction: is_string($dateTransaction) ? $dateTransaction : null,
+        );
+
         return response()->json([], 200);
+    }
+
+    /**
+     * B4-b (S6, S12) — règle une `FacturePatient` (aujourd'hui : un rendez-vous) sur un succès
+     * GeniusPay dont le `correlationId` la désigne. Même garde canal/statut que la commission
+     * ci-dessus, et pour la MÊME raison (R2') : `etablissementRef` seul ne discrimine rien, la
+     * carte et le mobile money le portent aussi.
+     *
+     * Silencieux hors du périmètre `facture-patient:` — un `correlationId` d'une autre origine
+     * (ou absent) n'est jamais une erreur ici, seulement une notification qui ne concerne pas ce
+     * traitement. Toute la logique de règlement (idempotence, verrou) vit dans
+     * {@see RecuRdvService::confirmerReglementEnLigne()} — ce contrôleur reste un DISPATCHER.
+     */
+    private function reglerFacturePatientSiApplicable(
+        ?string $correlationId,
+        ?string $paiementId,
+        ?string $statut,
+        ?string $canal,
+        ?string $dateTransaction,
+    ): void {
+        if ($statut !== PaiementStatut::SUCCESS->value || $canal !== self::CANAL_GENIUSPAY) {
+            return;
+        }
+
+        $facturePatientId = $this->recus->facturePatientIdDepuisCorrelation($correlationId);
+        if ($facturePatientId === null || $paiementId === null || $dateTransaction === null) {
+            return;
+        }
+
+        $this->recus->confirmerReglementEnLigne($facturePatientId, $paiementId, $dateTransaction);
     }
 
     /**

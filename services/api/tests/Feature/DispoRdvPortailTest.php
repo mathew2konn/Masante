@@ -2,12 +2,15 @@
 
 namespace Tests\Feature;
 
+use App\Models\FacturePatient;
 use App\Models\Medecin;
 use App\Models\MembreFamille;
 use App\Models\RendezVous;
 use App\Models\ServiceEtablissement;
 use App\Models\StructureSanitaire;
 use App\Models\User;
+use App\Support\MomentPaiement;
+use App\Support\StatutFacturePatient;
 use Database\Seeders\PortailRolesSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
@@ -237,6 +240,46 @@ class DispoRdvPortailTest extends TestCase
         $reponse->assertDontSee('Pré-valider (accueil)');
         $reponse->assertDontSee('Confirmer (médecin)');
         $reponse->assertDontSee('Refuser', false); // le bloc « Refuser » entier a disparu
+    }
+
+    // ---- Fiche Blade — B4-b (S13) : indicateur de paiement en ligne, lecture seule -----------
+    //
+    // Même leçon que B1-b ci-dessus, appliquée par avance : le contrôleur passe désormais
+    // `paiementEnLigneEnAttente` à la vue, ce test exerce le RENDU, pas seulement la donnée.
+
+    public function test_la_fiche_affiche_le_paiement_en_ligne_en_attente(): void
+    {
+        $service = $this->service($this->structure());
+        $rdv = $this->rdv($service, 'confirme');
+        FacturePatient::create([
+            'structure_sanitaire_id' => $service->structure_id,
+            'patient_id' => $rdv->membre->user_id,
+            'rendez_vous_id' => $rdv->id,
+            'reference' => 'FPA-'.uniqid(),
+            'moment_paiement' => MomentPaiement::AVANT_ACTE,
+            'montant_brut' => 15000,
+            'montant_pris_en_charge_cmu' => 0,
+            'montant_reste_a_charge' => 15000,
+            'statut' => StatutFacturePatient::A_REGLER,
+            'paiement_en_ligne_autorise' => true,
+            'date_emission' => now(),
+        ]);
+
+        $reponse = $this->actingAs($this->medecin($service))->get(route('portail.rdv.show', $rdv));
+
+        $reponse->assertOk();
+        $reponse->assertSee('En attente de confirmation GeniusPay');
+    }
+
+    public function test_la_fiche_n_affiche_rien_sans_paiement_en_ligne_ouvert(): void
+    {
+        $service = $this->service($this->structure());
+        $rdv = $this->rdv($service, 'confirme');
+
+        $reponse = $this->actingAs($this->medecin($service))->get(route('portail.rdv.show', $rdv));
+
+        $reponse->assertOk();
+        $reponse->assertDontSee('En attente de confirmation GeniusPay');
     }
 
     public function test_l_index_affiche_le_libelle_pre_valide_jamais_le_mot_technique_brut(): void

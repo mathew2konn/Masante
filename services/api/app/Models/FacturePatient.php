@@ -41,6 +41,7 @@ class FacturePatient extends Model
         'beneficiaire_id',
         'rendez_vous_id',
         'reference',
+        'facture_geniuspay_id',
         'moment_paiement',
         'montant_brut',
         'tarif_source',

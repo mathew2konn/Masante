@@ -46,6 +46,17 @@
             @endif
           </dd>
 
+          {{-- B4-b (S13) — lecture seule : le règlement reste un fait que seule la notification
+               GeniusPay établit, jamais un agent qui « confirmerait » à sa place. --}}
+          @if ($paiementEnLigneEnAttente)
+            <dt class="col-sm-4 text-muted">Paiement en ligne</dt>
+            <dd class="col-sm-8">
+              <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle">
+                <i class="bi bi-hourglass-split"></i> En attente de confirmation GeniusPay
+              </span>
+            </dd>
+          @endif
+
           {{-- B1-b / D6 — médecin référent, lu via ReferentService, aucun nouveau mécanisme. --}}
           @if ($referent)
             <dt class="col-sm-4 text-muted">Médecin référent</dt>

@@ -1485,3 +1485,90 @@ base**, jamais seulement sur les tests automatisés.
    retirer le compte marchand d'un établissement précis chez GeniusPay.
 5. **Aucun écran pour enregistrer un compte marchand** : cela se fait en appelant directement le
    microservice.
+
+---
+
+## Partie 16 — B4-b : payer un rendez-vous en ligne (GeniusPay)
+
+**Statut : G3 fait, G2 live fait et réel. En attente de votre propre test (G4).**
+
+### Ce qu'il faut savoir avant de commencer
+
+**Le paiement simulé n'a pas disparu.** Sur l'écran de paiement d'un rendez-vous, vous verrez
+toujours les modes habituels (mobile money, espèces, carte) — ils fonctionnent exactement comme
+avant. Un second bouton, « Payer en ligne (GeniusPay) », apparaît **en plus**, uniquement si
+l'établissement du rendez-vous est réellement équipé pour encaisser en ligne. S'il ne l'est pas,
+ce bouton n'apparaît simplement pas — rien ne casse, rien ne dit d'erreur.
+
+**Le paiement en ligne prend deux temps, et c'est normal.** Appuyer sur « Payer en ligne » ouvre
+votre navigateur sur une vraie page GeniusPay — vous y saisiriez normalement une carte ou un
+numéro mobile money. Revenu dans l'application, le reçu n'apparaît **pas immédiatement** : il
+faut appuyer sur « Actualiser ». Ce délai n'est pas un bug : le système attend la confirmation
+réelle du prestataire avant de considérer quoi que ce soit comme payé — jamais votre simple retour
+dans l'application.
+
+**Aucune donnée de carte ne transite par MaSanté.** Vous la saisissez uniquement sur la page
+GeniusPay, dans votre navigateur, où vous pouvez voir l'adresse et le cadenas — jamais dans une
+fenêtre intégrée à l'application.
+
+### Pour tester vous-même, avec un vrai téléphone
+
+1. Prenez un rendez-vous (n'importe quel établissement).
+2. Sur l'écran de paiement, si un second bouton « Payer en ligne (GeniusPay) » apparaît sous les
+   modes habituels, l'établissement est équipé — sinon, seul le paiement habituel est proposé, et
+   c'est le comportement attendu pour la plupart des établissements aujourd'hui.
+3. Si le bouton est là : appuyez, complétez (ou annulez) le paiement dans le navigateur qui
+   s'ouvre, revenez dans l'application, appuyez sur « Actualiser ».
+4. Si le paiement a réellement abouti chez GeniusPay, le reçu apparaît avec le mode « geniuspay » —
+   exactement comme pour les autres modes, avec le même QR de check-in.
+
+### Ce qui a été rejoué en direct sur la vraie base (G2), avec un vrai paiement GeniusPay
+
+Sur la base MySQL de développement, avec le microservice de paiement et Laravel **réellement
+démarrés**, contre l'établissement déjà équipé lors du test précédent (partie 15) :
+
+- Un vrai rendez-vous, un vrai patient, un vrai compte connecté.
+- **« Payer en ligne » a réellement ouvert un checkout GeniusPay en bac à sable**, avec sa propre
+  adresse de paiement.
+- **Une vraie facture a été créée côté service de paiement** (ce que la partie 15 n'avait pas
+  encore besoin de faire) — c'est cette facture précise que le service de paiement solde quand le
+  paiement réussit.
+- **Le signal annonçant le succès du paiement a été réellement envoyé, signé, et vérifié**, avec
+  les vrais frais du prestataire (150 FCFA sur 12 000, pas un frais fictif à zéro).
+- **La facture du service de paiement a réellement été soldée**, et **la notification vers
+  Laravel est réellement partie et a été reçue**.
+- **Le rendez-vous est passé « réglé »**, un reçu réel a été créé avec le mode « geniuspay », et
+  la même commission déjà vérifiée en partie 15 s'est déclenchée automatiquement (elle se
+  déclenche sur tout paiement GeniusPay réussi, y compris pour un rendez-vous — dit pour que ce ne
+  soit pas une surprise).
+- **Renvoyer deux fois le même signal de succès n'a rien dédoublé** : ni un second reçu, ni une
+  seconde commission.
+- **Retenter de payer un rendez-vous déjà réglé a été refusé**, avec un message clair.
+
+### Ce qui a été prouvé automatiquement (G3)
+
+- Suite Laravel complète verte (**1732 tests, 17 949 assertions, 0 échec**).
+- **Campagne de mutation : 9 tueuses + 1 témoin volontairement vert** sur les gardes de ce lot (le
+  rendez-vous déjà réglé, l'établissement non équipé, le refus du prestataire relayé tel quel, la
+  réutilisation de la même facture au lieu d'en fabriquer une seconde, la confirmation qui ne
+  double jamais un règlement, et — trouvaille de ce lot précisément — la réutilisation de la
+  facture créée côté service de paiement).
+
+### Un défaut trouvé en relisant le code, avant même ce test
+
+En comparant ce lot au fonctionnement réel du service de paiement, il est apparu qu'annoncer un
+succès sans qu'une vraie facture existe côté service de paiement aurait fait échouer, en silence,
+tout le règlement du premier paiement réel — **avant même que la notification ne parte vers
+Laravel**. Corrigé avant ce test : une vraie facture est désormais créée au moment où le paiement
+en ligne s'ouvre, et réutilisée si vous retentez sans avoir terminé.
+
+### Ce que ce lot NE fait PAS
+
+1. **Aucune expiration automatique** d'un paiement en ligne commencé puis jamais terminé : il reste
+   disponible indéfiniment, vous pouvez retenter.
+2. **Aucun remboursement.**
+3. **Le seuil minimal du prestataire (5 000 FCFA)** n'est pas dupliqué côté MaSanté : sous ce
+   montant, le bouton reste affiché, et un message du prestataire lui-même l'explique.
+4. **Le portail (personnel de l'établissement) affiche seulement** qu'un paiement en ligne est en
+   attente — aucune action n'y est possible, le règlement ne devient réel que par la confirmation
+   du prestataire.

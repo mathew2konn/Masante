@@ -65,4 +65,31 @@ class ResolveurEtablissementRefTest extends TestCase
         $this->assertNull($this->resolveur()->resoudre(null));
         $this->assertNull($this->resolveur()->resoudre(''));
     }
+
+    // ── B4-b — formater() : le sens INVERSE, structure → référence ─────────────────────────
+
+    public function test_formater_construit_la_reference_prefixee(): void
+    {
+        $structure = $this->structure('ETS100003', 'CI');
+
+        $this->assertSame('CI-ETS100003', $this->resolveur()->formater($structure));
+    }
+
+    public function test_formater_est_l_inverse_exact_de_resoudre(): void
+    {
+        $structure = $this->structure('ETS100004', 'SN');
+        $ref = $this->resolveur()->formater($structure);
+
+        $this->assertSame($structure->id, $this->resolveur()->resoudre($ref));
+    }
+
+    public function test_formater_rend_null_sans_identifiant_national(): void
+    {
+        $structure = StructureSanitaire::create([
+            'nom' => 'Sans identifiant', 'type' => 'pharmacie', 'adresse' => 'Abidjan',
+            'commune' => 'Cocody', 'latitude' => 5.35, 'longitude' => -3.98, 'actif' => true,
+        ]);
+
+        $this->assertNull($this->resolveur()->formater($structure));
+    }
 }

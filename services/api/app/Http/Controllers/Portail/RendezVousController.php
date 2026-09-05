@@ -85,6 +85,9 @@ class RendezVousController extends Controller
             // B1-d (D10) — visible avant même de cliquer « Clore » : si jamais le règlement
             // n'était pas acquis, l'écran le dit plutôt que de laisser découvrir un 409.
             'reglementVerifie' => $recus->estRegle($rdv),
+            // B4-b (S13) — lecture seule, aucune action d'agent : le règlement reste un fait que
+            // seule la notification GeniusPay établit (S6).
+            'paiementEnLigneEnAttente' => $recus->paiementEnLigneEnAttente($rdv),
         ]);
     }
 

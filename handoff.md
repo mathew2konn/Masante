@@ -1,21 +1,27 @@
 # Handoff — MaSanté (IVOIRSANTÉ)
 
 > **Point de reprise.** Écrit pour quelqu'un qui reprendrait le projet demain sans rien en savoir.
-> Dernière mise à jour : **2026-09-04**. Branche : **`feat/masante-p0-socle`**, à jour avec
+> Dernière mise à jour : **2026-09-05**. Branche : **`feat/masante-p0-socle`**, à jour avec
 > `origin`. Dernier commit poussé : **`47d5b04`** — **B3-c VALIDÉ (G5, 2026-09-04), G4 propriétaire
 > OK** ; **le lot B3 est COMPLET sur a, b, c**.
 >
 > **Dernier incrément clos** : **B4-a** (canal de paiement GeniusPay) — **✅ VALIDÉ (G5,
-> 2026-09-04)** — G4 propriétaire OK, G5 « c'est bon pour le G5 ». Checkout GeniusPay réellement
-> ouvert en bac à sable, webhook réellement signé et vérifié, notification réellement relayée
-> Java→Laravel, **commission réellement calculée et enregistrée en base MySQL réelle**.
-> `docs/adr/ADR-056-paiement-en-ligne-geniuspay.md` et le guide partie 15 écrits. Java (Docker) et
-> Laravel (`artisan serve`) restent démarrés, données de test conservées. Détail complet : `plan.md`
-> PLAN 3 §8.
+> 2026-09-04)** — G4 propriétaire OK, G5 « c'est bon pour le G5 ». `docs/adr/ADR-056-paiement-en-ligne-geniuspay.md`
+> et le guide partie 15 écrits. Détail complet : `plan.md` PLAN 3 §8.
 >
-> **En cours** : **B4-b** (le rendez-vous) reste à faire — c'est le prochain incrément. **B3-d**
-> (panier et commande, `PLAN 2`) reste en attente : il dépend du canal que B4-a vient de livrer. Voir
-> §6.
+> **En cours** : **B4-b** (le rendez-vous) — **G1 validé (« je valide »), G3 fait (1732/1732,
+> mutation 9/9+1 témoin), G2 LIVE FAIT ET RÉEL** (checkout GeniusPay réel, **vraie Facture Java
+> créée et soldée**, webhook réellement signé, notification réellement relayée, règlement réel du
+> RDV, commission déclenchée en conséquence, idempotence prouvée à deux niveaux réels — `plan.md`
+> PLAN 3 §10), **G4 propriétaire OK (« G4 validé », 2026-09-05).** En attente de la validation G5
+> écrite, jamais auto-déclarée. Deux défauts trouvés en
+> chemin : (1) `RecuRdvService::estRegle()` comptait l'existence d'une `FacturePatient`, pas son
+> statut — corrigé ; (2) `factureId` envoyé à Java devait être une **vraie** `Facture` Java
+> (`POST /invoices`), pas un identifiant opaque — sans elle, `ServiceWebhookGeniusPay::appliquer()`
+> aurait fait échouer la transaction de règlement en silence, trouvé en lisant le code Java avant
+> le G2. Java (Docker) et Laravel (`artisan serve`) restent démarrés, données de test conservées
+> (RDV id 2, structure 18 réutilisée). **B3-d** (panier et commande, `PLAN 2`)
+> reste en attente : il dépend du canal que B4-a vient de livrer. Voir §6.
 >
 > Ce fichier dit **où l'on en est**. Le **journal exhaustif** de chaque module vit dans `CLAUDE.md`.
 > Les **plans de conception** vivent dans `plan.md`. Les **décisions d'architecture** vivent dans
@@ -247,10 +253,42 @@ fait deux fois de plus.*
 
 ### Ensuite — B4-b (le rendez-vous)
 
-Non commencé. S5/S6/S8/S9 du plan (`plan.md` PLAN 3 §3) restent à implémenter : la facture RDV
-naîtra `A_REGLER` au lieu de `PAYEE` immédiate quand le règlement passe par ce canal, le reçu
-n'étant créé qu'à la notification — jamais un retour d'application. Le canal lui-même (B4-a) n'a
-plus à être réinventé, seulement appelé.
+**G1 validé, G3 fait, G2 LIVE FAIT ET RÉEL le 2026-09-05, G4 propriétaire OK (« G4 validé »,
+2026-09-05) — en attente de la validation G5 écrite, jamais auto-déclarée.** Détail complet
+(constats, décisions S1-S13, écart trouvé, vecteurs, résultats G2 live) : `plan.md` PLAN 3 §9-10.
+
+**Ce que le G0 a trouvé, en relisant S5 contre le code réel** : poser une `FacturePatient`
+`A_REGLER` au moment où le checkout s'ouvre (ce que S5 prescrit) cassait un invariant qui ne tenait
+que par accident — `RecuRdvService::estRegle()` comptait l'**existence** d'une `FacturePatient`,
+pas son **statut**, parce que jusqu'ici `payer()` en était l'unique créatrice et la crée toujours
+`PAYEE`. Sans correction, `RendezVousValidationService::terminer()` (B1-d) aurait clôturé un
+rendez-vous jamais réglé. **Corrigé** : `estRegle()` filtre sur `statut ∈ {PAYEE,
+PRISE_EN_CHARGE_TOTALE}`, avec son vecteur de régression — les vecteurs B1 existants (qui ne
+construisent que du `PAYEE`) passent sans modification.
+
+**Second défaut, trouvé EN LISANT LE CODE JAVA avant le G2 (pas au G1)** : le plan initial prévoyait
+un `factureId` envoyé à Java **opaque** (dérivé d'un hachage, jamais une vraie `Facture` Java).
+C'était incomplet : `ServiceWebhookGeniusPay::appliquer()` appelle inconditionnellement
+`ServiceFacturation::enregistrerReglement(factureId, …)` sur un succès, **dans la MÊME transaction**
+que la transition vers `SUCCESS` — un `factureId` opaque aurait fait échouer cet appel et
+**annulé toute la transition**, donc jamais de notification vers Laravel, sur le tout premier
+paiement réel. **Corrigé** : `ouvrirPaiementEnLigne()` crée une vraie `Facture` Java minimale
+(`POST /api/v1/invoices`, une ligne, TVA 0 %) avant le checkout, stockée sur
+`factures_patient.facture_geniuspay_id` (migration additive), réutilisée aux appels suivants.
+`correlationId` reste `'facture-patient:{id}'` (générique, pas `'rdv:{id}'`, pour que B3-d
+réutilise le même mécanisme demain) ; `ouvrirPaiementEnLigne()`/`confirmerReglementEnLigne()`
+vivent dans `RecuRdvService`, pas un second service.
+
+**G2 live réel** : checkout GeniusPay réellement ouvert en bac à sable, vraie `Facture` Java créée
+et réellement soldée (`enregistrerReglement()` a réellement réussi — la garantie même du second
+défaut, prouvée en direct), webhook réellement signé avec un secret redéposé, notification
+réellement relayée Java→Laravel, `FacturePatient`/`Paiement`/`RecuRdv` réels côté Laravel,
+commission B4-a réellement déclenchée en conséquence (`montant_commission=300`), idempotence
+prouvée à deux niveaux réels (rejeu du webhook signé, et rejeu direct de la notification à
+Laravel). Java et Laravel laissés démarrés, données de test conservées (RDV id 2, structure 18
+réutilisée). **Piège rencontré pendant cette session** : un second arrêt d'environnement (Docker
+Desktop + `artisan serve` tous deux tombés en cours de session) a exigé un redémarrage complet
+avant de pouvoir continuer le G2 — même famille que le premier gap documenté pour B4-a.
 
 **Contexte du G0 de B4 (douze constats vérifiés dans le code Java, le code PHP et la base réelle),
 toujours valable** :

@@ -9,7 +9,7 @@
 |---|---|---|
 | **PLAN 1** | B3-c — Code-barres + traçabilité nationale des médicaments (CDC_11 §7.6) | ✅ **Terminé — VALIDÉ G5 le 2026-09-04**, G4 propriétaire OK |
 | **PLAN 2** | B3-d — Panier et commande de médicaments (CDC_11 §9.5, §10.5 · CDC_01 §6.6) | ⏸️ **G1 rédigé, EN ATTENTE** — dépend désormais du PLAN 3 pour son règlement en ligne. Aucun code écrit. |
-| **PLAN 3** | B4 — Paiement en ligne réel (GeniusPay) : canal Laravel→Java, commission, et le rendez-vous | 🔵 **B4-a (le canal) : ✅ VALIDÉ G5 le 2026-09-04** — G4 propriétaire OK, G5 « c'est bon pour le G5 ». ADR-056, guide partie 15. B4-b (rendez-vous) non commencé. |
+| **PLAN 3** | B4 — Paiement en ligne réel (GeniusPay) : canal Laravel→Java, commission, et le rendez-vous | 🔵 **B4-a (le canal) : ✅ VALIDÉ G5 le 2026-09-04**. **B4-b (rendez-vous) : G1 validé (« je valide »), G3 fait (1732/1732, mutation 9/9+1 témoin), G2 live fait et réel (checkout GeniusPay réel, vraie Facture Java, webhook réel, règlement réel, idempotence réelle — §10 de ce plan), G4 propriétaire OK (« G4 validé », 2026-09-05). En attente de la validation G5 écrite.** |
 
 ---
 
@@ -1324,3 +1324,298 @@ jour.
 **Le propriétaire a écrit « c'est bon pour le G5 » le 2026-09-04.** B4-a (le canal) est
 **VALIDÉ G5**. B4-b (le rendez-vous) reste à faire ; B3-d peut désormais s'y brancher une fois B4-b
 livré.
+
+---
+
+## 9. B4-b — G0 complémentaire et plan d'exécution (2026-09-04)
+
+**Statut : G0 fait, G1 rédigé ci-dessous. Aucune ligne de code écrite. En attente de validation
+écrite du propriétaire avant tout écrit.**
+
+Le §3 (S1→S10) avait déjà esquissé B4-b en même temps que B4-a, au niveau du principe. Ce G0
+relit ce squelette **contre le code réel tel que B4-a l'a laissé** (pas contre le squelette
+lui-même) et trouve un défaut réel qu'aucune relecture du squelette seul n'aurait montré.
+
+### 9.1 Le défaut trouvé : `estRegle()` compte une EXISTENCE, pas un ÉTAT
+
+S5 (§3) prescrit : « le patient déclenche → `FacturePatient` **`A_REGLER`** + checkout ouvert.
+Aucun reçu. » Mais `RecuRdvService::estRegle()`, la source de vérité qu'utilisent
+`RendezVousValidationService::terminer()` (B1-d, clôture), `ServiceFicheParcours` (le champ
+`rendez_vous_verifie`) et le `show()` du portail (`reglementVerifie`), est :
+
+```php
+public function estRegle(RendezVous $rdv): bool
+{
+    if (FacturePatient::where('rendez_vous_id', $rdv->id)->exists()) {
+        return true;
+    }
+    return Paiement::where('rendez_vous_id', $rdv->id)->where('statut', 'paye')->exists();
+}
+```
+
+Elle vérifie une **existence**, pas un **statut** — parce que jusqu'ici la seule façon de faire
+naître une `FacturePatient` était `payer()`, qui la crée **déjà `PAYEE`**, dans la même
+transaction que le reçu. L'existence ÉTAIT le règlement.
+
+**Poser une `FacturePatient` `A_REGLER` au moment où le checkout s'ouvre casse cette équivalence** :
+`estRegle()` répondrait `true` avant tout paiement réel. Le check-in lui-même n'en souffrirait pas
+(il est atteint en scannant le QR du **reçu**, qui n'existe pas encore — la garde tient par un
+autre chemin), mais **`terminer()` (B1-d) accepterait de clore un rendez-vous jamais payé**, et
+`rendez_vous_verifie`/`reglementVerifie` mentiraient à l'écran. C'est exactement la classe de
+défaut que ce projet nomme systématiquement à son G0 plutôt que de le découvrir au G2 : *un
+invariant qui tenait par accident (« une seule façon d'écrire cette ligne ») cesse de tenir dès
+qu'une seconde façon apparaît.*
+
+**Correction, dans le même incrément** : `estRegle()` filtre désormais sur le **statut** —
+`PAYEE` ou `PRISE_EN_CHARGE_TOTALE` — jamais la seule existence de la ligne. Vecteur dédié :
+une `FacturePatient` `A_REGLER` seule → `estRegle()` rend `false` ; les vecteurs existants de B1
+(qui ne construisent que des factures `PAYEE`) passent sans modification.
+
+### 9.2 Le reste du chemin, revu à la lumière du code réel
+
+**Une seule ligne `FacturePatient`, qui CHANGE d'état — jamais une seconde ligne créée à la
+notification.** Le premier réflexe (créer la facture seulement à la notification, pour éviter le
+défaut du §9.1) a été écarté : il contredirait S5 tel que validé au niveau du principe (« la
+facture naît `A_REGLER` »), et il ferait de `factures_patient` une table où « facture » et
+« paiement confirmé » seraient la même chose — exactement la confusion qu'`estRegle()` vient de
+montrer. La bonne réponse n'est pas de reculer la création, c'est de corriger la garde qui la
+supposait synonyme de paiement. `ouvrirPaiementEnLigne()` cherche donc d'abord une
+`FacturePatient` `A_REGLER` déjà ouverte pour ce RDV (retaper « Payer en ligne » réutilise la
+même ligne, jamais une seconde) ; `confirmerReglementEnLigne()` la fait passer `A_REGLER → PAYEE`
+sur PLACE.
+
+**`factureId` envoyé à Java est dérivé de l'id LARAVEL de cette `FacturePatient`, jamais aléatoire
+et jamais stocké côté Java comme une relation vivante.** Le contrôleur Java (`GeniusPayController`)
+exige un `UUID`, mais **rien, dans `ServiceGeniusPay`, ne le résout contre sa propre table
+`Facture`** (vérifié : `executer()` le stocke tel quel sur `GeniusPayTransaction`, jamais un
+`facturationRepository.findById(...)`) — c'est un identifiant de corrélation opaque, exactement le
+régime de `triage_id`/`mesure_id` (ADR-042 D1), pas une clé étrangère. Aucune `Facture` Java
+(`POST /api/v1/invoices`, module P5.2a) n'est donc créée pour un RDV — la créer serait fabriquer
+un objet du domaine facturation Java sans qu'aucun écran n'en lise jamais le PDF/QR, le socle à
+vide que ce projet refuse depuis P6.3-D3. Construction : 32 caractères hexadécimaux d'une
+empreinte SHA-1 de `'facture-patient:'.$facture->id`, mis en forme 8-4-4-4-12 — zéro dépendance
+(Laravel n'a pas de générateur d'UUID v5 nommé sans paquet ; `java.util.UUID.fromString()` ne
+valide que la forme, jamais la version).
+
+**`correlationId` porte l'identifiant Laravel en clair, sous un préfixe générique** :
+`'facture-patient:'.$facture->id` — pas `'rdv:'.$rdv->id`. Une `FacturePatient` peut naître d'un
+acte sans rendez-vous (le commentaire de sa propre migration le dit : « passage aux urgences,
+achat en officine ») ; nommer le préfixe d'après le rendez-vous aurait fermé la porte que B3-d
+(panier/commande) devra emprunter demain avec le même mécanisme. `Idempotency-Key` reste
+**aléatoire à chaque appel** (`Str::uuid()`) : c'est le `factureId` stable, pas la clé
+d'idempotence, qui fait réutiliser un checkout déjà ouvert côté Java
+(`geniusPayTransactions.findByFactureId`, filtré sur les états `INITIEE`/`EN_ATTENTE`/`EN_COURS`/
+`INITIEE_INCERTAINE`/`REUSSIE`) — et laisse Java ouvrir un checkout réellement neuf une fois l'ancien
+sorti de ces états (échoué, annulé), sans que Laravel ait à distinguer les deux cas.
+
+**`etablissementRef` se construit dans le sens inverse de B4-a.** `ResolveurEtablissementRef`
+résout `CI-ETS000001 → id` (B4-a) ; B4-b a besoin de l'inverse, `structure → 'CI-ETS000001'`.
+Ajoutée dans la **même classe** (paire naturelle, pas un second endroit où le format `{pays}-{id}`
+serait écrit) : `formater(StructureSanitaire $structure): ?string`, `null` si
+`identifiant_national` est vide — jamais un format à moitié rempli.
+
+**`patientRef` reste interne à Java, jamais transmis à GeniusPay** (vérifié : `RequetePaiement`,
+construit dans `ServiceGeniusPay::executer()` à partir des seuls `montant`/`devise`/référence/
+callback, ne porte pas `patientRef` ; le champ n'est lu ailleurs que par
+`RequetesSignauxFraude`, extraction interne du module fraude). Valeur : `'membre:'.$rdv->membre_id`
+— un identifiant Laravel, jamais un nom.
+
+**`objet` porte `ObjetPaiement.RENDEZ_VOUS`** — la valeur existe **déjà** dans l'enum Java, posée
+sans doute en prévision de ce jour ; `ClientPaiementGeniusPay::initierCheckout()` gagne cette clé
+optionnelle dans son tableau de demande (`'objet' => 'RENDEZ_VOUS'`), le contrôleur Java la
+désérialise par son nom exact.
+
+**Le règlement en ligne d'un rendez-vous DÉCLENCHE la commission existante de B4-a, sans code
+supplémentaire — et c'est assumé, pas découvert après coup.** `PaiementNotificationController`
+calcule déjà une commission sur tout succès `canal === geniuspay` portant un `etablissementRef`
+résoluble (B4-a, S2). Un rendez-vous payé en ligne emprunte ce même canal avec ce même
+établissement : il sera donc commissionné exactement comme le serait n'importe quel autre paiement
+GeniusPay. Rien à écrire pour l'obtenir ; à dire pour que ce ne soit pas une surprise.
+
+### 9.3 Ce qui s'ajoute (S11 → S13)
+
+**S11 — `estRegle()` filtre sur le statut, jamais la seule existence** (§9.1). Correction
+chirurgicale d'un module G5, avec son vecteur de régression dédié — patron déjà tenu par B1-d sur
+le périmètre d'`assertPerimetre()`.
+
+**S12 — Une ligne, deux états, jamais une seconde ligne créée à la confirmation** (§9.2).
+`ouvrirPaiementEnLigne()` / `confirmerReglementEnLigne()` vivent tous deux dans `RecuRdvService`
+(le domaine qui possède déjà `payer()`, `estRegle()`, `tarifPour()` — pas un second service qui
+duplique la connaissance de `factures_patient`).
+
+**S13 — Le portail affiche, mais ne fait rien de nouveau.** `Portail\RendezVousController::show()`
+gagne un indicateur (« paiement en ligne en attente ») dérivé de l'existence d'une facture
+`A_REGLER` — lecture seule, aucune action d'agent : le règlement reste un fait que seule la
+notification établit (S6), jamais un agent qui « confirmerait » à sa place.
+
+### 9.4 Endpoints et écran mobile
+
+| Route | Contrôleur | Rôle |
+|---|---|---|
+| `GET /v1/rendez-vous/{id}/paiement-en-ligne` | `RecuRdvController::disponibiliteEnLigne` (neuf) | `{disponible: bool}` — `estConfigure()` sur l'`etablissementRef` formaté ; `false` sans appel réseau si l'établissement n'a pas d'identifiant national |
+| `POST /v1/rendez-vous/{id}/paiement-en-ligne` | `RecuRdvController::payerEnLigne` (neuf) | Ouvre (ou réutilise) le checkout ; rend `{checkout_url, reference}` |
+| `POST /api/v1/interne/paiements/notification` | `PaiementNotificationController` (étendu) | Règle la facture en plus de calculer la commission (déjà existant) |
+
+Mobile (`recu/[id].tsx`, seul écran de paiement RDV existant) : dans le bloc « Écran de paiement »,
+un second bouton « Payer en ligne (GeniusPay) » apparaît **si** `disponibiliteEnLigne` répond
+`true`, à côté des chips de mode simulé existants — **aucun des deux chemins n'est retiré** (S7 :
+« le chemin existant reste intact »). Au tap : `Linking.openURL(checkout_url)` (S8, zéro
+dépendance) puis un bandeau « Revenez ici une fois le paiement effectué » avec un bouton
+« Actualiser » qui rappelle `obtenirRecu()` (déjà l'unique façon dont l'écran sait qu'un reçu
+existe — aucune route de statut supplémentaire).
+
+### 9.5 Vecteurs obligatoires ajoutés à ceux du §4
+
+10. **`estRegle()` avec une seule `FacturePatient` `A_REGLER` → `false`** ; avec une `PAYEE` → `true`
+    (§9.1). Les vecteurs B1 existants, qui ne construisent que du `PAYEE`, passent sans changement.
+11. **Retaper « Payer en ligne » deux fois → une seule `FacturePatient`, un seul `factureId` envoyé
+    à Java** (réutilisation, pas duplication).
+12. **`ouvrirPaiementEnLigne()` sur un RDV déjà réglé (reçu existant) → refuse**, même message que
+    `payer()`.
+13. **`confirmerReglementEnLigne()` rejouée deux fois (webhook dupliqué) → une seule `Paiement`, un
+    seul `RecuRdv`, la facture reste `PAYEE`** (idempotence, sous verrou).
+14. **`disponibiliteEnLigne` sur un établissement sans `identifiant_national` → `false`, zéro appel
+    réseau au microservice.**
+15. **Un paiement de rendez-vous en ligne déclenche une commission** — même garde que B4-a, vecteur
+    en miroir pour dire que ce n'est pas un oubli.
+
+### 9.6 Ce que ce plan NE fait PAS (limites annoncées d'avance)
+
+- **Aucune expiration automatique** d'une `FacturePatient` `A_REGLER` abandonnée (checkout ouvert,
+  jamais payé) : elle reste `A_REGLER` indéfiniment, rejouable (§9.5.11). Une tâche planifiée de
+  bascule vers `EXPIREE` est un sujet séparé (`relance_envoyee_le` existe déjà pour un autre usage,
+  R18) — non traité ici, et le dire évite de laisser croire à une hygiène qui n'existe pas.
+- **Aucun remboursement**, comme au niveau du lot (§5.2).
+- **Le plancher de 5 000 FCFA n'est PAS dupliqué côté Laravel** : le bouton « Payer en ligne »
+  reste affiché même sous ce montant, et un tap sous le plancher relaie le message **exact** que
+  Java renvoie (422, §GestionErreurs) plutôt qu'un message inventé à partir d'une valeur recopiée
+  qui pourrait diverger de la vraie configuration Java.
+- **Le portail ne gagne aucune action** — seulement une lecture (§9.3, S13).
+
+---
+
+## 10. G1 validé (« je valide ») — exécution, écart trouvé, G3, G2 live
+
+**Validé par le propriétaire le 2026-09-04** (« je valide »), en réponse directe au G1 du §9
+ci-dessus.
+
+### 10.1 Écart trouvé EN LISANT LE CODE JAVA, pas au G2 — avant d'écrire le moindre test
+
+Le §9 prescrivait un `factureId` **opaque**, dérivé d'un hachage de l'id Laravel, jamais résolu
+contre une vraie `Facture` du domaine facturation Java (P5.2a) — au motif que
+`ServiceGeniusPay::executer()` ne le résout contre aucun dépôt à l'**ouverture** du checkout.
+**C'est exact, mais incomplet** : `ServiceWebhookGeniusPay::appliquer()`, sur un succès, appelle
+**inconditionnellement** `ServiceFacturation::enregistrerReglement(factureId, montant)` dès que
+`factureId` n'est pas nul (ligne 360, motif écrit dans le code : « GeniusPay aurait été le SEUL
+canal à encaisser sans solder ce qu'il encaisse, là où la carte, le wallet et le mobile money le
+font tous »). Or `enregistrerReglement()` fait `trouver(factureId)`, qui **lève** si aucune
+`Facture` ne porte cet id — **dans la MÊME transaction `@Transactional`** que
+`paiement.setStatut(SUCCESS, …)`, le point d'accroche unique du canal interne (lot 6). Une
+exception ici annule TOUT, y compris la transition : **aucune notification ne serait jamais
+partie vers Laravel**, silencieusement, sur le tout premier paiement réel.
+
+**Correction, avant tout code de test** : `ouvrirPaiementEnLigne()` crée une vraie `Facture` Java
+minimale (`POST /api/v1/invoices`, une ligne, TVA 0 % — la simulation RDV n'en a jamais porté)
+**avant** d'appeler le checkout, et utilise son id réel comme `factureId`. Nouvelle colonne
+`factures_patient.facture_geniuspay_id` (nullable, migration additive) : posée une seule fois,
+**réutilisée** aux appels suivants — retaper « Payer en ligne » ne doit jamais fabriquer une
+seconde facture Java, exactement comme il ne fabrique jamais une seconde `FacturePatient`.
+`identifiantJavaPour()` (le hachage opaque) est **retirée**, code mort.
+
+**Ce que ça change, et ce que ça ne change pas** : `correlationId` reste
+`'facture-patient:{id}'` (générique, réutilisable par B3-d) ; `patientRef` reste
+`'membre:{id}'` ; le reste du §9 (S1→S13) est inchangé. La création de la Facture Java n'est
+**pas** le socle à vide qu'ADR-030/P6.3-D3 refusent : elle est lue (`enregistrerReglement`), elle
+n'est pas un objet mort.
+
+### 10.2 G3 — résultats
+
+Suite Laravel complète **1732/1732, 17 949 assertions, 0 échec** (2 exécutions, avant et après la
+correction du §10.1 — aucune régression). **79 vecteurs dédiés** : `RecuRdvPaiementEnLigneTest`
+(disponibilité, ouverture, réutilisation FacturePatient **et** Facture Java, refus déjà réglé/sans
+tarif/sans identifiant national/marchand non configuré/refus microservice relayé tel quel,
+anti-IDOR, confirmation idempotente, confirmation isolée de la garde de reçu, parsing du préfixe
+de corrélation), extension de `CanalInternePaiementTest` (dispatch réel du contrôleur vers
+`RecuRdvService::confirmerReglementEnLigne()`, silence sur `correlationId` étranger, aucun
+règlement sur `FAILED`), régression `estRegle()` dans `RecuRdvPaiementTest`, deux vecteurs de
+rendu Blade dans `DispoRdvPortailTest` (badge « en attente » affiché/absent). Pint propre sur tous
+les fichiers touchés (baseline établie contre `HEAD` : `RecuRdvService.php` échoue **déjà** 5
+fixers d'alignement manuel, non reformaté). **Mutation : 9 tueuses + 1 témoin volontairement
+vert** — statut d'`estRegle()`, garde « déjà réglé », garde établissement sans identifiant, garde
+marchand non configuré, réutilisation de la `FacturePatient`, idempotence de
+`confirmerReglementEnLigne()`, préfixe de corrélation, garde canal/statut du contrôleur,
+**réutilisation de la Facture Java** — chaque mutation assertée appliquée, arbre restauré et
+vérifié par comparaison octet à octet. **Deux survies corrigées en cours de campagne** (famille
+« le vecteur prouve autre chose », déjà rencontrée dans ce projet) : la garde « déjà réglé »
+survivait parce que le test, sans `Http::fake()` pour `estConfigure()`, retombait sur un refus
+« marchand non configuré » identique en code HTTP — isolée en fakant explicitement le marchand
+configuré ; le préfixe de corrélation survivait parce que `ctype_digit()` rejetait déjà la chaîne
+de test choisie — remplacée par une chaîne dont la partie après le (faux) préfixe est
+numérique, seule façon d'exercer réellement `str_starts_with()`. Mobile : `tsc --noEmit` propre,
+`expo-doctor` 17/18 (le check en échec appelle l'API Expo en TLS, seuil déjà connu de ce projet).
+
+### 10.3 G2 — live, réel, résultats
+
+Après un **second arrêt d'environnement** pendant la session (Docker Desktop et `php artisan
+serve` tous deux tombés — même famille que le premier gap de B4-a), les deux services ont été
+redémarrés (Docker Desktop, `docker compose up -d` dans `services/payment`, `php artisan serve`),
+sans reconstruction d'image (conteneurs préexistants). Base MySQL réelle **sauvegardée** avant
+toute migration (`mysqldump --routines --triggers`), migration
+`facture_patient_geniuspay_facture_id` **rejouée sur la vraie base** (conséquence de déploiement,
+comme `commission_frais_connus` l'avait montré pour B4-a).
+
+**Réutilisation de l'établissement de B4-a** (`CI-ETS900010`, id 18, marchand déjà configuré côté
+Java — confirmé par un VRAI appel `GET /marchands/CI-ETS900010` → `configure:true`) : un secret
+webhook **redéposé** (je le choisis, `POST /marchands/{ref}/secret-webhook` l'accepte sans
+condition d'unicité), un `ServiceEtablissement` réel créé (tarif 12 000 FCFA), un patient réel
+(`User`+`MembreFamille`), un `RendezVous` réel (id 2, statut `confirme`).
+
+**Chaque brique nouvelle prouvée avec des données réelles, jamais simulées à l'intérieur du
+test** :
+- `GET /paiement-en-ligne` (disponibilité) → **`disponible:true` réel**, sur le compte Sanctum du
+  patient réel.
+- `POST /paiement-en-ligne` → **checkout GeniusPay RÉELLEMENT ouvert en bac à sable**
+  (`https://geniuspay.ci/checkout/SANDBOX_8IRYJ3BRC1WGMUET`), contre le compte sandbox déjà
+  configuré. `FacturePatient` réelle vérifiée en base : `statut=A_REGLER`,
+  `facture_geniuspay_id` renseigné.
+- **Une vraie `Facture` Java créée** (`POST /api/v1/invoices` réel, vérifiée directement dans
+  Postgres) : `FCT-CIETS900010-2026-000004`, `EMISE`, `montant_ttc=12000`,
+  `reste_a_payer=12000` — exactement le tarif du service, exactement l'écart du §10.1.
+- **Un webhook `payment.success` réellement signé** avec le VRAI secret redéposé (HMAC-SHA256 hex
+  sur `horodatage + "." + corps brut`), POST réel sur
+  `/api/v1/paiement-webhooks/geniuspay/{slug réel}` → `200`, transition
+  `EN_ATTENTE→REUSSIE` réelle en base, `frais_passerelle=150`, `montant_net=11850`,
+  `canal=orange_money` (extrait du champ `payment_provider` du webhook, réellement).
+- **`enregistrerReglement()` a RÉELLEMENT réussi** : `Facture` Java passée à `PAYEE`,
+  `montant_regle=12000` — la garantie même du §10.1, prouvée en direct et non supposée.
+- **Notification réellement relayée** Java→Laravel (`notifications_outbox`, statut `ENVOYEE`,
+  1 tentative) : `Paiement` (Laravel) créé `mode=geniuspay`/`statut=paye`, `FacturePatient`
+  `PAYEE`, `RecuRdv` créé — vérifiés directement en base MySQL réelle.
+- **`estRegle()` réellement corrigé** : `true` sur ce RDV après règlement (la régression que le
+  §9.1 du plan visait à empêcher).
+- **Commission B4-a réellement déclenchée en conséquence** (S14, assumé au G1) : `montant_brut=
+  12000`, `frais_passerelle=150` (RÉEL, pas 0 — contrairement au bac à sable de B4-a qui rendait
+  toujours `fees=0`), `frais_connus=true`, `montant_commission=300` (12000×250bps, exact) —
+  **deuxième commission réelle du projet**, distincte de celle de B4-a (`montant_brut=18000`) sur
+  le MÊME établissement, aucune confusion.
+- **Reçu réel relu par l'endpoint mobile** (`GET /recu`) : `mode:"geniuspay"`,
+  `transaction_ref` = l'id réel du paiement Java, QR de check-in généré.
+- **Idempotence prouvée à DEUX niveaux, tous deux réels** : rejeu exact du webhook signé → `200`
+  Java (dédoublonnage par `evenement_id`, aucun retraitement) ; **rejeu direct de la notification
+  à Laravel** (même `paiementId`, principal signé minté manuellement) → `200`, **aucun second
+  `Paiement`, aucun second `RecuRdv`, aucune seconde commission** — la garde de `estRegle()`/
+  `confirmerReglementEnLigne()` et celle de `CommissionService` tiennent toutes les deux,
+  vérifiées séparément en base.
+- **Refus réel** : retenter `POST /paiement-en-ligne` sur ce RDV désormais réglé →
+  **422 réel** « Ce rendez-vous a déjà un reçu. ».
+
+**Données de test conservées en base de développement** (décision par défaut, même précédent que
+B4-a) : `RendezVous` id 2, `User` id 121 (`g2-b4b-patient@example.test`), `MembreFamille` id 39,
+`ServiceEtablissement` id 28, `FacturePatient` id 1 (`FPA-2026-04QABJ`), `CommissionTransaction`
+id 2. Nommées et scopées sans ambiguïté. Java et Laravel laissés **démarrés** pour le G4.
+
+**G3 et G2 sont faits.**
+
+---
+
+**G4 validé par le propriétaire (« G4 validé », 2026-09-05). En attente de la validation G5 écrite — jamais auto-déclarée.**

@@ -13,8 +13,12 @@ class Paiement extends Model
 {
     protected $table = 'paiements';
 
-    /** Modes de paiement proposés (simulés). */
-    public const MODES = ['mobile_money', 'especes', 'carte'];
+    /**
+     * Modes de paiement proposés. `geniuspay` (B4-b) n'est PAS simulé — il désigne un règlement
+     * réel réglé auprès du prestataire de l'établissement, confirmé par notification (jamais par
+     * un choix client) ; les trois autres restent simulés (cf. classe).
+     */
+    public const MODES = ['mobile_money', 'especes', 'carte', 'geniuspay'];
 
     protected $fillable = [
         'rendez_vous_id',

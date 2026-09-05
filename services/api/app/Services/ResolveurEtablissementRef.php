@@ -36,4 +36,22 @@ class ResolveurEtablissementRef
             ->where('identifiant_national', $identifiant)
             ->value('id');
     }
+
+    /**
+     * Le sens INVERSE (B4-b) : construit `{pays_code}-{identifiant}` depuis une structure, pour
+     * appeler le canal paiement en tant qu'ÉMETTEUR. Paire naturelle de {@see resoudre()} — pas un
+     * second endroit où le format serait écrit.
+     *
+     * `null` si `identifiant_national` est vide : jamais un format à moitié rempli envoyé au
+     * microservice (le backfill de P6.4a est un prérequis dur, S1 d'ADR-056).
+     */
+    public function formater(StructureSanitaire $structure): ?string
+    {
+        if ($structure->identifiant_national === null || $structure->identifiant_national === ''
+            || $structure->pays_code === null || $structure->pays_code === '') {
+            return null;
+        }
+
+        return $structure->pays_code.'-'.$structure->identifiant_national;
+    }
 }

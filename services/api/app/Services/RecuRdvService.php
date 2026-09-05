@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Http\Controllers\Api\V1\Interne\PaiementNotificationController;
 use App\Models\FacturePatient;
 use App\Models\Paiement;
 use App\Models\RecuRdv;
@@ -10,15 +11,25 @@ use App\Support\MomentPaiement;
 use App\Support\StatutFacturePatient;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
+use RuntimeException;
 
 /**
- * Flux paiement + reçu de RDV (Analyse_Delta_RDV N1/N2/N3).
+ * Flux paiement + reçu de RDV (Analyse_Delta_RDV N1/N2/N3), et depuis B4-b son second chemin,
+ * réel celui-là (§9 de `plan.md` PLAN 3, ADR-056).
  *
- * ⚠️ PAIEMENT SIMULÉ (pas de passerelle Mobile Money réelle — cf. FT5 / limite CNAM). On modélise
- * l'encaissement : statut `paye` d'emblée, `transaction_ref` factice. Le scan/validation à
- * l'accueil et le rôle Caisse (N7) relèvent du Module 4.
+ * ⚠️ `payer()` reste PAIEMENT SIMULÉ (pas de passerelle Mobile Money réelle — cf. FT5 / limite
+ * CNAM) : statut `paye` d'emblée, `transaction_ref` factice. Le scan/validation à l'accueil et le
+ * rôle Caisse (N7) relèvent du Module 4.
+ *
+ * `ouvrirPaiementEnLigne()`/`confirmerReglementEnLigne()` (B4-b) sont RÉELS : le règlement passe
+ * par GeniusPay (montage A, P5.6b) via {@see ClientPaiementGeniusPay}, et ne devient vrai qu'à la
+ * NOTIFICATION reçue par {@see PaiementNotificationController}
+ * — jamais un retour d'application, jamais un choix client (S6). Les deux chemins coexistent, ni
+ * l'un ni l'autre n'est retiré (S7) : le règlement d'aujourd'hui reste intact pour un
+ * établissement non configuré pour l'encaissement en ligne.
  *
  * Le QR de check-in (N3) est un token signé HMAC AUTONOME, à secret CLOISONNÉ (distinct du QR
  * carnet `QrTokenService` et du code CMU `CarteCmuService`) : il ne porte AUCUNE donnée médicale
@@ -28,6 +39,15 @@ class RecuRdvService
 {
     /** Durée de vie du code de check-in régénéré à chaque affichage, en minutes. */
     private const CODE_TTL_MINUTES = 15;
+
+    /** Préfixe du `correlationId` envoyé à Java (B4-b) — GÉNÉRIQUE, pas `rdv:` : une
+     *  `FacturePatient` peut naître d'un acte sans rendez-vous (B3-d demain, même mécanisme). */
+    private const PREFIXE_CORRELATION = 'facture-patient:';
+
+    public function __construct(
+        private readonly ClientPaiementGeniusPay $paiementGeniusPay,
+        private readonly ResolveurEtablissementRef $resolveurEtablissementRef,
+    ) {}
 
     /**
      * Encaisse (simulé) un RDV et émet son reçu. Idempotence : un seul reçu par RDV (unique en base).
@@ -97,19 +117,233 @@ class RecuRdvService
     /**
      * Ce rendez-vous est-il réglé ? Source de vérité : `factures_patient` (lot 5, 2026-08-27).
      *
+     * ═══ CORRECTION B4-b (2026-09-04) ═══ Filtre désormais sur le STATUT, jamais la seule
+     * EXISTENCE d'une ligne. Jusqu'à B4-b, la seule façon de faire naître une `FacturePatient`
+     * était `payer()`, qui la crée déjà `PAYEE` — l'existence ÉTAIT le règlement, par accident.
+     * `ouvrirPaiementEnLigne()` pose désormais une facture `A_REGLER` AVANT tout paiement réel
+     * (S5) : sans ce filtre, cette méthode répondrait `true` avant que GeniusPay n'ait rien
+     * confirmé, et `RendezVousValidationService::terminer()` (B1-d) clôturerait un rendez-vous
+     * jamais payé. Un invariant qui ne tenait que par « une seule façon d'écrire cette ligne »
+     * cesse de tenir dès qu'une seconde apparaît — trouvé au G0 de B4-b, pas au G2.
+     *
      * // TODO repli historique — supprimable après une date à définir avec Mathieu, une fois
      * qu'aucun rendez-vous actif ne dépend plus de `paiements` (RDV réglés avant ce lot, qui
      * n'ont qu'un couple `Paiement`+`RecuRdv`, sans `facture_patient`).
      */
     public function estRegle(RendezVous $rdv): bool
     {
-        if (FacturePatient::where('rendez_vous_id', $rdv->id)->exists()) {
+        if (FacturePatient::where('rendez_vous_id', $rdv->id)
+            ->whereIn('statut', [
+                StatutFacturePatient::PAYEE->value,
+                StatutFacturePatient::PRISE_EN_CHARGE_TOTALE->value,
+            ])
+            ->exists()) {
             return true;
         }
 
         // TODO repli historique — supprimable après une date à définir avec Mathieu, une fois
         // qu'aucun rendez-vous actif ne dépend plus de `paiements`.
         return Paiement::where('rendez_vous_id', $rdv->id)->where('statut', 'paye')->exists();
+    }
+
+    /** B4-b (D10/S13, portail) — un checkout est-il ouvert et pas encore confirmé ? Lecture seule,
+     *  aucune action : le règlement reste un fait que seule la notification établit (S6). */
+    public function paiementEnLigneEnAttente(RendezVous $rdv): bool
+    {
+        return FacturePatient::where('rendez_vous_id', $rdv->id)
+            ->where('statut', StatutFacturePatient::A_REGLER->value)
+            ->exists();
+    }
+
+    /**
+     * B4-b (S7) — cet établissement peut-il encaisser ce rendez-vous en ligne AUJOURD'HUI ?
+     * Zéro appel réseau si l'établissement n'a pas d'identifiant national (S1) : le refus est
+     * alors structurel, pas une question à poser au microservice.
+     */
+    public function disponibiliteEnLigne(RendezVous $rdv): bool
+    {
+        $rdv->loadMissing('structure');
+        $ref = $rdv->structure !== null ? $this->resolveurEtablissementRef->formater($rdv->structure) : null;
+
+        return $ref !== null && $this->paiementGeniusPay->estConfigure($ref);
+    }
+
+    /**
+     * B4-b (S5/S12) — ouvre (ou RÉUTILISE) un checkout GeniusPay pour ce rendez-vous.
+     *
+     * Une seule ligne `FacturePatient`, qui CHANGE d'état (`A_REGLER → PAYEE` à la notification,
+     * {@see confirmerReglementEnLigne()}) — jamais une seconde créée. Retaper « Payer en ligne »
+     * réutilise la facture `A_REGLER` déjà ouverte pour ce RDV, donc le MÊME `factureId` côté
+     * Java, qui réutilise lui-même le checkout encore vivant (`ServiceGeniusPay::executer()`).
+     *
+     * @return array{checkout_url: ?string, reference: string}
+     *
+     * @throws ValidationException  déjà réglé, aucun tarif, établissement non configuré, ou refus
+     *                               du microservice (plancher, marchand — message RELAYÉ tel quel,
+     *                               jamais réinventé : l'autorité sur ces règles reste Java).
+     */
+    public function ouvrirPaiementEnLigne(RendezVous $rdv): array
+    {
+        $rdv->loadMissing(['structure', 'service', 'medecin', 'membre', 'recu']);
+
+        if ($rdv->recu !== null) {
+            throw ValidationException::withMessages(['paiement' => 'Ce rendez-vous a déjà un reçu.']);
+        }
+
+        $tarif = $this->tarifPour($rdv);
+        if ($tarif === null) {
+            throw ValidationException::withMessages([
+                'montant' => 'Aucun tarif de consultation n\'est défini pour ce rendez-vous.',
+            ]);
+        }
+        [$montant, $tarifSource] = $tarif;
+
+        $etablissementRef = $rdv->structure !== null ? $this->resolveurEtablissementRef->formater($rdv->structure) : null;
+        if ($etablissementRef === null) {
+            throw ValidationException::withMessages([
+                'paiement' => 'Cet établissement n\'a pas d\'identifiant national : le paiement en ligne n\'est pas disponible.',
+            ]);
+        }
+        if (! $this->paiementGeniusPay->estConfigure($etablissementRef)) {
+            throw ValidationException::withMessages([
+                'paiement' => 'Le paiement en ligne n\'est pas configuré pour cet établissement.',
+            ]);
+        }
+
+        $facture = FacturePatient::where('rendez_vous_id', $rdv->id)
+            ->where('statut', StatutFacturePatient::A_REGLER->value)
+            ->first();
+
+        $membre = $rdv->membre;
+        $patientRef = 'membre:'.$rdv->membre_id;
+
+        if ($facture === null) {
+            $facture = FacturePatient::create([
+                'structure_sanitaire_id'     => $rdv->structure_id,
+                'patient_id'                 => $membre->user_id,
+                'beneficiaire_id'            => $membre->est_titulaire ? null : $membre->id,
+                'rendez_vous_id'             => $rdv->id,
+                'reference'                  => $this->genererReferenceFacturePatient(),
+                'moment_paiement'            => MomentPaiement::AVANT_ACTE,
+                'montant_brut'               => $montant,
+                'tarif_source'               => $tarifSource,
+                'montant_pris_en_charge_cmu' => 0,
+                'montant_reste_a_charge'     => $montant,
+                'statut'                     => StatutFacturePatient::A_REGLER,
+                'paiement_en_ligne_autorise' => true,
+                'date_emission'              => now(),
+            ]);
+        }
+
+        try {
+            // Une vraie Facture Java, PAS un identifiant opaque (écart trouvé en lisant le code,
+            // pas au G1) : le webhook de succès appelle `ServiceFacturation::enregistrerReglement`
+            // dans la MÊME transaction que la transition vers SUCCESS — sans facture réelle, cet
+            // appel lève et TOUT s'annule, y compris la transition. Réutilisée si déjà créée
+            // (retaper « Payer en ligne » ne doit jamais fabriquer une seconde facture Java).
+            if ($facture->facture_geniuspay_id === null) {
+                $factureJava = $this->paiementGeniusPay->creerFacture(
+                    $etablissementRef, $patientRef, $montant, 'Consultation — RDV #'.$rdv->id,
+                );
+                $facture->update(['facture_geniuspay_id' => $factureJava['id']]);
+            }
+
+            $resultat = $this->paiementGeniusPay->initierCheckout([
+                'factureId'        => $facture->facture_geniuspay_id,
+                'montant'          => $montant,
+                'devise'           => 'XOF',
+                'etablissementRef' => $etablissementRef,
+                'patientRef'       => $patientRef,
+                'correlationId'    => $this->correlationIdPour($facture),
+                'objet'            => 'RENDEZ_VOUS',
+            ], (string) Str::uuid());
+        } catch (RuntimeException $e) {
+            // Relayé tel quel (plancher R17, marchand révoqué entre le cache et l'appel…) — jamais
+            // un message réinventé côté Laravel : l'autorité sur ces refus reste Java (S13/§9.6).
+            throw ValidationException::withMessages(['paiement' => $e->getMessage()]);
+        }
+
+        return [
+            'checkout_url' => $resultat['checkoutUrl'] ?? null,
+            'reference'    => $facture->reference,
+        ];
+    }
+
+    /**
+     * B4-b (S6) — SEUL point où un règlement en ligne devient vrai. Appelé depuis
+     * {@see PaiementNotificationController} sur un succès
+     * GeniusPay dont le `correlationId` désigne une `FacturePatient` (voir
+     * {@see facturePatientIdDepuisCorrelation()}).
+     *
+     * Idempotent sous verrou : une notification rejouée (même ou différent `paiementIdExterne`)
+     * ne crée ni un second `Paiement`, ni un second `RecuRdv` — la facture déjà `PAYEE` court-circuite.
+     * Silencieux (jamais d'exception) sur une référence introuvable ou déjà close : un webhook
+     * n'a jamais le droit de faire échouer autre chose que lui-même.
+     */
+    public function confirmerReglementEnLigne(int $facturePatientId, string $paiementIdExterne, string $dateTransaction): void
+    {
+        DB::transaction(function () use ($facturePatientId, $paiementIdExterne, $dateTransaction) {
+            $facture = FacturePatient::where('id', $facturePatientId)->lockForUpdate()->first();
+            if ($facture === null) {
+                Log::warning('B4-b : règlement en ligne pour une FacturePatient introuvable.', [
+                    'facturePatientId' => $facturePatientId,
+                ]);
+
+                return;
+            }
+            if ($facture->statut === StatutFacturePatient::PAYEE) {
+                return; // idempotent : notification rejouée, rien à refaire.
+            }
+            if ($facture->rendez_vous_id === null) {
+                // Une FacturePatient A_REGLER sans rendez-vous n'est pas de CE chemin (B3-d,
+                // futur — même préfixe de corrélation, un second appelant y répondra un jour).
+                return;
+            }
+
+            $rdv = RendezVous::find($facture->rendez_vous_id);
+            if ($rdv === null || $rdv->recu !== null) {
+                return;
+            }
+
+            $paiement = Paiement::create([
+                'rendez_vous_id'  => $rdv->id,
+                'montant'         => $facture->montant_brut,
+                'mode'            => 'geniuspay',
+                'statut'          => 'paye',
+                'transaction_ref' => $paiementIdExterne,
+            ]);
+
+            $facture->update([
+                'statut'         => StatutFacturePatient::PAYEE,
+                'date_reglement' => Carbon::parse($dateTransaction),
+            ]);
+
+            RecuRdv::create([
+                'rendez_vous_id' => $rdv->id,
+                'paiement_id'    => $paiement->id,
+                'reference'      => $this->genererReference(),
+                'statut'         => 'paye',
+                'expires_at'     => $this->expirationPour($rdv),
+            ]);
+        });
+    }
+
+    /** Parse un `correlationId` reçu en notification. `null` si le préfixe ne correspond pas à ce
+     *  chemin (B4-a, ou un autre émetteur futur) — jamais une devinette. */
+    public function facturePatientIdDepuisCorrelation(?string $correlationId): ?int
+    {
+        if ($correlationId === null || ! str_starts_with($correlationId, self::PREFIXE_CORRELATION)) {
+            return null;
+        }
+        $id = substr($correlationId, strlen(self::PREFIXE_CORRELATION));
+
+        return ctype_digit($id) ? (int) $id : null;
+    }
+
+    /** `correlationId` envoyé à Java — générique, réutilisable par un futur émetteur (B3-d). */
+    private function correlationIdPour(FacturePatient $facture): string
+    {
+        return self::PREFIXE_CORRELATION.$facture->id;
     }
 
     /**

@@ -54,3 +54,27 @@ export async function obtenirRecu(id: number): Promise<RecuRdv> {
   const { data } = await api.get<{ recu: RecuRdv }>(`/v1/rendez-vous/${id}/recu`);
   return data.recu;
 }
+
+/**
+ * B4-b — l'établissement de ce RDV peut-il encaisser en ligne (GeniusPay) AUJOURD'HUI ? Aucun
+ * appel réseau côté serveur si l'établissement n'a pas d'identifiant national (S1) — juste une
+ * réponse `false`.
+ */
+export async function disponibiliteEnLignePaiement(id: number): Promise<boolean> {
+  const { data } = await api.get<{ disponible: boolean }>(`/v1/rendez-vous/${id}/paiement-en-ligne`);
+  return data.disponible;
+}
+
+/**
+ * B4-b — ouvre (ou réutilise) un checkout GeniusPay pour ce RDV. Ne règle RIEN : seule la
+ * notification reçue plus tard par le serveur confirme le paiement (S6) — l'appelant ne doit
+ * jamais supposer que l'ouverture du navigateur équivaut à un règlement.
+ */
+export async function payerRendezVousEnLigne(
+  id: number,
+): Promise<{ checkout_url: string | null; reference: string }> {
+  const { data } = await api.post<{ checkout_url: string | null; reference: string }>(
+    `/v1/rendez-vous/${id}/paiement-en-ligne`,
+  );
+  return data;
+}

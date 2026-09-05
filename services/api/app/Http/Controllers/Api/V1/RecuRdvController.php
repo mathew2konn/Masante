@@ -55,6 +55,29 @@ class RecuRdvController extends Controller
         return response()->json(['recu' => $this->recus->vue($recu)]);
     }
 
+    /** B4-b (S7) — l'établissement de ce RDV peut-il encaisser en ligne aujourd'hui ? */
+    public function disponibiliteEnLigne(Request $request, RendezVous $rendezVous): JsonResponse
+    {
+        $this->autoriser($request, $rendezVous);
+
+        return response()->json(['disponible' => $this->recus->disponibiliteEnLigne($rendezVous)]);
+    }
+
+    /** B4-b — ouvre (ou réutilise) un checkout GeniusPay pour ce RDV. Ne règle rien : seule la
+     *  notification, reçue plus tard, confirme le paiement (S6). */
+    public function payerEnLigne(Request $request, RendezVous $rendezVous): JsonResponse
+    {
+        $this->autoriser($request, $rendezVous);
+
+        if (in_array($rendezVous->statut, ['annule', 'refuse'], true)) {
+            throw ValidationException::withMessages([
+                'statut' => 'Ce rendez-vous ne peut pas être réglé.',
+            ]);
+        }
+
+        return response()->json($this->recus->ouvrirPaiementEnLigne($rendezVous));
+    }
+
     /** Anti-IDOR : le RDV doit concerner un membre du compte authentifié. */
     private function autoriser(Request $request, RendezVous $rendezVous): void
     {

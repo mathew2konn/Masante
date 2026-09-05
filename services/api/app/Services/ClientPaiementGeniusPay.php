@@ -30,6 +30,38 @@ class ClientPaiementGeniusPay
     public function __construct(private readonly SigneurPrincipalSortant $signeur) {}
 
     /**
+     * Crée une facture MINIMALE côté paiement-service (P5.2a, `POST /api/v1/invoices`) — B4-b.
+     *
+     * Nécessaire, pas décorative : {@code ServiceWebhookGeniusPay::appliquer()} appelle
+     * inconditionnellement {@code ServiceFacturation::enregistrerReglement(factureId, …)} sur un
+     * succès dès que `factureId` n'est pas nul, et cette méthode LÈVE si aucune `Facture` ne porte
+     * cet id — dans la MÊME transaction que la transition vers `SUCCESS`. Un `factureId` opaque
+     * ferait donc échouer le règlement en silence (jamais de notification).
+     *
+     * Une seule ligne, TVA 0 % : le montant doit être EXACTEMENT celui déjà montré au patient
+     * (`RecuRdvService::tarifPour()`), jamais recalculé ici.
+     *
+     * @return array{id: string, ...} la facture créée (Laravel n'utilise que `id`)
+     */
+    public function creerFacture(string $etablissementRef, string $patientRef, int $montant, string $libelle): array
+    {
+        return $this->appeler('POST', '/api/v1/invoices', [
+            'etablissementRef' => $etablissementRef,
+            'patientRef' => $patientRef,
+            'exercice' => (int) now()->format('Y'),
+            'devise' => 'XOF',
+            'lignes' => [[
+                'libelle' => $libelle,
+                'quantite' => 1,
+                'prixUnitaire' => $montant,
+                'remise' => 0,
+                'tauxTva' => 0,
+            ]],
+            'remiseGlobale' => 0,
+        ]);
+    }
+
+    /**
      * Ouvre (ou réutilise) un checkout pour une facture déjà créée côté paiement-service (P5.2a).
      *
      * @param  array{factureId:string, montant:int, devise?:string, etablissementRef:string, patientRef?:string, correlationId?:string, objet?:string}  $demande
