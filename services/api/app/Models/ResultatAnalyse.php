@@ -4,10 +4,15 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 /**
  * Résultat d'analyse d'un membre (CdC §8.3, F2.6). `resultats_json` chiffré AES-256
  * au repos (§6 Sécurité).
+ *
+ * `origine` (B5-c, L15) : décidée par le SERVEUR, jamais déclarée — `null` pour un résultat saisi
+ * directement (patient, délégué, soignant), `saisie`/`automate` pour un résultat publié par le
+ * circuit du laboratoire ({@see App\Services\Analyse\ServiceValidationBiologique::publier()}).
  */
 class ResultatAnalyse extends Model
 {
@@ -38,6 +43,9 @@ class ResultatAnalyse extends Model
         'fichier_url',
         'added_by',
         'source',
+        // B5-c — posée UNIQUEMENT par `ServiceValidationBiologique::publier()`, jamais déclarée par
+        // un client (absente de `ResultatAnalyseController::regles()`, même garde à deux couches).
+        'origine',
     ];
 
     /** F2.13 — défaut aligné sur la colonne BDD, pour que la réponse de création porte déjà la provenance. */
@@ -54,5 +62,15 @@ class ResultatAnalyse extends Model
     public function membre(): BelongsTo
     {
         return $this->belongsTo(MembreFamille::class, 'membre_id');
+    }
+
+    /**
+     * Le prélèvement qui a produit ce résultat, quand il vient du circuit du laboratoire (B5-c).
+     * `null` pour un résultat saisi directement — la relation est un ENRICHISSEMENT de lecture,
+     * jamais une exigence : `Prelevement::resultat_analyse_id` porte le lien, ici seulement inversé.
+     */
+    public function prelevement(): HasOne
+    {
+        return $this->hasOne(Prelevement::class, 'resultat_analyse_id');
     }
 }

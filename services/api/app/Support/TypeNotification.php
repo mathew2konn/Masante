@@ -79,6 +79,14 @@ enum TypeNotification: string
     case COMMANDE_PRETE = 'COMMANDE_PRETE';
 
     /**
+     * B5-c (L14) — un résultat d'analyse a été publié dans le carnet par le circuit du
+     * laboratoire. Le corps NOMME le laboratoire, JAMAIS l'intitulé de l'analyse ni une valeur :
+     * un push s'affiche sur un écran verrouillé, et le nom d'une analyse désigne une pathologie
+     * (patron P6.8b, « une vaccination est due, jamais laquelle »).
+     */
+    case RESULTAT_ANALYSE_PUBLIE = 'RESULTAT_ANALYSE_PUBLIE';
+
+    /**
      * Le titre court affiché en tête de la notification (et sur la bannière push).
      */
     public function titre(): string
@@ -102,6 +110,7 @@ enum TypeNotification: string
             self::COMMANDE_ACCEPTEE => 'Commande acceptée',
             self::COMMANDE_REFUSEE => 'Commande refusée',
             self::COMMANDE_PRETE => 'Commande prête',
+            self::RESULTAT_ANALYSE_PUBLIE => 'Résultat d\'analyse disponible',
         };
     }
 }

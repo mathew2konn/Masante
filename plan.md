@@ -2583,3 +2583,232 @@ test, fiche médecin n°1 avec `user_id` de nouveau `NULL`, `demandes_analyses`/
 revenus à 0, `.env` inchangé.
 
 **Aucune dépendance nouvelle** (SVG en chaînes PHP pures, aucune bibliothèque de code-barres).
+
+---
+
+## 13. Compléments de conception — B5-c (avant exécution, 2026-09-05)
+
+Le périmètre reste celui validé au §10 (L7, L10 réécrit, L13→L16). Ce qui suit comble ce que ces
+décisions de haut niveau ne tranchaient pas encore — trouvé en instruisant l'implémentation, écrit
+avant d'écrire le code de service, comme l'exige la règle des trois fichiers.
+
+**M1 — Les résultats bruts sont mis en attente HORS du carnet, sur `prelevements` lui-même.**
+`resultats_bruts_json` (chiffré, même structure que `resultats_analyses.resultats_json` :
+`{parametre, valeur, unite, analyse_id, code_national, ...}`) et `resultats_bruts_origine`
+(`saisie`|`automate`), additifs sur `prelevements`. **Pourquoi pas une ligne `resultats_analyses`
+créée tout de suite et cachée** : `CarnetSectionController::index()` liste sans filtre de statut —
+il n'existe aucune notion de brouillon dans le carnet. Créer la ligne avant validation la rendrait
+visible au patient AVANT que L7 ne l'autorise. La table qui porte le brouillon n'est donc pas celle
+qui porte le résultat définitif : deux natures, deux tables.
+
+**M2 — Saisie et import écrivent CE MÊME COUPLE DE COLONNES, par UN SEUL service (L15).**
+`ServiceValidationBiologique::saisir()` (laborantin, portail, exige `analyse.executer`) et
+`::importer()` (automate, API, authentifié par clé+HMAC, aucune notion d'utilisateur portail)
+appellent une méthode privée commune qui : (a) exige `statut === EN_ANALYSE` — garde
+**applicative**, dite comme telle, jamais déguisée en garantie du moteur (elle porte sur une
+colonne texte, pas sur une somme comme B3-b, mais le principe de l'honnêteté reste : le moteur ne
+la vérifie pas, le service si, et c'est écrit) ; (b) résout le lien au catalogue par
+`ServiceLienAnalyse::resoudre()` — **réutilisé**, jamais réécrit ; (c) écrit
+`resultats_bruts_json`/`_origine` ; (d) journalise (`resultat_saisi` / `resultat_importe`).
+
+**M3 — Resaisir avant validation REMPLACE le brouillon ; après validation, la garde applicative
+refuse.** Une correction avant relecture n'est pas une falsification. Après `valide`, il faut
+d'abord un rejet pour rouvrir la porte.
+
+**M4 — Le rejet EFFACE le brouillon, journalise, et NE CHANGE PAS LE STATUT** (il est déjà
+`en_analyse` au moment où rejeter a un sens : des valeurs existent, le biologiste les juge
+mauvaises). `rejeter()` écrit une ligne `validations_biologiques` (verdict=`rejete`, motif
+**obligatoire, sans défaut** — précédent commission P5.5a, révocation P11.2, motif de rejet
+P11.1 : un rejet sans motif ne dit à personne, dans six mois, pourquoi une saisie a été jetée) et
+remet `resultats_bruts_json`/`_origine` à `null`.
+
+**M5 — Un prélèvement `en_analyse` SANS brouillon ne peut pas être validé.** `valider()` exige
+`resultats_bruts_json` non vide, sinon « aucun résultat à valider ».
+
+**M6 — Une demande est CONSOMMÉE par sa publication : `DemandeAnalyse::estOuverte()` (posée par
+B5-a, jamais câblée) devient une garde réelle.** `enregistrer()` (B5-b) ne vérifiait rien sur
+l'état de la demande — invisible tant que `servie` était inatteignable. C'est un défaut réel que
+B5-b avait laissé ouvert **sans pouvoir le savoir** (aucune transition ne menait encore à `servie`
+au moment où B5-b a été écrit et prouvé). B5-c ajoute `assertOuverte()` : un nouveau prélèvement
+contre une demande déjà `servie` ou `annulee` est refusé, nommant l'état. **Une demande = un
+cycle** : si un examen exige un second prélèvement après publication, c'est une nouvelle
+prescription (une nouvelle `DemandeAnalyse`), miroir du monde réel où une ordonnance honorée ne se
+réutilise pas. Plusieurs prélèvements AVANT publication restent possibles (échantillon insuffisant,
+reprise) — rien ne les interdit, seule la publication ferme la porte.
+
+**M7 — La publication AGRÈGE et passe par le MÊME point d'accroche que les trois autres chemins
+d'écriture du carnet.** `publier()` construit `type_analyse='biologique'` (hors radiologie,
+périmètre B5), `intitule` = libellés des lignes de la demande joints, `date_analyse` = date du
+prélèvement (`preleve_le`), `resultats_json` = le brouillon déjà résolu, `medecin_prescripteur_id`
+= `demande.medecin_id`, `medecin_prescripteur` = `demande.medecin_nom` (repli), `laboratoire_id` =
+`prelevement.laboratoire_structure_id` — puis fait passer ce tableau par
+`RegistreSectionsCarnet::controleur('resultats-analyses')->preparerDonnees()`, **exactement le
+point d'accroche qu'utilisent le patient, le délégué et le soignant** (motif
+`EcritureSoignantService` : « une garantie qui ne vaudrait que sur l'un des chemins n'en serait pas
+une » — désormais QUATRE chemins). `source='structure'` et `origine` sont posés APRÈS, hors de la
+portée de `preparerDonnees()` — ce sont les valeurs que K5/K11 viennent justement de fermer au
+client, jamais un choix qu'on lui laisse.
+
+**M8 — `resultats_bruts_json` SURVIT à la publication, gelé.** C'est la pièce médico-légale de ce
+que le laboratoire a réellement validé et transmis. `resultats_analyses.resultats_json` (dans le
+carnet) reste modifiable par le patient — droit déjà acquis sur toutes les sections, non retiré
+ici. Les deux copies peuvent donc un jour diverger, et **c'est attendu, pas un défaut** : la
+divergence dirait qu'un patient a changé sa copie, au même titre qu'une signature qui casse dit
+qu'un document a été modifié (P6.5b) — sans qu'aucune loi n'interdise à un patient de tenir son
+propre carnet.
+
+**M9 — Les automates sont DÉCLARÉS PAR COMMANDE, pas par écran** (`masante:laboratoire:automate`),
+même raisonnement qu'`EmettreClientApiCommand` (P11.2) : déclarer un appareil qui écrira dans des
+dossiers patients est un acte d'exploitation vérifié hors du système, pas une saisie de routine
+qu'un gestionnaire ferait seul. `automates.client_api_id` (nullable, `nullOnDelete`) trace SOUS
+QUELLE CLÉ cet appareil pousse — **il n'authentifie rien lui-même** : l'authentification reste
+entièrement portée par le HMAC (`AuthentificationClientApi`, inchangé) ; l'`automate_id` porté par
+la charge ne fait que désigner, pour le journal, quel appareil parle, et le serveur vérifie qu'il
+appartient à LA MÊME structure que le client authentifié — anti-usurpation d'un automate par la clé
+d'un autre laboratoire.
+
+**M10 — Le groupe de routes `laboratoire.*` s'ouvre à DEUX permissions**
+(`permission:analyse.executer|analyse.valider`, patron déjà en place :
+`rdv.prevalider|rdv.validate` en B1-a, `protocole.valider.clinique|protocole.valider.reglementaire`
+en P10b-1) : un biologiste qui n'exécute jamais de prélèvement doit pouvoir ouvrir la fiche pour la
+valider. **La garde qui compte reste dans le service**, jamais seulement le middleware (piège P4) :
+`valider()`/`rejeter()`/`publier()` exigent `analyse.valider` ; `enregistrer()`/`expedier()`/
+`recevoir()`/`mettreEnAnalyse()`/`saisir()` exigent `analyse.executer` — jamais l'inverse, jamais
+un cumul supposé (L7 : pas d'interdiction de cumul, mais chaque acte nomme la permission qui
+l'autorise).
+
+**M11 — La notification `RESULTAT_ANALYSE_PUBLIE` (L14) suit exactement le patron
+`carnetEnrichi()`/`rendezVousTermine()`** : destinataires = titulaire + délégués en lecture, corps
+= « Un résultat d'analyse a été déposé dans votre carnet par le Laboratoire {nom}. », **jamais**
+l'intitulé de l'analyse. Émise uniquement par `publier()`, jamais par `valider()`/`saisir()`.
+
+**M12 — Extension additive de `journal_laboratoire.action`** (`->change()`, patron P11.2 §Aug-30,
+dual dialecte prouvé en G2 live) : `resultat_saisi`, `resultat_importe`, `validation`, `rejet`,
+`publication`. Aucune valeur retirée, aucune ligne existante réinterprétée (précédent constant
+depuis `triages.niveau`, P10b-1).
+
+Ce complément suffit à couvrir la totalité du périmètre §10 restant : résultats (saisie ET import,
+M1-M5), `automates` (M9), validation biologiste et son verrou (M4-M5, L7), publication en
+`source='structure'` (M6-M7), notification (M11).
+
+---
+
+## 14. Exécution — B5-c, ce qui a réellement changé par rapport au plan
+
+**✅ VALIDÉ (G5, 2026-09-06)** — G3/G2 menés le 2026-09-05, G4 propriétaire OK et mot du G5 donnés
+le 2026-09-06. **Le lot B5 (le circuit du laboratoire) est
+COMPLET (a, b, c) — l'étape 9 de l'ordre CDC_11 §12 est achevée.** Détail complet : ADR-059,
+`CLAUDE.md` (entrée B5-c), guide `GUIDE_TEST_APPLICATIONS_METIER.md` partie 19.
+
+Les décisions M1→M12 du §13 ont été suivies **sans écart de fond**, à une exception near : **M7 a
+été implémentée différemment de ce que sa première formulation laissait entendre**, et c'est une
+correction trouvée pendant l'écriture du service, pas au G0.
+
+1. **M7, corrigé pendant l'implémentation** : le complément annonçait que `publier()` ferait passer
+   le tableau reconstruit par `RegistreSectionsCarnet::controleur('resultats-analyses')->preparerDonnees()`
+   — le même point d'accroche que les trois autres chemins d'écriture. En écrivant le code, ce choix
+   s'est révélé **faux** : `ResultatAnalyseController::preparerDonnees()` appelle
+   inconditionnellement `ServiceLienAnalyse::resoudre()` sur `resultats_json` s'il est présent — donc
+   passer par ce composite aurait **re-résolu** le brouillon contre le catalogue **au moment de la
+   publication**, sur des valeurs déjà figées à la saisie. Si le catalogue change entre les deux
+   instants (une unité corrigée sous quatre-yeux), le résultat publié aurait changé silencieusement,
+   sans qu'aucun biologiste ne l'ait revu — exactement le risque que `ProjecteurLignesDemande` (B5-a)
+   existe pour fermer sur les lignes de la demande. Corrigé : `publier()` appelle `ServiceLienResultat`
+   **directement** (il est de toute façon injecté indépendamment du contrôleur), et copie
+   `resultats_json` **verbatim** depuis `resultats_bruts_json`. Un vecteur dédié
+   (`test_un_changement_du_catalogue_apres_saisie_ne_change_pas_le_resultat_publie`) et une mutation
+   qui force la ré-résolution (tuée) prouvent cette décision. **Documenté comme ÉCART ASSUMÉ AU PLAN
+   du complément**, dans le docblock de `ServiceValidationBiologique` lui-même.
+2. **`assertOuverte()` (M6) ajoutée à `ServiceCircuitPrelevement::enregistrer()`**, pas seulement à
+   `ServiceValidationBiologique`, puisque c'est là que la garde doit vivre (la même classe qui pose
+   déjà `assertHabilite()`/`assertLaboratoire()`). Le complément le disait déjà correctement ; noté
+   ici pour mémoire de l'emplacement exact.
+3. **Défaut de migration réel, trouvé par la suite complète et non par les 42 vecteurs dédiés à
+   B5-c** : voir ADR-059 §3 pour le détail complet — `journal_laboratoire.action` étendu par
+   `->change()` faisait disparaître, **sous SQLite seulement**, les deux gardes append-only posées
+   par B5-b (la reconstruction de table qu'exige ce dialecte pour un tel changement supprime les
+   déclencheurs attachés à la table qu'elle recrée). **Vérifié que MySQL n'est jamais concerné**
+   (`SHOW TRIGGERS` après la vraie migration sur la vraie base). Corrigé par
+   `reconstituerGardesJournalLaboratoire()`, appelée après chaque `->change()` sur cette table dans
+   `up()` **et** `down()` — no-op sous MySQL, recrée les deux gardes sous SQLite.
+4. **`ServiceCircuitPrelevement::travailPour()` corrigé** (défaut hérité de B5-b, décrit dans ADR-058
+   §5, refermé ici comme prévu) : la liste s'arrêtait à `en_analyse`, un prélèvement `valide` en
+   attente de publication en disparaissait sans qu'aucun biologiste ne puisse le retrouver. Étendue à
+   `valide`.
+5. **`analyse.valider` ajoutée à `PortailRolesSeeder::PERMISSIONS`, `packages/shared/src/enums/permissions.ts`
+   et au corps du seeder comme QUINZIÈME permission volontairement orpheline** — le complément
+   l'annonçait sans en préciser l'emplacement exact dans la liste numérotée du seeder ; insérée à la
+   suite d'`ia_triage.valider`, avec sa propre justification écrite (un résultat biologique validé
+   engage la responsabilité d'un biologiste nommé).
+6. **Le groupe de routes `laboratoire.*` passe de `permission:analyse.executer` à
+   `permission:analyse.executer|analyse.valider`** (M10), patron déjà en place ailleurs
+   (`rdv.prevalider|rdv.validate`, B1-a ; `protocole.valider.*`, P10b-1) — conforme au complément,
+   noté ici pour la trace du fichier modifié (`routes/web.php`).
+
+Aucun autre écart. Les décisions L1→L16 du plan initial (§10) sont désormais toutes livrées : L3,
+L5, L6, L7, L8, L13, L16 par B5-b ; L1, L2, L4, K2/K5/K11, L9 (partiel, demande) par B5-a ; L9
+(partiel, résultat), L10 réécrit, L11 (confirmé), L14, L15 par B5-c.
+
+**PROUVÉ G3** : `ResultatBiologiqueTest`, 42 vecteurs dédiés, 94 assertions ; suite complète
+**1868/1868, 18 357 assertions, 0 échec** (deux exécutions indépendantes, confirmées propres).
+**Mutation manuelle : 8 tueuses + 1 témoin volontairement vert**, chacune assertée appliquée avant
+interprétation, chaque fichier restauré et vérifié par `diff` :
+
+- M1 — garde applicative `en_analyse` (`enregistrerBrouillon`, `if (false)`) → tue 2 vecteurs
+  (avant mise en analyse, après validation).
+- M2 — brouillon requis pour valider (`assertPeutJugerLeBrouillon`, `if (false)`) → tue 1 vecteur.
+- M3 — permission `analyse.valider` (`assertHabiliteValidation`, `if (false)`) → tue 1 vecteur.
+- M4 — garde `VALIDE` de `publier()` (`if (false)`) → tue 1 vecteur.
+- M5 — `assertOuverte()` (`ServiceCircuitPrelevement`, `if (false)`) → tue 1 vecteur.
+- M6 — anti-IDOR (`assertAppartientAuLaboratoire`, `abort_if(false, 404)`) → tue 2 vecteurs (404
+  direct, refus de publier).
+- M7 — motif de rejet obligatoire (`if (false)` sur le service) → **tue 1 vecteur, mais PAR LA
+  GARDE DU MOTEUR** : le service neutralisé, le déclencheur `trg_validation_bio_insert` intervient
+  seul et lève une `QueryException` au lieu de la `ValidationException` attendue — la mutation
+  reste tuée, par une couche différente. Défense en profondeur **observée en pratique**, pas
+  seulement conçue.
+- M8 — anti-usurpation d'un automate d'un autre laboratoire (`importer()`, `if (false)`) → tue 1
+  vecteur.
+- M9 — **la mutation la plus importante du lot** : forcer `publier()` à ré-résoudre
+  `resultats_json` via `ServiceLienAnalyse::resoudre()` au lieu de la copie verbatim → tue
+  exactement le vecteur qui prouve la décision corrigée du point 1 ci-dessus (l'unité publiée passe
+  de `g/L` à `mmol/L`, la valeur du catalogue modifié après coup).
+- Témoin — réordonnancement de deux affectations indépendantes dans `enregistrerBrouillon()`
+  (`resultats_bruts_origine` avant `resultats_bruts_json`, aucune ne dépend de l'autre) → **42/42
+  restent verts**.
+
+Pint propre sur tous les fichiers touchés ; baseline établie avant tout formatage
+(`ResultatAnalyse.php` gardait une seule ligne mal alignée, préexistante à B5-c, non reformatée).
+
+**PROUVÉ G2 LIVE MySQL réel**, en trois temps, détaillés dans ADR-059 §4 :
+
+1. Schéma et déclencheurs (migration réelle, `mysqldump --routines --triggers` avant, stderr
+   redirigé séparément) — les deux `trg_journal_labo_*` de B5-b vérifiés **intacts** après
+   l'extension de l'ENUM (§3 ci-dessus, `SHOW TRIGGERS`) ; garde de motif et append-only de
+   `validations_biologiques` vérifiées en SQL direct (`ERROR 1644`).
+2. Cycle complet par le SERVICE contre la vraie connexion MySQL : brouillon vérifié **chiffré en
+   base** par requête SQL directe (aucun texte en clair) ; **catalogue modifié entre la saisie et
+   la publication → l'unité publiée reste celle de la saisie** (preuve directe de la décision
+   corrigée, en réel, pas seulement en test) ; `acces_dossier` reste à **0** de bout en bout ;
+   demande `servie` puis nouveau prélèvement refusé en nommant l'état ; `travailPour()` incluant un
+   prélèvement `valide`.
+3. Cycle complet par le VRAI portail (sessions et CSRF réels) : laborantin réel connecté saisit un
+   vrai formulaire de résultat ; biologiste réel (**rôle `laborantin` + permission nominative
+   `analyse.valider`** — aucun rôle `biologiste` n'existe dans ce projet, D4 d'ADR-059) voit le
+   brouillon, valide, publie ; page finale confirmée ; **anti-IDOR réel** : laborantin d'un second
+   laboratoire → 404 ; **ingestion automate réelle signée** (client PHP autonome imitant un vrai
+   middleware de laboratoire, HMAC calculé à la main) : envoi accepté (200), **rejeu refusé** (401
+   réel), **identifiant de prélèvement inconnu refusé et nommé** dans la réponse JSON réelle,
+   signature fausse refusée (401) ; vérifié en base réelle que le prélèvement importé par l'automate
+   reste `en_analyse` (`resultat_analyse_id` NULL) et que le corps de la notification ne contient
+   que le nom du patient et du laboratoire.
+
+**Base restaurée compte pour compte** : dump réimporté, les quatre tables neuves (`prelevements`,
+`journal_laboratoire`, `validations_biologiques`, `automates` — les deux premières héritées de
+B5-b, jamais recréées par le dump pris avant leur propre migration) explicitement supprimées
+(leçon retenue de B5-b : « restaurer un dump ne défait que ce que le dump connaissait »),
+migrations `2026_09_05_000003`/`2026_09_05_000004` revenues à `Pending`, 145 tables, `.env`
+inchangé, structures/utilisateurs/demandes/résultats vérifiés revenus à leurs effectifs exacts
+d'avant test.
+
+**Aucune dépendance nouvelle.**

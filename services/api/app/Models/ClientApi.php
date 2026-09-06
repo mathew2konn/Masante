@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Services\Analyse\ServiceValidationBiologique;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Str;
@@ -16,8 +17,15 @@ class ClientApi extends Model
 {
     protected $table = 'clients_api';
 
-    /** Les domaines qu'un client peut se voir ouvrir — liste blanche FERMÉE. */
-    public const DOMAINES = ['stock_officine'];
+    /**
+     * Les domaines qu'un client peut se voir ouvrir — liste blanche FERMÉE.
+     *
+     * `resultats_laboratoire` (B5-c, L10 réécrit) — un automate ou le middleware d'un laboratoire
+     * pousse des résultats bruts, jamais un second chemin d'écriture (D3 de P11.2, transposé) :
+     * l'ingestion appelle {@see ServiceValidationBiologique::importer()}, le
+     * même service que la saisie manuelle au portail.
+     */
+    public const DOMAINES = ['stock_officine', 'resultats_laboratoire'];
 
     /**
      * `identifiant` et `secret_chiffre` sont hors `$fillable` : ils sont décidés par le serveur,

@@ -1866,3 +1866,114 @@ déjà prélevée n'est plus jamais recalculée.
 3. **Aucune notification au patient** — le dépôt n'apparaît pas encore dans son carnet.
 4. **L'étiquette n'a été vérifiée que par cohérence interne**, jamais avec une vraie douchette de
    supermarché ou de laboratoire — dit franchement, pas caché.
+
+---
+
+## Partie 19 — B5-c : résultats, automates, validation biologique, publication (fin du circuit du laboratoire)
+
+**Statut : VALIDÉ (G5, 2026-09-06 — G3/G2 menés le 2026-09-05) — le lot B5 (le circuit du laboratoire) est COMPLET.**
+
+### Ce qu'il faut savoir avant de commencer
+
+**C'est la dernière pièce du circuit.** B5-a a livré la demande, B5-b le prélèvement et son
+étiquette. B5-c livre ce qui manquait : **le résultat lui-même**, sa vérification par un
+biologiste, et son dépôt dans le carnet du patient — avec une notification pour l'en informer.
+
+**Le point de sécurité central de ce morceau** : personne ne voit un résultat avant qu'un
+biologiste ne l'ait validé — **ni le patient, ni même le laborantin qui vient de le saisir**. Tant
+que la validation n'a pas eu lieu, le résultat n'existe que dans un brouillon, invisible du carnet.
+
+**Un automate ne décide jamais.** Un appareil de laboratoire peut désormais transmettre ses
+résultats automatiquement — mais qu'il s'agisse d'une saisie humaine ou d'un import automatique,
+**la même règle s'applique aux deux** : rien ne part au patient sans qu'un biologiste l'ait
+regardé et validé.
+
+**Aucun écran mobile.** Comme B5-a et B5-b, ce morceau vit dans le portail professionnel.
+
+### Pour tester vous-même, dans le portail professionnel
+
+1. **Reprenez un prélèvement de la partie 18**, mené jusqu'à « Mis en analyse » (ou refaites tout
+   le parcours depuis une nouvelle demande).
+2. Sur la fiche du prélèvement, un formulaire apparaît : **une ligne par examen demandé**, avec
+   son nom déjà affiché — vous n'avez qu'à taper la valeur mesurée. Cliquez sur
+   **« Enregistrer le résultat »**.
+3. **Reconnectez-vous avec un compte biologiste** (un compte laborantin qui porte en plus le droit
+   de valider — demandez-en un si vous n'en avez pas). Ouvrez la même fiche : vous voyez le
+   résultat saisi, en attente de votre décision.
+4. Deux boutons : **« Valider »** ou **« Rejeter »** (qui exige d'expliquer pourquoi — le
+   laborantin devra ressaisir).
+5. Une fois validé, un nouveau bouton apparaît : **« Publier au dossier du patient »**. Cliquez
+   dessus.
+6. Le patient reçoit une notification : **« Un résultat d'analyse a été déposé dans votre carnet
+   par [le laboratoire]. »** — rien de plus, jamais le nom de l'examen ni sa valeur : cette phrase
+   peut s'afficher sur l'écran verrouillé du téléphone, elle ne doit rien révéler.
+7. Ouvrez le carnet du patient (section « Résultats d'analyses ») : le résultat y figure
+   désormais, avec la mention qu'il vient de ce laboratoire.
+
+### Un point à vérifier absolument : un automate ne valide jamais
+
+Si votre laboratoire dispose d'un automate déclaré (par une commande technique, pas par un écran —
+demandez à l'équipe technique de le faire), son logiciel peut transmettre directement un résultat.
+**Vérifiez que le prélèvement reste « en analyse »** après cet envoi automatique — **il n'apparaît
+dans le carnet du patient qu'après qu'un biologiste l'ait validé et publié**, exactement comme une
+saisie manuelle.
+
+### Ce qui a été rejoué en direct sur la vraie base (G2), en trois temps
+
+**D'abord le schéma** : les nouvelles tables et colonnes ont été vérifiées sur la vraie base
+MySQL, ainsi que les mécanismes qui empêchent de tricher directement en base — un rejet sans
+raison écrite est refusé par le moteur lui-même, tout comme une tentative de modifier ou d'effacer
+une décision de validation déjà prise.
+
+**Ensuite un parcours complet, techniquement, sur la vraie base** : une demande, un prélèvement,
+une saisie refusée à quelqu'un qui n'a pas le droit de saisir, une saisie acceptée (et vérifiée
+**chiffrée** en base — pas en clair), une validation refusée à un laborantin qui n'a pas le droit
+de valider, une validation acceptée. **Un test délibéré et important** : le catalogue national a
+été modifié *après* la saisie mais *avant* la publication — le résultat publié a gardé la valeur
+d'origine, jamais celle du catalogue changé après coup. Le journal d'accès au dossier du patient
+est resté à zéro du début à la fin. Une tentative de refaire un prélèvement sur une demande déjà
+soldée par une publication a été refusée, en expliquant pourquoi.
+
+**Enfin un parcours complet par le vrai portail, avec de vraies connexions** : un laborantin
+connecté pour de vrai a rempli le formulaire de résultat ; un biologiste connecté pour de vrai a vu
+ce résultat, l'a validé, puis publié — la page a confirmé la publication. **Un laborantin d'un
+laboratoire concurrent, avec les mêmes droits mais pas le bon établissement, a reçu un refus** en
+tentant d'ouvrir cette même fiche. **Et un automate réel (simulé par un petit programme qui signe
+ses envois comme le ferait un vrai appareil) a transmis un résultat avec succès** — puis un second
+envoi identique a été refusé (rejeu), un envoi visant un tube inexistant a été refusé en nommant le
+tube, et un envoi mal signé a été refusé. Vérifié en base : le résultat importé par l'automate est
+resté « en analyse », personne ne l'a jamais publié automatiquement.
+
+### Ce qui a été prouvé automatiquement (G3)
+
+- Suite Laravel complète verte (**1868 tests, 18 357 assertions, 0 échec**).
+- **Campagne de mutation : 8 tueuses + 1 témoin volontairement vert**, dont une preuve directe que
+  neutraliser la vérification du motif de rejet au niveau applicatif ne suffit pas à tromper le
+  système — le moteur de la base la rattrape tout seul.
+
+### Deux défauts réels trouvés en construisant ce morceau
+
+1. **Un prélèvement validé disparaissait de la liste « Travail en cours »** du laborantin — un
+   biologiste pouvait valider un résultat, puis plus personne ne pouvait le retrouver pour le
+   publier. Invisible avant ce morceau, puisqu'aucun prélèvement ne pouvait encore être « validé ».
+   Corrigé : la liste inclut désormais les prélèvements validés en attente de publication.
+2. **Une migration technique (l'extension d'une liste de valeurs internes) a fait disparaître,
+   dans l'environnement de test seulement, la protection empêchant de trafiquer le journal du
+   laboratoire.** Trouvé par la suite de tests complète, pas par les vecteurs dédiés à ce morceau.
+   Vérifié que la vraie base de production n'a jamais été affectée, puis corrigé pour que
+   l'environnement de test retrouve la même garantie.
+
+### Ce que ce lot NE fait PAS
+
+1. **Le branchement technique réel d'un automate** (le câble, le protocole du fabricant) n'est pas
+   fourni — seule la moitié qui nous revient (recevoir, journaliser, jamais valider tout seul)
+   l'est. Aucun fabricant d'automate n'a été consulté.
+2. **Aucune statistique nationale sur les résultats d'analyses** — les valeurs restent chiffrées et
+   individuelles, le corpus ne le demande pas ici comme il le fait pour les médicaments.
+3. **Le catalogue des analyses reste un jeu de démonstration** (huit analyses) — le charger pour de
+   vrai est une opération de données, pas de code.
+4. **Aucune signature électronique du verdict du biologiste** — seule la demande d'examen est
+   signable ; le journal du laboratoire nomme qui a décidé, sans signature cryptographique.
+5. **Aucune radiologie** — ce circuit ne couvre que la biologie.
+6. **Aucun écran mobile** de suivi du cycle — seule la notification et le résultat final,
+   affichés dans le carnet.

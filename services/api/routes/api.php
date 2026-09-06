@@ -28,6 +28,7 @@ use App\Http\Controllers\Api\V1\FicheParcoursController;
 use App\Http\Controllers\Api\V1\FicheVitaleController;
 use App\Http\Controllers\Api\V1\GouvernanceReferentielController;
 use App\Http\Controllers\Api\V1\ImageEtablissementController;
+use App\Http\Controllers\Api\V1\Integration\ResultatsLaboratoireController;
 use App\Http\Controllers\Api\V1\Integration\StockOfficineController;
 use App\Http\Controllers\Api\V1\Interne\PaiementNotificationController;
 use App\Http\Controllers\Api\V1\MaladieController;
@@ -625,6 +626,17 @@ Route::middleware('throttle:api')->group(function () {
         | L'anti-rejeu, la fraîcheur et l'idempotence font le reste.
         */
         Route::post('/integration/stock-officine', StockOfficineController::class)
+            ->middleware('throttle:120,1');
+
+        /*
+        |------------------------------------------------------------------
+        | B5-c (L10 réécrit) — Ingestion des résultats d'un automate biologique.
+        |------------------------------------------------------------------
+        | Même authentification que ci-dessus, second domaine. Un automate ne valide JAMAIS :
+        | cet endpoint n'écrit qu'un BROUILLON (`resultats_bruts_json`), jamais un résultat
+        | publié — la validation biologique reste, dans tous les cas, un acte humain séparé.
+        */
+        Route::post('/integration/resultats-laboratoire', ResultatsLaboratoireController::class)
             ->middleware('throttle:120,1');
 
         Route::post('/etablissements/demandes', [DemandeInscriptionController::class, 'store'])

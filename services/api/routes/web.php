@@ -285,12 +285,18 @@ Route::prefix('portail')->name('portail.')->group(function () {
             Route::post('commandes/{commande}/remettre', [CommandeClientController::class, 'remettre'])->name('commandes.remettre');
         });
 
-        // B5-b — LE LABORATOIRE : lire une demande par jeton, enregistrer et suivre un
-        // prélèvement (CDC_09 §7.4, CDC_04 §109).
+        // B5-b/B5-c — LE LABORATOIRE : lire une demande par jeton, enregistrer et suivre un
+        // prélèvement jusqu'à la publication du résultat (CDC_09 §7.4, CDC_04 §109).
         //
         // AUCUNE SESSION DE DOSSIER, même posture que `delivrance` juste au-dessus (L3) : le
         // laboratoire atteint la demande par son JETON, jamais par un accès au carnet.
-        Route::middleware('permission:analyse.executer')->prefix('laboratoire')->name('laboratoire.')
+        //
+        // GROUPE OUVERT À DEUX PERMISSIONS (M10, patron `rdv.prevalider|rdv.validate` B1-a,
+        // `protocole.valider.clinique|protocole.valider.reglementaire` P10b-1) : un biologiste qui
+        // n'exécute jamais de prélèvement doit pouvoir ouvrir la fiche pour la valider. La garde
+        // qui COMPTE reste dans le SERVICE (piège P4) : `ServiceValidationBiologique` exige
+        // `analyse.valider` pour valider/rejeter/publier, `analyse.executer` pour le reste.
+        Route::middleware('permission:analyse.executer|analyse.valider')->prefix('laboratoire')->name('laboratoire.')
             ->group(function () {
                 Route::get('/', [LaboratoireController::class, 'index'])->name('index');
                 Route::get('demande', [LaboratoireController::class, 'montrer'])
@@ -307,6 +313,16 @@ Route::prefix('portail')->name('portail.')->group(function () {
                     ->name('recevoir');
                 Route::post('prelevements/{prelevement}/mettre-en-analyse', [LaboratoireController::class, 'mettreEnAnalyse'])
                     ->name('mettre-en-analyse');
+                // B5-c — saisie/verdict/publication (L7, L15). L'habilitation exacte (executer vs
+                // valider) est revérifiée dans `ServiceValidationBiologique`, jamais seulement ici.
+                Route::post('prelevements/{prelevement}/resultat', [LaboratoireController::class, 'saisirResultat'])
+                    ->name('resultat.saisir');
+                Route::post('prelevements/{prelevement}/valider', [LaboratoireController::class, 'valider'])
+                    ->name('valider');
+                Route::post('prelevements/{prelevement}/rejeter', [LaboratoireController::class, 'rejeter'])
+                    ->name('rejeter');
+                Route::post('prelevements/{prelevement}/publier', [LaboratoireController::class, 'publier'])
+                    ->name('publier');
             });
 
         // P6.6a — Référentiel NATIONAL des médicaments (CDC_09 §6.2).

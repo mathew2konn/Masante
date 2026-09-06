@@ -25,7 +25,7 @@
  * que le paiement revérifie (ADR-020 §B2).
  */
 
-/** Les 42 permissions du portail, telles que `PortailRolesSeeder::PERMISSIONS` les crée. */
+/** Les 43 permissions du portail, telles que `PortailRolesSeeder::PERMISSIONS` les crée. */
 export const PERMISSIONS = [
   // Administration de la plateforme
   'etablissement.manage',
@@ -69,6 +69,10 @@ export const PERMISSIONS = [
   // Intelligence artificielle (CDC_05)
   'apprentissage.valider',
   'ia_triage.valider',
+  // Le verdict biologique (CDC_09 §7.4 étape 7) — QUINZIÈME occurrence des permissions
+  // volontairement orphelines : un résultat biologique validé engage la responsabilité d'un
+  // biologiste NOMMÉ, jamais un rôle métier par défaut.
+  'analyse.valider',
   // Signature électronique (CDC_10 §4)
   'document.signer',
   // Protocoles médicaux (CDC_08 §7 — une permission par type de validation)

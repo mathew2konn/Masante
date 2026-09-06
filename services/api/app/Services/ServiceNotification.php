@@ -482,6 +482,37 @@ class ServiceNotification
         ));
     }
 
+    // ═══════════════════════════════════════════════════════════════════════════════════════
+    // B5-c (L14, M11) — Un résultat d'analyse a été publié par le circuit du laboratoire.
+    //
+    // RÈGLE INVIOLABLE, ET ELLE MORD ICI PLUS FORT QU'AILLEURS : le corps dit qu'un résultat a
+    // été déposé, JAMAIS l'intitulé de l'analyse ni la moindre valeur — un push s'affiche sur un
+    // écran verrouillé, et « sérologie VIH » y serait une divulgation. Émise UNIQUEMENT par
+    // `ServiceValidationBiologique::publier()`, jamais par `saisir()`/`valider()`.
+    // ═══════════════════════════════════════════════════════════════════════════════════════
+
+    /** Mêmes destinataires que {@see carnetEnrichi}/{@see rendezVousTermine} : titulaire + délégués en lecture. */
+    public function resultatAnalysePublie(MembreFamille $membre, ?string $nomLaboratoire): void
+    {
+        $corps = $nomLaboratoire !== null
+            ? sprintf(
+                'Un résultat d\'analyse a été déposé dans le carnet de %s par %s.',
+                $this->nomDuMembre($membre),
+                $nomLaboratoire,
+            )
+            : sprintf(
+                'Un résultat d\'analyse a été déposé dans le carnet de %s.',
+                $this->nomDuMembre($membre),
+            );
+
+        $this->envoyer(
+            array_merge([$membre->user_id], Delegation::lecteursDe($membre->id)),
+            TypeNotification::RESULTAT_ANALYSE_PUBLIE,
+            $corps,
+            ['membre_id' => $membre->id],
+        );
+    }
+
     /** Envoi commun aux trois notifications de commande — même destinataire, même garde-fou. */
     private function notifierCommande(Commande $commande, TypeNotification $type, string $corps): void
     {

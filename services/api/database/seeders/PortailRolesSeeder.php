@@ -171,6 +171,12 @@ class PortailRolesSeeder extends Seeder
         // entière (voir/exporter/entraîner/valider), motif `apprentissage.valider` qui garde de la
         // même façon un contrôleur entier — la fractionner n'a été demandé par aucune décision.
         'ia_triage.valider',      // produire un export, déclencher un entraînement, valider un candidat
+        // Validation biologique (B5-c, L7, CDC_09 §7.4 étape 7) — ATTRIBUÉE À AUCUN RÔLE,
+        // QUINZIÈME occurrence, et sa raison est la plus directe de la série : un résultat
+        // biologique validé engage la responsabilité d'un biologiste NOMMÉ. `analyse.executer`
+        // (ci-dessus) va au laborantin qui exécute — celle-ci ne va à personne par défaut, et
+        // s'accorde nominativement, comme `professionnel.habiliter` ou `document.signer`.
+        'analyse.valider',        // rendre le verdict biologique et publier le résultat au carnet
         // Signature électronique (P6.5b, CDC_09 §5.3). Portée par le rôle `medecin` : signer ses
         // propres prescriptions relève du soin, pas d'une habilitation exceptionnelle. Elle ne
         // donne à elle seule AUCUN pouvoir — les cinq contrôles du §5.4 restent devant, et sans

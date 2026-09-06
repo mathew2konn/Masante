@@ -103,6 +103,7 @@ final class ServiceCircuitPrelevement
     {
         $this->assertHabilite($laborantin);
         $laboratoire = $this->assertLaboratoire($laborantin);
+        $this->assertOuverte($demande);
 
         return DB::transaction(function () use ($laborantin, $demande, $laboratoire): Prelevement {
             $prelevement = new Prelevement;
@@ -155,7 +156,14 @@ final class ServiceCircuitPrelevement
         return $prelevement;
     }
 
-    /** Le travail en cours de ce laboratoire — tout prélèvement non encore en analyse. */
+    /**
+     * Le travail en cours de ce laboratoire — tout prélèvement pas encore publié.
+     *
+     * DÉFAUT RÉEL CORRIGÉ EN B5-c, invisible en B5-b faute d'état `valide` atteignable : la liste
+     * s'arrêtait à `en_analyse`, donc un prélèvement VALIDÉ — en attente de publication — aurait
+     * disparu de « mon travail en cours » sans qu'aucun biologiste ne puisse le retrouver pour le
+     * publier.
+     */
     public function travailPour(User $laborantin): Collection
     {
         if ($laborantin->structure_id === null) {
@@ -164,7 +172,7 @@ final class ServiceCircuitPrelevement
 
         return Prelevement::with('demande.membre:id,nom,prenom')
             ->where('laboratoire_structure_id', $laborantin->structure_id)
-            ->whereIn('statut', ['preleve', 'expedie', 'recu', 'en_analyse'])
+            ->whereIn('statut', ['preleve', 'expedie', 'recu', 'en_analyse', 'valide'])
             ->orderBy('preleve_le')
             ->get();
     }
@@ -214,6 +222,30 @@ final class ServiceCircuitPrelevement
         if (! $laborantin->can(self::PERMISSION)) {
             throw ValidationException::withMessages([
                 'laboratoire' => 'Vous n\'êtes pas habilité à exécuter un prélèvement.',
+            ]);
+        }
+    }
+
+    /**
+     * B5-c (M6) — une demande DÉJÀ SERVIE ou ANNULÉE ne reçoit plus de nouveau prélèvement.
+     *
+     * DÉFAUT RÉEL LAISSÉ OUVERT PAR B5-b, invisible tant que `servie` était inatteignable :
+     * `enregistrer()` ne vérifiait rien sur l'état de la demande, et rien ne limitait le nombre de
+     * prélèvements qu'on pouvait y enregistrer. Maintenant que B5-c peut publier (donc atteindre
+     * `servie`), la garde devient réelle. `DemandeAnalyse::estOuverte()` existe depuis B5-a
+     * (jamais câblée) : c'est elle qui tranche, pas une nouvelle règle.
+     *
+     * UNE DEMANDE = UN CYCLE : si un examen exige un second prélèvement APRÈS publication, c'est
+     * une nouvelle prescription — miroir du monde réel où une ordonnance honorée ne se réutilise
+     * pas. Plusieurs prélèvements AVANT publication restent possibles (échantillon insuffisant,
+     * reprise) : rien ici ne les interdit, seule la publication ferme la porte.
+     */
+    private function assertOuverte(DemandeAnalyse $demande): void
+    {
+        if (! $demande->estOuverte()) {
+            throw ValidationException::withMessages([
+                'demande' => 'Cette demande est '.$demande->statut->libelle()
+                    .' : elle ne peut plus recevoir de nouveau prélèvement.',
             ]);
         }
     }

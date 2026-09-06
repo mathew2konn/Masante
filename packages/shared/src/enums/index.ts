@@ -324,6 +324,11 @@ export const TypeNotification = {
   COMMANDE_ACCEPTEE: 'COMMANDE_ACCEPTEE',
   COMMANDE_REFUSEE: 'COMMANDE_REFUSEE',
   COMMANDE_PRETE: 'COMMANDE_PRETE',
+  /**
+   * B5-c — un résultat d'analyse a été publié dans le carnet par le circuit du laboratoire. Le
+   * corps nomme le laboratoire, jamais l'intitulé de l'analyse ni une valeur (patron P6.8b).
+   */
+  RESULTAT_ANALYSE_PUBLIE: 'RESULTAT_ANALYSE_PUBLIE',
 } as const;
 export type TypeNotification = (typeof TypeNotification)[keyof typeof TypeNotification];
 

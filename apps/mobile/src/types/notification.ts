@@ -59,6 +59,7 @@ export function routeDe(notification: Notification): RouteNotification {
     case TypeNotification.CONTRIBUTION_VALIDEE:
     case TypeNotification.CONTRIBUTION_REJETEE:
     case TypeNotification.DOSSIER_CONSULTE:
+    case TypeNotification.RESULTAT_ANALYSE_PUBLIE:
     default:
       return '/(app)/carnet';
   }
@@ -81,6 +82,8 @@ export function iconeDe(type: TypeNotification): string {
       return 'eye-outline';
     case TypeNotification.RENDEZ_VOUS_TERMINE:
       return 'checkmark-done-outline';
+    case TypeNotification.RESULTAT_ANALYSE_PUBLIE:
+      return 'flask-outline';
     default:
       return 'notifications-outline';
   }
